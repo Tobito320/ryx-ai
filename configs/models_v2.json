@@ -1,0 +1,37 @@
+{
+  "ultra-fast": {
+    "name": "qwen2.5:1.5b",
+    "vram_mb": 1500,
+    "typical_latency_ms": 50,
+    "specialties": ["commands", "simple_queries", "file_operations", "quick_answers"],
+    "quantization": "q4_0"
+  },
+  "balanced": {
+    "name": "deepseek-coder:6.7b",
+    "vram_mb": 4000,
+    "typical_latency_ms": 500,
+    "specialties": ["code", "scripts", "moderate_complexity", "bash", "python"],
+    "quantization": null
+  },
+  "powerful": {
+    "name": "qwen2.5-coder:14b",
+    "vram_mb": 9000,
+    "typical_latency_ms": 2000,
+    "specialties": ["architecture", "complex_reasoning", "refactoring", "system_design"],
+    "quantization": null
+  },
+  "complexity_thresholds": {
+    "ultra_fast_max": 0.5,
+    "balanced_max": 0.7,
+    "powerful_min": 0.7
+  },
+  "auto_select": true,
+  "preload_on_boot": ["ultra-fast"],
+  "unload_after_idle_seconds": 300,
+  "comments": {
+    "note": "V2 3-tier configuration: 1.5B (always loaded) -> 7B (on-demand) -> 14B (rare)",
+    "startup": "Only qwen2.5:1.5b loads at startup for <2s boot time",
+    "escalation": "System auto-loads bigger models based on query complexity",
+    "memory": "Total VRAM usage: 1.5GB idle, 5.5GB under load, 10.5GB max"
+  }
+}

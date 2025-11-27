@@ -1,0 +1,28 @@
+{
+  "models": {
+    "fast": {
+      "name": "deepseek-coder:6.7b",
+      "size": "3.8GB",
+      "use_case": "quick_commands",
+      "max_latency_ms": 500,
+      "priority": 1
+    },
+    "balanced": {
+      "name": "qwen2.5-coder:14b",
+      "size": "8GB",
+      "use_case": "complex_reasoning",
+      "max_latency_ms": 2000,
+      "priority": 2
+    },
+    "powerful": {
+      "name": "qwen2.5:32b",
+      "size": "18GB",
+      "use_case": "deep_analysis",
+      "max_latency_ms": 10000,
+      "priority": 3
+    }
+  },
+  "auto_select": true,
+  "preload_on_boot": false,
+  "unload_after_idle_seconds": 300
+}

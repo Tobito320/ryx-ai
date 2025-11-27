@@ -1,0 +1,102 @@
+{
+  "timestamp": "2025-11-27T14:46:47.192033",
+  "tests": [
+    {
+      "name": "ollama_service",
+      "description": "Check if Ollama service is running",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 68
+    },
+    {
+      "name": "module_imports",
+      "description": "Test all core module imports",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 8
+    },
+    {
+      "name": "config_files",
+      "description": "Verify all configuration files",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 0
+    },
+    {
+      "name": "model_config",
+      "description": "Check V2 model configuration",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 9
+    },
+    {
+      "name": "database_init",
+      "description": "Test database initialization",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 0
+    },
+    {
+      "name": "health_monitor",
+      "description": "Test health monitoring system",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 3
+    },
+    {
+      "name": "task_manager",
+      "description": "Test task management system",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 1
+    },
+    {
+      "name": "meta_learner",
+      "description": "Test preference learning",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 6
+    },
+    {
+      "name": "rag_system",
+      "description": "Test RAG caching system",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 3
+    },
+    {
+      "name": "model_orchestrator",
+      "description": "Test model orchestration (may skip if models unavailable)",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 2
+    },
+    {
+      "name": "ai_engine_v2",
+      "description": "Test integrated AI engine (may skip if models unavailable)",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 154
+    },
+    {
+      "name": "cli_mode",
+      "description": "Test CLI mode functionality",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 11
+    },
+    {
+      "name": "file_permissions",
+      "description": "Check file permissions",
+      "status": "passed",
+      "error": null,
+      "duration_ms": 0
+    }
+  ],
+  "summary": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0
+  }
+}

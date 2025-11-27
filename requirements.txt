@@ -1,0 +1,13 @@
+# Ryx AI - Python Dependencies
+
+# Core dependencies
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+rich>=13.0.0
+
+# Web scraping & browsing
+lxml>=4.9.0
+html5lib>=1.1
+
+# Optional but recommended
+python-dotenv>=1.0.0
