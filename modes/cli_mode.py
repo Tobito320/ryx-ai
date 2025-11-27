@@ -8,25 +8,15 @@ import json
 from pathlib import Path
 from typing import Optional
 
-<<<<<<< HEAD
-from core.ai_engine_v2 import AIEngineV2, ResponseFormatter
-=======
 from core.ai_engine import AIEngine, ResponseFormatter
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
 from core.rag_system import RAGSystem, FileFinder
 from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
 
 class CLIMode:
     def __init__(self):
-<<<<<<< HEAD
-        self.ai = AIEngineV2()
-        self.rag = self.ai.rag  # Use RAG from integrated engine
-        self.file_finder = self.ai.file_finder  # Use file finder from integrated engine
-=======
         self.ai = AIEngine()
         self.rag = RAGSystem()
         self.file_finder = FileFinder(self.rag)
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         self.perm_manager = PermissionManager()
         self.executor = CommandExecutor(self.perm_manager)
         self.formatter = ResponseFormatter()
@@ -67,17 +57,6 @@ class CLIMode:
         print("\033[2m[thinking...]\033[0m", end="\r")
         response = self.ai.query(prompt, context)
         print(" " * 20, end="\r")  # Clear "thinking"
-<<<<<<< HEAD
-
-        if response.error:
-            print(f"\033[1;31m✗\033[0m {response.response}")
-            return
-
-        ai_text = response.response
-
-        # Cache response (already cached by ai.query, but keep for backward compat)
-        # self.rag.cache_response(prompt, ai_text, response.model_used)
-=======
         
         if response["error"]:
             print(f"\033[1;31m✗\033[0m {response['response']}")
@@ -87,7 +66,6 @@ class CLIMode:
         
         # Cache response
         self.rag.cache_response(prompt, ai_text, response["model"])
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         
         # Parse commands
         commands = self.executor.parse_commands(ai_text)
@@ -131,25 +109,6 @@ def show_status():
     print("\033[1;36m│  Ryx AI - Arch Linux Assistant      │\033[0m")
     print("\033[1;36m╰─────────────────────────────────────╯\033[0m")
     print()
-<<<<<<< HEAD
-
-    # Check if AI is available
-    from core.ai_engine_v2 import AIEngineV2
-    ai = AIEngineV2()
-    # Check health
-    status = ai.get_status()
-    health_status = status['health']['overall_status']
-
-    if health_status == 'healthy':
-        print("\033[1;32m●\033[0m AI Engine: \033[1;32mOnline\033[0m")
-        loaded = status['orchestrator']['loaded_models']
-        if loaded:
-            models_str = ', '.join([m['model'] for m in loaded])
-            print(f"\033[2m  Models: {models_str}\033[0m")
-    else:
-        print(f"\033[1;31m●\033[0m AI Engine: \033[1;31m{health_status.title()}\033[0m")
-        print("\033[1;33m  Check: ryx ::health\033[0m")
-=======
     
     # Check if AI is available
     ai = AIEngine()
@@ -160,7 +119,6 @@ def show_status():
     else:
         print("\033[1;31m●\033[0m AI Engine: \033[1;31mOffline\033[0m")
         print("\033[1;33m  Start with: ollama serve\033[0m")
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
     
     # Get RAG stats
     rag = RAGSystem()
@@ -229,20 +187,7 @@ def handle_command(command: str, args: list):
         from tools.council import Council
         council = Council()
         council.vote(" ".join(args))
-<<<<<<< HEAD
-
-    elif command in ["::resume", "::r"]:
-        handle_resume()
-
-    elif command in ["::health", "::hc"]:
-        show_health()
-
-    elif command in ["::preferences", "::pref"]:
-        show_preferences()
-
-=======
     
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
     else:
         print(f"\033[1;31m✗\033[0m Unknown command: {command}")
         print("  Run \033[1;37mryx ::help\033[0m for available commands")
@@ -273,14 +218,6 @@ def show_help():
             ("ryx ::models", "List AI models"),
             ("ryx ::clean", "Run cleanup tasks"),
         ],
-<<<<<<< HEAD
-        "V2 Features": [
-            ("ryx ::health", "Show system health (self-healing)"),
-            ("ryx ::resume", "Resume paused/interrupted task"),
-            ("ryx ::preferences", "Show learned preferences"),
-        ],
-=======
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         "Tools": [
             ("ryx ::scrape <url>", "Scrape webpage content"),
             ("ryx ::browse <query>", "Browse web for info"),
@@ -321,7 +258,6 @@ def show_config():
 
 def show_models():
     """Show available AI models"""
-<<<<<<< HEAD
     from core.ai_engine_v2 import AIEngineV2
     import subprocess
 
@@ -331,10 +267,8 @@ def show_models():
     for line in result.stdout.split('\n')[1:]:
         if line.strip():
             models.append(line.split()[0])
-=======
     ai = AIEngine()
     models = ai.get_available_models()
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
     
     print()
     print("\033[1;36m╭─────────────────────────────────────╮\033[0m")
@@ -374,7 +308,6 @@ def run_cleanup():
     print()
 
 
-<<<<<<< HEAD
 def handle_resume():
     """Handle resume command"""
     from core.ai_engine_v2 import AIEngineV2
@@ -510,8 +443,6 @@ def show_preferences():
     print()
 
 
-=======
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
 def handle_prompt(prompt: str):
     """Entry point for direct prompts"""
     cli = CLIMode()

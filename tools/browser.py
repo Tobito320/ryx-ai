@@ -1,12 +1,9 @@
 # Extract WebBrowser class from ryx_tools.py
 
-<<<<<<< HEAD
-=======
 import requests
 from bs4 import BeautifulSoup
 from tools.scraper import WebScraper
 
->>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
 # ===================================
 # Web Browser
 # ===================================
