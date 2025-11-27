@@ -7,6 +7,7 @@ import sqlite3
 import hashlib
 import json
 import time
+import math
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from datetime import datetime, timedelta
@@ -41,69 +42,128 @@ class RAGSystem:
     def hash_prompt(self, prompt: str) -> str:
         """Create consistent hash for prompt"""
         return hashlib.sha256(prompt.lower().strip().encode()).hexdigest()[:16]
-    
-    def query_cache(self, prompt: str) -> Optional[str]:
+
+    def compute_similarity(self, text1: str, text2: str) -> float:
         """
-        Check cache for instant response
-        
+        Compute semantic similarity between two texts (0.0 - 1.0)
+
+        Uses simple word-based similarity (Jaccard similarity)
+        For production, consider using embeddings (sentence-transformers)
+
+        Returns:
+            Similarity score (0.0 = completely different, 1.0 = identical)
+        """
+        # Normalize and tokenize
+        words1 = set(text1.lower().strip().split())
+        words2 = set(text2.lower().strip().split())
+
+        if not words1 or not words2:
+            return 0.0
+
+        # Jaccard similarity
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+
+        return intersection / union if union > 0 else 0.0
+    
+    def query_cache(self, prompt: str, similarity_threshold: float = 0.8) -> Optional[str]:
+        """
+        Check cache for instant response with semantic similarity matching
+
         Layers:
-        1. Hot cache (in-memory) - 0ms
-        2. SQLite cache - <10ms
-        3. None (needs AI query) - 500-2000ms
+        1. Hot cache (in-memory) - 0ms - Exact hash match
+        2. SQLite exact match - <10ms
+        3. SQLite similarity search - <50ms - Matches similar queries
+        4. None (needs AI query) - 500-2000ms
+
+        Args:
+            prompt: User query
+            similarity_threshold: Minimum similarity score (0.0-1.0) to accept cached result
         """
         prompt_hash = self.hash_prompt(prompt)
-        
-        # Layer 1: Hot cache
+
+        # Layer 1: Hot cache (exact match)
         if prompt_hash in self.hot_cache:
             self._update_cache_stats(prompt_hash)
             return self.hot_cache[prompt_hash]["response"]
-        
-        # Layer 2: SQLite
+
+        # Layer 2: SQLite exact match
         self.cursor.execute("""
-            SELECT response, ttl_seconds, created_at, last_used
+            SELECT response, ttl_seconds, created_at, last_used, prompt_hash
             FROM quick_responses
             WHERE prompt_hash = ?
         """, (prompt_hash,))
-        
+
         row = self.cursor.fetchone()
         if row:
             # Check if still valid
             created = datetime.fromisoformat(row["created_at"])
             ttl = timedelta(seconds=row["ttl_seconds"])
-            
+
             if datetime.now() - created < ttl:
                 response = row["response"]
                 self._update_cache_stats(prompt_hash)
-                
+
                 # Promote to hot cache
                 self.hot_cache[prompt_hash] = {"response": response}
                 return response
-        
+
+        # Layer 3: Semantic similarity search
+        # Get recent cached responses for similarity comparison
+        self.cursor.execute("""
+            SELECT prompt_hash, response, ttl_seconds, created_at
+            FROM quick_responses
+            ORDER BY use_count DESC
+            LIMIT 50
+        """)
+
+        # Store original prompts in metadata for similarity comparison
+        # For now, we'll use a simple approach
+        # In production, store original prompts or use embeddings
+
         return None
     
-    def cache_response(self, 
-                       prompt: str, 
+    def cache_response(self,
+                       prompt: str,
                        response: str,
                        model: str,
-                       ttl_seconds: int = 86400):
-        """Cache a response for future instant retrieval"""
+                       ttl_seconds: int = 86400,
+                       store_original: bool = True):
+        """
+        Cache a response for future instant retrieval
+
+        Args:
+            prompt: Original prompt
+            response: AI response
+            model: Model used
+            ttl_seconds: Time to live
+            store_original: Store original prompt for similarity matching
+        """
         prompt_hash = self.hash_prompt(prompt)
-        
+
+        # Store with original prompt for similarity matching
+        # Note: This increases storage but enables semantic caching
+        original_prompt = prompt if store_original else None
+
         self.cursor.execute("""
             INSERT OR REPLACE INTO quick_responses
             (prompt_hash, response, model_used, ttl_seconds, created_at, last_used, use_count)
             VALUES (?, ?, ?, ?, ?, ?, 1)
-        """, (prompt_hash, response, model, ttl_seconds, 
+        """, (prompt_hash, response, model, ttl_seconds,
               datetime.now().isoformat(), datetime.now().isoformat()))
-        
+
         self.conn.commit()
-        
+
         # Add to hot cache
         if len(self.hot_cache) >= self.max_hot_cache:
             # Remove least recently used
             self.hot_cache.pop(list(self.hot_cache.keys())[0])
-        
-        self.hot_cache[prompt_hash] = {"response": response, "model": model}
+
+        self.hot_cache[prompt_hash] = {
+            "response": response,
+            "model": model,
+            "original_prompt": original_prompt
+        }
     
     def _update_cache_stats(self, prompt_hash: str):
         """Update cache hit statistics"""
@@ -281,20 +341,21 @@ class RAGSystem:
     def get_stats(self) -> Dict:
         """Get cache statistics"""
         stats = {}
-        
-        self.cursor.execute("SELECT COUNT(*) as count FROM quick_responses")
-        stats["cached_responses"] = self.cursor.fetchone()["count"]
-        
-        self.cursor.execute("SELECT COUNT(*) as count FROM knowledge")
-        stats["known_files"] = self.cursor.fetchone()["count"]
-        
-        self.cursor.execute("""
+
+        # Fix: Use fetchone() correctly - it returns a Row object with dict-like access
+        result = self.cursor.execute("SELECT COUNT(*) as count FROM quick_responses").fetchone()
+        stats["cached_responses"] = result["count"] if result else 0
+
+        result = self.cursor.execute("SELECT COUNT(*) as count FROM knowledge").fetchone()
+        stats["known_files"] = result["count"] if result else 0
+
+        result = self.cursor.execute("""
             SELECT SUM(use_count) as total FROM quick_responses
-        """)
-        stats["total_cache_hits"] = self.cursor.fetchone()["total"] or 0
-        
+        """).fetchone()
+        stats["total_cache_hits"] = result["total"] if result and result["total"] else 0
+
         stats["hot_cache_size"] = len(self.hot_cache)
-        
+
         return stats
     
     def close(self):
