@@ -1,0 +1,25 @@
+{
+  "user": {
+    "name": "User",
+    "preferred_editor": "nvim",
+    "shell": "bash"
+  },
+  "ai": {
+    "default_model": "fast",
+    "temperature": 0.3,
+    "max_tokens": 2048,
+    "compact_responses": true,
+    "verbose": false
+  },
+  "cache": {
+    "enabled": true,
+    "ttl_seconds": 86400,
+    "max_entries": 10000,
+    "hot_cache_size": 100
+  },
+  "docker": {
+    "auto_cleanup": true,
+    "cleanup_schedule": "0 3 * * *",
+    "max_image_age_days": 30
+  }
+}

@@ -1,0 +1,29 @@
+#!/home/tobi/ryx-ai/.venv/bin/python3
+"""
+Ryx AI - Main Entry Point
+"""
+import sys
+from pathlib import Path
+
+# Add project to path
+sys.path.insert(0, str(Path.home() / "ryx-ai"))
+
+def main():
+    args = sys.argv[1:]
+    
+    if not args:
+        # Show status/help
+        from modes.cli_mode import show_status
+        show_status()
+    elif args[0].startswith("::"):
+        # Command mode
+        from modes.cli_mode import handle_command
+        handle_command(args[0], args[1:])
+    else:
+        # Direct prompt mode
+        from modes.cli_mode import handle_prompt
+        prompt = " ".join(args)
+        handle_prompt(prompt)
+
+if __name__ == "__main__":
+    main()

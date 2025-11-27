@@ -1,0 +1,172 @@
+# Ryx AI - Project Structure
+
+```
+~/ryx-ai/
+├── core/
+│   ├── __init__.py
+│   ├── ai_engine.py          # Main LLM interface with model switching
+│   ├── rag_system.py          # Fast knowledge retrieval & caching
+│   ├── permission_manager.py  # 3-level permission system
+│   ├── executor.py            # Safe command execution
+│   └── response_formatter.py  # Compact, non-verbose responses
+│
+├── tools/
+│   ├── __init__.py
+│   ├── scraper.py             # Legal web scraping
+│   ├── browser.py             # Web browsing capability
+│   ├── council.py             # Multi-model consensus system
+│   └── file_finder.py         # Smart file location
+│
+├── modes/
+│   ├── __init__.py
+│   ├── cli_mode.py            # Ultra-fast one-shot mode
+│   └── session_mode.py        # Interactive Gemini-like mode
+│
+├── configs/
+│   ├── models.json            # Available models & their specs
+│   ├── permissions.json       # Permission levels & rules
+│   ├── commands.json          # Custom command definitions
+│   └── settings.json          # User preferences
+│
+├── data/
+│   ├── rag_knowledge.db       # SQLite DB for fast lookups
+│   ├── cache/                 # Response cache
+│   └── history/               # Command history
+│
+├── docker/
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── entrypoint.sh
+│   └── cleanup.sh             # Auto-cleanup script
+│
+├── docs/
+│   ├── COMMANDS.md            # All available commands
+│   ├── ARCHITECTURE.md        # System design
+│   ├── FAILED_ATTEMPTS.md     # What didn't work & why
+│   └── TODO.md                # Missing features
+│
+├── ryx                        # Main CLI entry point
+├── install.sh                 # Installation script
+└── README.md
+```
+
+## Key Design Decisions
+
+### 1. Command Naming Strategy
+To avoid conflicts with prompts, we use special prefixes:
+
+- `ryx "prompt"` - Default ultra-fast mode
+- `ryx::session` - Full session mode
+- `ryx::help` - Show help
+- `ryx::status` - System status
+- `ryx::scrape` - Web scraping
+- `ryx::browse` - Web browsing
+- `ryx::council` - Multi-model consensus
+- `ryx::clean` - Manual cleanup
+- `ryx::config` - Configuration
+
+Using `::` clearly separates commands from prompts.
+
+### 2. Zero-Latency Strategy
+
+**RAG Database Structure:**
+```sql
+CREATE TABLE knowledge (
+    id INTEGER PRIMARY KEY,
+    query_hash TEXT UNIQUE,
+    file_type TEXT,
+    file_path TEXT,
+    content_preview TEXT,
+    last_accessed TIMESTAMP,
+    confidence REAL
+);
+
+CREATE TABLE quick_responses (
+    id INTEGER PRIMARY KEY,
+    prompt_hash TEXT UNIQUE,
+    response TEXT,
+    created_at TIMESTAMP,
+    ttl INTEGER  -- Time to live in seconds
+);
+```
+
+**Cache Layers:**
+1. **Hot Cache** - Last 100 queries in memory (Redis-like)
+2. **Warm Cache** - Frequently accessed in SQLite
+3. **Cold** - Full LLM query
+
+### 3. Model Selection System
+
+```python
+{
+    "fast": {
+        "model": "deepseek-coder:6.7b",
+        "use_case": "quick_commands",
+        "max_latency": "0.5s"
+    },
+    "balanced": {
+        "model": "qwen2.5-coder:14b",
+        "use_case": "complex_reasoning",
+        "max_latency": "2s"
+    },
+    "powerful": {
+        "model": "qwen2.5:72b",
+        "use_case": "deep_analysis",
+        "max_latency": "10s"
+    }
+}
+```
+
+System automatically chooses based on:
+- Query complexity
+- Required accuracy
+- Available resources
+
+### 4. Permission Levels
+
+**SAFE (Auto-approved):**
+- `ls, cd, cat, grep, find, tree, pwd`
+- `head, tail, less, which, type`
+- File reading operations
+
+**MODIFY (Auto-approved in safe dirs):**
+- `cp, mv, mkdir, touch, nvim`
+- File editing in ~/.config, ~/Documents
+- **Blocked** in /etc, /sys, /usr
+
+**DESTROY (Always confirm):**
+- `rm, rmdir, dd, shred`
+- Any operation with wildcards in root dirs
+- System file modifications
+
+### 5. Resource Management
+
+**Idle State:**
+- Container running with minimal Python daemon
+- Only 50-100MB RAM usage
+- No GPU utilization
+
+**Active State:**
+- Model loaded on-demand
+- Unloaded after 5 minutes idle
+- Smart model caching for frequently used ones
+
+**Auto-Cleanup:**
+```bash
+# Runs daily via cron
+- Clear Docker build cache
+- Remove unused images
+- Compress old logs
+- Trim RAG database (keep last 10k entries)
+```
+
+## Next Steps
+
+1. **Install dependencies**
+2. **Build core system**
+3. **Implement RAG**
+4. **Add tools (scrape, browse, council)**
+5. **Docker optimization**
+6. **Testing & refinement**
+
+Ready to proceed with Phase 3: Core Implementation?

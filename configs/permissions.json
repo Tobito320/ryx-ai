@@ -1,0 +1,53 @@
+{
+  "levels": {
+    "SAFE": {
+      "auto_approve": true,
+      "allowed_commands": [
+        "ls", "cd", "pwd", "cat", "less", "more",
+        "head", "tail", "grep", "find", "tree",
+        "which", "type", "file", "stat", "du",
+        "df", "ps", "top", "htop", "free"
+      ],
+      "allowed_patterns": [
+        "^cat\\s+",
+        "^ls\\s+",
+        "^find\\s+"
+      ]
+    },
+    "MODIFY": {
+      "auto_approve": true,
+      "safe_directories": [
+        "~/.config",
+        "~/Documents",
+        "~/Downloads",
+        "~/Projects"
+      ],
+      "allowed_commands": [
+        "cp", "mv", "mkdir", "touch",
+        "nvim", "vim", "nano", "code"
+      ],
+      "blocked_directories": [
+        "/etc", "/sys", "/usr", "/boot",
+        "/var", "/opt", "/root"
+      ]
+    },
+    "DESTROY": {
+      "auto_approve": false,
+      "always_confirm": true,
+      "allowed_commands": [
+        "rm", "rmdir", "dd", "shred"
+      ],
+      "blocked_patterns": [
+        "rm\\s+-rf\\s+/",
+        "dd\\s+.*of=/dev",
+        "shred\\s+/dev"
+      ]
+    }
+  },
+  "global_blocks": [
+    "rm -rf /",
+    "dd if=/dev/zero of=/dev/sda",
+    ":(){ :|:& };:",
+    "chmod -R 777 /"
+  ]
+}

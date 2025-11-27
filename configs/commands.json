@@ -1,0 +1,54 @@
+{
+  "commands": {
+    "help": {
+      "aliases": ["::help", "::h"],
+      "description": "Show available commands",
+      "category": "system"
+    },
+    "session": {
+      "aliases": ["::session", "::s"],
+      "description": "Start interactive session mode",
+      "category": "modes"
+    },
+    "status": {
+      "aliases": ["::status", "::stat"],
+      "description": "Show system status",
+      "category": "system"
+    },
+    "scrape": {
+      "aliases": ["::scrape", "::sc"],
+      "description": "Web scraping tool",
+      "category": "tools",
+      "requires": ["url"],
+      "example": "ryx ::scrape https://docs.python.org"
+    },
+    "browse": {
+      "aliases": ["::browse", "::br"],
+      "description": "Browse web pages",
+      "category": "tools",
+      "requires": ["url"],
+      "example": "ryx ::browse wikipedia subnetting"
+    },
+    "council": {
+      "aliases": ["::council", "::vote"],
+      "description": "Multi-model consensus (experimental)",
+      "category": "tools",
+      "experimental": true
+    },
+    "clean": {
+      "aliases": ["::clean", "::gc"],
+      "description": "Run cleanup tasks",
+      "category": "maintenance"
+    },
+    "config": {
+      "aliases": ["::config", "::cfg"],
+      "description": "Manage configuration",
+      "category": "system"
+    },
+    "models": {
+      "aliases": ["::models", "::m"],
+      "description": "List/manage AI models",
+      "category": "system"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+[2025-11-27T00:38:34.309831] SUCCESS: echo $((2+2))
+[2025-11-27T00:45:46.246084] SUCCESS: echo "Hello, World!"
+[2025-11-27T00:45:46.771503] SUCCESS: cd /home/tobi/.config/
+ls -lh | grep "hypr"
+[2025-11-27T00:52:28.351703] FAILED: # Update the system
+sudo pacman -Syu
+
+# Install a package
+sudo pacman -S <package_name>
+
+# Remove a package
+sudo pacman -Rs <package_name>
+
+# List installed packages
+pacman -Qe
+
+# Search for a package
+pacman -Ss <search_term>
+
+# Clean up orphaned packages
+sudo pacman -Rsn $(pacman -Qtdq)
+[2025-11-27T00:53:04.566294] SUCCESS: grep -rl 'waybar' ~/.config/
+[2025-11-27T00:53:37.390001] FAILED: sudo pacman -Syu hyprland
+[2025-11-27T00:53:37.393408] SUCCESS: mkdir -p ~/.config/hypr
+[2025-11-27T07:20:07.333009] SUCCESS: echo "Hallo, wie geht's dir?"
+[2025-11-27T07:20:16.048414] SUCCESS: date -d"$(grep ^BirthDate /etc/passwd | cut -d':' -f3) seconds ago" +%Y
