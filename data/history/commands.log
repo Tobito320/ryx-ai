@@ -48,3 +48,4 @@ echo "Number of files in directory '$dir': $num_files"
 [2025-11-27T14:59:56.401788] FAILED:      killall xdg-desktop-util || true && sudo systemctl restart lxqt-session-manager
 =======
 >>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
+[2025-11-27T16:15:37.905410] SUCCESS: cd ~/.config/hypr
