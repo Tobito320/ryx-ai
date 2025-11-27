@@ -278,6 +278,7 @@ class RAGSystem:
         
         return deleted
     
+<<<<<<< HEAD
     def semantic_similarity(self, query1: str, query2: str) -> float:
         """
         Calculate semantic similarity between two queries
@@ -352,6 +353,25 @@ class RAGSystem:
 
         stats["hot_cache_size"] = len(self.hot_cache)
 
+=======
+    def get_stats(self) -> Dict:
+        """Get cache statistics"""
+        stats = {}
+        
+        self.cursor.execute("SELECT COUNT(*) as count FROM quick_responses")
+        stats["cached_responses"] = self.cursor.fetchone()["count"]
+        
+        self.cursor.execute("SELECT COUNT(*) as count FROM knowledge")
+        stats["known_files"] = self.cursor.fetchone()["count"]
+        
+        self.cursor.execute("""
+            SELECT SUM(use_count) as total FROM quick_responses
+        """)
+        stats["total_cache_hits"] = self.cursor.fetchone()["total"] or 0
+        
+        stats["hot_cache_size"] = len(self.hot_cache)
+        
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         return stats
     
     def close(self):

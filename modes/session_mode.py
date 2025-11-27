@@ -6,6 +6,7 @@ Interactive Gemini CLI-like experience
 import sys
 from typing import List, Dict
 
+<<<<<<< HEAD
 from core.ai_engine_v2 import AIEngineV2, ResponseFormatter
 from core.rag_system import RAGSystem, FileFinder
 from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
@@ -27,6 +28,24 @@ class SessionMode:
         # Install interrupt handler for Ctrl+C
         self.interrupt_handler = InterruptionHandler(self.ai.task_manager)
         self.interrupt_handler.install_handler()
+=======
+from core.ai_engine import AIEngine, ResponseFormatter
+from core.rag_system import RAGSystem, FileFinder
+from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
+
+class SessionMode:
+    def __init__(self):
+        self.ai = AIEngine()
+        self.rag = RAGSystem()
+        self.file_finder = FileFinder(self.rag)
+        self.perm_manager = PermissionManager()
+        self.executor = CommandExecutor(self.perm_manager)
+        self.formatter = ResponseFormatter()
+        
+        self.conversation_history = []
+        self.pending_commands = []
+        self.running = True
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
     
     def run(self):
         """Main session loop"""
@@ -188,6 +207,7 @@ class SessionMode:
         elif cmd == '/save':
             filename = parts[1] if len(parts) > 1 else "conversation.txt"
             self.save_conversation(filename)
+<<<<<<< HEAD
 
         elif cmd == '/resume' or cmd == '::resume':
             self.handle_resume()
@@ -198,6 +218,9 @@ class SessionMode:
         elif cmd == '/models' or cmd == '::models':
             self.show_model_status()
 
+=======
+        
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         else:
             print(f"\033[1;31m✗\033[0m Unknown command: {cmd}")
             print("  Type /help for available commands")
@@ -266,9 +289,12 @@ class SessionMode:
             ("/undo", "Undo last exchange"),
             ("/status", "Show session status"),
             ("/save [filename]", "Save conversation to file"),
+<<<<<<< HEAD
             ("/resume, ::resume", "Resume paused/interrupted task"),
             ("/health, ::health", "Show system health status"),
             ("/models, ::models", "Show model orchestrator status"),
+=======
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         ]
         
         for cmd, desc in commands:
@@ -290,6 +316,7 @@ class SessionMode:
     def save_conversation(self, filename: str):
         """Save conversation to file"""
         from datetime import datetime
+<<<<<<< HEAD
 
         output_path = Path.home() / "ryx-ai" / "data" / "history" / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -298,10 +325,21 @@ class SessionMode:
             f.write(f"# Ryx AI Conversation\n")
             f.write(f"# Saved: {datetime.now().isoformat()}\n\n")
 
+=======
+        
+        output_path = Path.home() / "ryx-ai" / "data" / "history" / filename
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path, 'w') as f:
+            f.write(f"# Ryx AI Conversation\n")
+            f.write(f"# Saved: {datetime.now().isoformat()}\n\n")
+            
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
             for msg in self.conversation_history:
                 role = msg["role"].title()
                 content = msg["content"]
                 f.write(f"## {role}\n\n{content}\n\n")
+<<<<<<< HEAD
 
         print(f"\033[1;32m✓\033[0m Saved to: {output_path}")
 
@@ -424,6 +462,11 @@ class SessionMode:
         print(f"  Query history: {status['query_history']} queries")
         print()
 
+=======
+        
+        print(f"\033[1;32m✓\033[0m Saved to: {output_path}")
+
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
 
 def main():
     """Entry point for session mode"""

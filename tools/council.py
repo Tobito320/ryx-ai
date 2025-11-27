@@ -139,7 +139,11 @@ Be honest and critical. Focus on flaws."""
             print()
             print("-" * 60)
             print()
+<<<<<<< HEAD
             
+=======
+        
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
         # Consensus summary
         if len(responses) >= 2:
             print("\033[1;36m📋 Consensus:\033[0m")

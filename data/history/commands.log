@@ -24,6 +24,7 @@ sudo pacman -Rsn $(pacman -Qtdq)
 [2025-11-27T00:53:37.393408] SUCCESS: mkdir -p ~/.config/hypr
 [2025-11-27T07:20:07.333009] SUCCESS: echo "Hallo, wie geht's dir?"
 [2025-11-27T07:20:16.048414] SUCCESS: date -d"$(grep ^BirthDate /etc/passwd | cut -d':' -f3) seconds ago" +%Y
+<<<<<<< HEAD
 [2025-11-27T14:49:39.132202] FAILED: #!/bin/bash
 
 # Check if the script is run with exactly one argument (the directory path)
@@ -45,3 +46,5 @@ echo "Number of files in directory '$dir': $num_files"
 [2025-11-27T14:59:56.380978] FAILED:    sudo apt install hyprland
 [2025-11-27T14:59:56.382493] FAILED:      sudo nnvim /home/<username>/.config/hypr/hyprland.conf
 [2025-11-27T14:59:56.401788] FAILED:      killall xdg-desktop-util || true && sudo systemctl restart lxqt-session-manager
+=======
+>>>>>>> 9776c4f33e86c9cd995868ae5ae5bf0c8cd7a6b8
