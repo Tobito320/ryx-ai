@@ -35,6 +35,17 @@ class ModelPerformance:
     last_used: Optional[datetime] = None
     complexity_scores: List[float] = field(default_factory=list)
 
+@dataclass
+class QueryResult:
+    """Result from a model query"""
+    response: str
+    model_used: str
+    tier_used: 'ModelTier'
+    latency_ms: float
+    complexity_score: float
+    from_cache: bool = False
+    error: Optional[str] = None
+
 class ModelOrchestrator:
     """
     Orchestrates multiple AI models with intelligent loading and unloading
@@ -303,11 +314,25 @@ class ModelOrchestrator:
         if model_name in self.loaded_models and model_name != self.base_model_name:
             del self.loaded_models[model_name]
 
+    def _get_tier_for_model(self, model_name: str) -> ModelTier:
+        """Get the tier object for a given model name"""
+        for tier_name, tier in self.model_tiers.items():
+            if tier.name == model_name:
+                return tier
+        # Default to ultra-fast if not found
+        return self.model_tiers.get("ultra-fast", ModelTier(
+            name=model_name,
+            vram_mb=1500,
+            typical_latency_ms=50,
+            specialties=["unknown"],
+            tier_level=1
+        ))
+
     def query(self,
               prompt: str,
               preferences: Optional[Dict] = None,
               system_context: str = "",
-              model_override: Optional[str] = None) -> Dict[str, Any]:
+              model_override: Optional[str] = None) -> QueryResult:
         """
         Query with intelligent model selection
 
@@ -318,14 +343,7 @@ class ModelOrchestrator:
             model_override: Force specific model
 
         Returns:
-            {
-                "response": str,
-                "model": str,
-                "latency_ms": int,
-                "complexity": float,
-                "fallback_used": bool,
-                "error": bool
-            }
+            QueryResult object with response, model info, and performance metrics
         """
         start_time = time.time()
 
@@ -338,6 +356,9 @@ class ModelOrchestrator:
             selected_model = model_override
         else:
             selected_model = self.select_model(complexity)
+
+        # Get the tier for the selected model
+        tier = self._get_tier_for_model(selected_model)
 
         # Try primary model
         result = self._query_model(
@@ -352,14 +373,15 @@ class ModelOrchestrator:
             latency_ms = int((time.time() - start_time) * 1000)
             self._record_performance(selected_model, complexity, latency_ms, success=True)
 
-            return {
-                "response": result["response"],
-                "model": selected_model,
-                "latency_ms": latency_ms,
-                "complexity": complexity,
-                "fallback_used": False,
-                "error": False
-            }
+            return QueryResult(
+                response=result["response"],
+                model_used=selected_model,
+                tier_used=tier,
+                latency_ms=latency_ms,
+                complexity_score=complexity,
+                from_cache=False,
+                error=None
+            )
 
         # Primary failed, try fallback chain
         fallback_result = self._try_fallback_chain(
@@ -370,11 +392,29 @@ class ModelOrchestrator:
 
         if fallback_result["error"]:
             self._record_performance(selected_model, complexity, latency_ms, success=False)
+            return QueryResult(
+                response=fallback_result.get("response", "All models failed"),
+                model_used=fallback_result.get("model", selected_model),
+                tier_used=tier,
+                latency_ms=latency_ms,
+                complexity_score=complexity,
+                from_cache=False,
+                error=str(fallback_result.get("response", "Model query failed"))
+            )
 
-        fallback_result["latency_ms"] = latency_ms
-        fallback_result["complexity"] = complexity
+        # Fallback succeeded
+        fallback_model = fallback_result.get("model", selected_model)
+        fallback_tier = self._get_tier_for_model(fallback_model)
 
-        return fallback_result
+        return QueryResult(
+            response=fallback_result["response"],
+            model_used=fallback_model,
+            tier_used=fallback_tier,
+            latency_ms=latency_ms,
+            complexity_score=complexity,
+            from_cache=False,
+            error=None
+        )
 
     def _query_model(self,
                      model_name: str,
