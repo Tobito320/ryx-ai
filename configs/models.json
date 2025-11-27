@@ -1,28 +1,49 @@
 {
+  "tiers": {
+    "ultra-fast": {
+      "name": "qwen2.5:1.5b",
+      "vram_mb": 1500,
+      "typical_latency_ms": 50,
+      "specialties": ["commands", "simple_queries", "file_operations"],
+      "tier_level": 1
+    },
+    "balanced": {
+      "name": "deepseek-coder:6.7b",
+      "vram_mb": 4000,
+      "typical_latency_ms": 500,
+      "specialties": ["code", "scripts", "moderate_complexity"],
+      "tier_level": 2
+    },
+    "powerful": {
+      "name": "qwen2.5-coder:14b",
+      "vram_mb": 9000,
+      "typical_latency_ms": 2000,
+      "specialties": ["architecture", "complex_reasoning", "refactoring"],
+      "tier_level": 3
+    }
+  },
   "models": {
     "fast": {
       "name": "deepseek-coder:6.7b",
-      "size": "3.8GB",
+      "size": "6.7b",
       "use_case": "quick_commands",
-      "max_latency_ms": 500,
+      "max_latency_ms": 1000,
       "priority": 1
     },
     "balanced": {
       "name": "qwen2.5-coder:14b",
-      "size": "8GB",
+      "size": "14b",
       "use_case": "complex_reasoning",
-      "max_latency_ms": 2000,
+      "max_latency_ms": 3000,
       "priority": 2
     },
     "powerful": {
-      "name": "qwen2.5:32b",
-      "size": "18GB",
-      "use_case": "deep_analysis",
-      "max_latency_ms": 10000,
+      "name": "qwen2.5-coder:14b",
+      "size": "14b",
+      "use_case": "complex_reasoning",
+      "max_latency_ms": 5000,
       "priority": 3
     }
   },
-  "auto_select": true,
-  "preload_on_boot": false,
-  "unload_after_idle_seconds": 300
+  "auto_select": true
 }

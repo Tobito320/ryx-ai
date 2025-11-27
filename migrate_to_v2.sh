@@ -1,244 +1,355 @@
 #!/bin/bash
-# Ryx AI V2 - Migration Script
-# Safely migrates from V1 to V2 with backup and rollback capability
+# Ryx AI - Migration to V2
+# Safely upgrades from V1 to V2 with full backup
 
 set -e
 
-# Colors
-GREEN='\033[1;32m'
-YELLOW='\033[1;33m'
-RED='\033[1;31m'
-BLUE='\033[1;36m'
-NC='\033[0m' # No Color
-
-PROJECT_ROOT="$HOME/ryx-ai"
-BACKUP_DIR="$HOME/ryx-ai-backups"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_PATH="$BACKUP_DIR/ryx-ai-v1-$TIMESTAMP"
-
-echo ""
-echo -e "${BLUE}╭─────────────────────────────────────────╮${NC}"
-echo -e "${BLUE}│  Ryx AI V2 - Migration Tool             │${NC}"
-echo -e "${BLUE}╰─────────────────────────────────────────╯${NC}"
+echo "🚀 Ryx AI V2 Migration"
+echo "====================="
 echo ""
 
-# Verify we're in the right directory
-if [[ ! -d "$PROJECT_ROOT" ]]; then
-    echo -e "${RED}✗${NC} Ryx AI not found at $PROJECT_ROOT"
+RYX_DIR="$HOME/ryx-ai"
+BACKUP_DIR="$HOME/ryx-ai.backup.$(date +%s)"
+
+# Check if Ryx exists
+if [ ! -d "$RYX_DIR" ]; then
+    echo "❌ Ryx AI not found at $RYX_DIR"
+    echo "Install fresh with: git clone ... or setup script"
     exit 1
 fi
 
-echo -e "${GREEN}✓${NC} Found Ryx AI at $PROJECT_ROOT"
+echo "📦 Step 1: Backing up current system"
+echo "======================================"
+echo "Backup location: $BACKUP_DIR"
 echo ""
 
-# Create backup
-echo -e "${BLUE}▸${NC} Creating backup..."
-mkdir -p "$BACKUP_DIR"
-
-# Backup configs
-if [[ -d "$PROJECT_ROOT/configs" ]]; then
-    mkdir -p "$BACKUP_PATH/configs"
-    cp -r "$PROJECT_ROOT/configs/"* "$BACKUP_PATH/configs/" 2>/dev/null || true
-    echo -e "${GREEN}  ✓${NC} Backed up configs"
-fi
-
-# Backup data
-if [[ -d "$PROJECT_ROOT/data" ]]; then
-    mkdir -p "$BACKUP_PATH/data"
-    cp -r "$PROJECT_ROOT/data/"* "$BACKUP_PATH/data/" 2>/dev/null || true
-    echo -e "${GREEN}  ✓${NC} Backed up data"
-fi
-
-# Backup old core files
-if [[ -f "$PROJECT_ROOT/core/ai_engine.py" ]]; then
-    mkdir -p "$BACKUP_PATH/core"
-    cp "$PROJECT_ROOT/core/ai_engine.py" "$BACKUP_PATH/core/" 2>/dev/null || true
-    echo -e "${GREEN}  ✓${NC} Backed up core files"
-fi
-
-echo -e "${GREEN}✓${NC} Backup created at: $BACKUP_PATH"
+cp -r "$RYX_DIR" "$BACKUP_DIR"
+echo "✅ Backup complete"
 echo ""
 
-# Check V2 components
-echo -e "${BLUE}▸${NC} Verifying V2 components..."
+echo "📥 Step 2: Verifying new components"
+echo "===================================="
+echo ""
 
-required_files=(
+# Check new core components
+components=(
     "core/model_orchestrator.py"
     "core/meta_learner.py"
     "core/health_monitor.py"
     "core/task_manager.py"
-    "core/ai_engine_v2.py"
 )
 
-missing=0
-for file in "${required_files[@]}"; do
-    if [[ ! -f "$PROJECT_ROOT/$file" ]]; then
-        echo -e "${RED}  ✗${NC} Missing: $file"
-        missing=1
+for component in "${components[@]}"; do
+    if [ -f "$RYX_DIR/$component" ]; then
+        echo "✅ $component"
     else
-        echo -e "${GREEN}  ✓${NC} Found: $file"
-    fi
-done
-
-if [[ $missing -eq 1 ]]; then
-    echo ""
-    echo -e "${RED}✗${NC} Migration incomplete - missing V2 components"
-    echo "Please ensure all V2 files are in place"
-    exit 1
-fi
-
-echo ""
-
-# Update configs
-echo -e "${BLUE}▸${NC} Updating configuration..."
-
-# Copy V2 model config
-if [[ -f "$PROJECT_ROOT/configs/models_v2.json" ]]; then
-    # Backup old models.json
-    if [[ -f "$PROJECT_ROOT/configs/models.json" ]]; then
-        cp "$PROJECT_ROOT/configs/models.json" "$PROJECT_ROOT/configs/models.json.v1.bak"
-    fi
-
-    # Use V2 config
-    cp "$PROJECT_ROOT/configs/models_v2.json" "$PROJECT_ROOT/configs/models.json"
-    echo -e "${GREEN}  ✓${NC} Updated models.json to V2 format"
-fi
-
-echo ""
-
-# Create required directories
-echo -e "${BLUE}▸${NC} Creating required directories..."
-
-dirs=(
-    "$PROJECT_ROOT/data/state"
-    "$PROJECT_ROOT/data/history"
-)
-
-for dir in "${dirs[@]}"; do
-    if [[ ! -d "$dir" ]]; then
-        mkdir -p "$dir"
-        echo -e "${GREEN}  ✓${NC} Created: $dir"
-    else
-        echo -e "${YELLOW}  ○${NC} Already exists: $dir"
+        echo "❌ Missing: $component"
+        echo "Restore from backup: mv $BACKUP_DIR $RYX_DIR"
+        exit 1
     fi
 done
 
 echo ""
-
-# Check Python dependencies
-echo -e "${BLUE}▸${NC} Checking Python dependencies..."
-
-if [[ -f "$PROJECT_ROOT/.venv/bin/python" ]]; then
-    PYTHON="$PROJECT_ROOT/.venv/bin/python"
-    PIP="$PROJECT_ROOT/.venv/bin/pip"
-
-    # Check if requests is installed
-    if ! "$PYTHON" -c "import requests" 2>/dev/null; then
-        echo -e "${YELLOW}  ↓${NC} Installing requests..."
-        "$PIP" install requests > /dev/null 2>&1
-        echo -e "${GREEN}  ✓${NC} Installed requests"
-    else
-        echo -e "${GREEN}  ✓${NC} requests already installed"
-    fi
-else
-    echo -e "${YELLOW}  ⚠${NC} Virtual environment not found"
-    echo "    Using system Python (may require dependencies)"
-fi
-
+echo "✅ All new components present"
 echo ""
 
-# Test import of V2 components
-echo -e "${BLUE}▸${NC} Testing V2 components..."
+echo "🗄️  Step 3: Setting up databases"
+echo "================================"
+echo ""
 
-cd "$PROJECT_ROOT"
+# Create database directories
+mkdir -p "$RYX_DIR/data"
 
-test_imports() {
-    cat > /tmp/test_ryx_v2.py << 'EOF'
-import sys
-sys.path.insert(0, '$PROJECT_ROOT')
+# Initialize new databases
+cd "$RYX_DIR"
 
-try:
-    from core.model_orchestrator import ModelOrchestrator
-    print("✓ model_orchestrator")
-except Exception as e:
-    print(f"✗ model_orchestrator: {e}")
-    sys.exit(1)
+# Model performance database
+python3 << 'EOF'
+import sqlite3
+from pathlib import Path
 
-try:
-    from core.meta_learner import MetaLearner
-    print("✓ meta_learner")
-except Exception as e:
-    print(f"✗ meta_learner: {e}")
-    sys.exit(1)
+db_path = Path.home() / "ryx-ai" / "data" / "model_performance.db"
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
 
-try:
-    from core.health_monitor import HealthMonitor
-    print("✓ health_monitor")
-except Exception as e:
-    print(f"✗ health_monitor: {e}")
-    sys.exit(1)
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS model_performance (
+        model_name TEXT PRIMARY KEY,
+        total_queries INTEGER DEFAULT 0,
+        successful_queries INTEGER DEFAULT 0,
+        failed_queries INTEGER DEFAULT 0,
+        avg_latency_ms REAL DEFAULT 0.0,
+        total_latency_ms REAL DEFAULT 0.0,
+        last_used TEXT,
+        complexity_data TEXT
+    )
+""")
 
-try:
-    from core.task_manager import TaskManager
-    print("✓ task_manager")
-except Exception as e:
-    print(f"✗ task_manager: {e}")
-    sys.exit(1)
-
-try:
-    from core.ai_engine_v2 import AIEngineV2
-    print("✓ ai_engine_v2")
-except Exception as e:
-    print(f"✗ ai_engine_v2: {e}")
-    sys.exit(1)
-
-print("\nAll V2 components loaded successfully!")
+conn.commit()
+conn.close()
+print("✅ Model performance database initialized")
 EOF
 
-    if [[ -f "$PROJECT_ROOT/.venv/bin/python" ]]; then
-        "$PROJECT_ROOT/.venv/bin/python" /tmp/test_ryx_v2.py
-    else
-        python3 /tmp/test_ryx_v2.py
-    fi
-}
+# Meta learning database
+python3 << 'EOF'
+import sqlite3
+from pathlib import Path
 
-if test_imports; then
-    echo -e "${GREEN}  ✓${NC} All V2 components tested successfully"
+db_path = Path.home() / "ryx-ai" / "data" / "meta_learning.db"
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS preferences (
+        category TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        confidence REAL DEFAULT 1.0,
+        learned_from TEXT,
+        learned_at TEXT,
+        times_applied INTEGER DEFAULT 0
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS patterns (
+        pattern_id TEXT PRIMARY KEY,
+        pattern_type TEXT NOT NULL,
+        description TEXT,
+        occurrences INTEGER DEFAULT 0,
+        last_seen TEXT,
+        metadata TEXT
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        query TEXT NOT NULL,
+        response TEXT,
+        model_used TEXT,
+        latency_ms INTEGER,
+        complexity REAL,
+        preferences_applied TEXT,
+        user_feedback TEXT
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS command_frequency (
+        command TEXT PRIMARY KEY,
+        count INTEGER DEFAULT 0,
+        last_used TEXT,
+        success_count INTEGER DEFAULT 0,
+        fail_count INTEGER DEFAULT 0
+    )
+""")
+
+conn.commit()
+conn.close()
+print("✅ Meta learning database initialized")
+EOF
+
+# Health monitor database
+python3 << 'EOF'
+import sqlite3
+from pathlib import Path
+
+db_path = Path.home() / "ryx-ai" / "data" / "health_monitor.db"
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS health_checks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        component TEXT NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT,
+        timestamp TEXT NOT NULL,
+        details TEXT
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS incidents (
+        incident_id TEXT PRIMARY KEY,
+        component TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        description TEXT,
+        detected_at TEXT NOT NULL,
+        resolved_at TEXT,
+        auto_fixed INTEGER DEFAULT 0,
+        fix_attempts INTEGER DEFAULT 0,
+        resolution TEXT
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS resource_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        cpu_percent REAL,
+        memory_percent REAL,
+        disk_percent REAL,
+        vram_used_mb INTEGER,
+        ollama_responsive INTEGER
+    )
+""")
+
+conn.commit()
+conn.close()
+print("✅ Health monitor database initialized")
+EOF
+
+# Task manager database
+python3 << 'EOF'
+import sqlite3
+from pathlib import Path
+
+db_path = Path.home() / "ryx-ai" / "data" / "task_manager.db"
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS tasks (
+        task_id TEXT PRIMARY KEY,
+        description TEXT NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        paused_at TEXT,
+        current_step_index INTEGER DEFAULT 0,
+        metadata TEXT,
+        result TEXT,
+        error TEXT
+    )
+""")
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS task_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        step_id TEXT NOT NULL,
+        description TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT,
+        completed_at TEXT,
+        result TEXT,
+        error TEXT,
+        FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+    )
+""")
+
+conn.commit()
+conn.close()
+print("✅ Task manager database initialized")
+EOF
+
+echo ""
+echo "✅ All databases initialized"
+echo ""
+
+echo "🤖 Step 4: Installing AI models"
+echo "================================"
+echo ""
+
+# Check if install_models.sh exists
+if [ -f "$RYX_DIR/install_models.sh" ]; then
+    bash "$RYX_DIR/install_models.sh"
 else
-    echo -e "${RED}  ✗${NC} Component test failed"
-    echo ""
-    echo "Rollback instructions:"
-    echo "  1. Restore configs: cp -r $BACKUP_PATH/configs/* $PROJECT_ROOT/configs/"
-    echo "  2. Restore data: cp -r $BACKUP_PATH/data/* $PROJECT_ROOT/data/"
-    exit 1
+    echo "⚠️  install_models.sh not found"
+    echo "You can install models manually later with:"
+    echo "  ollama pull qwen2.5:1.5b"
+    echo "  ollama pull deepseek-coder:6.7b"
+    echo "  ollama pull qwen2.5-coder:14b"
 fi
 
 echo ""
+echo "🧪 Step 5: Testing V2 System"
+echo "============================="
+echo ""
 
-# Success!
-echo -e "${GREEN}╭─────────────────────────────────────────╮${NC}"
-echo -e "${GREEN}│  Migration Complete!                    │${NC}"
-echo -e "${GREEN}╰─────────────────────────────────────────╯${NC}"
+# Test import
+python3 << 'EOF'
+try:
+    from core.model_orchestrator import ModelOrchestrator
+    from core.meta_learner import MetaLearner
+    from core.health_monitor import HealthMonitor
+    from core.task_manager import TaskManager
+    from core.ai_engine import AIEngine
+    print("✅ All V2 components import successfully")
+except Exception as e:
+    print(f"❌ Import error: {e}")
+    exit(1)
+EOF
+
 echo ""
-echo "What changed:"
-echo -e "  ${GREEN}✓${NC} V2 components installed and tested"
-echo -e "  ${GREEN}✓${NC} Configuration updated for 3-tier models"
-echo -e "  ${GREEN}✓${NC} Data directories created"
-echo -e "  ${GREEN}✓${NC} Backup saved to: $BACKUP_PATH"
+
+# Test AI Engine initialization
+python3 << 'EOF'
+try:
+    from core.ai_engine import AIEngine
+    engine = AIEngine()
+    print("✅ AI Engine initializes successfully")
+
+    # Test health check
+    status = engine.get_status()
+    print(f"✅ System status: {status['health']['overall_status']}")
+
+    # Cleanup
+    engine.cleanup()
+except Exception as e:
+    print(f"❌ Initialization error: {e}")
+    exit(1)
+EOF
+
 echo ""
-echo "New features available:"
-echo -e "  ${BLUE}●${NC} Lazy-loaded models (1.5B → 7B → 14B)"
-echo -e "  ${BLUE}●${NC} Preference learning (use nvim!)"
-echo -e "  ${BLUE}●${NC} Self-healing (auto-fixes Ollama)"
-echo -e "  ${BLUE}●${NC} Graceful Ctrl+C (state save)"
+echo "✅ V2 Migration Complete!"
 echo ""
-echo "Try it out:"
-echo "  ryx 'hello world'       # Simple query (1.5B model)"
-echo "  ryx ::health           # Check system health"
-echo "  ryx ::preferences      # View learned preferences"
-echo "  ryx ::session          # Interactive mode with Ctrl+C support"
+echo "========================="
+echo "What's New in V2:"
+echo "========================="
 echo ""
-echo "Rollback if needed:"
-echo "  cp -r $BACKUP_PATH/configs/* $PROJECT_ROOT/configs/"
-echo "  cp -r $BACKUP_PATH/data/* $PROJECT_ROOT/data/"
+echo "1. 🤖 Model Orchestrator"
+echo "   - Lazy loading (only 1.5B on startup)"
+echo "   - Dynamic model selection"
+echo "   - Auto-unload after 5min idle"
+echo ""
+echo "2. 🧠 Meta Learner"
+echo "   - Learns your preferences (editor, shell, etc.)"
+echo "   - Auto-applies preferences"
+echo "   - Pattern recognition"
+echo ""
+echo "3. 🏥 Health Monitor"
+echo "   - Continuous monitoring"
+echo "   - Auto-healing (Ollama 404, DB issues, etc.)"
+echo "   - Incident tracking"
+echo ""
+echo "4. 📋 Task Manager"
+echo "   - State persistence"
+echo "   - Graceful Ctrl+C handling"
+echo "   - Resume interrupted tasks"
+echo ""
+echo "5. 🚀 Enhanced RAG System"
+echo "   - Fixed stats bug"
+echo "   - Semantic similarity matching"
+echo "   - Better caching"
+echo ""
+echo "========================="
+echo "New Commands:"
+echo "========================="
+echo ""
+echo "  ryx ::health       - Show system health"
+echo "  ryx ::status       - Show comprehensive status"
+echo "  ryx ::models       - Show loaded models"
+echo "  ryx ::preferences  - Show learned preferences"
+echo "  ryx ::resume       - Resume paused task"
+echo ""
+echo "========================="
+echo ""
+echo "🎉 You're all set! Try: ryx ::status"
+echo ""
+echo "Backup saved at: $BACKUP_DIR"
+echo "Remove backup: rm -rf $BACKUP_DIR"
 echo ""

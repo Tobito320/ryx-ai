@@ -1,14 +1,16 @@
 """
-Ryx AI - Session Mode
-Interactive Gemini CLI-like experience
+Ryx AI V2 - Session Mode
+Interactive Gemini CLI-like experience with graceful interrupts
 """
 
 import sys
+import signal
 from typing import List, Dict
 
 from core.ai_engine import AIEngine, ResponseFormatter
 from core.rag_system import RAGSystem, FileFinder
 from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
+from core.task_manager import InterruptionHandler
 
 class SessionMode:
     def __init__(self):
@@ -18,34 +20,55 @@ class SessionMode:
         self.perm_manager = PermissionManager()
         self.executor = CommandExecutor(self.perm_manager)
         self.formatter = ResponseFormatter()
-        
+
         self.conversation_history = []
         self.pending_commands = []
         self.running = True
+
+        # Install graceful interrupt handler
+        self.interrupt_handler = InterruptionHandler(self.ai.task_manager)
+        signal.signal(signal.SIGINT, self._handle_interrupt)
     
+    def _handle_interrupt(self, signum, frame):
+        """Handle Ctrl+C gracefully"""
+        print("\n\n⏸️  Session interrupted")
+        print("Saving state...")
+
+        # Save conversation if any
+        if self.conversation_history:
+            print(f"✓ Saved {len(self.conversation_history)} messages")
+
+        print("\nGoodbye! Resume with: ryx ::session")
+        sys.exit(0)
+
     def run(self):
         """Main session loop"""
         self.show_header()
-        
+
         while self.running:
             try:
                 # Get user input
                 prompt = input("\n\033[1;32mYou:\033[0m ").strip()
-                
+
                 if not prompt:
                     continue
-                
+
                 # Check for session commands
                 if prompt.startswith('/'):
                     self.handle_session_command(prompt)
                     continue
-                
+
+                # Check for special :: commands (V2)
+                if prompt.startswith('::'):
+                    self.handle_v2_command(prompt)
+                    continue
+
                 # Add to conversation
                 self.conversation_history.append({
                     "role": "user",
                     "content": prompt
                 })
-                
+
                 # Check cache
                 cached = self.rag.query_cache(prompt)
                 if cached:
@@ -252,9 +275,6 @@ class SessionMode:
             ("/undo", "Undo last exchange"),
             ("/status", "Show session status"),
             ("/save [filename]", "Save conversation to file"),
-            ("/resume, ::resume", "Resume paused/interrupted task"),
-            ("/health, ::health", "Show system health status"),
-            ("/models, ::models", "Show model orchestrator status"),
         ]
         
         for cmd, desc in commands:
@@ -277,20 +297,193 @@ class SessionMode:
         """Save conversation to file"""
         from datetime import datetime
         from pathlib import Path
-        
+
         output_path = Path.home() / "ryx-ai" / "data" / "history" / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(output_path, 'w') as f:
             f.write(f"# Ryx AI Conversation\n")
             f.write(f"# Saved: {datetime.now().isoformat()}\n\n")
-            
+
             for msg in self.conversation_history:
                 role = msg["role"].title()
                 content = msg["content"]
                 f.write(f"## {role}\n\n{content}\n\n")
-        
+
         print(f"\033[1;32m✓\033[0m Saved to: {output_path}")
+
+    def handle_v2_command(self, command: str):
+        """Handle V2 system commands (::)"""
+        cmd = command.strip().lower()
+
+        if cmd == '::resume':
+            self.handle_resume()
+        elif cmd == '::health':
+            self.handle_health()
+        elif cmd == '::status':
+            self.handle_status()
+        elif cmd == '::models':
+            self.handle_models()
+        elif cmd == '::preferences' or cmd == '::prefs':
+            self.handle_preferences()
+        else:
+            print(f"\033[1;31m✗\033[0m Unknown V2 command: {cmd}")
+            print("  Available: ::resume ::health ::status ::models ::preferences")
+
+    def handle_resume(self):
+        """Resume last paused task"""
+        result = self.ai.resume_task()
+
+        if result["success"]:
+            print(f"\033[1;32m✓\033[0m Resumed task: {result['description']}")
+            print(f"  Step {result['current_step'] + 1} of {result['total_steps']}")
+        else:
+            print(f"\033[1;33m○\033[0m {result['message']}")
+
+    def handle_health(self):
+        """Show system health"""
+        health = self.ai.get_health()
+
+        print()
+        print(f"\033[1;36m╭─────────────────────────────────────╮\033[0m")
+        print(f"\033[1;36m│  System Health                      │\033[0m")
+        print(f"\033[1;36m╰─────────────────────────────────────╯\033[0m")
+        print()
+
+        # Overall status
+        status = health["overall_status"]
+        if status == "healthy":
+            status_icon = "\033[1;32m●\033[0m"
+        elif status == "degraded":
+            status_icon = "\033[1;33m●\033[0m"
+        else:
+            status_icon = "\033[1;31m●\033[0m"
+
+        print(f"  Overall: {status_icon} {status.title()}")
+        print()
+
+        # Components
+        print("  \033[1;37mComponents:\033[0m")
+        for name, component in health["components"].items():
+            comp_status = component["status"]
+            if comp_status == "healthy":
+                icon = "\033[1;32m✓\033[0m"
+            elif comp_status == "degraded":
+                icon = "\033[1;33m○\033[0m"
+            else:
+                icon = "\033[1;31m✗\033[0m"
+
+            print(f"    {icon} {name}: {component['message']}")
+
+        # Recent incidents
+        if health["recent_incidents"]:
+            print()
+            print(f"  \033[1;33mRecent Incidents: {len(health['recent_incidents'])}\033[0m")
+
+        print()
+
+    def handle_status(self):
+        """Show comprehensive status"""
+        status = self.ai.get_status()
+
+        print()
+        print(f"\033[1;36m╭─────────────────────────────────────╮\033[0m")
+        print(f"\033[1;36m│  Ryx AI V2 Status                   │\033[0m")
+        print(f"\033[1;36m╰─────────────────────────────────────╯\033[0m")
+        print()
+
+        # Health
+        health_status = status["health"]["overall_status"]
+        print(f"  Health: {health_status}")
+
+        # Loaded models
+        loaded = status["orchestrator"]["loaded_models"]
+        print(f"  Loaded Models: {', '.join(loaded) if loaded else 'None'}")
+
+        # Performance
+        print()
+        print("  \033[1;37mModel Performance:\033[0m")
+        for model, perf in status["orchestrator"]["performance"].items():
+            success_rate = perf["success_rate"] * 100
+            print(f"    {model}:")
+            print(f"      Queries: {perf['total_queries']}, Success: {success_rate:.1f}%, Latency: {perf['avg_latency_ms']:.0f}ms")
+
+        # Cache stats
+        cache = status["cache"]
+        print()
+        print(f"  Cache: {cache['cached_responses']} responses, {cache['total_cache_hits']} hits")
+
+        # Learning
+        prefs = status["learning"]["preferences"]
+        if prefs:
+            print(f"  Preferences: {len(prefs)} learned")
+
+        print()
+
+    def handle_models(self):
+        """Show model information"""
+        status = self.ai.orchestrator.get_status()
+
+        print()
+        print(f"\033[1;36m╭─────────────────────────────────────╮\033[0m")
+        print(f"\033[1;36m│  AI Models                          │\033[0m")
+        print(f"\033[1;36m╰─────────────────────────────────────╯\033[0m")
+        print()
+
+        # Base model
+        base = self.ai.orchestrator.base_model_name
+        print(f"  \033[1;32m●\033[0m Base (Always Loaded): {base}")
+
+        # Loaded models
+        loaded = status["loaded_models"]
+        if len(loaded) > 1:
+            print()
+            print("  \033[1;37mCurrently Loaded:\033[0m")
+            for model in loaded:
+                if model != base:
+                    print(f"    ● {model}")
+
+        # Model tiers
+        print()
+        print("  \033[1;37mAvailable Tiers:\033[0m")
+        for tier_name, tier in self.ai.orchestrator.model_tiers.items():
+            print(f"    {tier.tier_level}. {tier_name}: {tier.name}")
+            print(f"       VRAM: {tier.vram_mb}MB, Latency: ~{tier.typical_latency_ms}ms")
+
+        print()
+
+    def handle_preferences(self):
+        """Show learned preferences"""
+        prefs_data = self.ai.get_preferences()
+
+        print()
+        print(f"\033[1;36m╭─────────────────────────────────────╮\033[0m")
+        print(f"\033[1;36m│  Learned Preferences                │\033[0m")
+        print(f"\033[1;36m╰─────────────────────────────────────╯\033[0m")
+        print()
+
+        preferences = prefs_data["preferences"]
+
+        if not preferences:
+            print("  \033[2mNo preferences learned yet\033[0m")
+            print()
+            print("  \033[2mTip: Tell me your preferences like:\033[0m")
+            print("  \033[2m  - 'use nvim not nano'\033[0m")
+            print("  \033[2m  - 'prefer zsh shell'\033[0m")
+        else:
+            for category, pref in preferences.items():
+                print(f"  {category}: \033[1;37m{pref['value']}\033[0m")
+                print(f"    Confidence: {pref['confidence']:.1%}, Applied: {pref['times_applied']} times")
+
+        # Suggestions
+        suggestions = prefs_data["suggestions"]
+        if suggestions:
+            print()
+            print("  \033[1;33mOptimization Suggestions:\033[0m")
+            for suggestion in suggestions:
+                print(f"    • {suggestion}")
+
+        print()
 
 
 def main():

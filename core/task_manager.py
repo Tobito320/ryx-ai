@@ -1,19 +1,17 @@
 """
-Ryx AI - Task Manager
-Manages task state, checkpoints, and graceful interruption handling
+Ryx AI V2 - Task Manager
+State persistence and graceful interrupt handling for complex tasks
 """
 
 import json
-import pickle
-import logging
+import signal
+import sqlite3
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from typing import Optional, Dict, List, Any, Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-
-logger = logging.getLogger(__name__)
-
 
 class TaskStatus(Enum):
     """Task execution status"""
@@ -22,405 +20,451 @@ class TaskStatus(Enum):
     PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
-    INTERRUPTED = "interrupted"
-
+    CANCELLED = "cancelled"
 
 @dataclass
-class Checkpoint:
-    """A checkpoint in task execution"""
-    step: int
+class TaskStep:
+    """A step in a multi-step task"""
+    step_id: str
     description: str
-    data: Dict[str, Any]
-    timestamp: str
-
+    status: TaskStatus = TaskStatus.PENDING
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    result: Optional[Any] = None
+    error: Optional[str] = None
 
 @dataclass
 class Task:
-    """A task with state management"""
-    id: str
-    type: str  # "query", "multi_step", "session"
+    """A task that can be checkpointed and resumed"""
+    task_id: str
     description: str
     status: TaskStatus
-    created_at: str
-    updated_at: str
-    
-    # Execution state
-    current_step: int = 0
-    total_steps: int = 1
-    checkpoints: List[Checkpoint] = None
-    
-    # Context
-    context: Dict[str, Any] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    paused_at: Optional[datetime] = None
+    steps: List[TaskStep] = field(default_factory=list)
+    current_step_index: int = 0
+    metadata: Dict[str, Any] = field(default_factory=dict)
     result: Optional[Any] = None
     error: Optional[str] = None
-    
-    # Model state
-    model_used: Optional[str] = None
-    loaded_models: List[str] = None
-    
-    def __post_init__(self):
-        if self.checkpoints is None:
-            self.checkpoints = []
-        if self.context is None:
-            self.context = {}
-        if self.loaded_models is None:
-            self.loaded_models = []
-
 
 class TaskManager:
     """
-    Manages task execution with state persistence:
-    - Checkpoint creation for recovery
-    - Graceful interruption handling
-    - State persistence across restarts
-    - Multi-step task coordination
+    Manages task execution with state persistence and recovery
+
+    Features:
+    - State Persistence: Survives crashes and interrupts
+    - Checkpoint System: Can resume from any point
+    - Graceful Ctrl+C: Saves state instead of crashing
+    - Task Resume: Continue interrupted tasks
+    - Multi-Step Coordination: Handle complex tasks with multiple steps
     """
-    
-    def __init__(self, project_root: Optional[Path] = None):
-        self.project_root = project_root or Path.home() / "ryx-ai"
-        self.state_dir = self.project_root / "data" / "state"
-        self.state_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Active tasks
-        self.active_tasks: Dict[str, Task] = {}
+
+    def __init__(self, db_path: Optional[Path] = None):
+        if db_path is None:
+            db_path = Path.home() / "ryx-ai" / "data" / "task_manager.db"
+
+        self.db_path = db_path
         self.current_task: Optional[Task] = None
-        
-        # Load persisted state
-        self._load_state()
-    
-    def _load_state(self):
-        """Load persisted task state"""
-        state_file = self.state_dir / "tasks.json"
-        
-        if state_file.exists():
-            try:
-                with open(state_file, 'r') as f:
-                    data = json.load(f)
-                
-                for task_id, task_data in data.items():
-                    # Reconstruct checkpoints
-                    checkpoints = [
-                        Checkpoint(**cp) for cp in task_data.get('checkpoints', [])
-                    ]
-                    
-                    task = Task(
-                        id=task_data['id'],
-                        type=task_data['type'],
-                        description=task_data['description'],
-                        status=TaskStatus(task_data['status']),
-                        created_at=task_data['created_at'],
-                        updated_at=task_data['updated_at'],
-                        current_step=task_data.get('current_step', 0),
-                        total_steps=task_data.get('total_steps', 1),
-                        checkpoints=checkpoints,
-                        context=task_data.get('context', {}),
-                        result=task_data.get('result'),
-                        error=task_data.get('error'),
-                        model_used=task_data.get('model_used'),
-                        loaded_models=task_data.get('loaded_models', [])
-                    )
-                    
-                    self.active_tasks[task_id] = task
-                
-                logger.info(f"Loaded {len(self.active_tasks)} persisted tasks")
-            except Exception as e:
-                logger.error(f"Failed to load task state: {e}")
-    
-    def _save_state(self):
-        """Persist task state to disk"""
-        state_file = self.state_dir / "tasks.json"
-        
-        try:
-            data = {}
-            for task_id, task in self.active_tasks.items():
-                data[task_id] = {
-                    'id': task.id,
-                    'type': task.type,
-                    'description': task.description,
-                    'status': task.status.value,
-                    'created_at': task.created_at,
-                    'updated_at': task.updated_at,
-                    'current_step': task.current_step,
-                    'total_steps': task.total_steps,
-                    'checkpoints': [asdict(cp) for cp in task.checkpoints],
-                    'context': task.context,
-                    'result': task.result,
-                    'error': task.error,
-                    'model_used': task.model_used,
-                    'loaded_models': task.loaded_models
-                }
-            
-            with open(state_file, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            logger.error(f"Failed to save task state: {e}")
-    
-    def create_task(self, task_type: str, description: str, 
-                   total_steps: int = 1, context: Optional[Dict] = None) -> Task:
-        """Create a new task"""
-        task_id = f"{task_type}_{int(datetime.now().timestamp() * 1000)}"
-        
+
+        self._init_db()
+
+    def _init_db(self):
+        """Initialize task management database"""
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Tasks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                task_id TEXT PRIMARY KEY,
+                description TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                paused_at TEXT,
+                current_step_index INTEGER DEFAULT 0,
+                metadata TEXT,
+                result TEXT,
+                error TEXT
+            )
+        """)
+
+        # Task steps table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS task_steps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL,
+                step_id TEXT NOT NULL,
+                description TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT,
+                completed_at TEXT,
+                result TEXT,
+                error TEXT,
+                FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+
+    def create_task(self, description: str, steps: Optional[List[str]] = None) -> Task:
+        """
+        Create a new task
+
+        Args:
+            description: Task description
+            steps: Optional list of step descriptions
+
+        Returns:
+            Task object
+        """
+        task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
         task = Task(
-            id=task_id,
-            type=task_type,
+            task_id=task_id,
             description=description,
             status=TaskStatus.PENDING,
-            created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat(),
-            total_steps=total_steps,
-            context=context or {}
+            created_at=datetime.now()
         )
-        
-        self.active_tasks[task_id] = task
-        self.current_task = task
-        self._save_state()
-        
-        logger.info(f"Created task: {task_id} - {description}")
-        return task
-    
-    def start_task(self, task_id: str) -> bool:
-        """Start task execution"""
-        if task_id not in self.active_tasks:
-            logger.error(f"Task not found: {task_id}")
-            return False
-        
-        task = self.active_tasks[task_id]
-        task.status = TaskStatus.RUNNING
-        task.updated_at = datetime.now().isoformat()
-        self.current_task = task
-        
-        self._save_state()
-        logger.info(f"Started task: {task_id}")
-        return True
-    
-    def checkpoint(self, task_id: str, step: int, description: str, 
-                  data: Optional[Dict] = None):
-        """Create a checkpoint for recovery"""
-        if task_id not in self.active_tasks:
-            logger.warning(f"Cannot checkpoint unknown task: {task_id}")
-            return
-        
-        task = self.active_tasks[task_id]
-        
-        checkpoint = Checkpoint(
-            step=step,
-            description=description,
-            data=data or {},
-            timestamp=datetime.now().isoformat()
-        )
-        
-        task.checkpoints.append(checkpoint)
-        task.current_step = step
-        task.updated_at = datetime.now().isoformat()
-        
-        self._save_state()
-        logger.debug(f"Checkpoint created for {task_id} at step {step}")
-    
-    def pause_task(self, task_id: str, reason: str = "user_interrupt"):
-        """Pause task execution"""
-        if task_id not in self.active_tasks:
-            return
-        
-        task = self.active_tasks[task_id]
-        
-        if task.status == TaskStatus.RUNNING:
-            task.status = TaskStatus.PAUSED
-            task.updated_at = datetime.now().isoformat()
-            
-            # Create pause checkpoint
-            self.checkpoint(
-                task_id,
-                task.current_step,
-                f"Paused: {reason}",
-                {'pause_reason': reason}
-            )
-            
-            logger.info(f"Paused task: {task_id} - {reason}")
-    
-    def resume_task(self, task_id: str) -> Optional[Task]:
-        """Resume paused task"""
-        if task_id not in self.active_tasks:
-            logger.error(f"Task not found: {task_id}")
-            return None
-        
-        task = self.active_tasks[task_id]
-        
-        if task.status != TaskStatus.PAUSED:
-            logger.warning(f"Task {task_id} not paused (status: {task.status.value})")
-            return None
-        
-        task.status = TaskStatus.RUNNING
-        task.updated_at = datetime.now().isoformat()
-        self.current_task = task
-        
-        self._save_state()
-        logger.info(f"Resumed task: {task_id} from step {task.current_step}")
-        return task
-    
-    def complete_task(self, task_id: str, result: Any = None):
-        """Mark task as completed"""
-        if task_id not in self.active_tasks:
-            return
-        
-        task = self.active_tasks[task_id]
-        task.status = TaskStatus.COMPLETED
-        task.result = result
-        task.updated_at = datetime.now().isoformat()
-        
-        self._save_state()
-        logger.info(f"Completed task: {task_id}")
-        
-        if self.current_task and self.current_task.id == task_id:
-            self.current_task = None
-    
-    def fail_task(self, task_id: str, error: str):
-        """Mark task as failed"""
-        if task_id not in self.active_tasks:
-            return
-        
-        task = self.active_tasks[task_id]
-        task.status = TaskStatus.FAILED
-        task.error = error
-        task.updated_at = datetime.now().isoformat()
-        
-        self._save_state()
-        logger.error(f"Task failed: {task_id} - {error}")
-        
-        if self.current_task and self.current_task.id == task_id:
-            self.current_task = None
-    
-    def interrupt_current_task(self, reason: str = "user_interrupt"):
-        """Gracefully interrupt current task"""
-        if not self.current_task:
-            return
-        
-        task = self.current_task
-        task.status = TaskStatus.INTERRUPTED
-        task.updated_at = datetime.now().isoformat()
-        
-        # Create interrupt checkpoint
-        self.checkpoint(
-            task.id,
-            task.current_step,
-            f"Interrupted: {reason}",
-            {
-                'interrupt_reason': reason,
-                'can_resume': True
-            }
-        )
-        
-        logger.info(f"Interrupted task: {task.id} - {reason}")
-    
-    def get_resumable_tasks(self) -> List[Task]:
-        """Get tasks that can be resumed"""
-        return [
-            task for task in self.active_tasks.values()
-            if task.status in [TaskStatus.PAUSED, TaskStatus.INTERRUPTED]
-        ]
-    
-    def get_task(self, task_id: str) -> Optional[Task]:
-        """Get task by ID"""
-        return self.active_tasks.get(task_id)
-    
-    def get_task_context(self, task_id: str) -> Optional[Dict]:
-        """Get task context for recovery"""
-        task = self.get_task(task_id)
-        if not task:
-            return None
-        
-        # Get most recent checkpoint
-        last_checkpoint = task.checkpoints[-1] if task.checkpoints else None
-        
-        return {
-            'task_id': task.id,
-            'type': task.type,
-            'description': task.description,
-            'current_step': task.current_step,
-            'total_steps': task.total_steps,
-            'last_checkpoint': {
-                'step': last_checkpoint.step,
-                'description': last_checkpoint.description,
-                'data': last_checkpoint.data
-            } if last_checkpoint else None,
-            'context': task.context,
-            'model_used': task.model_used,
-            'loaded_models': task.loaded_models
-        }
-    
-    def cleanup_old_tasks(self, days: int = 7):
-        """Clean up completed/failed tasks older than N days"""
-        from datetime import timedelta
-        
-        cutoff = datetime.now() - timedelta(days=days)
-        to_remove = []
-        
-        for task_id, task in self.active_tasks.items():
-            if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
-                task_time = datetime.fromisoformat(task.updated_at)
-                if task_time < cutoff:
-                    to_remove.append(task_id)
-        
-        for task_id in to_remove:
-            del self.active_tasks[task_id]
-            logger.info(f"Cleaned up old task: {task_id}")
-        
-        if to_remove:
-            self._save_state()
-    
-    def get_status(self) -> Dict:
-        """Get task manager status"""
-        status_counts = {status.value: 0 for status in TaskStatus}
-        for task in self.active_tasks.values():
-            status_counts[task.status.value] += 1
-        
-        return {
-            'total_tasks': len(self.active_tasks),
-            'current_task': {
-                'id': self.current_task.id,
-                'description': self.current_task.description,
-                'step': f"{self.current_task.current_step}/{self.current_task.total_steps}",
-                'status': self.current_task.status.value
-            } if self.current_task else None,
-            'resumable_tasks': len(self.get_resumable_tasks()),
-            'by_status': status_counts
-        }
 
+        # Add steps if provided
+        if steps:
+            for i, step_desc in enumerate(steps):
+                step = TaskStep(
+                    step_id=f"step_{i+1}",
+                    description=step_desc
+                )
+                task.steps.append(step)
+
+        self._save_task(task)
+        return task
+
+    def start_task(self, task: Task):
+        """Start executing a task"""
+        task.status = TaskStatus.RUNNING
+        task.started_at = datetime.now()
+        self.current_task = task
+        self._save_task(task)
+
+    def pause_task(self, task: Task):
+        """Pause a running task"""
+        task.status = TaskStatus.PAUSED
+        task.paused_at = datetime.now()
+        self._save_task(task)
+
+    def resume_task(self, task_id: str) -> Optional[Task]:
+        """
+        Resume a paused task
+
+        Returns:
+            Task if found and resumable, None otherwise
+        """
+        task = self._load_task(task_id)
+
+        if task and task.status == TaskStatus.PAUSED:
+            task.status = TaskStatus.RUNNING
+            task.paused_at = None
+            self.current_task = task
+            self._save_task(task)
+            return task
+
+        return None
+
+    def complete_task(self, task: Task, result: Any = None):
+        """Mark task as completed"""
+        task.status = TaskStatus.COMPLETED
+        task.completed_at = datetime.now()
+        task.result = result
+        self.current_task = None
+        self._save_task(task)
+
+    def fail_task(self, task: Task, error: str):
+        """Mark task as failed"""
+        task.status = TaskStatus.FAILED
+        task.completed_at = datetime.now()
+        task.error = error
+        self.current_task = None
+        self._save_task(task)
+
+    def start_step(self, task: Task, step_index: int):
+        """Start a specific step"""
+        if step_index < len(task.steps):
+            step = task.steps[step_index]
+            step.status = TaskStatus.RUNNING
+            step.started_at = datetime.now()
+            task.current_step_index = step_index
+            self._save_task(task)
+
+    def complete_step(self, task: Task, step_index: int, result: Any = None):
+        """Complete a step"""
+        if step_index < len(task.steps):
+            step = task.steps[step_index]
+            step.status = TaskStatus.COMPLETED
+            step.completed_at = datetime.now()
+            step.result = result
+            self._save_task(task)
+
+    def fail_step(self, task: Task, step_index: int, error: str):
+        """Fail a step"""
+        if step_index < len(task.steps):
+            step = task.steps[step_index]
+            step.status = TaskStatus.FAILED
+            step.completed_at = datetime.now()
+            step.error = error
+            self._save_task(task)
+
+    def get_last_paused_task(self) -> Optional[Task]:
+        """Get the most recently paused task"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT task_id FROM tasks
+            WHERE status = ?
+            ORDER BY paused_at DESC
+            LIMIT 1
+        """, (TaskStatus.PAUSED.value,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return self._load_task(row["task_id"])
+
+        return None
+
+    def get_all_tasks(self, status: Optional[TaskStatus] = None) -> List[Task]:
+        """Get all tasks, optionally filtered by status"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        if status:
+            cursor.execute("""
+                SELECT task_id FROM tasks
+                WHERE status = ?
+                ORDER BY created_at DESC
+            """, (status.value,))
+        else:
+            cursor.execute("""
+                SELECT task_id FROM tasks
+                ORDER BY created_at DESC
+            """)
+
+        task_ids = [row["task_id"] for row in cursor.fetchall()]
+        conn.close()
+
+        return [self._load_task(tid) for tid in task_ids]
+
+    def execute_with_checkpoints(self,
+                                 description: str,
+                                 steps: List[Dict[str, Any]],
+                                 error_handler: Optional[Callable] = None) -> Any:
+        """
+        Execute a multi-step task with automatic checkpointing
+
+        Args:
+            description: Task description
+            steps: List of steps, each with 'description' and 'func' (callable)
+            error_handler: Optional error handler function
+
+        Returns:
+            Task result
+
+        Example:
+            steps = [
+                {"description": "Load data", "func": load_data},
+                {"description": "Process data", "func": process_data},
+                {"description": "Save results", "func": save_results}
+            ]
+        """
+        # Create task
+        step_descriptions = [step["description"] for step in steps]
+        task = self.create_task(description, step_descriptions)
+        self.start_task(task)
+
+        try:
+            results = []
+
+            for i, step_config in enumerate(steps):
+                self.start_step(task, i)
+
+                try:
+                    # Execute step function
+                    step_func = step_config["func"]
+                    result = step_func()
+
+                    # Complete step
+                    self.complete_step(task, i, result)
+                    results.append(result)
+
+                except Exception as e:
+                    # Handle step error
+                    self.fail_step(task, i, str(e))
+
+                    if error_handler:
+                        error_handler(task, i, e)
+
+                    raise
+
+            # Complete task
+            self.complete_task(task, results)
+            return results
+
+        except Exception as e:
+            # Pause task on error (can resume later)
+            self.pause_task(task)
+            raise
+
+    def _save_task(self, task: Task):
+        """Save task to database"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Save task
+        cursor.execute("""
+            INSERT OR REPLACE INTO tasks
+            (task_id, description, status, created_at, started_at, completed_at,
+             paused_at, current_step_index, metadata, result, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            task.task_id,
+            task.description,
+            task.status.value,
+            task.created_at.isoformat(),
+            task.started_at.isoformat() if task.started_at else None,
+            task.completed_at.isoformat() if task.completed_at else None,
+            task.paused_at.isoformat() if task.paused_at else None,
+            task.current_step_index,
+            json.dumps(task.metadata),
+            json.dumps(task.result) if task.result else None,
+            task.error
+        ))
+
+        # Save steps
+        for step in task.steps:
+            cursor.execute("""
+                INSERT OR REPLACE INTO task_steps
+                (task_id, step_id, description, status, started_at, completed_at, result, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                task.task_id,
+                step.step_id,
+                step.description,
+                step.status.value,
+                step.started_at.isoformat() if step.started_at else None,
+                step.completed_at.isoformat() if step.completed_at else None,
+                json.dumps(step.result) if step.result else None,
+                step.error
+            ))
+
+        conn.commit()
+        conn.close()
+
+    def _load_task(self, task_id: str) -> Optional[Task]:
+        """Load task from database"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Load task
+        cursor.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
+        task_row = cursor.fetchone()
+
+        if not task_row:
+            conn.close()
+            return None
+
+        # Load steps
+        cursor.execute("""
+            SELECT * FROM task_steps
+            WHERE task_id = ?
+            ORDER BY step_id
+        """, (task_id,))
+
+        step_rows = cursor.fetchall()
+        conn.close()
+
+        # Construct task object
+        task = Task(
+            task_id=task_row["task_id"],
+            description=task_row["description"],
+            status=TaskStatus(task_row["status"]),
+            created_at=datetime.fromisoformat(task_row["created_at"]),
+            started_at=datetime.fromisoformat(task_row["started_at"]) if task_row["started_at"] else None,
+            completed_at=datetime.fromisoformat(task_row["completed_at"]) if task_row["completed_at"] else None,
+            paused_at=datetime.fromisoformat(task_row["paused_at"]) if task_row["paused_at"] else None,
+            current_step_index=task_row["current_step_index"],
+            metadata=json.loads(task_row["metadata"]) if task_row["metadata"] else {},
+            result=json.loads(task_row["result"]) if task_row["result"] else None,
+            error=task_row["error"]
+        )
+
+        # Add steps
+        for step_row in step_rows:
+            step = TaskStep(
+                step_id=step_row["step_id"],
+                description=step_row["description"],
+                status=TaskStatus(step_row["status"]),
+                started_at=datetime.fromisoformat(step_row["started_at"]) if step_row["started_at"] else None,
+                completed_at=datetime.fromisoformat(step_row["completed_at"]) if step_row["completed_at"] else None,
+                result=json.loads(step_row["result"]) if step_row["result"] else None,
+                error=step_row["error"]
+            )
+            task.steps.append(step)
+
+        return task
+
+    def checkpoint(self):
+        """Create a checkpoint of current task state"""
+        if self.current_task:
+            self._save_task(self.current_task)
 
 class InterruptionHandler:
     """
-    Handles graceful interruptions (Ctrl+C) with state preservation
+    Handles graceful interruption (Ctrl+C) with state saving
+
+    Usage:
+        handler = InterruptionHandler(task_manager)
+        handler.install_handler()
+
+        # Now Ctrl+C will save state and exit gracefully
     """
-    
+
     def __init__(self, task_manager: TaskManager):
         self.task_manager = task_manager
-        self._original_handler = None
-    
+        self.interrupted = False
+
     def install_handler(self):
-        """Install signal handler for Ctrl+C"""
-        import signal
-        
-        def handle_interrupt(signum, frame):
-            logger.info("Interrupt signal received (Ctrl+C)")
-            
-            # Pause current task
-            if self.task_manager.current_task:
-                self.task_manager.interrupt_current_task("ctrl_c")
-                print("\n\n⏸️  Task paused. State saved.")
-                print(f"   Task: {self.task_manager.current_task.description}")
-                print(f"   Step: {self.task_manager.current_task.current_step}/{self.task_manager.current_task.total_steps}")
-                print("\n   Resume with: ryx ::resume")
-                print("   Cancel with: ryx ::cancel")
-            
-            # Exit gracefully
-            import sys
-            sys.exit(0)
-        
-        self._original_handler = signal.signal(signal.SIGINT, handle_interrupt)
-        logger.debug("Interrupt handler installed")
-    
-    def restore_handler(self):
-        """Restore original signal handler"""
-        if self._original_handler:
-            import signal
-            signal.signal(signal.SIGINT, self._original_handler)
-            logger.debug("Interrupt handler restored")
+        """Install signal handler for SIGINT (Ctrl+C)"""
+        signal.signal(signal.SIGINT, self._handle_interrupt)
+
+    def _handle_interrupt(self, signum, frame):
+        """Handle interrupt signal"""
+        if self.interrupted:
+            # Second Ctrl+C - force exit
+            print("\n\nForce exit...")
+            sys.exit(1)
+
+        self.interrupted = True
+        print("\n\n⏸️  Interrupt received. Saving state...")
+
+        # Save current task state
+        if self.task_manager.current_task:
+            self.task_manager.pause_task(self.task_manager.current_task)
+            print(f"✓ Task paused: {self.task_manager.current_task.description}")
+            print(f"Resume with: ryx ::resume")
+        else:
+            print("No active task to save.")
+
+        sys.exit(0)
+
+    def check_interrupted(self):
+        """Check if interrupted (for periodic checks in loops)"""
+        return self.interrupted
