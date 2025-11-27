@@ -14,15 +14,58 @@ from datetime import datetime, timedelta
 
 class RAGSystem:
     def __init__(self):
-        self.db_path = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+        self.db_path = Path("/home/user/ryx-ai/data/rag_knowledge.db")
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.hot_cache = {}  # In-memory cache for ultra-fast access
         self.max_hot_cache = 100
-        
+
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
-        
+
+        self._init_db()
         self._load_hot_cache()
+
+    def _init_db(self):
+        """Initialize database schema"""
+        # Quick responses cache table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quick_responses (
+                prompt_hash TEXT PRIMARY KEY,
+                response TEXT NOT NULL,
+                model_used TEXT,
+                use_count INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL,
+                last_used TEXT NOT NULL,
+                ttl_seconds INTEGER DEFAULT 86400
+            )
+        """)
+
+        # File knowledge table
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge (
+                query_hash TEXT PRIMARY KEY,
+                file_type TEXT,
+                file_path TEXT NOT NULL,
+                content_preview TEXT,
+                last_accessed TEXT,
+                access_count INTEGER DEFAULT 0,
+                confidence REAL DEFAULT 1.0
+            )
+        """)
+
+        # File knowledge index
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS file_knowledge (
+                file_path TEXT PRIMARY KEY,
+                file_type TEXT,
+                content_hash TEXT,
+                last_learned TEXT,
+                access_count INTEGER DEFAULT 0
+            )
+        """)
+
+        self.conn.commit()
     
     def _load_hot_cache(self):
         """Load frequently accessed items into memory"""
@@ -123,6 +166,40 @@ class RAGSystem:
 
         return None
     
+    def _is_cacheable(self, prompt: str, response: str) -> bool:
+        """
+        Determine if a response is worth caching
+
+        Don't cache:
+        - Generic greetings/hellos
+        - "How can I help" type responses
+        - Very short responses (< 20 chars)
+        - Responses that don't contain actual commands/paths/useful info
+        """
+        response_lower = response.lower().strip()
+
+        # Don't cache generic greetings
+        generic_phrases = [
+            "hello", "hi there", "how can i help", "how can i assist",
+            "what can i do for you", "how may i help", "greetings",
+            "good morning", "good afternoon", "good evening"
+        ]
+
+        if any(phrase in response_lower for phrase in generic_phrases):
+            if len(response_lower) < 100:  # Short generic response
+                return False
+
+        # Don't cache very short responses (likely not useful)
+        if len(response.strip()) < 20:
+            return False
+
+        # Don't cache greetings prompts
+        prompt_lower = prompt.lower().strip()
+        if prompt_lower in ["hi", "hello", "hey", "greetings", "sup", "yo"]:
+            return False
+
+        return True
+
     def cache_response(self,
                        prompt: str,
                        response: str,
@@ -139,6 +216,10 @@ class RAGSystem:
             ttl_seconds: Time to live
             store_original: Store original prompt for similarity matching
         """
+        # Don't cache useless responses
+        if not self._is_cacheable(prompt, response):
+            return
+
         prompt_hash = self.hash_prompt(prompt)
 
         # Store with original prompt for similarity matching

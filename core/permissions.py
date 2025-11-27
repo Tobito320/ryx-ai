@@ -18,7 +18,7 @@ class PermissionLevel(Enum):
 
 class PermissionManager:
     def __init__(self):
-        self.config_path = Path.home() / "ryx-ai" / "configs" / "permissions.json"
+        self.config_path = Path("/home/user/ryx-ai/configs/permissions.json")
         self.config = self.load_config()
         
     def load_config(self) -> Dict:
