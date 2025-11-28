@@ -18,7 +18,10 @@ from core.task_manager import InterruptionHandler, Task, TaskStatus
 from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class SessionMode:
-    def __init__(self):
+    """Interactive session mode with graceful interrupts and state persistence"""
+
+    def __init__(self) -> None:
+        """Initialize session mode with AI engine and state management"""
         self.ai = AIEngineV2()
         self.rag = RAGSystem()
         self.file_finder = FileFinder(self.rag)

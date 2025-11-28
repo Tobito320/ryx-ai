@@ -12,17 +12,22 @@ from enum import Enum
 from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class PermissionLevel(Enum):
+    """Permission levels for command execution"""
     SAFE = "SAFE"
     MODIFY = "MODIFY"
     DESTROY = "DESTROY"
     BLOCKED = "BLOCKED"
 
 class PermissionManager:
-    def __init__(self):
+    """Manages command permissions and safety analysis"""
+
+    def __init__(self) -> None:
+        """Initialize permission manager with configuration"""
         self.config_path = get_project_root() / "configs" / "permissions.json"
         self.config = self.load_config()
-        
+
     def load_config(self) -> Dict:
+        """Load permission configuration from JSON file"""
         with open(self.config_path, 'r') as f:
             return json.load(f)
     
@@ -94,7 +99,10 @@ class PermissionManager:
 
 
 class CommandExecutor:
-    def __init__(self, permission_manager: PermissionManager):
+    """Executes commands safely with permission checking and logging"""
+
+    def __init__(self, permission_manager: PermissionManager) -> None:
+        """Initialize command executor with permission manager"""
         self.perm_manager = permission_manager
         self.history_file = get_project_root() / "data" / "history" / "commands.log"
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -218,7 +226,7 @@ class CommandExecutor:
                 "exit_code": -4
             }
     
-    def _log_command(self, command: str, success: bool):
+    def _log_command(self, command: str, success: bool) -> None:
         """Log command to history"""
         from datetime import datetime
         

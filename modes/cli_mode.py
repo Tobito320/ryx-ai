@@ -18,7 +18,10 @@ import os
 from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class CLIMode:
-    def __init__(self):
+    """Ultra-fast one-shot command execution mode"""
+
+    def __init__(self) -> None:
+        """Initialize CLI mode with AI engine and caching"""
         self.ai = AIEngineV2()
         self.rag = RAGSystem()
         self.file_finder = FileFinder(self.rag)
@@ -120,36 +123,11 @@ class CLIMode:
 
 
 def show_status():
-    """Show system status and available commands"""
-    print()
-    print("\033[1;36m╭─────────────────────────────────────╮\033[0m")
-    print("\033[1;36m│  Ryx AI - Arch Linux Assistant      │\033[0m")
-    print("\033[1;36m╰─────────────────────────────────────╯\033[0m")
-    print()
-    
-    # Check if AI is available
-    ai = AIEngine()
-    if ai.is_available():
-        print("\033[1;32m●\033[0m AI Engine: \033[1;32mOnline\033[0m")
-        models = ai.get_available_models()
-        print(f"\033[2m  Models: {', '.join(models[:3])}\033[0m")
-    else:
-        print("\033[1;31m●\033[0m AI Engine: \033[1;31mOffline\033[0m")
-        print("\033[1;33m  Start with: ollama serve\033[0m")
-    
-    # Get RAG stats
-    rag = RAGSystem()
-    stats = rag.get_stats()
-    
-    print(f"\033[1;32m●\033[0m Cache: {stats['cached_responses']} responses")
-    print(f"\033[2m  Hit rate: {stats['total_cache_hits']} total hits\033[0m")
-    
-    print(f"\033[1;32m●\033[0m Knowledge: {stats['known_files']} learned files")
-    
-    rag.close()
-    
-    print()
-    print("\033[1;33mUsage:\033[0m")
+    """Show comprehensive system status"""
+    from core.system_status import show_comprehensive_status
+    show_comprehensive_status()
+
+    print("\033[1;33mQuick Start:\033[0m")
     print("  \033[1;37mryx 'prompt'\033[0m          Direct command")
     print("  \033[1;37mryx ::session\033[0m         Interactive mode")
     print("  \033[1;37mryx ::help\033[0m            Show all commands")

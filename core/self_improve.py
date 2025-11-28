@@ -11,8 +11,9 @@ from typing import List, Dict, Optional
 
 class SelfAnalyzer:
     """Analyzes Ryx's own code for improvements"""
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
+        """Initialize self-analyzer with project paths"""
         self.project_root = Path.home() / "ryx-ai"
         self.improvement_log = self.project_root / "data" / "improvements.json"
         self.code_analysis = self.project_root / "data" / "code_analysis.json"
@@ -290,8 +291,9 @@ class SelfImprover:
     
     SAFETY: Only suggests improvements, never applies automatically
     """
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
+        """Initialize self-improver with analyzer"""
         self.analyzer = SelfAnalyzer()
         self.ai = None  # Will be initialized when needed
     

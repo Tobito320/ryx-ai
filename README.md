@@ -286,6 +286,45 @@ ryx ::clean
 # - Compresses logs
 ```
 
+### Utility Scripts
+
+Comprehensive maintenance scripts in `scripts/`:
+
+```bash
+# System Diagnostics - Complete health check
+python scripts/system_diagnostics.py
+  → Checks Ollama status, databases, disk usage
+  → Detects common issues with fix suggestions
+  → Shows performance metrics
+  → Saves report to data/diagnostics_report.json
+
+# Database Maintenance - Optimize and clean databases
+python scripts/database_maintenance.py analyze   # Analyze all databases
+python scripts/database_maintenance.py optimize  # Optimize and VACUUM
+python scripts/database_maintenance.py cleanup   # Remove old data (30 days)
+python scripts/database_maintenance.py all       # Run all operations
+
+# Backup & Restore - Protect your data
+python scripts/backup_restore.py create             # Create backup
+python scripts/backup_restore.py create --include-logs  # With logs
+python scripts/backup_restore.py list               # List backups
+python scripts/backup_restore.py restore --backup-file <file> --confirm
+python scripts/backup_restore.py cleanup --keep 5   # Keep only 5 recent
+
+# Code Quality Check - AST-based analysis
+python scripts/code_quality_check.py
+  → Checks for missing docstrings
+  → Identifies long functions (>100 lines)
+  → Calculates quality score
+  → Saves report to data/code_quality_report.txt
+
+# Database Optimization - Quick database tune-up
+python scripts/optimize_databases.py
+  → Adds indexes for faster queries
+  → Runs VACUUM to reclaim space
+  → Runs ANALYZE for query optimization
+```
+
 ### Database Management
 
 ```bash
@@ -297,6 +336,9 @@ cat ~/ryx-ai/data/rag_knowledge.db
 
 # Clear cache
 rm ~/ryx-ai/data/cache/*
+
+# Advanced database operations
+python scripts/database_maintenance.py analyze
 ```
 
 ## 🐛 Troubleshooting

@@ -62,7 +62,8 @@ class ModelOrchestrator:
     - Performance Tracking: Learns which models work best for different tasks
     """
 
-    def __init__(self, config_path: Optional[Path] = None, metrics_collector=None):
+    def __init__(self, config_path: Optional[Path] = None, metrics_collector=None) -> None:
+        """Initialize model orchestrator with lazy loading and performance tracking"""
         if config_path is None:
             config_path = get_project_root() / "configs" / "models.json"
 

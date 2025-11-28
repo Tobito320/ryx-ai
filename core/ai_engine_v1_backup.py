@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelSpec:
+    """Model specification with metadata"""
     name: str
     size: str
     use_case: str
@@ -20,7 +21,10 @@ class ModelSpec:
     priority: int
 
 class AIEngine:
-    def __init__(self):
+    """V1 AI Engine for model management and inference (backup)"""
+
+    def __init__(self) -> None:
+        """Initialize AI engine with model specs and configuration"""
         self.config_dir = Path.home() / "ryx-ai" / "configs"
         self.models_config = self.load_config("models.json")
         self.settings = self.load_config("settings.json")

@@ -46,7 +46,8 @@ class MetricsCollector:
     - Terminal display of stats
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        """Initialize metrics collector with database"""
         self.db_path = db_path or get_project_root() / "data" / "metrics.db"
         self._init_db()
 
