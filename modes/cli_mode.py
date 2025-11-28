@@ -62,12 +62,13 @@ class CLIMode:
                             # Open in new terminal (kitty)
                             cmd = f"kitty -e {editor} {file_path} &"
                             print(f"\033[1;32m▸\033[0m Opening {file_path} in new terminal")
+                            result = self.executor.execute(cmd, confirm=True)
                         else:
-                            # Open in same terminal
+                            # For same terminal, print command for user to run
+                            # (can't capture output from interactive editors)
                             cmd = f"{editor} {file_path}"
-                            print(f"\033[1;32m▸\033[0m Opening {file_path}")
-
-                        result = self.executor.execute(cmd, confirm=True)
+                            print(f"\033[1;32m▸\033[0m To open: \033[1;36m{cmd}\033[0m")
+                            result = {"success": True, "stdout": "", "stderr": "", "exit_code": 0}
 
                         if result["success"]:
                             # Cache this for next time

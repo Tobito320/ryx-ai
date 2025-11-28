@@ -612,6 +612,8 @@ CRITICAL RULES:
 3. For questions: answer in 1-2 sentences max
 4. NEVER explain what you're doing - just do it
 5. Use full paths always
+6. PRESERVE exact spelling from user queries (e.g., "hyprland" not "hyrangee")
+7. Double-check command names and paths before suggesting them
 
 """
 
