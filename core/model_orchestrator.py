@@ -614,6 +614,24 @@ CRITICAL RULES:
 5. Use full paths always
 6. PRESERVE exact spelling from user queries (e.g., "hyprland" not "hyrangee")
 7. Double-check command names and paths before suggesting them
+8. For "separate terminals" or "new terminals": use "kitty -e nvim file &" for EACH file
+9. When opening MULTIPLE files in separate terminals: generate separate "kitty -e nvim file &" for each
+10. Extract EXACT filenames from user input - don't hallucinate or guess names
+11. If user lists files with bullets/dashes, extract ONLY the filenames, ignore formatting
+
+EXAMPLES:
+User: "open file1.txt and file2.txt in separate terminals"
+Response: ```bash
+kitty -e nvim file1.txt &
+kitty -e nvim file2.txt &
+```
+
+User: "open these 3 files in new terminals: - config.yml - setup.sh - README.md"
+Response: ```bash
+kitty -e nvim config.yml &
+kitty -e nvim setup.sh &
+kitty -e nvim README.md &
+```
 
 """
 
