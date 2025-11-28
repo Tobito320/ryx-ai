@@ -158,10 +158,27 @@ class CommandExecutor:
         
         return commands
     
+    def _is_interactive_program(self, command: str) -> bool:
+        """Check if command is an interactive program (editor, TUI, etc.)"""
+        # Extract base command
+        cmd_lower = command.lower().strip()
+        base_cmd = cmd_lower.split()[0] if cmd_lower.split() else ""
+
+        # Common interactive programs
+        interactive_programs = [
+            'nvim', 'vim', 'vi', 'nano', 'emacs',
+            'htop', 'top', 'less', 'more',
+            'man', 'tmux', 'screen',
+            'python', 'python3', 'ipython',
+            'mysql', 'psql', 'redis-cli'
+        ]
+
+        return base_cmd in interactive_programs
+
     def execute(self, command: str, confirm: bool = False) -> Dict:
         """
         Execute a command safely
-        
+
         Returns:
         {
             "success": bool,
@@ -171,7 +188,7 @@ class CommandExecutor:
         }
         """
         level, reason = self.perm_manager.analyze_command(command)
-        
+
         if level == PermissionLevel.BLOCKED:
             return {
                 "success": False,
@@ -179,7 +196,7 @@ class CommandExecutor:
                 "stderr": f"Command blocked: {reason}",
                 "exit_code": -1
             }
-        
+
         if self.perm_manager.requires_confirmation(level) and not confirm:
             return {
                 "success": False,
@@ -187,30 +204,47 @@ class CommandExecutor:
                 "stderr": "Confirmation required - run with confirm=True",
                 "exit_code": -2
             }
-        
+
         # Execute command
         try:
             # Expand shell variables
             expanded_cmd = command.replace("~", str(Path.home()))
-            
-            result = subprocess.run(
-                expanded_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
-            # Log to history
-            self._log_command(command, result.returncode == 0)
-            
-            return {
-                "success": result.returncode == 0,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exit_code": result.returncode
-            }
-            
+
+            # Check if this is an interactive program
+            if self._is_interactive_program(command) and not command.endswith('&'):
+                # Interactive program - use os.system for proper terminal handling
+                import os
+                exit_code = os.system(expanded_cmd)
+
+                # Log to history
+                self._log_command(command, exit_code == 0)
+
+                return {
+                    "success": exit_code == 0,
+                    "stdout": "",
+                    "stderr": "" if exit_code == 0 else f"Exit code: {exit_code}",
+                    "exit_code": exit_code
+                }
+            else:
+                # Non-interactive or background command - use subprocess with capture
+                result = subprocess.run(
+                    expanded_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                # Log to history
+                self._log_command(command, result.returncode == 0)
+
+                return {
+                    "success": result.returncode == 0,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.returncode
+                }
+
         except subprocess.TimeoutExpired:
             return {
                 "success": False,

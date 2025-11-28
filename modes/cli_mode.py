@@ -13,6 +13,7 @@ from core.ai_engine import ResponseFormatter
 from core.rag_system import RAGSystem, FileFinder
 from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
 from core.meta_learner import MetaLearner
+from core.intent_parser import IntentParser, Intent
 import subprocess
 import os
 from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
@@ -29,10 +30,25 @@ class CLIMode:
         self.executor = CommandExecutor(self.perm_manager)
         self.formatter = ResponseFormatter()
         self.meta_learner = self.ai.meta_learner
-        self.model_override = None  # For forced model selection
+        self.intent_parser = IntentParser()
     
     def handle_prompt(self, prompt: str):
-        """Handle direct prompt with V2 engine"""
+        """Handle direct prompt with intent-based routing"""
+
+        # Parse user intent first
+        intent = self.intent_parser.parse(prompt)
+
+        # Handle model switching if requested
+        if intent.model_switch:
+            try:
+                self.ai.orchestrator.switch_model(intent.model_switch)
+                print(f"\033[1;32m✓\033[0m Switched to {intent.model_switch}")
+                # If this was just a model switch, return
+                if intent.action == 'model_switch':
+                    return
+            except Exception as e:
+                print(f"\033[1;31m✗\033[0m Failed to switch model: {e}")
+                return
 
         # Check cache first (0-latency path)
         cached = self.rag.query_cache(prompt)
@@ -40,48 +56,155 @@ class CLIMode:
             print("\033[2m[cached]\033[0m")
             # Apply learned preferences to cached response
             cached = self.meta_learner.apply_preferences_to_response(cached)
-            print(self.formatter.format_cli(cached))
+
+            # Fix: Check if cached response contains a command that should be executed
+            if self._should_execute_cached(cached, intent):
+                self._execute_cached_command(cached, intent)
+            else:
+                print(self.formatter.format_cli(cached))
             return
 
-        # Check if it's a file operation
-        if any(kw in prompt.lower() for kw in ["open", "edit", "show", "find"]):
-            # Try file finder first
-            file_info = self.file_finder.find(prompt)
-            if file_info:
-                file_path, confidence = file_info
+        # Route based on intent
+        if intent.action == 'chat':
+            self._handle_chat(prompt)
+        elif intent.action == 'locate':
+            self._handle_locate(prompt, intent)
+        elif intent.action == 'execute':
+            self._handle_execute(prompt, intent)
+        elif intent.action == 'browse':
+            self._handle_browse(prompt, intent)
 
-                if confidence > 0.8:
-                    # High confidence - just do it
-                    if "open" in prompt.lower() or "edit" in prompt.lower():
-                        # Get preferred editor
-                        editor = self.meta_learner.get_preference("editor", "nvim")
+    def _should_execute_cached(self, cached: str, intent: Intent) -> bool:
+        """Check if cached response contains executable command"""
+        # If intent is execute and cached contains bash command, we should execute
+        if intent.action == 'execute':
+            return '```bash' in cached or '▸ Opening' in cached or '▸ Executing' in cached
+        return False
 
-                        # Check if new terminal is requested
-                        open_in_new_terminal = any(kw in prompt.lower() for kw in ["new terminal", "new tab", "separate window"])
+    def _execute_cached_command(self, cached: str, intent: Intent):
+        """Execute command from cached response"""
+        import re
 
-                        if open_in_new_terminal:
-                            # Open in new terminal (kitty)
-                            cmd = f"kitty -e {editor} {file_path} &"
-                            print(f"\033[1;32m▸\033[0m Opening {file_path} in new terminal")
-                            result = self.executor.execute(cmd, confirm=True)
-                        else:
-                            # For same terminal, print command for user to run
-                            # (can't capture output from interactive editors)
-                            cmd = f"{editor} {file_path}"
-                            print(f"\033[1;32m▸\033[0m To open: \033[1;36m{cmd}\033[0m")
-                            result = {"success": True, "stdout": "", "stderr": "", "exit_code": 0}
+        # Extract command from various formats
+        cmd = None
 
-                        if result["success"]:
-                            # Cache this for next time
-                            self.rag.cache_response(prompt, f"```bash\n{cmd}\n```", "cached")
-                            # Learn the file location
-                            self.rag.learn_file_location(prompt, "config", file_path, confidence=confidence)
-                        return
+        # Try to extract from code block
+        match = re.search(r'```bash\n(.+?)\n```', cached, re.DOTALL)
+        if match:
+            cmd = match.group(1).strip()
 
-        # Query AI with V2 engine
+        # Try to extract from execution message
+        if not cmd:
+            match = re.search(r'▸ (?:Opening|Executing).*?\n(.+?)(?:\n|$)', cached)
+            if match:
+                cmd = match.group(1).strip()
+
+        if cmd:
+            # Get preferred editor for file operations
+            if intent.action == 'execute' and ('nvim' in cmd or 'vim' in cmd or 'nano' in cmd):
+                editor = self.meta_learner.get_preference("editor", "nvim")
+                # Replace any editor with preferred one
+                cmd = re.sub(r'\b(nvim|vim|nano)\b', editor, cmd)
+
+            # Check if should open in new terminal
+            if 'new_terminal' in intent.modifiers:
+                if not cmd.startswith('kitty'):
+                    # Wrap in kitty command
+                    cmd = f"kitty -e {cmd} &"
+                    print(f"\033[1;32m▸\033[0m Opening in new terminal")
+            else:
+                print(f"\033[1;32m▸\033[0m Executing: {cmd}")
+
+            # Execute the command
+            self.executor.execute(cmd, confirm=True)
+        else:
+            # Couldn't extract command, just show cached response
+            print(self.formatter.format_cli(cached))
+
+    def _handle_chat(self, prompt: str):
+        """Handle pure conversation (no command execution)"""
+        # Tell AI to respond conversationally without generating commands
+        system_context = (
+            "You are a helpful AI assistant. Respond naturally to the user's message. "
+            "Do NOT generate bash commands, code blocks, or try to execute anything. "
+            "Just have a friendly conversation."
+        )
+
         print("\033[2m[thinking...]\033[0m", end="\r")
-        result = self.ai.query(prompt, context=None, use_cache=True, learn_preferences=True, model_override=self.model_override)
+        result = self.ai.query(prompt, context=system_context, use_cache=True, learn_preferences=True)
         print(" " * 20, end="\r")  # Clear "thinking"
+
+        if result.error:
+            print(f"\033[1;31m✗\033[0m {result.error_message}")
+            return
+
+        print(self.formatter.format_cli(result.response))
+
+    def _handle_locate(self, prompt: str, intent: Intent):
+        """Handle file location requests (show path only, don't execute)"""
+        # Try to find the file
+        file_info = self.file_finder.find(intent.target or prompt)
+
+        if file_info:
+            file_path, confidence = file_info
+
+            if confidence > 0.7:
+                print(f"\033[1;32m✓\033[0m Found: {file_path}")
+
+                # Cache this result
+                self.rag.cache_response(prompt, f"Found: {file_path}", "cached")
+                self.rag.learn_file_location(prompt, "config", file_path, confidence=confidence)
+                return
+
+        # If file finder didn't work, ask AI but tell it to just locate, not execute
+        system_context = (
+            "User is asking where a file is located. Find the file path and show it. "
+            "Do NOT open, edit, or execute anything. Just show the file path."
+        )
+
+        print("\033[2m[searching...]\033[0m", end="\r")
+        result = self.ai.query(prompt, context=system_context, use_cache=True, learn_preferences=True)
+        print(" " * 20, end="\r")
+
+        if result.error:
+            print(f"\033[1;31m✗\033[0m {result.error_message}")
+            return
+
+        print(self.formatter.format_cli(result.response))
+
+    def _handle_execute(self, prompt: str, intent: Intent):
+        """Handle file execution (open in editor, run command, etc.)"""
+        # Try file finder first
+        file_info = self.file_finder.find(intent.target or prompt)
+
+        if file_info:
+            file_path, confidence = file_info
+
+            if confidence > 0.7:
+                # Get preferred editor
+                editor = self.meta_learner.get_preference("editor", "nvim")
+
+                # Check if should open in new terminal
+                if 'new_terminal' in intent.modifiers:
+                    cmd = f"kitty -e {editor} {file_path} &"
+                    print(f"\033[1;32m▸\033[0m Opening {file_path} in new terminal")
+                else:
+                    # Open in same terminal - use os.execvp for proper terminal handling
+                    cmd = f"{editor} {file_path}"
+                    print(f"\033[1;32m▸\033[0m Opening {file_path}")
+
+                result = self.executor.execute(cmd, confirm=True)
+
+                if result["success"]:
+                    # Cache this for next time
+                    self.rag.cache_response(prompt, f"```bash\n{cmd}\n```", "cached")
+                    self.rag.learn_file_location(prompt, "config", file_path, confidence=confidence)
+                return
+
+        # If file finder didn't work, query AI
+        print("\033[2m[thinking...]\033[0m", end="\r")
+        result = self.ai.query(prompt, context=None, use_cache=True, learn_preferences=True)
+        print(" " * 20, end="\r")
 
         if result.error:
             print(f"\033[1;31m✗\033[0m {result.error_message}")
@@ -89,21 +212,18 @@ class CLIMode:
 
         ai_text = result.response
 
-        # Parse commands
+        # Parse and execute commands
         commands = self.executor.parse_commands(ai_text)
 
         if commands:
-            # Show AI response first
             print(self.formatter.format_cli(ai_text))
             print()
 
-            # Execute commands
             for cmd_info in commands:
                 cmd = cmd_info["command"]
                 level = cmd_info["level"]
 
                 if cmd_info["auto_approve"]:
-                    # Auto-execute
                     print(f"\033[1;32m▸\033[0m Executing: {cmd}")
                     result_exec = self.executor.execute(cmd, confirm=True)
 
@@ -114,7 +234,6 @@ class CLIMode:
                     else:
                         print(f"\033[1;31m✗\033[0m {result_exec['stderr']}")
                 else:
-                    # Ask confirmation
                     if InteractiveConfirm.confirm(cmd, level, cmd_info["reason"]):
                         result_exec = self.executor.execute(cmd, confirm=True)
                         if result_exec["success"]:
@@ -128,8 +247,19 @@ class CLIMode:
                     else:
                         print("\033[1;33m○\033[0m Skipped")
         else:
-            # Just print response
             print(self.formatter.format_cli(ai_text))
+
+    def _handle_browse(self, prompt: str, intent: Intent):
+        """Handle web browsing/search requests"""
+        from tools.browser import WebBrowser
+
+        # Extract search query
+        query = intent.target or prompt
+
+        print(f"\033[1;32m▸\033[0m Searching for: {query}")
+
+        browser = WebBrowser()
+        browser.search(query)
 
 
 def show_status():
@@ -336,7 +466,6 @@ def show_config():
 
 def show_models():
     """Show available AI models"""
-    from core.ai_engine_v2 import AIEngineV2
     import subprocess
 
     # Get models from Ollama
@@ -345,8 +474,6 @@ def show_models():
     for line in result.stdout.split('\n')[1:]:
         if line.strip():
             models.append(line.split()[0])
-    ai = AIEngine()
-    models = ai.get_available_models()
     
     print()
     print("\033[1;36m╭─────────────────────────────────────╮\033[0m")

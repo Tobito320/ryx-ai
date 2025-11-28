@@ -7,7 +7,7 @@ import sys
 import signal
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime
 
 from core.ai_engine_v2 import AIEngineV2
