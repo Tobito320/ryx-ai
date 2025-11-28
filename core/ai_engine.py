@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from .model_orchestrator import ModelOrchestrator
+from .model_orchestrator import ModelOrchestrator, QueryResult
 from .meta_learner import MetaLearner
 from .health_monitor import HealthMonitor
 from .task_manager import TaskManager
@@ -129,23 +129,27 @@ class AIEngine:
             enhanced_context += f"\n\nUser Preferences:\n{pref_text}"
 
         # Step 4: Query Model
-        result = self.orchestrator.query(
+        result: QueryResult = self.orchestrator.query(
             prompt=prompt,
             preferences=preferences,
             system_context=enhanced_context,
             model_override=model_override
         )
 
-        if result["error"]:
+        if result.error:
             return {
-                **result,
+                "response": result.response,
+                "model": result.model_used,
+                "latency_ms": result.latency_ms,
+                "complexity": result.complexity_score,
                 "cached": False,
                 "preferences_applied": False,
-                "health_status": self.health_monitor.current_status.value
+                "health_status": self.health_monitor.current_status.value,
+                "error": True
             }
 
         # Step 5: Apply Preferences
-        original_response = result["response"]
+        original_response = result.response
         final_response = self.meta_learner.apply_preferences(original_response)
         preferences_applied = final_response != original_response
 
@@ -153,9 +157,9 @@ class AIEngine:
         self.meta_learner.record_interaction(
             query=prompt,
             response=final_response,
-            model_used=result["model"],
-            latency_ms=result["latency_ms"],
-            complexity=result["complexity"],
+            model_used=result.model_used,
+            latency_ms=result.latency_ms,
+            complexity=result.complexity_score,
             preferences_applied=preferences if preferences_applied else None
         )
 
@@ -164,17 +168,17 @@ class AIEngine:
             self.rag_system.cache_response(
                 prompt=prompt,
                 response=final_response,
-                model=result["model"]
+                model=result.model_used
             )
 
         return {
             "response": final_response,
-            "model": result["model"],
+            "model": result.model_used,
             "latency_ms": int((time.time() - start_time) * 1000),
-            "complexity": result["complexity"],
+            "complexity": result.complexity_score,
             "cached": False,
             "preferences_applied": preferences_applied,
-            "fallback_used": result.get("fallback_used", False),
+            "fallback_used": False,
             "health_status": self.health_monitor.current_status.value,
             "error": False
         }
