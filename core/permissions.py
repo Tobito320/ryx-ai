@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from enum import Enum
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class PermissionLevel(Enum):
     SAFE = "SAFE"
@@ -18,7 +19,7 @@ class PermissionLevel(Enum):
 
 class PermissionManager:
     def __init__(self):
-        self.config_path = Path.home() / "ryx-ai" / "configs" / "permissions.json"
+        self.config_path = get_project_root() / "configs" / "permissions.json"
         self.config = self.load_config()
         
     def load_config(self) -> Dict:
@@ -95,7 +96,7 @@ class PermissionManager:
 class CommandExecutor:
     def __init__(self, permission_manager: PermissionManager):
         self.perm_manager = permission_manager
-        self.history_file = Path.home() / "ryx-ai" / "data" / "history" / "commands.log"
+        self.history_file = get_project_root() / "data" / "history" / "commands.log"
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
     
     def parse_commands(self, ai_response: str) -> List[Dict]:

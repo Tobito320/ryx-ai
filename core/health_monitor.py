@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class HealthStatus(Enum):
     """System health status"""
@@ -65,7 +66,7 @@ class HealthMonitor:
 
     def __init__(self, db_path: Optional[Path] = None):
         if db_path is None:
-            db_path = Path.home() / "ryx-ai" / "data" / "health_monitor.db"
+            db_path = get_project_root() / "data" / "health_monitor.db"
 
         self.db_path = db_path
         self.ollama_url = "http://localhost:11434"
@@ -238,7 +239,7 @@ class HealthMonitor:
         """Check database health"""
         try:
             # Check main RAG database
-            rag_db = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+            rag_db = get_project_root() / "data" / "rag_knowledge.db"
 
             if not rag_db.exists():
                 return HealthCheck(
@@ -574,7 +575,7 @@ class HealthMonitor:
     def _fix_database(self) -> bool:
         """Try to fix database issues"""
         try:
-            rag_db = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+            rag_db = get_project_root() / "data" / "rag_knowledge.db"
 
             # Check for backup
             backup = rag_db.parent / f"{rag_db.stem}_backup.db"

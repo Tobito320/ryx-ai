@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from collections import defaultdict
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 
 @dataclass
@@ -39,7 +40,7 @@ class MetricsCollector:
     """
 
     def __init__(self, db_path: Optional[Path] = None):
-        self.db_path = db_path or Path.home() / "ryx-ai" / "data" / "metrics.db"
+        self.db_path = db_path or get_project_root() / "data" / "metrics.db"
         self._init_db()
 
         # In-memory counters for fast access
