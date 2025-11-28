@@ -281,7 +281,6 @@ def show_config():
 
 def show_models():
     """Show available AI models"""
-    from core.ai_engine_v2 import AIEngineV2
     import subprocess
 
     # Get models from Ollama
@@ -290,8 +289,6 @@ def show_models():
     for line in result.stdout.split('\n')[1:]:
         if line.strip():
             models.append(line.split()[0])
-    ai = AIEngine()
-    models = ai.get_available_models()
     
     print()
     print("\033[1;36m╭─────────────────────────────────────╮\033[0m")
