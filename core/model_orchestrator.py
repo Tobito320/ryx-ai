@@ -454,7 +454,7 @@ class ModelOrchestrator:
                      prompt: str,
                      system_context: str = "",
                      preferences: Optional[Dict] = None) -> Dict[str, Any]:
-        """Query a specific model"""
+        """Query a specific model with retry logic for handling Ollama conflicts"""
 
         # Ensure model is loaded
         if not self._load_model(model_name):
@@ -466,57 +466,95 @@ class ModelOrchestrator:
         # Build system prompt
         system_prompt = self._build_system_prompt(system_context, preferences)
 
-        try:
-            response = requests.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": model_name,
-                    "prompt": f"{system_prompt}\n\nUser: {prompt}",
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.3,
-                        "num_predict": 2048
-                    }
-                },
-                timeout=60
-            )
+        # Retry logic with exponential backoff for Ollama conflicts
+        max_retries = 3
+        base_delay = 1.0  # seconds
 
-            if response.status_code == 200:
-                data = response.json()
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={
+                        "model": model_name,
+                        "prompt": f"{system_prompt}\n\nUser: {prompt}",
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.3,
+                            "num_predict": 2048
+                        }
+                    },
+                    timeout=60
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    return {
+                        "response": data.get("response", ""),
+                        "error": False
+                    }
+                elif response.status_code == 503 or response.status_code == 429:
+                    # Service unavailable or too many requests - Ollama is busy
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.info(f"Ollama busy, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        return {
+                            "response": (
+                                "⏱️  Ollama is busy with another request\n\n"
+                                "Please try again in a moment or wait for other processes to complete."
+                            ),
+                            "error": True
+                        }
+                else:
+                    return {
+                        "response": f"Error: Status {response.status_code}",
+                        "error": True
+                    }
+
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.info(f"Connection error, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                else:
+                    return {
+                        "response": (
+                            "❌ Cannot connect to Ollama service\n\n"
+                            "Possible fixes:\n"
+                            "  1. Start Ollama: ollama serve\n"
+                            "  2. Check if another application is using Ollama\n"
+                            "  3. Wait if Ollama is busy with another request\n"
+                        ),
+                        "error": True
+                    }
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.info(f"Request timeout, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                else:
+                    return {
+                        "response": (
+                            "⏱️  Ollama request timed out\n\n"
+                            "Ollama may be busy with another request. Try again in a moment."
+                        ),
+                        "error": True
+                    }
+            except Exception as e:
                 return {
-                    "response": data.get("response", ""),
-                    "error": False
-                }
-            else:
-                return {
-                    "response": f"Error: Status {response.status_code}",
+                    "response": f"Error: {str(e)}",
                     "error": True
                 }
 
-        except requests.exceptions.ConnectionError as e:
-            return {
-                "response": (
-                    "❌ Cannot connect to Ollama service\n\n"
-                    "Possible fixes:\n"
-                    "  1. Start Ollama: ollama serve\n"
-                    "  2. Check if another application is using Ollama\n"
-                    "  3. Wait if Ollama is busy with another request\n"
-                ),
-                "error": True
-            }
-        except requests.exceptions.Timeout:
-            return {
-                "response": (
-                    "⏱️  Ollama request timed out\n\n"
-                    "Ollama may be busy with another request. Try again in a moment."
-                ),
-                "error": True
-            }
-        except Exception as e:
-            return {
-                "response": f"Error: {str(e)}",
-                "error": True
-            }
+        # Should not reach here, but just in case
+        return {
+            "response": "Unexpected error in retry logic",
+            "error": True
+        }
 
     def _try_fallback_chain(self,
                            failed_model: str,

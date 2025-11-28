@@ -81,9 +81,9 @@ class AIEngineV2:
             # Initialize orchestrator with metrics integration
             self.orchestrator = ModelOrchestrator(model_config, metrics_collector=self.metrics)
 
-            self.meta_learner = MetaLearner(self.project_root)
-            self.health_monitor = HealthMonitor(self.project_root)
-            self.task_manager = TaskManager(self.project_root)
+            self.meta_learner = MetaLearner()  # Uses default path from get_project_root()
+            self.health_monitor = HealthMonitor()  # Uses default path from get_project_root()
+            self.task_manager = TaskManager()  # Uses default path from get_project_root()
             self.rag = RAGSystem()
             self.file_finder = FileFinder(self.rag)
 
@@ -179,11 +179,11 @@ class AIEngineV2:
             # Record interaction for learning
             self.meta_learner.record_interaction(
                 query=prompt,
+                response=response_text,
                 model_used=result.model_used,
-                tier_used=result.tier_used.name,
                 latency_ms=result.latency_ms,
-                success=True,
-                user_satisfied=None  # Will be updated if user provides feedback
+                complexity=result.complexity_score,
+                preferences_applied=preferences_applied if preferences_applied else None
             )
 
             # Cache response for future use
@@ -228,11 +228,11 @@ class AIEngineV2:
 
                         self.meta_learner.record_interaction(
                             query=prompt,
+                            response=response_text,
                             model_used=result.model_used,
-                            tier_used=result.tier_used.name,
                             latency_ms=result.latency_ms,
-                            success=True,
-                            user_satisfied=None
+                            complexity=result.complexity_score,
+                            preferences_applied=None
                         )
 
                         if use_cache:
@@ -256,10 +256,11 @@ class AIEngineV2:
             # Record failure
             self.meta_learner.record_interaction(
                 query=prompt,
-                model_used="unknown",
-                tier_used="unknown",
+                response=str(e),
+                model_used="error",
                 latency_ms=int((time.time() - start_time) * 1000),
-                success=False
+                complexity=0.0,
+                preferences_applied=None
             )
 
             return IntegratedResponse(

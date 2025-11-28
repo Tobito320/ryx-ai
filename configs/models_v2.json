@@ -1,24 +1,26 @@
 {
-  "ultra-fast": {
-    "name": "qwen2.5:1.5b",
-    "vram_mb": 1500,
-    "typical_latency_ms": 50,
-    "specialties": ["commands", "simple_queries", "file_operations", "quick_answers"],
-    "quantization": "q4_0"
-  },
-  "balanced": {
-    "name": "deepseek-coder:6.7b",
-    "vram_mb": 4000,
-    "typical_latency_ms": 500,
-    "specialties": ["code", "scripts", "moderate_complexity", "bash", "python"],
-    "quantization": null
-  },
-  "powerful": {
-    "name": "qwen2.5-coder:14b",
-    "vram_mb": 9000,
-    "typical_latency_ms": 2000,
-    "specialties": ["architecture", "complex_reasoning", "refactoring", "system_design"],
-    "quantization": null
+  "tiers": {
+    "ultra-fast": {
+      "name": "qwen2.5:1.5b",
+      "vram_mb": 1500,
+      "typical_latency_ms": 50,
+      "specialties": ["commands", "simple_queries", "file_operations", "quick_answers"],
+      "tier_level": 1
+    },
+    "balanced": {
+      "name": "deepseek-coder:6.7b",
+      "vram_mb": 4000,
+      "typical_latency_ms": 500,
+      "specialties": ["code", "scripts", "moderate_complexity", "bash", "python"],
+      "tier_level": 2
+    },
+    "powerful": {
+      "name": "qwen2.5-coder:14b",
+      "vram_mb": 9000,
+      "typical_latency_ms": 2000,
+      "specialties": ["architecture", "complex_reasoning", "refactoring", "system_design"],
+      "tier_level": 3
+    }
   },
   "complexity_thresholds": {
     "ultra_fast_max": 0.5,

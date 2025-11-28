@@ -6,8 +6,8 @@ import sys
 import os
 from pathlib import Path
 
-# Auto-detect project root (where this script is located)
-PROJECT_ROOT = Path(__file__).parent.resolve()
+# Auto-detect project root (resolve symlinks first, then get parent)
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 # Add project to path
 sys.path.insert(0, str(PROJECT_ROOT))
