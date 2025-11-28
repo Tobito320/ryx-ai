@@ -34,6 +34,7 @@ class SessionMode:
         self.pending_commands = []
         self.running = True
         self.session_file = Path.home() / ".ryx" / "session_state.json"
+        self.model_override = None  # For forced model selection
 
         # Install graceful interrupt handler
         self.interrupt_handler = InterruptionHandler(self.ai.task_manager)
@@ -119,6 +120,11 @@ class SessionMode:
                     self.handle_v2_command(prompt)
                     continue
 
+                # Check for natural language model switching
+                model_switch_detected = self._detect_model_switch_request(prompt)
+                if model_switch_detected:
+                    continue
+
                 # Add to conversation
                 self.conversation_history.append({
                     "role": "user",
@@ -133,7 +139,7 @@ class SessionMode:
                 print("\033[1;34mRyx:\033[0m ", end="")
                 sys.stdout.flush()
 
-                result = self.ai.query(prompt, context=context, use_cache=True, learn_preferences=True)
+                result = self.ai.query(prompt, context=context, use_cache=True, learn_preferences=True, model_override=self.model_override)
 
                 if result.error:
                     print(f"\n\033[1;31m✗\033[0m {result.error_message}")
@@ -376,9 +382,18 @@ class SessionMode:
             self.handle_models()
         elif cmd == '::preferences' or cmd == '::prefs':
             self.handle_preferences()
+        elif cmd in ['::use-fast', '::use-1.5b', '::use-small']:
+            self.handle_model_switch("qwen2.5:1.5b", "ultra-fast")
+        elif cmd in ['::use-balanced', '::use-6.7b', '::use-deepseek']:
+            self.handle_model_switch("deepseek-coder:6.7b", "balanced")
+        elif cmd in ['::use-powerful', '::use-14b', '::use-big']:
+            self.handle_model_switch("qwen2.5-coder:14b", "powerful")
+        elif cmd in ['::use-auto', '::auto']:
+            self.handle_model_switch(None, "automatic")
         else:
             print(f"\033[1;31m✗\033[0m Unknown V2 command: {cmd}")
             print("  Available: ::resume ::health ::status ::models ::preferences")
+            print("  Model switching: ::use-fast ::use-balanced ::use-powerful ::use-auto")
 
     def handle_resume(self):
         """Resume last paused task"""
@@ -534,6 +549,97 @@ class SessionMode:
                 print(f"    • {suggestion}")
 
         print()
+
+    def _detect_model_switch_request(self, prompt: str) -> bool:
+        """Detect natural language model switching requests"""
+        prompt_lower = prompt.lower()
+
+        # Patterns for model switching
+        patterns = {
+            "deepseek": ["deepseek", "balanced", "6.7b", "bigger model", "better model"],
+            "fast": ["fast", "small", "quick", "1.5b", "smaller model"],
+            "powerful": ["powerful", "big", "14b", "largest", "best model"],
+            "auto": ["automatic", "auto select", "choose for me"]
+        }
+
+        # Check if this is a model switch request
+        is_switch_request = any([
+            "switch to" in prompt_lower,
+            "use" in prompt_lower and "model" in prompt_lower,
+            "talk to" in prompt_lower,
+            "change to" in prompt_lower,
+            "i want" in prompt_lower and "model" in prompt_lower,
+            "i wanna" in prompt_lower
+        ])
+
+        if not is_switch_request:
+            return False
+
+        # Detect which model
+        for model_type, keywords in patterns.items():
+            if any(keyword in prompt_lower for keyword in keywords):
+                if model_type == "deepseek":
+                    self.handle_model_switch("deepseek-coder:6.7b", "balanced")
+                elif model_type == "fast":
+                    self.handle_model_switch("qwen2.5:1.5b", "ultra-fast")
+                elif model_type == "powerful":
+                    self.handle_model_switch("qwen2.5-coder:14b", "powerful")
+                elif model_type == "auto":
+                    self.handle_model_switch(None, "automatic")
+                return True
+
+        # If switch request detected but no specific model, show options
+        print()
+        print("\033[1;36m▸\033[0m Available models:")
+        print("  ::use-fast       - Ultra-fast model (qwen2.5:1.5b)")
+        print("  ::use-deepseek   - Balanced model (deepseek-coder:6.7b)")
+        print("  ::use-powerful   - Powerful model (qwen2.5-coder:14b)")
+        print("  ::use-auto       - Automatic selection")
+        print()
+        return True
+
+    def handle_model_switch(self, model_name: Optional[str], tier_name: str):
+        """Switch to a specific model or automatic mode"""
+        if model_name is None:
+            self.model_override = None
+            print()
+            print(f"\033[1;32m✓\033[0m Switched to automatic model selection")
+            print(f"  Models will be selected based on query complexity")
+            print()
+        else:
+            # Check if model is available
+            import subprocess
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+            available_models = [line.split()[0] for line in result.stdout.split('\n')[1:] if line.strip()]
+
+            if model_name not in available_models:
+                print()
+                print(f"\033[1;33m⚠\033[0m  Model {model_name} not found")
+                print(f"  Available models: {', '.join(available_models)}")
+                print()
+                print(f"\033[1;36m▸\033[0m To download: \033[1;37mollama pull {model_name}\033[0m")
+                print()
+
+                # Ask if user wants to download
+                response = input(f"Download {model_name} now? [y/N]: ").strip().lower()
+                if response in ['y', 'yes']:
+                    print(f"\033[1;36m▸\033[0m Downloading {model_name}...")
+                    subprocess.run(['ollama', 'pull', model_name])
+                    print()
+                    print(f"\033[1;32m✓\033[0m Downloaded {model_name}")
+                    self.model_override = model_name
+                    print(f"\033[1;32m✓\033[0m Switched to {tier_name} model ({model_name})")
+                    print()
+                else:
+                    print(f"\033[1;33m○\033[0m Keeping current model selection")
+                    print()
+                return
+
+            self.model_override = model_name
+            print()
+            print(f"\033[1;32m✓\033[0m Switched to {tier_name} model ({model_name})")
+            print(f"  All queries will use this model until you run ::use-auto")
+            print()
 
 
 def main():

@@ -29,6 +29,7 @@ class CLIMode:
         self.executor = CommandExecutor(self.perm_manager)
         self.formatter = ResponseFormatter()
         self.meta_learner = self.ai.meta_learner
+        self.model_override = None  # For forced model selection
     
     def handle_prompt(self, prompt: str):
         """Handle direct prompt with V2 engine"""
@@ -79,7 +80,7 @@ class CLIMode:
 
         # Query AI with V2 engine
         print("\033[2m[thinking...]\033[0m", end="\r")
-        result = self.ai.query(prompt, context=None, use_cache=True, learn_preferences=True)
+        result = self.ai.query(prompt, context=None, use_cache=True, learn_preferences=True, model_override=self.model_override)
         print(" " * 20, end="\r")  # Clear "thinking"
 
         if result.error:
@@ -218,6 +219,29 @@ def handle_command(command: str, args: list):
         from tools.cache_validator import show_cache_stats
         show_cache_stats()
 
+    elif command in ["::use-fast", "::use-1.5b", "::use-small"]:
+        # Force ultra-fast model
+        print("\033[1;36m▸\033[0m Switching to ultra-fast model (qwen2.5:1.5b)")
+        # Create a temporary CLI instance to set the override
+        # (This is a limitation - the command handler is static)
+        print("\033[1;33m⚠\033[0m  Use this in ::session mode for persistent model switching")
+        print("  Or pass queries directly: ryx ::query-with fast \"your question\"")
+
+    elif command in ["::use-balanced", "::use-6.7b", "::use-deepseek"]:
+        # Force balanced model
+        print("\033[1;36m▸\033[0m Switching to balanced model (deepseek-coder:6.7b)")
+        print("\033[1;33m⚠\033[0m  Use this in ::session mode for persistent model switching")
+
+    elif command in ["::use-powerful", "::use-14b", "::use-big"]:
+        # Force powerful model
+        print("\033[1;36m▸\033[0m Switching to powerful model (qwen2.5-coder:14b)")
+        print("\033[1;33m⚠\033[0m  Use this in ::session mode for persistent model switching")
+
+    elif command in ["::use-auto", "::auto"]:
+        # Disable override - use automatic selection
+        print("\033[1;36m▸\033[0m Switching to automatic model selection")
+        print("\033[1;33m⚠\033[0m  Use this in ::session mode for persistent model switching")
+
     else:
         print(f"\033[1;31m✗\033[0m Unknown command: {command}")
         print("  Run \033[1;37mryx ::help\033[0m for available commands")
@@ -269,9 +293,16 @@ def show_help():
         "Cache Management": [
             ("ryx ::cache-check", "Validate & fix cache"),
             ("ryx ::cache-stats", "Show cache statistics"),
+        ],
+        "Model Selection (::session mode)": [
+            ("::use-fast", "Use ultra-fast model (1.5B)"),
+            ("::use-deepseek", "Use balanced model (6.7B)"),
+            ("::use-powerful", "Use powerful model (14B)"),
+            ("::use-auto", "Automatic model selection"),
+            ("\"now i wanna talk to deepseek\"", "Natural language switching"),
         ]
     }
-    
+
     for category, commands in categories.items():
         print(f"\033[1;33m{category}:\033[0m")
         for cmd, desc in commands:

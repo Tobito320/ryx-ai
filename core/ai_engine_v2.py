@@ -103,7 +103,8 @@ class AIEngineV2:
               prompt: str,
               context: Optional[str] = None,
               use_cache: bool = True,
-              learn_preferences: bool = True) -> IntegratedResponse:
+              learn_preferences: bool = True,
+              model_override: Optional[str] = None) -> IntegratedResponse:
         """
         Execute query with full integration of all V2 components
 
@@ -112,6 +113,7 @@ class AIEngineV2:
             context: Additional context
             use_cache: Whether to use RAG caching
             learn_preferences: Whether to learn from this interaction
+            model_override: Force specific model (e.g., "deepseek-coder:6.7b")
 
         Returns:
             IntegratedResponse with complete information
@@ -163,7 +165,11 @@ class AIEngineV2:
             enriched_context = self._build_enriched_context(prompt, context)
 
             # Query with model orchestrator (smart routing)
-            result: QueryResult = self.orchestrator.query(prompt, enriched_context)
+            result: QueryResult = self.orchestrator.query(
+                prompt=prompt,
+                system_context=enriched_context,
+                model_override=model_override
+            )
 
             # Apply learned preferences
             response_text = result.response

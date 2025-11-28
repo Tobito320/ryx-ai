@@ -15,7 +15,7 @@
       ]
     },
     "MODIFY": {
-      "auto_approve": true,
+      "auto_approve": false,
       "safe_directories": [
         "~/.config",
         "~/Documents",
