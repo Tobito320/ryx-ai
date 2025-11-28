@@ -21,7 +21,8 @@ class PerformanceProfiler:
     - Hot path identification
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize performance profiler with timing storage"""
         self.timings: Dict[str, List[float]] = defaultdict(list)
         self.call_counts: Dict[str, int] = defaultdict(int)
 
@@ -36,6 +37,7 @@ class PerformanceProfiler:
         """
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            """Wrapper that measures execution time"""
             start = time.perf_counter()
             result = func(*args, **kwargs)
             duration = (time.perf_counter() - start) * 1000  # Convert to ms
@@ -181,16 +183,19 @@ class Timer:
         print(f"Took {timer.duration_ms}ms")
     """
 
-    def __init__(self, name: str = "operation"):
+    def __init__(self, name: str = "operation") -> None:
+        """Initialize timer with operation name"""
         self.name = name
         self.duration_ms = 0
         self.start_time = 0
 
     def __enter__(self):
+        """Start timing"""
         self.start_time = time.perf_counter()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Stop timing and calculate duration"""
         self.duration_ms = (time.perf_counter() - self.start_time) * 1000
 
 

@@ -44,7 +44,8 @@ class MetaLearner:
     - Model Performance Tracking: Learns which models work best for which tasks
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        """Initialize meta learner with database for preference storage"""
         if db_path is None:
             db_path = get_project_root() / "data" / "meta_learning.db"
 

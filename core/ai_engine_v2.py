@@ -59,7 +59,8 @@ class AIEngineV2:
     - Graceful Ctrl+C with state save
     """
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Optional[Path] = None) -> None:
+        """Initialize V2 integrated AI engine with all components"""
         self.project_root = project_root or get_project_root()
 
         logger.info("Initializing Ryx AI V2 Integrated Engine...")
@@ -375,7 +376,8 @@ class AIEngine(AIEngineV2):
     This allows existing code to continue working while gaining V2 benefits
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize backward compatible AI engine"""
         super().__init__()
 
     def query(self, prompt: str, system_context: str = "", model_override: Optional[str] = None) -> Dict[str, Any]:

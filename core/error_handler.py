@@ -25,7 +25,8 @@ class ErrorHandler:
     - User-friendly error messages
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize error handler with tracking"""
         self.error_count = {}
         self.last_errors = []
         self.max_error_history = 100
@@ -122,8 +123,10 @@ def retry_on_error(max_retries: int = 3, backoff: list = None, exceptions: tuple
         backoff = [1, 2, 4]
 
     def decorator(func: Callable) -> Callable:
+        """Decorator implementation for retry logic"""
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            """Wrapper that retries on error with backoff"""
             import time
 
             last_exception = None
@@ -165,8 +168,10 @@ def graceful_failure(default_return: Any = None, log_error: bool = True):
             ...
     """
     def decorator(func: Callable) -> Callable:
+        """Decorator implementation for graceful failure"""
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            """Wrapper that catches errors and returns default value"""
             try:
                 return func(*args, **kwargs)
             except Exception as e:

@@ -13,7 +13,10 @@ from typing import Optional, Dict, List, Tuple
 from datetime import datetime, timedelta
 
 class RAGSystem:
-    def __init__(self):
+    """RAG system with 3-layer caching: hot (memory), warm (SQLite), cold (semantic)"""
+
+    def __init__(self) -> None:
+        """Initialize RAG system with database and hot cache"""
         from core.paths import get_data_dir
         self.db_path = get_data_dir() / "rag_knowledge.db"
         self.hot_cache = {}  # In-memory cache for ultra-fast access
@@ -399,8 +402,9 @@ class RAGSystem:
 
 class FileFinder:
     """Find files intelligently with learning"""
-    
-    def __init__(self, rag: RAGSystem):
+
+    def __init__(self, rag: RAGSystem) -> None:
+        """Initialize file finder with RAG system"""
         self.rag = rag
         self.common_locations = {
             "hyprland": ["~/.config/hyprland", "~/.config/hypr"],

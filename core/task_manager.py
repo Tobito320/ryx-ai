@@ -62,7 +62,8 @@ class TaskManager:
     - Multi-Step Coordination: Handle complex tasks with multiple steps
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        """Initialize task manager with database for state persistence"""
         if db_path is None:
             db_path = get_project_root() / "data" / "task_manager.db"
 
@@ -438,7 +439,8 @@ class InterruptionHandler:
         # Now Ctrl+C will save state and exit gracefully
     """
 
-    def __init__(self, task_manager: TaskManager):
+    def __init__(self, task_manager: TaskManager) -> None:
+        """Initialize interruption handler with task manager"""
         self.task_manager = task_manager
         self.interrupted = False
 

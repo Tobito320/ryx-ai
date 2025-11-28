@@ -15,7 +15,8 @@ from core.metrics_collector import get_metrics
 class SystemStatus:
     """Comprehensive system status and diagnostics"""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize system status with directory paths"""
         self.data_dir = get_data_dir()
         self.log_dir = get_log_dir()
 

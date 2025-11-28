@@ -18,7 +18,10 @@ import os
 from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class CLIMode:
-    def __init__(self):
+    """Ultra-fast one-shot command execution mode"""
+
+    def __init__(self) -> None:
+        """Initialize CLI mode with AI engine and caching"""
         self.ai = AIEngineV2()
         self.rag = RAGSystem()
         self.file_finder = FileFinder(self.rag)

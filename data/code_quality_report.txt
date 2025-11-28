@@ -5,15 +5,15 @@ Ryx AI - Code Quality Report
 
 Statistics:
   Total files: 34
-  Total lines: 10,185
+  Total lines: 10,232
   Total functions: 366
   Total classes: 55
 
 Issues by Type:
-  missing_docstring: 62
+  missing_docstring: 21
   long_function: 3
 
-Files with Issues (26):
+Files with Issues (9):
 
   comprehensive_test.py (16 issues)
     Line 77: Function 'test_ollama_service' missing docstring
@@ -21,51 +21,30 @@ Files with Issues (26):
     Line 105: Function 'test_config_files' missing docstring
     ... and 13 more
 
-  core/permissions.py (6 issues)
-    Line 14: Class 'PermissionLevel' missing docstring
-    Line 20: Class 'PermissionManager' missing docstring
-    Line 96: Class 'CommandExecutor' missing docstring
-    ... and 3 more
+  fix_databases.py (1 issues)
+    Line 126: Function 'main' missing docstring
 
-  core/performance_profiler.py (5 issues)
-    Line 24: Function '__init__' missing docstring
-    Line 184: Function '__init__' missing docstring
-    Line 189: Function '__enter__' missing docstring
-    ... and 2 more
+  tests/test_imports.py (1 issues)
+    Line 11: Function 'test_imports' missing docstring
 
-  core/error_handler.py (5 issues)
-    Line 28: Function '__init__' missing docstring
-    Line 124: Function 'decorator' missing docstring
-    Line 167: Function 'decorator' missing docstring
-    ... and 2 more
+  core/ai_engine.py (1 issues)
+    Line 47: Function 'query' is 133 lines (consider refactoring)
 
-  core/ai_engine_v1_backup.py (3 issues)
-    Line 15: Class 'ModelSpec' missing docstring
-    Line 22: Class 'AIEngine' missing docstring
-    Line 23: Function '__init__' missing docstring
+  core/ai_engine_v2.py (1 issues)
+    Line 102: Function 'query' is 175 lines (consider refactoring)
 
-  core/ai_engine_v2.py (3 issues)
-    Line 62: Function '__init__' missing docstring
-    Line 101: Function 'query' is 175 lines (consider refactoring)
-    Line 378: Function '__init__' missing docstring
+  core/model_orchestrator.py (1 issues)
+    Line 339: Function 'query' is 111 lines (consider refactoring)
 
-  core/rag_system.py (3 issues)
-    Line 15: Class 'RAGSystem' missing docstring
-    Line 16: Function '__init__' missing docstring
-    Line 403: Function '__init__' missing docstring
+  tools/scraper.py (1 issues)
+    Line 19: Function '__init__' missing docstring
 
-  modes/session_mode.py (2 issues)
-    Line 20: Class 'SessionMode' missing docstring
-    Line 21: Function '__init__' missing docstring
+  tools/council.py (1 issues)
+    Line 18: Function '__init__' missing docstring
 
-  modes/cli_mode.py (2 issues)
-    Line 20: Class 'CLIMode' missing docstring
-    Line 21: Function '__init__' missing docstring
+  tools/browser.py (1 issues)
+    Line 14: Function '__init__' missing docstring
 
-  core/task_manager.py (2 issues)
-    Line 65: Function '__init__' missing docstring
-    Line 441: Function '__init__' missing docstring
-
-Quality Score: 84.6/100
+Quality Score: 94.3/100
 
 ============================================================

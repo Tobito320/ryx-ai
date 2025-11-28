@@ -28,7 +28,8 @@ class CleanupManager:
     - Docker cleanup integration
     """
 
-    def __init__(self, project_root: Path = None):
+    def __init__(self, project_root: Path = None) -> None:
+        """Initialize cleanup manager with directory paths"""
         self.project_root = project_root or get_project_root()
         self.data_dir = self.project_root / "data"
         self.cache_dir = Path.home() / ".cache" / "ryx-ai"

@@ -18,7 +18,8 @@ from collections import defaultdict
 class CodeQualityChecker:
     """Check Python code quality"""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path) -> None:
+        """Initialize code quality checker with project root"""
         self.project_root = project_root
         self.issues = defaultdict(list)
         self.stats = {

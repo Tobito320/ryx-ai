@@ -34,7 +34,8 @@ class StartupOptimizer:
     - Create systemd service for boot loading
     """
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Optional[Path] = None) -> None:
+        """Initialize startup optimizer with project root"""
         self.project_root = project_root or get_project_root()
         self.benchmark_file = self.project_root / "data" / "benchmarks.json"
 
