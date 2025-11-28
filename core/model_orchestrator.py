@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import sqlite3
 import logging
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class ModelOrchestrator:
 
     def __init__(self, config_path: Optional[Path] = None, metrics_collector=None):
         if config_path is None:
-            config_path = Path.home() / "ryx-ai" / "configs" / "models.json"
+            config_path = get_project_root() / "configs" / "models.json"
 
         self.config_path = config_path
         self.ollama_url = "http://localhost:11434"
@@ -78,7 +79,7 @@ class ModelOrchestrator:
         self.base_model_name = "qwen2.5:1.5b"  # Always loaded
 
         # Database for performance tracking
-        self.db_path = Path.home() / "ryx-ai" / "data" / "model_performance.db"
+        self.db_path = get_project_root() / "data" / "model_performance.db"
         self._init_db()
 
         # Load configuration

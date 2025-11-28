@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 
 @dataclass
@@ -34,7 +35,7 @@ class StartupOptimizer:
     """
 
     def __init__(self, project_root: Optional[Path] = None):
-        self.project_root = project_root or Path.home() / "ryx-ai"
+        self.project_root = project_root or get_project_root()
         self.benchmark_file = self.project_root / "data" / "benchmarks.json"
 
     def benchmark_startup(self) -> Dict[str, BenchmarkResult]:

@@ -18,6 +18,7 @@ from core.rag_system import RAGSystem, FileFinder
 
 # Import original components for backward compatibility
 from core.ai_engine import ResponseFormatter
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class AIEngineV2:
     """
 
     def __init__(self, project_root: Optional[Path] = None):
-        self.project_root = project_root or Path.home() / "ryx-ai"
+        self.project_root = project_root or get_project_root()
 
         logger.info("Initializing Ryx AI V2 Integrated Engine...")
 

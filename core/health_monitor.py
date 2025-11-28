@@ -8,12 +8,19 @@ import sqlite3
 import requests
 import subprocess
 import threading
-import psutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
+
+# Optional dependency
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 
 class HealthStatus(Enum):
     """System health status"""
@@ -65,7 +72,7 @@ class HealthMonitor:
 
     def __init__(self, db_path: Optional[Path] = None):
         if db_path is None:
-            db_path = Path.home() / "ryx-ai" / "data" / "health_monitor.db"
+            db_path = get_project_root() / "data" / "health_monitor.db"
 
         self.db_path = db_path
         self.ollama_url = "http://localhost:11434"
@@ -238,7 +245,7 @@ class HealthMonitor:
         """Check database health"""
         try:
             # Check main RAG database
-            rag_db = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+            rag_db = get_project_root() / "data" / "rag_knowledge.db"
 
             if not rag_db.exists():
                 return HealthCheck(
@@ -283,6 +290,15 @@ class HealthMonitor:
 
     def _check_disk_space(self) -> HealthCheck:
         """Check disk space"""
+        if not PSUTIL_AVAILABLE:
+            return HealthCheck(
+                component="disk",
+                status=HealthStatus.HEALTHY,
+                message="Disk monitoring not available (psutil not installed)",
+                timestamp=datetime.now(),
+                details={"monitoring": False}
+            )
+
         try:
             usage = psutil.disk_usage(str(Path.home()))
             percent_used = usage.percent
@@ -322,6 +338,15 @@ class HealthMonitor:
 
     def _check_memory(self) -> HealthCheck:
         """Check memory usage"""
+        if not PSUTIL_AVAILABLE:
+            return HealthCheck(
+                component="memory",
+                status=HealthStatus.HEALTHY,
+                message="Memory monitoring not available (psutil not installed)",
+                timestamp=datetime.now(),
+                details={"monitoring": False}
+            )
+
         try:
             memory = psutil.virtual_memory()
             percent_used = memory.percent
@@ -574,7 +599,7 @@ class HealthMonitor:
     def _fix_database(self) -> bool:
         """Try to fix database issues"""
         try:
-            rag_db = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+            rag_db = get_project_root() / "data" / "rag_knowledge.db"
 
             # Check for backup
             backup = rag_db.parent / f"{rag_db.stem}_backup.db"

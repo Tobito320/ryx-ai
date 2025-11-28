@@ -14,14 +14,15 @@ from datetime import datetime, timedelta
 
 class RAGSystem:
     def __init__(self):
-        self.db_path = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+        from core.paths import get_data_dir
+        self.db_path = get_data_dir() / "rag_knowledge.db"
         self.hot_cache = {}  # In-memory cache for ultra-fast access
         self.max_hot_cache = 100
-        
+
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
-        
+
         self._load_hot_cache()
     
     def _load_hot_cache(self):

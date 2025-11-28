@@ -11,6 +11,7 @@ from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import defaultdict
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 @dataclass
 class Preference:
@@ -45,7 +46,7 @@ class MetaLearner:
 
     def __init__(self, db_path: Optional[Path] = None):
         if db_path is None:
-            db_path = Path.home() / "ryx-ai" / "data" / "meta_learning.db"
+            db_path = get_project_root() / "data" / "meta_learning.db"
 
         self.db_path = db_path
         self.preferences: Dict[str, Preference] = {}

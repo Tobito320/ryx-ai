@@ -8,93 +8,110 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from core.ai_engine import AIEngine, ResponseFormatter
+from core.ai_engine_v2 import AIEngineV2
+from core.ai_engine import ResponseFormatter
 from core.rag_system import RAGSystem, FileFinder
 from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
+from core.meta_learner import MetaLearner
+import subprocess
+import os
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class CLIMode:
     def __init__(self):
-        self.ai = AIEngine()
+        self.ai = AIEngineV2()
         self.rag = RAGSystem()
         self.file_finder = FileFinder(self.rag)
         self.perm_manager = PermissionManager()
         self.executor = CommandExecutor(self.perm_manager)
         self.formatter = ResponseFormatter()
+        self.meta_learner = self.ai.meta_learner
     
     def handle_prompt(self, prompt: str):
-        """Handle direct prompt"""
-        
+        """Handle direct prompt with V2 engine"""
+
         # Check cache first (0-latency path)
         cached = self.rag.query_cache(prompt)
         if cached:
             print("\033[2m[cached]\033[0m")
+            # Apply learned preferences to cached response
+            cached = self.meta_learner.apply_preferences_to_response(cached)
             print(self.formatter.format_cli(cached))
             return
-        
+
         # Check if it's a file operation
         if any(kw in prompt.lower() for kw in ["open", "edit", "show", "find"]):
             # Try file finder first
             file_info = self.file_finder.find(prompt)
             if file_info:
                 file_path, confidence = file_info
-                
+
                 if confidence > 0.8:
                     # High confidence - just do it
                     if "open" in prompt.lower() or "edit" in prompt.lower():
-                        cmd = f"nvim {file_path}"
-                        print(f"\033[1;32m▸\033[0m Opening {file_path}")
+                        # Get preferred editor
+                        editor = self.meta_learner.get_preference("editor", "nvim")
+
+                        # Check if new terminal is requested
+                        open_in_new_terminal = any(kw in prompt.lower() for kw in ["new terminal", "new tab", "separate window"])
+
+                        if open_in_new_terminal:
+                            # Open in new terminal (kitty)
+                            cmd = f"kitty -e {editor} {file_path} &"
+                            print(f"\033[1;32m▸\033[0m Opening {file_path} in new terminal")
+                        else:
+                            # Open in same terminal
+                            cmd = f"{editor} {file_path}"
+                            print(f"\033[1;32m▸\033[0m Opening {file_path}")
+
                         result = self.executor.execute(cmd, confirm=True)
-                        
+
                         if result["success"]:
                             # Cache this for next time
                             self.rag.cache_response(prompt, f"```bash\n{cmd}\n```", "cached")
+                            # Learn the file location
+                            self.rag.learn_file_location(prompt, "config", file_path, confidence=confidence)
                         return
-        
-        # Get context
-        context = self.rag.get_context(prompt)
-        
-        # Query AI
+
+        # Query AI with V2 engine
         print("\033[2m[thinking...]\033[0m", end="\r")
-        response = self.ai.query(prompt, context)
+        result = self.ai.query(prompt, context=None, use_cache=True, learn_preferences=True)
         print(" " * 20, end="\r")  # Clear "thinking"
-        
-        if response["error"]:
-            print(f"\033[1;31m✗\033[0m {response['response']}")
+
+        if result.error:
+            print(f"\033[1;31m✗\033[0m {result.error_message}")
             return
-        
-        ai_text = response["response"]
-        
-        # Cache response
-        self.rag.cache_response(prompt, ai_text, response["model"])
-        
+
+        ai_text = result.response
+
         # Parse commands
         commands = self.executor.parse_commands(ai_text)
-        
+
         if commands:
             # Show AI response first
             print(self.formatter.format_cli(ai_text))
             print()
-            
+
             # Execute commands
             for cmd_info in commands:
                 cmd = cmd_info["command"]
                 level = cmd_info["level"]
-                
+
                 if cmd_info["auto_approve"]:
                     # Auto-execute
                     print(f"\033[1;32m▸\033[0m Executing: {cmd}")
-                    result = self.executor.execute(cmd, confirm=True)
-                    
-                    if not result["success"]:
-                        print(f"\033[1;31m✗\033[0m {result['stderr']}")
+                    result_exec = self.executor.execute(cmd, confirm=True)
+
+                    if not result_exec["success"]:
+                        print(f"\033[1;31m✗\033[0m {result_exec['stderr']}")
                 else:
                     # Ask confirmation
                     if InteractiveConfirm.confirm(cmd, level, cmd_info["reason"]):
-                        result = self.executor.execute(cmd, confirm=True)
-                        if result["success"]:
+                        result_exec = self.executor.execute(cmd, confirm=True)
+                        if result_exec["success"]:
                             print("\033[1;32m✓\033[0m Done")
                         else:
-                            print(f"\033[1;31m✗\033[0m {result['stderr']}")
+                            print(f"\033[1;31m✗\033[0m {result_exec['stderr']}")
                     else:
                         print("\033[1;33m○\033[0m Skipped")
         else:
@@ -141,29 +158,44 @@ def show_status():
 
 def handle_command(command: str, args: list):
     """Handle special commands (::xxx)"""
-    
+
     command = command.lower()
-    
+
     if command in ["::help", "::h"]:
         show_help()
-    
+
     elif command in ["::session", "::s"]:
         from modes.session_mode import SessionMode
         session = SessionMode()
         session.run()
-    
+
     elif command in ["::status", "::stat"]:
         show_status()
-    
+
+    elif command in ["::health", "::check"]:
+        show_health()
+
     elif command in ["::config", "::cfg"]:
         show_config()
-    
+
     elif command in ["::models", "::m"]:
         show_models()
-    
-    elif command in ["::clean", "::gc"]:
+
+    elif command in ["::clean", "::cleanup", "::gc"]:
         run_cleanup()
-    
+
+    elif command in ["::stop", "::shutdown"]:
+        stop_ryx()
+
+    elif command in ["::resume", "::continue"]:
+        handle_resume()
+
+    elif command in ["::preferences", "::prefs"]:
+        show_preferences()
+
+    elif command in ["::metrics", "::stats"]:
+        show_metrics()
+
     elif command in ["::scrape", "::sc"]:
         if not args:
             print("\033[1;31m✗\033[0m Usage: ryx ::scrape <url>")
@@ -171,7 +203,7 @@ def handle_command(command: str, args: list):
         from tools.scraper import WebScraper
         scraper = WebScraper()
         scraper.scrape(args[0])
-    
+
     elif command in ["::browse", "::br"]:
         if not args:
             print("\033[1;31m✗\033[0m Usage: ryx ::browse <query>")
@@ -179,7 +211,7 @@ def handle_command(command: str, args: list):
         from tools.browser import WebBrowser
         browser = WebBrowser()
         browser.search(" ".join(args))
-    
+
     elif command in ["::council", "::vote"]:
         if not args:
             print("\033[1;31m✗\033[0m Usage: ryx ::council <prompt>")
@@ -187,7 +219,7 @@ def handle_command(command: str, args: list):
         from tools.council import Council
         council = Council()
         council.vote(" ".join(args))
-    
+
     else:
         print(f"\033[1;31m✗\033[0m Unknown command: {command}")
         print("  Run \033[1;37mryx ::help\033[0m for available commands")
@@ -205,18 +237,26 @@ def show_help():
         "Basic Usage": [
             ("ryx 'prompt'", "Ask AI and get instant response"),
             ("ryx open hyprland config", "Find and open files"),
+            ("ryx open hyprland in new terminal", "Open in separate terminal"),
             ("ryx find all waybar themes", "Search system"),
         ],
         "Modes": [
-            ("ryx ::session", "Interactive chat mode"),
+            ("ryx ::session", "Interactive chat mode with Ctrl+C support"),
             ("ryx ::s", "Short form: session"),
+            ("ryx ::resume", "Resume interrupted task"),
         ],
         "System": [
             ("ryx ::status", "Show system status"),
+            ("ryx ::health", "Show health & auto-repair status"),
+            ("ryx ::metrics", "Show performance metrics"),
+            ("ryx ::preferences", "Show learned preferences"),
             ("ryx ::help", "Show this help"),
             ("ryx ::config", "View/edit configuration"),
             ("ryx ::models", "List AI models"),
-            ("ryx ::clean", "Run cleanup tasks"),
+        ],
+        "Maintenance": [
+            ("ryx ::clean", "Run comprehensive cleanup"),
+            ("ryx ::stop", "Graceful shutdown"),
         ],
         "Tools": [
             ("ryx ::scrape <url>", "Scrape webpage content"),
@@ -234,7 +274,7 @@ def show_help():
 
 def show_config():
     """Show current configuration"""
-    config_dir = Path.home() / "ryx-ai" / "configs"
+    config_dir = get_project_root() / "configs"
     
     print()
     print("\033[1;36m╭─────────────────────────────────────╮\033[0m")
@@ -286,26 +326,59 @@ def show_models():
 
 
 def run_cleanup():
-    """Run cleanup tasks"""
+    """Run comprehensive cleanup tasks"""
+    from core.cleanup_manager import CleanupManager
+
     print()
-    print("\033[1;36m▸\033[0m Running cleanup...")
+    print("\033[1;36m▸\033[0m Running comprehensive cleanup...")
     print()
-    
-    rag = RAGSystem()
-    
-    # Clean old cache
-    deleted = rag.cleanup_old_cache(days=30)
-    print(f"\033[1;32m✓\033[0m Removed {deleted} old cache entries")
-    
-    # Get stats
-    stats = rag.get_stats()
-    print(f"\033[1;32m✓\033[0m Current cache: {stats['cached_responses']} entries")
-    
-    rag.close()
-    
+
+    manager = CleanupManager()
+
+    # Run full cleanup
+    stats = manager.cleanup_all(aggressive=False)
+
+    # Display report
+    print(manager.format_cleanup_report(stats))
+
+    # Disk usage after cleanup
+    usage = manager.get_disk_usage()
+    print(f"  \033[1;37mDisk Usage:\033[0m {usage['total_mb']:.2f} MB")
+    print(f"    • Databases: {usage['databases_mb']:.2f} MB")
+    print(f"    • Logs: {usage['logs_mb']:.2f} MB")
+    print(f"    • Cache: {usage['cache_mb']:.2f} MB")
     print()
-    print("\033[1;32m✓\033[0m Cleanup complete")
+
+
+def stop_ryx():
+    """Stop Ryx AI and cleanup"""
+    from core.ai_engine_v2 import AIEngineV2
+
     print()
+    print("\033[1;36m▸\033[0m Shutting down Ryx AI...")
+    print()
+
+    # Graceful shutdown
+    ai = AIEngineV2()
+
+    # Save any pending state
+    if ai.task_manager.current_task:
+        print("\033[1;33m⚠\033[0m Saving current task state...")
+        ai.task_manager.pause_task(ai.task_manager.current_task)
+
+    # Shutdown components
+    ai.shutdown()
+
+    print("\033[1;32m✓\033[0m Ryx AI stopped successfully")
+    print()
+
+
+def show_metrics():
+    """Show performance metrics"""
+    from core.metrics_collector import get_metrics
+
+    metrics = get_metrics()
+    print(metrics.format_metrics_for_display())
 
 
 def handle_resume():
