@@ -1,8 +1,11 @@
-# Extract WebScraper class from ryx_tools.py
-# (You'll copy this section manually)
+"""
+Ryx AI - Web Scraper
+Legal web scraping for learning and research
+"""
 
 from typing import Optional, Dict, List
 from pathlib import Path
+from urllib.parse import urlparse, urljoin
 import requests
 from bs4 import BeautifulSoup
 import hashlib

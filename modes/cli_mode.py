@@ -207,6 +207,17 @@ def handle_command(command: str, args: list):
         council = Council()
         council.vote(" ".join(args))
 
+    elif command in ["::cache-check", "::validate", "::cache-validate"]:
+        # Validate and fix cache
+        from tools.cache_validator import run_cache_check
+        auto_fix = "--fix" in args or "--auto-fix" in args or len(args) == 0
+        run_cache_check(auto_fix=auto_fix, verbose=True)
+
+    elif command in ["::cache-stats", "::cache-info"]:
+        # Show cache statistics
+        from tools.cache_validator import show_cache_stats
+        show_cache_stats()
+
     else:
         print(f"\033[1;31m✗\033[0m Unknown command: {command}")
         print("  Run \033[1;37mryx ::help\033[0m for available commands")
@@ -254,6 +265,10 @@ def show_help():
             ("ryx ::scrape <url>", "Scrape webpage content"),
             ("ryx ::browse <query>", "Browse web for info"),
             ("ryx ::council <prompt>", "Multi-model consensus"),
+        ],
+        "Cache Management": [
+            ("ryx ::cache-check", "Validate & fix cache"),
+            ("ryx ::cache-stats", "Show cache statistics"),
         ]
     }
     
