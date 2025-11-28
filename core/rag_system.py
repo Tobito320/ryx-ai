@@ -110,6 +110,7 @@ class RAGSystem:
 
         # Layer 3: Semantic similarity search
         # Get recent cached responses for similarity comparison
+        # Note: This requires original_prompt to be stored
         self.cursor.execute("""
             SELECT prompt_hash, response, ttl_seconds, created_at
             FROM quick_responses
@@ -117,9 +118,37 @@ class RAGSystem:
             LIMIT 50
         """)
 
-        # Store original prompts in metadata for similarity comparison
-        # For now, we'll use a simple approach
-        # In production, store original prompts or use embeddings
+        cached_entries = self.cursor.fetchall()
+
+        # Retrieve original prompts from hot_cache or reconstruct from queries
+        best_match = None
+        best_similarity = 0.0
+
+        for entry in cached_entries:
+            # Get original prompt from hot cache if available
+            cached_data = self.hot_cache.get(entry["prompt_hash"])
+            if cached_data and "original_prompt" in cached_data:
+                original_prompt = cached_data["original_prompt"]
+
+                # Calculate similarity
+                similarity = self.compute_similarity(prompt, original_prompt)
+
+                if similarity >= similarity_threshold and similarity > best_similarity:
+                    # Check if still valid
+                    created = datetime.fromisoformat(entry["created_at"])
+                    ttl = timedelta(seconds=entry["ttl_seconds"])
+
+                    if datetime.now() - created < ttl:
+                        best_similarity = similarity
+                        best_match = entry["response"]
+
+        if best_match:
+            # Promote to hot cache
+            self.hot_cache[prompt_hash] = {
+                "response": best_match,
+                "original_prompt": prompt
+            }
+            return best_match
 
         return None
     

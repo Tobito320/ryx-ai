@@ -467,7 +467,82 @@ class HealthMonitor:
             self._log_incident(incident)
 
     def _fix_ollama(self) -> bool:
-        """Try to fix Ollama service"""
+        """
+        Try to fix Ollama service with intelligent retry and recovery
+
+        Handles:
+        - 404 errors (model not loaded)
+        - Connection errors (service down)
+        - Timeout errors
+        """
+        try:
+            # First, check what the actual error is
+            last_check = self.last_checks.get("ollama")
+            if not last_check:
+                return False
+
+            error_code = last_check.details.get("status_code")
+            error_type = last_check.details.get("error")
+
+            # Handle 404 errors specifically
+            if error_code == 404:
+                # 404 usually means Ollama is running but no model loaded
+                # Try to wake up a model by making a tiny request
+                return self._wake_up_ollama_model()
+
+            # Handle connection refused (service down)
+            if error_type == "connection_refused":
+                # Try to restart the service
+                return self._restart_ollama_service()
+
+            # For other errors, try restart as well
+            return self._restart_ollama_service()
+
+        except Exception:
+            return False
+
+    def _wake_up_ollama_model(self) -> bool:
+        """Wake up Ollama by loading a lightweight model"""
+        try:
+            # Use exponential backoff for retries
+            max_retries = 3
+            backoff = [1, 2, 4]  # seconds
+
+            for attempt, delay in enumerate(backoff):
+                try:
+                    # Make a tiny request to load the base model
+                    response = requests.post(
+                        f"{self.ollama_url}/api/generate",
+                        json={
+                            "model": "qwen2.5:1.5b",
+                            "prompt": "test",
+                            "stream": False,
+                            "options": {"num_predict": 1}
+                        },
+                        timeout=10
+                    )
+
+                    if response.status_code == 200:
+                        # Success! Model loaded
+                        return True
+
+                    # If still 404, wait and retry
+                    if response.status_code == 404 and attempt < max_retries - 1:
+                        time.sleep(delay)
+                        continue
+
+                except requests.exceptions.RequestException:
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                        continue
+
+            return False
+
+        except Exception:
+            return False
+
+    def _restart_ollama_service(self) -> bool:
+        """Restart Ollama service with verification"""
         try:
             # Try to restart Ollama (user service)
             result = subprocess.run(
@@ -477,15 +552,19 @@ class HealthMonitor:
             )
 
             if result.returncode == 0:
-                # Wait a moment for service to start
-                time.sleep(2)
+                # Wait with exponential backoff for service to fully start
+                for delay in [1, 2, 4]:
+                    time.sleep(delay)
 
-                # Verify it's running
-                try:
-                    response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
-                    return response.status_code == 200
-                except:
-                    return False
+                    # Verify it's running
+                    try:
+                        response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+                        if response.status_code == 200:
+                            return True
+                    except:
+                        continue
+
+                return False
             else:
                 return False
 
@@ -634,3 +713,58 @@ class HealthMonitor:
         conn.close()
 
         return incidents
+
+    def check_and_fix_ollama(self) -> Dict[str, Any]:
+        """
+        On-demand Ollama health check and auto-fix
+
+        Returns:
+            {
+                'healthy': bool,
+                'error': Optional[str],
+                'fixed': bool,
+                'message': str
+            }
+        """
+        # Run Ollama check
+        check = self._check_ollama()
+
+        if check.status == HealthStatus.HEALTHY:
+            return {
+                'healthy': True,
+                'error': None,
+                'fixed': False,
+                'message': check.message
+            }
+
+        # Try to fix the issue
+        fixed = False
+        if check.details.get("status_code") == 404:
+            fixed = self._wake_up_ollama_model()
+        elif check.details.get("error") == "connection_refused":
+            fixed = self._restart_ollama_service()
+        else:
+            fixed = self._fix_ollama()
+
+        # Verify fix
+        if fixed:
+            verify_check = self._check_ollama()
+            if verify_check.status == HealthStatus.HEALTHY:
+                return {
+                    'healthy': True,
+                    'error': None,
+                    'fixed': True,
+                    'message': 'Ollama auto-fixed successfully'
+                }
+
+        return {
+            'healthy': False,
+            'error': check.message,
+            'fixed': False,
+            'message': f'Failed to fix Ollama: {check.message}'
+        }
+
+    @property
+    def overall_status(self) -> HealthStatus:
+        """Get current overall health status"""
+        return self.current_status
