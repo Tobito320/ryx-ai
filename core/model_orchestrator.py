@@ -493,9 +493,23 @@ class ModelOrchestrator:
                     "error": True
                 }
 
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
             return {
-                "response": "Error: Cannot connect to Ollama",
+                "response": (
+                    "❌ Cannot connect to Ollama service\n\n"
+                    "Possible fixes:\n"
+                    "  1. Start Ollama: ollama serve\n"
+                    "  2. Check if another application is using Ollama\n"
+                    "  3. Wait if Ollama is busy with another request\n"
+                ),
+                "error": True
+            }
+        except requests.exceptions.Timeout:
+            return {
+                "response": (
+                    "⏱️  Ollama request timed out\n\n"
+                    "Ollama may be busy with another request. Try again in a moment."
+                ),
                 "error": True
             }
         except Exception as e:
