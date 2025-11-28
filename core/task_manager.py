@@ -12,6 +12,7 @@ from typing import Optional, Dict, List, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class TaskStatus(Enum):
     """Task execution status"""
@@ -61,9 +62,10 @@ class TaskManager:
     - Multi-Step Coordination: Handle complex tasks with multiple steps
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        """Initialize task manager with database for state persistence"""
         if db_path is None:
-            db_path = Path.home() / "ryx-ai" / "data" / "task_manager.db"
+            db_path = get_project_root() / "data" / "task_manager.db"
 
         self.db_path = db_path
         self.current_task: Optional[Task] = None
@@ -437,7 +439,8 @@ class InterruptionHandler:
         # Now Ctrl+C will save state and exit gracefully
     """
 
-    def __init__(self, task_manager: TaskManager):
+    def __init__(self, task_manager: TaskManager) -> None:
+        """Initialize interruption handler with task manager"""
         self.task_manager = task_manager
         self.interrupted = False
 

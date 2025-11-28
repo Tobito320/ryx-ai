@@ -1,45 +1,101 @@
 """
 Ryx AI V2 - Session Mode
-Interactive Gemini CLI-like experience with graceful interrupts
+Interactive Gemini CLI-like experience with graceful interrupts and state persistence
 """
 
 import sys
 import signal
+import json
+from pathlib import Path
 from typing import List, Dict
+from datetime import datetime
 
-from core.ai_engine import AIEngine, ResponseFormatter
+from core.ai_engine_v2 import AIEngineV2
+from core.ai_engine import ResponseFormatter
 from core.rag_system import RAGSystem, FileFinder
 from core.permissions import PermissionManager, CommandExecutor, InteractiveConfirm
-from core.task_manager import InterruptionHandler
+from core.task_manager import InterruptionHandler, Task, TaskStatus
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 class SessionMode:
-    def __init__(self):
-        self.ai = AIEngine()
+    """Interactive session mode with graceful interrupts and state persistence"""
+
+    def __init__(self) -> None:
+        """Initialize session mode with AI engine and state management"""
+        self.ai = AIEngineV2()
         self.rag = RAGSystem()
         self.file_finder = FileFinder(self.rag)
         self.perm_manager = PermissionManager()
         self.executor = CommandExecutor(self.perm_manager)
         self.formatter = ResponseFormatter()
+        self.meta_learner = self.ai.meta_learner
 
         self.conversation_history = []
         self.pending_commands = []
         self.running = True
+        self.session_file = Path.home() / ".ryx" / "session_state.json"
 
         # Install graceful interrupt handler
         self.interrupt_handler = InterruptionHandler(self.ai.task_manager)
         signal.signal(signal.SIGINT, self._handle_interrupt)
-    
+
+        # Try to restore previous session
+        self._restore_session()
+
     def _handle_interrupt(self, signum, frame):
-        """Handle Ctrl+C gracefully"""
-        print("\n\n⏸️  Session interrupted")
+        """Handle Ctrl+C gracefully with state save"""
+        print("\n\n⏸️  Session interrupted (Ctrl+C)")
         print("Saving state...")
 
-        # Save conversation if any
+        # Save conversation and current task
+        self._save_session()
+
+        # Save any current task in task manager
+        if self.ai.task_manager.current_task:
+            task = self.ai.task_manager.current_task
+            self.ai.task_manager.pause_task(task)
+            print(f"✓ Paused task: {task.description}")
+
+        # Show summary
         if self.conversation_history:
             print(f"✓ Saved {len(self.conversation_history)} messages")
 
-        print("\nGoodbye! Resume with: ryx ::session")
+        print("\n\033[1;33mResume options:\033[0m")
+        print("  • ryx ::session     - Continue chat session")
+        print("  • ryx ::resume      - Resume paused task")
+        print("\nGoodbye!")
         sys.exit(0)
+
+    def _save_session(self):
+        """Save session state to file"""
+        self.session_file.parent.mkdir(parents=True, exist_ok=True)
+
+        state = {
+            'saved_at': datetime.now().isoformat(),
+            'conversation_history': self.conversation_history[-50:],  # Keep last 50
+            'pending_commands': self.pending_commands
+        }
+
+        with open(self.session_file, 'w') as f:
+            json.dump(state, f, indent=2)
+
+    def _restore_session(self):
+        """Restore previous session if exists"""
+        if not self.session_file.exists():
+            return
+
+        try:
+            with open(self.session_file, 'r') as f:
+                state = json.load(f)
+
+            self.conversation_history = state.get('conversation_history', [])
+            self.pending_commands = state.get('pending_commands', [])
+
+            if self.conversation_history:
+                print(f"\033[1;33m▸\033[0m Restored {len(self.conversation_history)} messages from previous session")
+
+        except Exception:
+            pass  # Ignore errors in restoration
 
     def run(self):
         """Main session loop"""
@@ -69,32 +125,26 @@ class SessionMode:
                     "content": prompt
                 })
 
-                # Check cache
-                cached = self.rag.query_cache(prompt)
-                if cached:
-                    print("\033[2m[cached]\033[0m")
-                    self.display_response(cached)
-                    self.conversation_history.append({
-                        "role": "assistant",
-                        "content": cached
-                    })
-                    continue
-                
                 # Build context from conversation
                 context = self.build_conversation_context()
                 context += "\n" + self.rag.get_context(prompt)
-                
-                # Query AI
+
+                # Query AI with V2 engine
                 print("\033[1;34mRyx:\033[0m ", end="")
                 sys.stdout.flush()
-                
-                response = self.ai.query(prompt, context)
-                
-                if response["error"]:
-                    print(f"\n\033[1;31m✗\033[0m {response['response']}")
+
+                result = self.ai.query(prompt, context=context, use_cache=True, learn_preferences=True)
+
+                if result.error:
+                    print(f"\n\033[1;31m✗\033[0m {result.error_message}")
                     continue
-                
-                ai_text = response["response"]
+
+                ai_text = result.response
+
+                # Show if cached
+                if result.from_cache:
+                    print("\033[2m[cached]\033[0m ", end="")
+                    sys.stdout.flush()
                 
                 # Display response
                 self.display_response(ai_text)
@@ -298,7 +348,7 @@ class SessionMode:
         from datetime import datetime
         from pathlib import Path
 
-        output_path = Path.home() / "ryx-ai" / "data" / "history" / filename
+        output_path = get_project_root() / "data" / "history" / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_path, 'w') as f:

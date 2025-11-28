@@ -8,12 +8,19 @@ import sqlite3
 import requests
 import subprocess
 import threading
-import psutil
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
+
+# Optional dependency
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 
 class HealthStatus(Enum):
     """System health status"""
@@ -63,9 +70,10 @@ class HealthMonitor:
     - Resource Monitoring: Tracks disk, memory, VRAM usage
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        """Initialize health monitor with database and monitoring settings"""
         if db_path is None:
-            db_path = Path.home() / "ryx-ai" / "data" / "health_monitor.db"
+            db_path = get_project_root() / "data" / "health_monitor.db"
 
         self.db_path = db_path
         self.ollama_url = "http://localhost:11434"
@@ -238,7 +246,7 @@ class HealthMonitor:
         """Check database health"""
         try:
             # Check main RAG database
-            rag_db = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+            rag_db = get_project_root() / "data" / "rag_knowledge.db"
 
             if not rag_db.exists():
                 return HealthCheck(
@@ -283,6 +291,15 @@ class HealthMonitor:
 
     def _check_disk_space(self) -> HealthCheck:
         """Check disk space"""
+        if not PSUTIL_AVAILABLE:
+            return HealthCheck(
+                component="disk",
+                status=HealthStatus.HEALTHY,
+                message="Disk monitoring not available (psutil not installed)",
+                timestamp=datetime.now(),
+                details={"monitoring": False}
+            )
+
         try:
             usage = psutil.disk_usage(str(Path.home()))
             percent_used = usage.percent
@@ -322,6 +339,15 @@ class HealthMonitor:
 
     def _check_memory(self) -> HealthCheck:
         """Check memory usage"""
+        if not PSUTIL_AVAILABLE:
+            return HealthCheck(
+                component="memory",
+                status=HealthStatus.HEALTHY,
+                message="Memory monitoring not available (psutil not installed)",
+                timestamp=datetime.now(),
+                details={"monitoring": False}
+            )
+
         try:
             memory = psutil.virtual_memory()
             percent_used = memory.percent
@@ -467,7 +493,82 @@ class HealthMonitor:
             self._log_incident(incident)
 
     def _fix_ollama(self) -> bool:
-        """Try to fix Ollama service"""
+        """
+        Try to fix Ollama service with intelligent retry and recovery
+
+        Handles:
+        - 404 errors (model not loaded)
+        - Connection errors (service down)
+        - Timeout errors
+        """
+        try:
+            # First, check what the actual error is
+            last_check = self.last_checks.get("ollama")
+            if not last_check:
+                return False
+
+            error_code = last_check.details.get("status_code")
+            error_type = last_check.details.get("error")
+
+            # Handle 404 errors specifically
+            if error_code == 404:
+                # 404 usually means Ollama is running but no model loaded
+                # Try to wake up a model by making a tiny request
+                return self._wake_up_ollama_model()
+
+            # Handle connection refused (service down)
+            if error_type == "connection_refused":
+                # Try to restart the service
+                return self._restart_ollama_service()
+
+            # For other errors, try restart as well
+            return self._restart_ollama_service()
+
+        except Exception:
+            return False
+
+    def _wake_up_ollama_model(self) -> bool:
+        """Wake up Ollama by loading a lightweight model"""
+        try:
+            # Use exponential backoff for retries
+            max_retries = 3
+            backoff = [1, 2, 4]  # seconds
+
+            for attempt, delay in enumerate(backoff):
+                try:
+                    # Make a tiny request to load the base model
+                    response = requests.post(
+                        f"{self.ollama_url}/api/generate",
+                        json={
+                            "model": "qwen2.5:1.5b",
+                            "prompt": "test",
+                            "stream": False,
+                            "options": {"num_predict": 1}
+                        },
+                        timeout=10
+                    )
+
+                    if response.status_code == 200:
+                        # Success! Model loaded
+                        return True
+
+                    # If still 404, wait and retry
+                    if response.status_code == 404 and attempt < max_retries - 1:
+                        time.sleep(delay)
+                        continue
+
+                except requests.exceptions.RequestException:
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                        continue
+
+            return False
+
+        except Exception:
+            return False
+
+    def _restart_ollama_service(self) -> bool:
+        """Restart Ollama service with verification"""
         try:
             # Try to restart Ollama (user service)
             result = subprocess.run(
@@ -477,15 +578,19 @@ class HealthMonitor:
             )
 
             if result.returncode == 0:
-                # Wait a moment for service to start
-                time.sleep(2)
+                # Wait with exponential backoff for service to fully start
+                for delay in [1, 2, 4]:
+                    time.sleep(delay)
 
-                # Verify it's running
-                try:
-                    response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
-                    return response.status_code == 200
-                except:
-                    return False
+                    # Verify it's running
+                    try:
+                        response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+                        if response.status_code == 200:
+                            return True
+                    except:
+                        continue
+
+                return False
             else:
                 return False
 
@@ -495,7 +600,7 @@ class HealthMonitor:
     def _fix_database(self) -> bool:
         """Try to fix database issues"""
         try:
-            rag_db = Path.home() / "ryx-ai" / "data" / "rag_knowledge.db"
+            rag_db = get_project_root() / "data" / "rag_knowledge.db"
 
             # Check for backup
             backup = rag_db.parent / f"{rag_db.stem}_backup.db"
@@ -634,3 +739,58 @@ class HealthMonitor:
         conn.close()
 
         return incidents
+
+    def check_and_fix_ollama(self) -> Dict[str, Any]:
+        """
+        On-demand Ollama health check and auto-fix
+
+        Returns:
+            {
+                'healthy': bool,
+                'error': Optional[str],
+                'fixed': bool,
+                'message': str
+            }
+        """
+        # Run Ollama check
+        check = self._check_ollama()
+
+        if check.status == HealthStatus.HEALTHY:
+            return {
+                'healthy': True,
+                'error': None,
+                'fixed': False,
+                'message': check.message
+            }
+
+        # Try to fix the issue
+        fixed = False
+        if check.details.get("status_code") == 404:
+            fixed = self._wake_up_ollama_model()
+        elif check.details.get("error") == "connection_refused":
+            fixed = self._restart_ollama_service()
+        else:
+            fixed = self._fix_ollama()
+
+        # Verify fix
+        if fixed:
+            verify_check = self._check_ollama()
+            if verify_check.status == HealthStatus.HEALTHY:
+                return {
+                    'healthy': True,
+                    'error': None,
+                    'fixed': True,
+                    'message': 'Ollama auto-fixed successfully'
+                }
+
+        return {
+            'healthy': False,
+            'error': check.message,
+            'fixed': False,
+            'message': f'Failed to fix Ollama: {check.message}'
+        }
+
+    @property
+    def overall_status(self) -> HealthStatus:
+        """Get current overall health status"""
+        return self.current_status

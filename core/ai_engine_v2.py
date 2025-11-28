@@ -18,6 +18,7 @@ from core.rag_system import RAGSystem, FileFinder
 
 # Import original components for backward compatibility
 from core.ai_engine import ResponseFormatter
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 logger = logging.getLogger(__name__)
 
@@ -58,18 +59,28 @@ class AIEngineV2:
     - Graceful Ctrl+C with state save
     """
 
-    def __init__(self, project_root: Optional[Path] = None):
-        self.project_root = project_root or Path.home() / "ryx-ai"
+    def __init__(self, project_root: Optional[Path] = None) -> None:
+        """Initialize V2 integrated AI engine with all components"""
+        self.project_root = project_root or get_project_root()
 
         logger.info("Initializing Ryx AI V2 Integrated Engine...")
 
         # Initialize all components
         try:
+            # Import metrics collector
+            from core.metrics_collector import MetricsCollector
+
+            # Initialize metrics collector first
+            self.metrics = MetricsCollector()
+
             # Core components - Use V2 model configuration
             model_config = self.project_root / "configs" / "models_v2.json"
             if not model_config.exists():
                 model_config = self.project_root / "configs" / "models.json"
-            self.orchestrator = ModelOrchestrator(model_config)
+
+            # Initialize orchestrator with metrics integration
+            self.orchestrator = ModelOrchestrator(model_config, metrics_collector=self.metrics)
+
             self.meta_learner = MetaLearner(self.project_root)
             self.health_monitor = HealthMonitor(self.project_root)
             self.task_manager = TaskManager(self.project_root)
@@ -126,6 +137,14 @@ class AIEngineV2:
                         preferences_applied = self._detect_applied_preferences(cached)
 
                     latency_ms = int((time.time() - start_time) * 1000)
+
+                    # Record cache hit metrics
+                    self.metrics.record_query(
+                        query_type='cache_hit',
+                        latency_ms=latency_ms,
+                        success=True,
+                        model_used='cache'
+                    )
 
                     return IntegratedResponse(
                         response=cached,
@@ -186,6 +205,53 @@ class AIEngineV2:
 
         except Exception as e:
             logger.error(f"Query failed: {e}")
+
+            # Check if it's an Ollama error and try to auto-fix
+            error_str = str(e).lower()
+            if "404" in error_str or "connection" in error_str or "ollama" in error_str:
+                logger.info("Detected Ollama error, attempting auto-fix...")
+
+                # Try to fix Ollama
+                fix_result = self.health_monitor.check_and_fix_ollama()
+
+                if fix_result['fixed']:
+                    logger.info("Ollama fixed successfully, retrying query...")
+
+                    # Retry the query once
+                    try:
+                        enriched_context = self._build_enriched_context(prompt, context)
+                        result = self.orchestrator.query(prompt, enriched_context)
+
+                        response_text = result.response
+                        if learn_preferences:
+                            response_text = self.meta_learner.apply_preferences_to_response(response_text)
+
+                        self.meta_learner.record_interaction(
+                            query=prompt,
+                            model_used=result.model_used,
+                            tier_used=result.tier_used.name,
+                            latency_ms=result.latency_ms,
+                            success=True,
+                            user_satisfied=None
+                        )
+
+                        if use_cache:
+                            self.rag.cache_response(prompt, response_text, result.model_used)
+
+                        return IntegratedResponse(
+                            response=response_text,
+                            model_used=result.model_used,
+                            tier_used=result.tier_used.name,
+                            latency_ms=result.latency_ms,
+                            cached=False,
+                            from_cache=False,
+                            complexity_score=result.complexity_score,
+                            health_status=self.health_monitor.overall_status.value,
+                            preferences_applied=[],
+                            error=False
+                        )
+                    except Exception as retry_error:
+                        logger.error(f"Retry after fix failed: {retry_error}")
 
             # Record failure
             self.meta_learner.record_interaction(
@@ -310,7 +376,8 @@ class AIEngine(AIEngineV2):
     This allows existing code to continue working while gaining V2 benefits
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize backward compatible AI engine"""
         super().__init__()
 
     def query(self, prompt: str, system_context: str = "", model_override: Optional[str] = None) -> Dict[str, Any]:

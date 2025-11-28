@@ -3,10 +3,17 @@
 Ryx AI - Main Entry Point
 """
 import sys
+import os
 from pathlib import Path
 
+# Auto-detect project root (where this script is located)
+PROJECT_ROOT = Path(__file__).parent.resolve()
+
 # Add project to path
-sys.path.insert(0, str(Path.home() / "ryx-ai"))
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Set environment variable for other modules to use
+os.environ['RYX_PROJECT_ROOT'] = str(PROJECT_ROOT)
 
 def main():
     args = sys.argv[1:]

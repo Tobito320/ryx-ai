@@ -13,6 +13,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from collections import defaultdict
 import sqlite3
+import logging
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ModelTier:
@@ -58,9 +62,10 @@ class ModelOrchestrator:
     - Performance Tracking: Learns which models work best for different tasks
     """
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Optional[Path] = None, metrics_collector=None) -> None:
+        """Initialize model orchestrator with lazy loading and performance tracking"""
         if config_path is None:
-            config_path = Path.home() / "ryx-ai" / "configs" / "models.json"
+            config_path = get_project_root() / "configs" / "models.json"
 
         self.config_path = config_path
         self.ollama_url = "http://localhost:11434"
@@ -75,7 +80,7 @@ class ModelOrchestrator:
         self.base_model_name = "qwen2.5:1.5b"  # Always loaded
 
         # Database for performance tracking
-        self.db_path = Path.home() / "ryx-ai" / "data" / "model_performance.db"
+        self.db_path = get_project_root() / "data" / "model_performance.db"
         self._init_db()
 
         # Load configuration
@@ -87,6 +92,9 @@ class ModelOrchestrator:
         # Start cleanup thread
         self.cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
         self.cleanup_thread.start()
+
+        # Metrics collector (optional integration)
+        self.metrics_collector = metrics_collector
 
     def _init_db(self):
         """Initialize performance tracking database"""
@@ -373,6 +381,18 @@ class ModelOrchestrator:
             latency_ms = int((time.time() - start_time) * 1000)
             self._record_performance(selected_model, complexity, latency_ms, success=True)
 
+            # Record metrics if collector available
+            if self.metrics_collector:
+                try:
+                    self.metrics_collector.record_query(
+                        query_type='model_query',
+                        latency_ms=latency_ms,
+                        success=True,
+                        model_used=selected_model
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to record metrics: {e}")
+
             return QueryResult(
                 response=result["response"],
                 model_used=selected_model,
@@ -392,6 +412,19 @@ class ModelOrchestrator:
 
         if fallback_result["error"]:
             self._record_performance(selected_model, complexity, latency_ms, success=False)
+
+            # Record failure metrics
+            if self.metrics_collector:
+                try:
+                    self.metrics_collector.record_query(
+                        query_type='model_query',
+                        latency_ms=latency_ms,
+                        success=False,
+                        model_used=selected_model
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to record metrics: {e}")
+
             return QueryResult(
                 response=fallback_result.get("response", "All models failed"),
                 model_used=fallback_result.get("model", selected_model),

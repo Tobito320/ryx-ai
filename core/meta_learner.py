@@ -11,6 +11,7 @@ from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections import defaultdict
+from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
 @dataclass
 class Preference:
@@ -43,9 +44,10 @@ class MetaLearner:
     - Model Performance Tracking: Learns which models work best for which tasks
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        """Initialize meta learner with database for preference storage"""
         if db_path is None:
-            db_path = Path.home() / "ryx-ai" / "data" / "meta_learning.db"
+            db_path = get_project_root() / "data" / "meta_learning.db"
 
         self.db_path = db_path
         self.preferences: Dict[str, Preference] = {}
@@ -270,14 +272,23 @@ class MetaLearner:
             preferred_editor = self.preferences["editor"].value
 
             # Replace other editors with preferred one
-            other_editors = ["nano", "vim", "nvim", "emacs", "vi", "code"]
+            other_editors = ["nano", "vim", "nvim", "emacs", "vi", "code", "gedit", "kate"]
             if preferred_editor in other_editors:
                 other_editors.remove(preferred_editor)
 
             for other_editor in other_editors:
-                # Replace standalone editor commands
-                pattern = r'\b' + other_editor + r'\b'
-                modified_response = re.sub(pattern, preferred_editor, modified_response)
+                # Replace standalone editor commands (more aggressive matching)
+                # Match with word boundaries and in command contexts
+                patterns = [
+                    r'\b' + other_editor + r'\b',  # Standalone
+                    r'\b' + other_editor + r'\s+',  # With space after
+                ]
+
+                for pattern in patterns:
+                    modified_response = re.sub(pattern, preferred_editor + ' ', modified_response, flags=re.IGNORECASE)
+
+            # Clean up any double spaces
+            modified_response = re.sub(r'  +', ' ', modified_response)
 
             # Increment usage counter
             self.preferences["editor"].times_applied += 1
@@ -519,3 +530,53 @@ class MetaLearner:
                 )
 
         return suggestions
+
+    # ===== Compatibility methods for ai_engine_v2.py =====
+
+    def apply_preferences_to_response(self, response: str) -> str:
+        """Alias for apply_preferences (for compatibility)"""
+        return self.apply_preferences(response)
+
+    def detect_preference_from_query(self, query: str, response: str = "") -> Optional[Dict]:
+        """
+        Detect preferences from query and response
+
+        Returns dict of detected preferences or None
+        """
+        detected_prefs = self.detect_preferences_from_query(query)
+
+        if detected_prefs:
+            return {
+                pref.category: pref.value
+                for pref in detected_prefs
+            }
+        return None
+
+    def get_preference(self, key: str, default: Any = None) -> Any:
+        """Get a specific preference value"""
+        if key in self.preferences:
+            return self.preferences[key].value
+        return default
+
+    def learn_preference(self, key: str, value: str, source: str = "explicit", confidence: float = 1.0):
+        """
+        Learn a preference explicitly
+
+        Args:
+            key: Preference category (e.g., "editor", "shell")
+            value: Preference value (e.g., "nvim", "zsh")
+            source: Source of learning
+            confidence: Confidence level (0.0 - 1.0)
+        """
+        pref = Preference(
+            category=key,
+            value=value,
+            confidence=confidence,
+            learned_from=source,
+            learned_at=datetime.now()
+        )
+        self._save_preference(pref)
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Alias for get_insights (for compatibility)"""
+        return self.get_insights()

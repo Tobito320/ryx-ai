@@ -1,0 +1,50 @@
+
+============================================================
+Ryx AI - Code Quality Report
+============================================================
+
+Statistics:
+  Total files: 34
+  Total lines: 10,232
+  Total functions: 366
+  Total classes: 55
+
+Issues by Type:
+  missing_docstring: 21
+  long_function: 3
+
+Files with Issues (9):
+
+  comprehensive_test.py (16 issues)
+    Line 77: Function 'test_ollama_service' missing docstring
+    Line 90: Function 'test_module_imports' missing docstring
+    Line 105: Function 'test_config_files' missing docstring
+    ... and 13 more
+
+  fix_databases.py (1 issues)
+    Line 126: Function 'main' missing docstring
+
+  tests/test_imports.py (1 issues)
+    Line 11: Function 'test_imports' missing docstring
+
+  core/ai_engine.py (1 issues)
+    Line 47: Function 'query' is 133 lines (consider refactoring)
+
+  core/ai_engine_v2.py (1 issues)
+    Line 102: Function 'query' is 175 lines (consider refactoring)
+
+  core/model_orchestrator.py (1 issues)
+    Line 339: Function 'query' is 111 lines (consider refactoring)
+
+  tools/scraper.py (1 issues)
+    Line 19: Function '__init__' missing docstring
+
+  tools/council.py (1 issues)
+    Line 18: Function '__init__' missing docstring
+
+  tools/browser.py (1 issues)
+    Line 14: Function '__init__' missing docstring
+
+Quality Score: 94.3/100
+
+============================================================

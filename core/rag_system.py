@@ -13,9 +13,12 @@ from typing import Optional, Dict, List, Tuple
 from datetime import datetime, timedelta
 
 class RAGSystem:
-    def __init__(self):
-        self.db_path = Path("/home/user/ryx-ai/data/rag_knowledge.db")
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+    """RAG system with 3-layer caching: hot (memory), warm (SQLite), cold (semantic)"""
+
+    def __init__(self) -> None:
+        """Initialize RAG system with database and hot cache"""
+        from core.paths import get_data_dir
+        self.db_path = get_data_dir() / "rag_knowledge.db"
         self.hot_cache = {}  # In-memory cache for ultra-fast access
         self.max_hot_cache = 100
 
@@ -23,49 +26,7 @@ class RAGSystem:
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
 
-        self._init_db()
         self._load_hot_cache()
-
-    def _init_db(self):
-        """Initialize database schema"""
-        # Quick responses cache table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS quick_responses (
-                prompt_hash TEXT PRIMARY KEY,
-                response TEXT NOT NULL,
-                model_used TEXT,
-                use_count INTEGER DEFAULT 1,
-                created_at TEXT NOT NULL,
-                last_used TEXT NOT NULL,
-                ttl_seconds INTEGER DEFAULT 86400
-            )
-        """)
-
-        # File knowledge table
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS knowledge (
-                query_hash TEXT PRIMARY KEY,
-                file_type TEXT,
-                file_path TEXT NOT NULL,
-                content_preview TEXT,
-                last_accessed TEXT,
-                access_count INTEGER DEFAULT 0,
-                confidence REAL DEFAULT 1.0
-            )
-        """)
-
-        # File knowledge index
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS file_knowledge (
-                file_path TEXT PRIMARY KEY,
-                file_type TEXT,
-                content_hash TEXT,
-                last_learned TEXT,
-                access_count INTEGER DEFAULT 0
-            )
-        """)
-
-        self.conn.commit()
     
     def _load_hot_cache(self):
         """Load frequently accessed items into memory"""
@@ -153,6 +114,7 @@ class RAGSystem:
 
         # Layer 3: Semantic similarity search
         # Get recent cached responses for similarity comparison
+        # Note: This requires original_prompt to be stored
         self.cursor.execute("""
             SELECT prompt_hash, response, ttl_seconds, created_at
             FROM quick_responses
@@ -160,9 +122,37 @@ class RAGSystem:
             LIMIT 50
         """)
 
-        # Store original prompts in metadata for similarity comparison
-        # For now, we'll use a simple approach
-        # In production, store original prompts or use embeddings
+        cached_entries = self.cursor.fetchall()
+
+        # Retrieve original prompts from hot_cache or reconstruct from queries
+        best_match = None
+        best_similarity = 0.0
+
+        for entry in cached_entries:
+            # Get original prompt from hot cache if available
+            cached_data = self.hot_cache.get(entry["prompt_hash"])
+            if cached_data and "original_prompt" in cached_data:
+                original_prompt = cached_data["original_prompt"]
+
+                # Calculate similarity
+                similarity = self.compute_similarity(prompt, original_prompt)
+
+                if similarity >= similarity_threshold and similarity > best_similarity:
+                    # Check if still valid
+                    created = datetime.fromisoformat(entry["created_at"])
+                    ttl = timedelta(seconds=entry["ttl_seconds"])
+
+                    if datetime.now() - created < ttl:
+                        best_similarity = similarity
+                        best_match = entry["response"]
+
+        if best_match:
+            # Promote to hot cache
+            self.hot_cache[prompt_hash] = {
+                "response": best_match,
+                "original_prompt": prompt
+            }
+            return best_match
 
         return None
     
@@ -450,8 +440,9 @@ class RAGSystem:
 
 class FileFinder:
     """Find files intelligently with learning"""
-    
-    def __init__(self, rag: RAGSystem):
+
+    def __init__(self, rag: RAGSystem) -> None:
+        """Initialize file finder with RAG system"""
         self.rag = rag
         self.common_locations = {
             "hyprland": ["~/.config/hyprland", "~/.config/hypr"],
