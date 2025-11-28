@@ -106,14 +106,22 @@ class CLIMode:
                     print(f"\033[1;32m▸\033[0m Executing: {cmd}")
                     result_exec = self.executor.execute(cmd, confirm=True)
 
-                    if not result_exec["success"]:
+                    if result_exec["success"]:
+                        # Show output if there is any
+                        if result_exec["stdout"].strip():
+                            print(result_exec["stdout"])
+                    else:
                         print(f"\033[1;31m✗\033[0m {result_exec['stderr']}")
                 else:
                     # Ask confirmation
                     if InteractiveConfirm.confirm(cmd, level, cmd_info["reason"]):
                         result_exec = self.executor.execute(cmd, confirm=True)
                         if result_exec["success"]:
-                            print("\033[1;32m✓\033[0m Done")
+                            # Show output if there is any
+                            if result_exec["stdout"].strip():
+                                print(result_exec["stdout"])
+                            else:
+                                print("\033[1;32m✓\033[0m Done")
                         else:
                             print(f"\033[1;31m✗\033[0m {result_exec['stderr']}")
                     else:

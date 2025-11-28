@@ -476,14 +476,38 @@ class FileFinder:
                     path = Path(loc).expanduser()
                     if path.exists():
                         if path.is_dir():
-                            # Find config file in directory
+                            # Find config file in directory - prefer exact matches
+                            best_match = None
+                            best_score = 0
+
                             for ext in [".conf", ".yaml", ".yml", ".json", ".toml"]:
                                 for file in path.glob(f"*{ext}"):
-                                    # Learn for next time
-                                    self.rag.learn_file_location(
-                                        query, file_type, str(file), confidence=0.9
-                                    )
-                                    return (str(file), 0.9)
+                                    # Score based on how well filename matches query
+                                    filename = file.stem.lower()
+                                    score = 0
+
+                                    # Exact match gets highest score
+                                    if filename == file_type:
+                                        score = 1.0
+                                    # Starts with file_type
+                                    elif filename.startswith(file_type):
+                                        score = 0.95
+                                    # Contains file_type
+                                    elif file_type in filename:
+                                        score = 0.8
+                                    else:
+                                        score = 0.6
+
+                                    if score > best_score:
+                                        best_score = score
+                                        best_match = file
+
+                            if best_match:
+                                # Learn for next time
+                                self.rag.learn_file_location(
+                                    query, file_type, str(best_match), confidence=best_score
+                                )
+                                return (str(best_match), best_score)
                         else:
                             # Direct file
                             self.rag.learn_file_location(
