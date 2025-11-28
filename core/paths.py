@@ -38,7 +38,12 @@ def get_project_root() -> Path:
 def get_data_dir() -> Path:
     """Get data directory"""
     data_dir = get_project_root() / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
+    data_dir.mkdir(parents=True, exist_ok=True, mode=0o777)
+    # Ensure directory is writable by all users
+    try:
+        data_dir.chmod(0o777)
+    except (PermissionError, OSError):
+        pass  # Best effort, may fail in restricted environments
     return data_dir
 
 
@@ -52,7 +57,12 @@ def get_config_dir() -> Path:
 def get_log_dir() -> Path:
     """Get log directory"""
     log_dir = get_project_root() / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True, mode=0o777)
+    # Ensure directory is writable by all users
+    try:
+        log_dir.chmod(0o777)
+    except (PermissionError, OSError):
+        pass  # Best effort, may fail in restricted environments
     return log_dir
 
 

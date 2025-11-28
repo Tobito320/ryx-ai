@@ -38,8 +38,34 @@ env/
 Thumbs.db
 
 # Ryx AI specific
-data/*.db-journal
+# Databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.bak
+
+# Generated data files
+data/benchmark_results.json
+data/benchmarks.json
+data/code_quality_report.txt
+data/diagnostics_report.json
+data/improvement_plan.md
+data/code_analysis.json
+data/improvements.json
+
+# Runtime data
+data/history/
+data/state/
 data/backups/
+
+# Logs
+logs/
 *.log
+
+# Environment
 .env
 .env.local
+
+# Backups
+backups/

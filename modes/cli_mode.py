@@ -213,10 +213,15 @@ def show_help():
     
     categories = {
         "Basic Usage": [
-            ("ryx 'prompt'", "Ask AI and get instant response"),
-            ("ryx open hyprland config", "Find and open files"),
-            ("ryx open hyprland in new terminal", "Open in separate terminal"),
-            ("ryx find all waybar themes", "Search system"),
+            ("ryx \"how do I reload hyprland?\"", "Ask questions in natural language"),
+            ("ryx \"open my hyprland config\"", "AI interprets and opens files"),
+            ("ryx \"find waybar themes\"", "AI searches your system"),
+            ("ryx \"show me my keybinds\"", "AI finds and displays info"),
+        ],
+        "Examples": [
+            ("ryx \"edit waybar config in new terminal\"", "Opens in separate window"),
+            ("ryx \"what's taking up disk space?\"", "AI investigates and answers"),
+            ("ryx \"fix my wifi connection\"", "AI helps troubleshoot"),
         ],
         "Modes": [
             ("ryx ::session", "Interactive chat mode with Ctrl+C support"),

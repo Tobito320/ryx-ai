@@ -95,8 +95,26 @@ class MetaLearner:
 
     def _init_db(self):
         """Initialize meta learning database"""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.db_path)
+        # Ensure data directory exists with proper permissions
+        from core.paths import get_data_dir
+        get_data_dir()  # This creates directory with 777 permissions
+
+        # Create database
+        try:
+            conn = sqlite3.connect(self.db_path)
+        except sqlite3.OperationalError as e:
+            # If database creation fails, try to fix permissions and retry
+            import os
+            try:
+                if self.db_path.exists():
+                    os.chmod(self.db_path, 0o666)
+                conn = sqlite3.connect(self.db_path)
+            except:
+                # If still fails, raise with helpful message
+                raise RuntimeError(
+                    f"Cannot access database at {self.db_path}. "
+                    f"Try running: chmod -R 777 {self.db_path.parent}"
+                ) from e
         cursor = conn.cursor()
 
         # Preferences table
@@ -151,6 +169,13 @@ class MetaLearner:
 
         conn.commit()
         conn.close()
+
+        # Set database file permissions to be writable by all users
+        import os
+        try:
+            os.chmod(self.db_path, 0o666)
+        except (PermissionError, OSError):
+            pass  # Best effort
 
     def _load_preferences(self):
         """Load saved preferences from database"""
