@@ -14,6 +14,13 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from core.paths import get_project_root, get_data_dir, get_config_dir, get_runtime_dir
 
+# Optional dependency
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
 
 @dataclass
 class QueryMetric:
