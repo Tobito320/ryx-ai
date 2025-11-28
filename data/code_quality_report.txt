@@ -1,0 +1,71 @@
+
+============================================================
+Ryx AI - Code Quality Report
+============================================================
+
+Statistics:
+  Total files: 34
+  Total lines: 10,185
+  Total functions: 366
+  Total classes: 55
+
+Issues by Type:
+  missing_docstring: 62
+  long_function: 3
+
+Files with Issues (26):
+
+  comprehensive_test.py (16 issues)
+    Line 77: Function 'test_ollama_service' missing docstring
+    Line 90: Function 'test_module_imports' missing docstring
+    Line 105: Function 'test_config_files' missing docstring
+    ... and 13 more
+
+  core/permissions.py (6 issues)
+    Line 14: Class 'PermissionLevel' missing docstring
+    Line 20: Class 'PermissionManager' missing docstring
+    Line 96: Class 'CommandExecutor' missing docstring
+    ... and 3 more
+
+  core/performance_profiler.py (5 issues)
+    Line 24: Function '__init__' missing docstring
+    Line 184: Function '__init__' missing docstring
+    Line 189: Function '__enter__' missing docstring
+    ... and 2 more
+
+  core/error_handler.py (5 issues)
+    Line 28: Function '__init__' missing docstring
+    Line 124: Function 'decorator' missing docstring
+    Line 167: Function 'decorator' missing docstring
+    ... and 2 more
+
+  core/ai_engine_v1_backup.py (3 issues)
+    Line 15: Class 'ModelSpec' missing docstring
+    Line 22: Class 'AIEngine' missing docstring
+    Line 23: Function '__init__' missing docstring
+
+  core/ai_engine_v2.py (3 issues)
+    Line 62: Function '__init__' missing docstring
+    Line 101: Function 'query' is 175 lines (consider refactoring)
+    Line 378: Function '__init__' missing docstring
+
+  core/rag_system.py (3 issues)
+    Line 15: Class 'RAGSystem' missing docstring
+    Line 16: Function '__init__' missing docstring
+    Line 403: Function '__init__' missing docstring
+
+  modes/session_mode.py (2 issues)
+    Line 20: Class 'SessionMode' missing docstring
+    Line 21: Function '__init__' missing docstring
+
+  modes/cli_mode.py (2 issues)
+    Line 20: Class 'CLIMode' missing docstring
+    Line 21: Function '__init__' missing docstring
+
+  core/task_manager.py (2 issues)
+    Line 65: Function '__init__' missing docstring
+    Line 441: Function '__init__' missing docstring
+
+Quality Score: 84.6/100
+
+============================================================
