@@ -1,0 +1,37 @@
+{
+  "tiers": {
+    "ultra-fast": {
+      "name": "qwen2.5:1.5b",
+      "vram_mb": 1500,
+      "typical_latency_ms": 50,
+      "specialties": [
+        "commands",
+        "simple_queries",
+        "file_operations"
+      ],
+      "tier_level": 1
+    },
+    "balanced": {
+      "name": "deepseek-coder:6.7b",
+      "vram_mb": 4000,
+      "typical_latency_ms": 500,
+      "specialties": [
+        "code",
+        "scripts",
+        "moderate_complexity"
+      ],
+      "tier_level": 2
+    },
+    "powerful": {
+      "name": "qwen2.5-coder:14b",
+      "vram_mb": 9000,
+      "typical_latency_ms": 2000,
+      "specialties": [
+        "architecture",
+        "complex_reasoning",
+        "refactoring"
+      ],
+      "tier_level": 3
+    }
+  }
+}
