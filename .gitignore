@@ -69,3 +69,4 @@ logs/
 
 # Backups
 backups/
+.aider*
