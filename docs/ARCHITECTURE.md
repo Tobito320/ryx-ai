@@ -1,52 +1,211 @@
-# 🏗️ Ryx AI - Architecture Documentation
+# 🟣 Ryx AI - Architecture Documentation
 
 ## System Overview
 
-Ryx AI is built on a **modular, layered architecture** optimized for speed, safety, and intelligence.
+Ryx AI is a **production-grade local agentic CLI** built on a modular, layered architecture optimized for speed, safety, and intelligence.
+
+**Primary Interaction**: Running `ryx` starts an interactive session where you type natural language instructions.
 
 ```
-┌─────────────────────────────────────────────────┐
-│               User Interface                     │
-│  CLI Mode (ryx "prompt") | Session (::session)  │
-└────────────┬────────────────────────┬────────────┘
-             │                        │
-             ▼                        ▼
-┌────────────────────┐    ┌──────────────────────┐
-│   Request Router   │    │  Command Parser      │
-└─────────┬──────────┘    └──────────┬───────────┘
-          │                          │
-          ▼                          ▼
-┌─────────────────────────────────────────────────┐
-│              Core Engine Layer                   │
-├─────────────────────────────────────────────────┤
-│  • AI Engine (model selection & inference)      │
-│  • RAG System (zero-latency cache)              │
-│  • Permission Manager (safety layer)            │
-│  • Command Executor (action handler)            │
-└────────────┬────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────┐
-│              Data Layer                          │
-├─────────────────────────────────────────────────┤
-│  • SQLite (knowledge & cache)                   │
-│  • JSON configs (settings & permissions)        │
-│  • File system (logs & history)                 │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    User Interface                            │
+│           ryx (interactive session) | ryx "prompt"           │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Intent Classifier                          │
+│  LLM-based classification (CHAT, CODE_EDIT, FILE_OPS, etc.) │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Model Router                             │
+│  Tier-based selection (fast, balanced, powerful, ultra)      │
+│  Docker/Ollama integration via OLLAMA_BASE_URL               │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Tool Registry                             │
+│  Filesystem | Web | Shell | RAG | Misc tools                 │
+│  Safety controls with confirmation for dangerous operations  │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Ollama Client                             │
+│  Streaming support | Retry logic | Error handling            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Layer Breakdown
+## Key Components
 
-### 1. User Interface Layer
+### 1. Intent Classifier (`core/intent_classifier.py`)
 
-**Purpose**: Handle user input and display responses
+**Purpose**: Classify user intent from natural language
 
-**Components**:
-- **CLI Mode** (`modes/cli_mode.py`)
-  - Parses command-line arguments
-  - Routes to appropriate handler
-  - Formats output for terminal
-  - Handles special commands (`::xxx`)
+**Intent Types**:
+- `CHAT`: Short Q&A, brainstorming
+- `CODE_EDIT`: Refactor, add features, fix bugs, write tests
+- `CONFIG_EDIT`: System configs (Hyprland, Waybar, shell)
+- `FILE_OPS`: Find/open/create/move files
+- `WEB_RESEARCH`: Search web, scrape pages
+- `SYSTEM_TASK`: Run tests, diagnostics, cleanup
+- `KNOWLEDGE_RAG`: Save/search notes
+- `PERSONAL_CHAT`: Uncensored personal conversation
+
+**Implementation Strategy**:
+- Minimal rule layer for obvious cases (fast path)
+- LLM-based classification for ambiguous cases
+- **NO giant keyword tables** - uses semantic understanding
+
+### 2. Model Router (`core/model_router.py`)
+
+**Purpose**: Route queries to appropriate model tier
+
+**Tiers**:
+| Tier | Model | Use Case |
+|------|-------|----------|
+| `fast` | mistral:7b | Quick tasks, simple queries |
+| `balanced` | qwen2.5-coder:14b | Default coding (recommended) |
+| `powerful` | deepseek-coder-v2:16b | Complex code, refactoring |
+| `ultra` | Qwen3-Coder:30B | Heavy reasoning, architecture |
+| `uncensored` | gpt-oss-abliterated:20b | Personal conversations |
+
+**Features**:
+- Configurable `OLLAMA_BASE_URL` for Docker
+- Auto-fallback when model unavailable
+- User tier overrides (`/tier fast`, `ryx --tier powerful`)
+
+### 3. Tool Registry (`core/tool_registry.py`)
+
+**Purpose**: Unified interface for all tool operations
+
+**Tool Categories**:
+- **Filesystem**: read_file, write_file, patch_file, search_files, list_tree
+- **Web**: fetch_url, scrape_page, web_search
+- **Shell**: run_command (with safety controls)
+- **RAG**: save_note, search_notes, rebuild_index
+- **Misc**: health_check, cleanup_cache, view_logs
+
+**Safety Levels**:
+- `SAFE`: Auto-approve (read operations)
+- `RISKY`: Depends on safety mode (write operations)
+- `DANGEROUS`: Always confirm (rm, system operations)
+
+### 4. Session Loop (`core/session_loop.py`)
+
+**Purpose**: Main interactive session
+
+**Features**:
+- Purple-themed UI with emoji status indicators
+- Natural language interaction (no weird syntax)
+- Minimal slash commands: `/help`, `/status`, `/tier`, `/quit`
+- Graceful interrupts (Ctrl+C saves state)
+- Session persistence
+
+### 5. Ollama Client (`core/ollama_client.py`)
+
+**Purpose**: Production-grade Ollama API client
+
+**Features**:
+- Streaming support
+- Retry logic with exponential backoff
+- Clean error handling
+- Docker-aware (configurable base URL)
+
+### 6. UI Module (`core/ui.py`)
+
+**Purpose**: Consistent purple-themed terminal output
+
+**Elements**:
+- Emoji status indicators (📋 Plan, 🔍 Search, 🌐 Browse, etc.)
+- Color-coded output (purple theme)
+- Formatted code blocks
+- Confirmation dialogs
+- Progress indicators
+
+## Configuration
+
+### Model Configuration (`configs/models.json`)
+
+```json
+{
+  "ollama_base_url": "http://localhost:11434",
+  "default_tier": "balanced",
+  "auto_fallback": true,
+  "models": {
+    "fast": { "name": "mistral:7b", ... },
+    "balanced": { "name": "qwen2.5-coder:14b", ... },
+    "powerful": { "name": "deepseek-coder-v2:16b", ... },
+    "ultra": { "name": "SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL", ... },
+    "uncensored": { "name": "huihui_ai/gpt-oss-abliterated:20b", ... }
+  }
+}
+```
+
+### Safety Configuration (`configs/safety.json`)
+
+- Blocked commands (rm -rf /, etc.)
+- Safe/dangerous directories
+- Safety modes (strict, normal, loose)
+
+## Agentic Workflow
+
+For task intents (CODE_EDIT, etc.):
+
+1. **📋 Plan**: LLM produces numbered plan, shown to user
+2. **🔍 Tool Execution**: Call tools, feed outputs back to LLM
+3. **🛠️ File Edits**: Generate minimal diffs, integrate with git
+4. **🧪 Validation**: Run tests/linters
+5. **✅ Summary**: Bullet list of changes, TODOs, next steps
+
+## Usage
+
+### Start Interactive Session (Recommended)
+```bash
+ryx
+```
+
+### Single Prompt
+```bash
+ryx "open hyprland config"
+ryx "refactor the intent parser"
+```
+
+### With Tier Override
+```bash
+ryx --tier fast "what time is it"
+ryx --tier powerful "analyze this codebase"
+```
+
+### Safety Modes
+```bash
+ryx --strict   # Confirm all risky operations
+ryx --loose    # Auto-approve most operations
+```
+
+## Session Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show help |
+| `/status` | Show current status |
+| `/tier <name>` | Switch model tier |
+| `/models` | List available models |
+| `/clear` | Clear conversation context |
+| `/save <title>` | Save conversation as note |
+| `/quit` | Exit session |
+
+## Design Principles
+
+1. **Natural Language First**: No weird syntax, just type naturally
+2. **Speed**: Fast model tier for quick tasks, caching for instant responses
+3. **Safety**: Confirm destructive operations, blocked dangerous commands
+4. **Intelligent Routing**: Choose model based on task complexity
+5. **Privacy**: All local, no telemetry
+6. **Minimal Changes**: Surgical edits, not massive rewrites
 
 - **Session Mode** (`modes/session_mode.py`)
   - Interactive REPL

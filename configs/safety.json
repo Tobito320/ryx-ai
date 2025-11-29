@@ -1,0 +1,59 @@
+{
+  "default_mode": "normal",
+  "modes": {
+    "strict": {
+      "description": "Confirm all risky operations",
+      "auto_approve_safe": true,
+      "auto_approve_risky": false,
+      "auto_approve_dangerous": false,
+      "require_reason_for_dangerous": true
+    },
+    "normal": {
+      "description": "Default - auto-approve safe and risky operations",
+      "auto_approve_safe": true,
+      "auto_approve_risky": true,
+      "auto_approve_dangerous": false,
+      "require_reason_for_dangerous": true
+    },
+    "loose": {
+      "description": "Auto-approve most operations (use with caution)",
+      "auto_approve_safe": true,
+      "auto_approve_risky": true,
+      "auto_approve_dangerous": false,
+      "require_reason_for_dangerous": false
+    }
+  },
+  "blocked_commands": [
+    "rm -rf /",
+    "rm -rf /*",
+    "rm -rf ~",
+    "rm -rf ~/",
+    "dd if=/dev/zero of=/dev/sd",
+    "mkfs",
+    ":(){:|:&};:",
+    "chmod -R 777 /",
+    "chown -R",
+    "> /dev/sda",
+    "shred /dev/sd",
+    "wipefs"
+  ],
+  "safe_directories": [
+    "~/.config",
+    "~/Documents",
+    "~/Projects",
+    "~/ryx-ai",
+    "/tmp"
+  ],
+  "dangerous_directories": [
+    "/",
+    "/etc",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/boot",
+    "/sys",
+    "/proc",
+    "/dev"
+  ],
+  "uncensored_model_disclaimer": "Using uncensored model. Content may be unfiltered and not suitable for all audiences. The user takes full responsibility for generated content."
+}
