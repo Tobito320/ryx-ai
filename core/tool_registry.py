@@ -1,31 +1,18 @@
 """
 Ryx AI - Tool Registry
-Unified interface for all tools available to the agent
+Unified tool interface for filesystem, web, shell, and RAG operations
 """
 
 import os
-import re
-import json
 import subprocess
+import json
 from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable
 from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, List, Callable
 from enum import Enum
-from abc import ABC, abstractmethod
+import logging
 
-# Optional imports with fallback
-try:
-    import requests
-    from bs4 import BeautifulSoup
-    WEB_TOOLS_AVAILABLE = True
-except ImportError:
-    WEB_TOOLS_AVAILABLE = False
-
-try:
-    import psutil
-    PSUTIL_AVAILABLE = True
-except ImportError:
-    PSUTIL_AVAILABLE = False
+logger = logging.getLogger(__name__)
 
 
 class ToolCategory(Enum):
@@ -34,740 +21,841 @@ class ToolCategory(Enum):
     WEB = "web"
     SHELL = "shell"
     RAG = "rag"
-    GIT = "git"
-    SYSTEM = "system"
+    MISC = "misc"
 
 
 class SafetyLevel(Enum):
     """Safety levels for tool execution"""
-    SAFE = "safe"          # Auto-execute
-    RISKY = "risky"        # Warn user
-    DANGEROUS = "dangerous" # Require confirmation
+    SAFE = "safe"  # Auto-approve
+    RISKY = "risky"  # Confirm in strict mode
+    DANGEROUS = "dangerous"  # Always confirm
+
+
+@dataclass
+class ToolDefinition:
+    """Definition of a tool"""
+    name: str
+    description: str
+    category: ToolCategory
+    safety_level: SafetyLevel
+    parameters: Dict[str, Any]  # Parameter schemas
+    handler: Callable  # Function to execute
 
 
 @dataclass
 class ToolResult:
-    """Result from tool execution"""
+    """Result of tool execution"""
     success: bool
     output: Any
     error: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class ToolDefinition:
-    """Definition of a tool for LLM exposure"""
-    name: str
-    description: str
-    category: ToolCategory
-    parameters: Dict[str, Any]  # JSON Schema format
-    safety_level: SafetyLevel = SafetyLevel.SAFE
-    examples: List[str] = field(default_factory=list)
+class ToolRegistry:
+    """
+    Unified tool registry and executor
 
+    Features:
+    - Filesystem tools: search, read, write/patch, list tree
+    - Web tools: fetch HTTP, scrape, search
+    - Shell tools: run commands with safety controls
+    - RAG tools: add/query/rebuild index
+    - Misc: health checks, cache cleanup, logs
 
-class BaseTool(ABC):
-    """Base class for all tools"""
-    
-    @property
-    @abstractmethod
-    def definition(self) -> ToolDefinition:
-        """Return tool definition"""
-        pass
-    
-    @abstractmethod
-    def execute(self, **kwargs) -> ToolResult:
-        """Execute the tool"""
-        pass
+    All tools have:
+    - Consistent interface: execute_tool(name, params) -> ToolResult
+    - Safety controls with confirmation for dangerous operations
+    - LLM-friendly descriptions for tool selection
+    """
 
+    def __init__(self, safety_mode: str = "normal"):
+        """
+        Initialize tool registry
 
-# ============================================
-# Filesystem Tools
-# ============================================
+        Args:
+            safety_mode: 'strict', 'normal', or 'loose'
+        """
+        self.safety_mode = safety_mode
+        self.tools: Dict[str, ToolDefinition] = {}
+        self._register_builtin_tools()
 
-class FileSearchTool(BaseTool):
-    """Search for files by name or pattern"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="file_search",
-            description="Search for files by name or pattern",
+    def _register_builtin_tools(self):
+        """Register all built-in tools"""
+        # Filesystem tools
+        self.register(ToolDefinition(
+            name="read_file",
+            description="Read contents of a file",
             category=ToolCategory.FILESYSTEM,
+            safety_level=SafetyLevel.SAFE,
+            parameters={"path": "string - File path to read"},
+            handler=self._read_file
+        ))
+
+        self.register(ToolDefinition(
+            name="write_file",
+            description="Write content to a file (creates or overwrites)",
+            category=ToolCategory.FILESYSTEM,
+            safety_level=SafetyLevel.RISKY,
             parameters={
-                "type": "object",
-                "properties": {
-                    "pattern": {"type": "string", "description": "Search pattern (supports wildcards)"},
-                    "path": {"type": "string", "description": "Starting path (default: current dir)"},
-                    "max_depth": {"type": "integer", "description": "Max depth to search"}
-                },
-                "required": ["pattern"]
+                "path": "string - File path to write",
+                "content": "string - Content to write"
             },
-            examples=["file_search(pattern='*.py')", "file_search(pattern='config', path='~/.config')"]
-        )
-    
-    def execute(self, pattern: str, path: str = ".", max_depth: int = 5) -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            results = []
-            
-            for root, dirs, files in os.walk(path):
-                # Check depth
-                depth = root[len(path):].count(os.sep)
-                if depth >= max_depth:
-                    dirs.clear()
-                    continue
-                
-                for name in files + dirs:
-                    if self._matches_pattern(name, pattern):
-                        results.append(os.path.join(root, name))
-            
-            return ToolResult(success=True, output=results[:100])  # Limit results
-        except Exception as e:
-            return ToolResult(success=False, output=[], error=str(e))
-    
-    def _matches_pattern(self, name: str, pattern: str) -> bool:
-        """Check if name matches pattern (simple wildcard support)"""
-        import fnmatch
-        return fnmatch.fnmatch(name.lower(), pattern.lower())
+            handler=self._write_file
+        ))
 
-
-class FileReadTool(BaseTool):
-    """Read contents of a file"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="file_read",
-            description="Read the contents of a file",
+        self.register(ToolDefinition(
+            name="patch_file",
+            description="Apply a patch/diff to a file (minimal edit)",
             category=ToolCategory.FILESYSTEM,
+            safety_level=SafetyLevel.RISKY,
             parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Path to file"},
-                    "lines": {"type": "integer", "description": "Number of lines to read (default: all)"}
-                },
-                "required": ["path"]
-            }
-        )
-    
-    def execute(self, path: str, lines: Optional[int] = None) -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            with open(path, 'r') as f:
-                if lines:
-                    content = ''.join(f.readlines()[:lines])
-                else:
-                    content = f.read()
-            
-            return ToolResult(success=True, output=content, metadata={"path": path, "size": len(content)})
-        except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
-
-
-class FileWriteTool(BaseTool):
-    """Write content to a file (create or overwrite)"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="file_write",
-            description="Write content to a file",
-            category=ToolCategory.FILESYSTEM,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Path to file"},
-                    "content": {"type": "string", "description": "Content to write"},
-                    "append": {"type": "boolean", "description": "Append instead of overwrite"}
-                },
-                "required": ["path", "content"]
+                "path": "string - File path to patch",
+                "search": "string - Text to find",
+                "replace": "string - Text to replace with"
             },
-            safety_level=SafetyLevel.RISKY
-        )
-    
-    def execute(self, path: str, content: str, append: bool = False) -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            mode = 'a' if append else 'w'
-            
-            # Create directory if needed (only if dirname is not empty)
-            dirname = os.path.dirname(path)
-            if dirname:
-                os.makedirs(dirname, exist_ok=True)
-            
-            with open(path, mode) as f:
-                f.write(content)
-            
-            return ToolResult(success=True, output=f"Written to {path}", metadata={"path": path})
-        except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
+            handler=self._patch_file
+        ))
 
-
-class FilePatchTool(BaseTool):
-    """Apply a patch/diff to a file (minimal edits)"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="file_patch",
-            description="Apply minimal edits to a file (search and replace)",
+        self.register(ToolDefinition(
+            name="search_files",
+            description="Search for files by name or content",
             category=ToolCategory.FILESYSTEM,
+            safety_level=SafetyLevel.SAFE,
             parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Path to file"},
-                    "search": {"type": "string", "description": "Text to find"},
-                    "replace": {"type": "string", "description": "Text to replace with"}
-                },
-                "required": ["path", "search", "replace"]
+                "pattern": "string - Search pattern (glob or regex)",
+                "directory": "string - Directory to search in (default: current)",
+                "content_search": "string - Optional content to search for"
             },
-            safety_level=SafetyLevel.RISKY
-        )
-    
-    def execute(self, path: str, search: str, replace: str) -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            
-            with open(path, 'r') as f:
-                content = f.read()
-            
-            if search not in content:
-                return ToolResult(success=False, output="", error="Search text not found in file")
-            
-            new_content = content.replace(search, replace, 1)
-            
-            with open(path, 'w') as f:
-                f.write(new_content)
-            
-            return ToolResult(success=True, output=f"Patched {path}", metadata={"path": path})
-        except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
+            handler=self._search_files
+        ))
 
-
-class ListDirectoryTool(BaseTool):
-    """List contents of a directory"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="list_directory",
-            description="List files and directories in a path",
+        self.register(ToolDefinition(
+            name="list_tree",
+            description="List directory tree structure",
             category=ToolCategory.FILESYSTEM,
+            safety_level=SafetyLevel.SAFE,
             parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Directory path"},
-                    "show_hidden": {"type": "boolean", "description": "Show hidden files"}
-                },
-                "required": ["path"]
-            }
-        )
-    
-    def execute(self, path: str, show_hidden: bool = False) -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            entries = os.listdir(path)
-            
-            if not show_hidden:
-                entries = [e for e in entries if not e.startswith('.')]
-            
-            # Categorize
-            files = []
-            dirs = []
-            for entry in sorted(entries):
-                full_path = os.path.join(path, entry)
-                if os.path.isdir(full_path):
-                    dirs.append(entry + '/')
-                else:
-                    files.append(entry)
-            
-            return ToolResult(success=True, output={"directories": dirs, "files": files})
-        except Exception as e:
-            return ToolResult(success=False, output={}, error=str(e))
+                "path": "string - Directory path",
+                "depth": "int - Maximum depth (default: 3)"
+            },
+            handler=self._list_tree
+        ))
 
+        self.register(ToolDefinition(
+            name="find_file",
+            description="Find a specific file (config, source, etc.)",
+            category=ToolCategory.FILESYSTEM,
+            safety_level=SafetyLevel.SAFE,
+            parameters={"query": "string - What file to find (e.g., 'hyprland config')"},
+            handler=self._find_file
+        ))
 
-# ============================================
-# Shell Tools
-# ============================================
-
-class ShellCommandTool(BaseTool):
-    """Execute shell commands with safety controls"""
-    
-    # Commands that are always blocked - never execute these
-    BLOCKED_COMMANDS = [
-        'rm -rf /', 'rm -rf /*', 'dd if=/dev', 'mkfs', ':(){ :|:& };:',
-        'chmod -R 777 /', '> /dev/sda', 'mv /* ', 'wget | sh', 'curl | sh',
-        'pacman -Syu', 'pacman -S', 'yay -S', 'systemctl enable', 'systemctl disable',
-        'grub-install', 'mkinitcpio', 'bootctl', 'fdisk', 'parted', 'gparted'
-    ]
-    
-    # Commands that require confirmation - use regex patterns
-    DANGEROUS_PATTERNS = [
-        r'rm\s+-rf', r'rm\s+-r', r'chmod\s+-R', r'chown\s+-R',
-        r'git\s+reset\s+--hard', r'git\s+push\s+.*--force',
-        r'pip\s+uninstall', r'npm\s+uninstall',
-        r'pacman\s', r'yay\s', r'sudo\s', r'systemctl\s',
-        r'/etc/\w+',  # Matches any /etc/ file paths
-        r'>\s*/etc/', r'>>\s*/etc/',  # Redirects to /etc
-        r'nano\s+/etc/', r'vim\s+/etc/', r'vi\s+/etc/',  # Editing /etc files
-    ]
-    
-    # Safe directories (default operation areas)
-    SAFE_DIRECTORIES = [
-        os.path.expanduser('~'),
-        '/tmp'
-    ]
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="shell_command",
-            description="Execute a shell command",
+        # Shell tools
+        self.register(ToolDefinition(
+            name="run_command",
+            description="Run a shell command",
             category=ToolCategory.SHELL,
+            safety_level=SafetyLevel.RISKY,
             parameters={
-                "type": "object",
-                "properties": {
-                    "command": {"type": "string", "description": "Shell command to execute"},
-                    "timeout": {"type": "integer", "description": "Timeout in seconds (default: 30)"},
-                    "cwd": {"type": "string", "description": "Working directory"}
-                },
-                "required": ["command"]
+                "command": "string - Command to run",
+                "cwd": "string - Working directory (optional)"
             },
-            safety_level=SafetyLevel.RISKY
-        )
-    
-    def execute(self, command: str, timeout: int = 30, cwd: str = None) -> ToolResult:
-        # Check if blocked
-        command_lower = command.lower()
-        for blocked in self.BLOCKED_COMMANDS:
-            if blocked in command_lower:
-                return ToolResult(
-                    success=False, 
-                    output="", 
-                    error=f"Command blocked for safety: contains '{blocked}'"
-                )
-        
-        # Check if dangerous
-        safety = SafetyLevel.SAFE
-        for pattern in self.DANGEROUS_PATTERNS:
-            if re.search(pattern, command, re.IGNORECASE):
-                safety = SafetyLevel.DANGEROUS
-                break
-        
+            handler=self._run_command
+        ))
+
+        self.register(ToolDefinition(
+            name="run_command_dangerous",
+            description="Run a dangerous command (rm, mv to system dirs, etc.)",
+            category=ToolCategory.SHELL,
+            safety_level=SafetyLevel.DANGEROUS,
+            parameters={
+                "command": "string - Command to run",
+                "reason": "string - Why this command is needed"
+            },
+            handler=self._run_command_dangerous
+        ))
+
+        # Web tools
+        self.register(ToolDefinition(
+            name="fetch_url",
+            description="Fetch content from a URL",
+            category=ToolCategory.WEB,
+            safety_level=SafetyLevel.SAFE,
+            parameters={"url": "string - URL to fetch"},
+            handler=self._fetch_url
+        ))
+
+        self.register(ToolDefinition(
+            name="scrape_page",
+            description="Scrape and extract text from a web page",
+            category=ToolCategory.WEB,
+            safety_level=SafetyLevel.SAFE,
+            parameters={
+                "url": "string - URL to scrape",
+                "extract_links": "bool - Whether to extract links (default: false)"
+            },
+            handler=self._scrape_page
+        ))
+
+        self.register(ToolDefinition(
+            name="web_search",
+            description="Search the web using DuckDuckGo",
+            category=ToolCategory.WEB,
+            safety_level=SafetyLevel.SAFE,
+            parameters={
+                "query": "string - Search query",
+                "num_results": "int - Number of results (default: 5)"
+            },
+            handler=self._web_search
+        ))
+
+        # RAG tools
+        self.register(ToolDefinition(
+            name="save_note",
+            description="Save a note to the knowledge base",
+            category=ToolCategory.RAG,
+            safety_level=SafetyLevel.SAFE,
+            parameters={
+                "title": "string - Note title",
+                "content": "string - Note content",
+                "tags": "list - Optional tags"
+            },
+            handler=self._save_note
+        ))
+
+        self.register(ToolDefinition(
+            name="search_notes",
+            description="Search notes in the knowledge base",
+            category=ToolCategory.RAG,
+            safety_level=SafetyLevel.SAFE,
+            parameters={"query": "string - Search query"},
+            handler=self._search_notes
+        ))
+
+        self.register(ToolDefinition(
+            name="rebuild_index",
+            description="Rebuild the RAG knowledge index",
+            category=ToolCategory.RAG,
+            safety_level=SafetyLevel.RISKY,
+            parameters={},
+            handler=self._rebuild_index
+        ))
+
+        # Misc tools
+        self.register(ToolDefinition(
+            name="health_check",
+            description="Check system health (Ollama, databases, etc.)",
+            category=ToolCategory.MISC,
+            safety_level=SafetyLevel.SAFE,
+            parameters={},
+            handler=self._health_check
+        ))
+
+        self.register(ToolDefinition(
+            name="cleanup_cache",
+            description="Clean up cache and temporary files",
+            category=ToolCategory.MISC,
+            safety_level=SafetyLevel.RISKY,
+            parameters={"aggressive": "bool - Whether to do aggressive cleanup (default: false)"},
+            handler=self._cleanup_cache
+        ))
+
+        self.register(ToolDefinition(
+            name="view_logs",
+            description="View recent logs",
+            category=ToolCategory.MISC,
+            safety_level=SafetyLevel.SAFE,
+            parameters={
+                "lines": "int - Number of lines (default: 50)",
+                "filter": "string - Optional filter pattern"
+            },
+            handler=self._view_logs
+        ))
+
+    def register(self, tool: ToolDefinition):
+        """Register a tool"""
+        self.tools[tool.name] = tool
+
+    def execute_tool(
+        self,
+        name: str,
+        params: Dict[str, Any],
+        confirmed: bool = False
+    ) -> ToolResult:
+        """
+        Execute a tool by name
+
+        Args:
+            name: Tool name
+            params: Tool parameters
+            confirmed: Whether dangerous operations are pre-confirmed
+
+        Returns:
+            ToolResult with success status and output
+        """
+        if name not in self.tools:
+            return ToolResult(
+                success=False,
+                output=None,
+                error=f"Unknown tool: {name}"
+            )
+
+        tool = self.tools[name]
+
+        # Safety check
+        if not self._check_safety(tool, confirmed):
+            return ToolResult(
+                success=False,
+                output=None,
+                error=f"Tool '{name}' requires confirmation (safety: {tool.safety_level.value})"
+            )
+
         try:
-            if cwd:
-                cwd = os.path.expanduser(cwd)
-            
+            result = tool.handler(params)
+            return result
+
+        except Exception as e:
+            logger.error(f"Tool execution error: {name} - {e}")
+            return ToolResult(
+                success=False,
+                output=None,
+                error=str(e)
+            )
+
+    def _check_safety(self, tool: ToolDefinition, confirmed: bool) -> bool:
+        """Check if tool execution is allowed based on safety settings"""
+        if tool.safety_level == SafetyLevel.SAFE:
+            return True
+
+        if tool.safety_level == SafetyLevel.DANGEROUS:
+            return confirmed
+
+        # RISKY level depends on safety mode
+        if tool.safety_level == SafetyLevel.RISKY:
+            if self.safety_mode == "loose":
+                return True
+            elif self.safety_mode == "strict":
+                return confirmed
+            else:  # normal
+                return True
+
+        return confirmed
+
+    def get_tool_descriptions(self) -> str:
+        """Get tool descriptions for LLM context"""
+        descriptions = []
+
+        for name, tool in self.tools.items():
+            param_str = ", ".join([f"{k}: {v}" for k, v in tool.parameters.items()])
+            descriptions.append(
+                f"- {name}({param_str}): {tool.description}"
+            )
+
+        return "\n".join(descriptions)
+
+    def list_tools(self, category: Optional[ToolCategory] = None) -> List[Dict[str, Any]]:
+        """List available tools"""
+        result = []
+
+        for name, tool in self.tools.items():
+            if category and tool.category != category:
+                continue
+
+            result.append({
+                'name': name,
+                'description': tool.description,
+                'category': tool.category.value,
+                'safety_level': tool.safety_level.value,
+                'parameters': tool.parameters
+            })
+
+        return result
+
+    # ===== Tool Handlers =====
+
+    def _read_file(self, params: Dict) -> ToolResult:
+        """Read file contents"""
+        path = Path(params['path']).expanduser()
+
+        if not path.exists():
+            return ToolResult(success=False, output=None, error=f"File not found: {path}")
+
+        try:
+            content = path.read_text()
+            return ToolResult(
+                success=True,
+                output=content,
+                metadata={'path': str(path), 'size': len(content)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _write_file(self, params: Dict) -> ToolResult:
+        """Write file contents"""
+        path = Path(params['path']).expanduser()
+        content = params['content']
+
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            return ToolResult(
+                success=True,
+                output=f"Wrote {len(content)} bytes to {path}",
+                metadata={'path': str(path), 'size': len(content)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _patch_file(self, params: Dict) -> ToolResult:
+        """Patch file with search/replace"""
+        path = Path(params['path']).expanduser()
+        search = params['search']
+        replace = params['replace']
+
+        if not path.exists():
+            return ToolResult(success=False, output=None, error=f"File not found: {path}")
+
+        try:
+            content = path.read_text()
+            if search not in content:
+                return ToolResult(success=False, output=None, error="Search pattern not found in file")
+
+            new_content = content.replace(search, replace, 1)
+            path.write_text(new_content)
+
+            return ToolResult(
+                success=True,
+                output=f"Patched {path}: replaced {len(search)} chars with {len(replace)} chars",
+                metadata={'path': str(path), 'changes': 1}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _search_files(self, params: Dict) -> ToolResult:
+        """Search for files"""
+        pattern = params['pattern']
+        directory = Path(params.get('directory', '.')).expanduser()
+        content_search = params.get('content_search')
+
+        try:
+            results = []
+
+            for path in directory.rglob(pattern):
+                if path.is_file():
+                    if content_search:
+                        try:
+                            if content_search in path.read_text():
+                                results.append(str(path))
+                        except:
+                            pass
+                    else:
+                        results.append(str(path))
+
+            return ToolResult(
+                success=True,
+                output=results,
+                metadata={'count': len(results)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _list_tree(self, params: Dict) -> ToolResult:
+        """List directory tree"""
+        path = Path(params['path']).expanduser()
+        depth = params.get('depth', 3)
+
+        if not path.exists():
+            return ToolResult(success=False, output=None, error=f"Directory not found: {path}")
+
+        try:
+            tree = []
+            self._build_tree(path, tree, "", depth)
+            return ToolResult(
+                success=True,
+                output="\n".join(tree),
+                metadata={'path': str(path)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _build_tree(self, path: Path, tree: List[str], prefix: str, depth: int):
+        """Recursively build directory tree"""
+        if depth <= 0:
+            return
+
+        try:
+            entries = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+            for i, entry in enumerate(entries):
+                is_last = i == len(entries) - 1
+                connector = "└── " if is_last else "├── "
+                tree.append(f"{prefix}{connector}{entry.name}")
+
+                if entry.is_dir():
+                    new_prefix = prefix + ("    " if is_last else "│   ")
+                    self._build_tree(entry, tree, new_prefix, depth - 1)
+        except PermissionError:
+            tree.append(f"{prefix}[Permission denied]")
+
+    def _find_file(self, params: Dict) -> ToolResult:
+        """Find a specific file"""
+        query = params['query'].lower()
+
+        # Common config locations
+        locations = {
+            'hyprland': ['~/.config/hypr/hyprland.conf', '~/.config/hyprland/hyprland.conf'],
+            'waybar': ['~/.config/waybar/config', '~/.config/waybar/config.jsonc'],
+            'kitty': ['~/.config/kitty/kitty.conf'],
+            'nvim': ['~/.config/nvim/init.lua', '~/.config/nvim/init.vim'],
+            'zsh': ['~/.zshrc'],
+            'bash': ['~/.bashrc'],
+            'fish': ['~/.config/fish/config.fish'],
+        }
+
+        for key, paths in locations.items():
+            if key in query:
+                for p in paths:
+                    path = Path(p).expanduser()
+                    if path.exists():
+                        return ToolResult(
+                            success=True,
+                            output=str(path),
+                            metadata={'type': key}
+                        )
+
+        return ToolResult(success=False, output=None, error=f"File not found for: {query}")
+
+    def _run_command(self, params: Dict) -> ToolResult:
+        """Run a shell command"""
+        command = params['command']
+        cwd = params.get('cwd')
+
+        # More robust dangerous command detection
+        # Check for dangerous patterns with various bypass attempts
+        dangerous_patterns = [
+            # Direct dangerous commands
+            r'rm\s+(-[rf]+\s+)*/\s*$',  # rm -rf /
+            r'rm\s+(-[rf]+\s+)*/\*',  # rm -rf /*
+            r'rm\s+(-[rf]+\s+)*~\s*$',  # rm -rf ~
+            r'rm\s+(-[rf]+\s+)*~/\*',  # rm -rf ~/*
+            r'dd\s+if=/dev/zero\s+of=/dev/sd',
+            r'dd\s+if=/dev/random\s+of=/dev/sd',
+            r'mkfs\.',  # mkfs.ext4, mkfs.ntfs, etc.
+            r':\(\)\{\s*:\|\s*:&\s*\}\s*;',  # Fork bomb
+            r'>\s*/dev/sd[a-z]',  # Overwrite disk
+            r'chmod\s+(-R\s+)?[0-7]*\s+/',  # chmod on root
+            r'chown\s+(-R\s+)?\w+\s+/',  # chown on root
+            r'shred\s+/dev/sd',
+            r'wipefs\s+',
+            r'curl\s+.*\|\s*(ba)?sh',  # Pipe from curl to shell
+            r'wget\s+.*\|\s*(ba)?sh',  # Pipe from wget to shell
+        ]
+
+        # Also check for exact dangerous strings (case-insensitive)
+        dangerous_exact = [
+            'rm -rf /',
+            'rm -rf ~',
+            '> /dev/sda',
+            ':(){:|:&};:',
+        ]
+
+        import re
+        command_lower = command.lower().strip()
+
+        # Check exact matches
+        for pattern in dangerous_exact:
+            if pattern in command_lower:
+                return ToolResult(
+                    success=False,
+                    output=None,
+                    error=f"Dangerous command blocked: {pattern}"
+                )
+
+        # Check regex patterns
+        for pattern in dangerous_patterns:
+            if re.search(pattern, command_lower):
+                return ToolResult(
+                    success=False,
+                    output=None,
+                    error=f"Dangerous command blocked"
+                )
+
+        try:
             result = subprocess.run(
                 command,
                 shell=True,
+                cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=timeout,
-                cwd=cwd
+                timeout=30
             )
-            
+
             return ToolResult(
                 success=result.returncode == 0,
-                output=result.stdout,
-                error=result.stderr if result.returncode != 0 else None,
+                output=result.stdout if result.stdout else result.stderr,
                 metadata={
-                    "exit_code": result.returncode,
-                    "safety_level": safety.value
+                    'exit_code': result.returncode,
+                    'command': command
                 }
             )
         except subprocess.TimeoutExpired:
-            return ToolResult(success=False, output="", error=f"Command timed out after {timeout}s")
+            return ToolResult(success=False, output=None, error="Command timed out after 30s")
         except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
+            return ToolResult(success=False, output=None, error=str(e))
 
+    def _run_command_dangerous(self, params: Dict) -> ToolResult:
+        """Run a dangerous command (requires confirmation)"""
+        # This should only be called after confirmation
+        return self._run_command(params)
 
-# ============================================
-# Web Tools
-# ============================================
+    def _fetch_url(self, params: Dict) -> ToolResult:
+        """Fetch URL content"""
+        import requests
 
-class WebFetchTool(BaseTool):
-    """Fetch content from a URL"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="web_fetch",
-            description="Fetch content from a URL",
-            category=ToolCategory.WEB,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "url": {"type": "string", "description": "URL to fetch"},
-                    "timeout": {"type": "integer", "description": "Timeout in seconds"}
-                },
-                "required": ["url"]
-            }
-        )
-    
-    def execute(self, url: str, timeout: int = 30) -> ToolResult:
-        if not WEB_TOOLS_AVAILABLE:
-            return ToolResult(success=False, output="", error="requests library not installed")
-        
+        url = params['url']
+
         try:
-            headers = {'User-Agent': 'Ryx-AI/2.0'}
-            response = requests.get(url, headers=headers, timeout=timeout)
-            response.raise_for_status()
-            
+            response = requests.get(url, timeout=10, headers={
+                'User-Agent': 'Ryx-AI/1.0 (Educational; +https://github.com/ryx-ai)'
+            })
+            return ToolResult(
+                success=response.status_code == 200,
+                output=response.text[:10000],  # Limit size
+                metadata={
+                    'status_code': response.status_code,
+                    'content_type': response.headers.get('content-type'),
+                    'url': url
+                }
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _scrape_page(self, params: Dict) -> ToolResult:
+        """Scrape web page"""
+        import requests
+        from bs4 import BeautifulSoup
+
+        url = params['url']
+        extract_links = params.get('extract_links', False)
+
+        try:
+            response = requests.get(url, timeout=10, headers={
+                'User-Agent': 'Ryx-AI/1.0 (Educational; +https://github.com/ryx-ai)'
+            })
+
+            soup = BeautifulSoup(response.text, 'lxml')
+
+            # Remove script and style
+            for script in soup(["script", "style"]):
+                script.decompose()
+
+            text = soup.get_text()
+            lines = (line.strip() for line in text.splitlines())
+            text = ' '.join(chunk for chunk in lines if chunk)
+
+            result = {'text': text[:5000]}
+
+            if extract_links:
+                links = [a.get('href') for a in soup.find_all('a', href=True)]
+                result['links'] = links[:50]
+
             return ToolResult(
                 success=True,
-                output=response.text[:50000],  # Limit size
-                metadata={"url": url, "status": response.status_code, "size": len(response.text)}
+                output=result,
+                metadata={'url': url}
             )
         except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
+            return ToolResult(success=False, output=None, error=str(e))
 
+    def _web_search(self, params: Dict) -> ToolResult:
+        """Search the web"""
+        import requests
+        from bs4 import BeautifulSoup
 
-class WebSearchTool(BaseTool):
-    """Search the web using DuckDuckGo"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="web_search",
-            description="Search the web for information",
-            category=ToolCategory.WEB,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search query"},
-                    "num_results": {"type": "integer", "description": "Number of results (max 10)"}
-                },
-                "required": ["query"]
-            }
-        )
-    
-    def execute(self, query: str, num_results: int = 5) -> ToolResult:
-        if not WEB_TOOLS_AVAILABLE:
-            return ToolResult(success=False, output=[], error="requests/beautifulsoup4 libraries not installed")
-        
+        query = params['query']
+        num_results = params.get('num_results', 5)
+
         try:
             search_url = f"https://html.duckduckgo.com/html/?q={query}"
-            headers = {'User-Agent': 'Ryx-AI/2.0'}
-            
-            response = requests.get(search_url, headers=headers, timeout=10)
-            soup = BeautifulSoup(response.text, 'lxml')
-            
-            results = []
-            for result in soup.find_all('div', class_='result')[:num_results]:
-                title_elem = result.find('a', class_='result__a')
-                snippet_elem = result.find('a', class_='result__snippet')
-                
-                if title_elem:
-                    url = title_elem.get('href', '')
-                    if url.startswith('//'):
-                        url = 'https:' + url
-                    
-                    results.append({
-                        'title': title_elem.get_text(strip=True),
-                        'url': url,
-                        'snippet': snippet_elem.get_text(strip=True) if snippet_elem else ""
-                    })
-            
-            return ToolResult(success=True, output=results, metadata={"query": query})
-        except Exception as e:
-            return ToolResult(success=False, output=[], error=str(e))
-
-
-class SearxNGSearchTool(BaseTool):
-    """Search using SearxNG (local instance preferred)"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="searxng_search",
-            description="Search using SearxNG - Tobi's preferred search backend",
-            category=ToolCategory.WEB,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search query"},
-                    "num_results": {"type": "integer", "description": "Number of results (max 10)"},
-                    "categories": {"type": "string", "description": "Search categories (e.g., 'general', 'images', 'it')"}
-                },
-                "required": ["query"]
-            }
-        )
-    
-    def execute(self, query: str, num_results: int = 5, categories: str = "general") -> ToolResult:
-        if not WEB_TOOLS_AVAILABLE:
-            return ToolResult(success=False, output=[], error="requests library not installed")
-        
-        # Try SearxNG first, fall back to DuckDuckGo
-        searxng_url = os.environ.get('SEARXNG_URL', 'http://localhost:8080')
-        
-        try:
-            # Try SearxNG JSON API
-            search_url = f"{searxng_url}/search"
-            params = {
-                'q': query,
-                'format': 'json',
-                'categories': categories
-            }
-            
-            response = requests.get(search_url, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                results = []
-                for item in data.get('results', [])[:num_results]:
-                    results.append({
-                        'title': item.get('title', ''),
-                        'url': item.get('url', ''),
-                        'snippet': item.get('content', '')[:200] if item.get('content') else ''
-                    })
-                
-                return ToolResult(
-                    success=True, 
-                    output=results, 
-                    metadata={"query": query, "source": "searxng"}
-                )
-        except Exception:
-            pass  # Fall back to DuckDuckGo
-        
-        # Fallback: DuckDuckGo
-        try:
-            search_url = f"https://html.duckduckgo.com/html/?q={query}"
-            headers = {'User-Agent': 'Ryx-AI/2.0 (Technical Partner)'}
-            
-            response = requests.get(search_url, headers=headers, timeout=10)
-            soup = BeautifulSoup(response.text, 'lxml')
-            
-            results = []
-            for result in soup.find_all('div', class_='result')[:num_results]:
-                title_elem = result.find('a', class_='result__a')
-                snippet_elem = result.find('a', class_='result__snippet')
-                
-                if title_elem:
-                    url = title_elem.get('href', '')
-                    if url.startswith('//'):
-                        url = 'https:' + url
-                    
-                    results.append({
-                        'title': title_elem.get_text(strip=True),
-                        'url': url,
-                        'snippet': snippet_elem.get_text(strip=True) if snippet_elem else ""
-                    })
-            
-            return ToolResult(
-                success=True, 
-                output=results, 
-                metadata={"query": query, "source": "duckduckgo_fallback"}
-            )
-        except Exception as e:
-            return ToolResult(success=False, output=[], error=str(e))
-
-
-# ============================================
-# Git Tools
-# ============================================
-
-class GitStatusTool(BaseTool):
-    """Get git status of current directory"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="git_status",
-            description="Get git status of repository",
-            category=ToolCategory.GIT,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Repository path"}
-                }
-            }
-        )
-    
-    def execute(self, path: str = ".") -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            result = subprocess.run(
-                ['git', 'status', '--porcelain'],
-                capture_output=True, text=True, cwd=path
-            )
-            
-            return ToolResult(
-                success=result.returncode == 0,
-                output=result.stdout,
-                error=result.stderr if result.returncode != 0 else None
-            )
-        except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
-
-
-class GitDiffTool(BaseTool):
-    """Get git diff"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="git_diff",
-            description="Get git diff of changes",
-            category=ToolCategory.GIT,
-            parameters={
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string", "description": "Repository path"},
-                    "file": {"type": "string", "description": "Specific file to diff"}
-                }
-            }
-        )
-    
-    def execute(self, path: str = ".", file: str = None) -> ToolResult:
-        try:
-            path = os.path.expanduser(path)
-            cmd = ['git', 'diff']
-            if file:
-                cmd.append(file)
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=path)
-            
-            return ToolResult(
-                success=result.returncode == 0,
-                output=result.stdout,
-                error=result.stderr if result.returncode != 0 else None
-            )
-        except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
-
-
-# ============================================
-# System Tools
-# ============================================
-
-class SystemInfoTool(BaseTool):
-    """Get system information"""
-    
-    @property
-    def definition(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="system_info",
-            description="Get system information (CPU, memory, disk)",
-            category=ToolCategory.SYSTEM,
-            parameters={"type": "object", "properties": {}}
-        )
-    
-    def execute(self) -> ToolResult:
-        if not PSUTIL_AVAILABLE:
-            return ToolResult(success=False, output={}, error="psutil library not installed")
-        
-        try:
-            info = {
-                "cpu_percent": psutil.cpu_percent(interval=1),
-                "memory": {
-                    "total_gb": round(psutil.virtual_memory().total / (1024**3), 2),
-                    "used_percent": psutil.virtual_memory().percent
-                },
-                "disk": {
-                    "total_gb": round(psutil.disk_usage('/').total / (1024**3), 2),
-                    "used_percent": psutil.disk_usage('/').percent
-                }
-            }
-            
-            return ToolResult(success=True, output=info)
-        except Exception as e:
-            return ToolResult(success=False, output={}, error=str(e))
-
-
-# ============================================
-# Tool Registry
-# ============================================
-
-class ToolRegistry:
-    """
-    Central registry for all tools
-    
-    Provides:
-    - Tool registration and lookup
-    - Uniform execute_tool interface
-    - Tool descriptions for LLM exposure
-    - Safety checking
-    """
-    
-    def __init__(self):
-        """Initialize registry with default tools"""
-        self.tools: Dict[str, BaseTool] = {}
-        self._register_default_tools()
-    
-    def _register_default_tools(self):
-        """Register all default tools"""
-        default_tools = [
-            FileSearchTool(),
-            FileReadTool(),
-            FileWriteTool(),
-            FilePatchTool(),
-            ListDirectoryTool(),
-            ShellCommandTool(),
-            WebFetchTool(),
-            WebSearchTool(),
-            SearxNGSearchTool(),  # SearxNG - Tobi's preferred search backend
-            GitStatusTool(),
-            GitDiffTool(),
-            SystemInfoTool(),
-        ]
-        
-        for tool in default_tools:
-            self.register(tool)
-    
-    def register(self, tool: BaseTool):
-        """Register a tool"""
-        self.tools[tool.definition.name] = tool
-    
-    def get(self, name: str) -> Optional[BaseTool]:
-        """Get tool by name"""
-        return self.tools.get(name)
-    
-    def execute_tool(self, name: str, params: Dict[str, Any]) -> ToolResult:
-        """
-        Execute a tool by name with parameters
-        
-        This is the uniform interface for all tool execution
-        """
-        tool = self.get(name)
-        if not tool:
-            return ToolResult(success=False, output="", error=f"Unknown tool: {name}")
-        
-        try:
-            return tool.execute(**params)
-        except Exception as e:
-            return ToolResult(success=False, output="", error=str(e))
-    
-    def get_tool_descriptions(self) -> List[Dict]:
-        """Get descriptions of all tools for LLM exposure"""
-        descriptions = []
-        for name, tool in self.tools.items():
-            defn = tool.definition
-            descriptions.append({
-                "name": defn.name,
-                "description": defn.description,
-                "category": defn.category.value,
-                "parameters": defn.parameters,
-                "safety_level": defn.safety_level.value,
-                "examples": defn.examples
+            response = requests.get(search_url, timeout=10, headers={
+                'User-Agent': 'Ryx-AI/1.0 (Educational; +https://github.com/ryx-ai)'
             })
-        return descriptions
-    
-    def get_tools_by_category(self, category: ToolCategory) -> List[BaseTool]:
-        """Get all tools in a category"""
-        return [t for t in self.tools.values() if t.definition.category == category]
-    
-    def list_tools(self) -> List[str]:
-        """List all tool names"""
-        return list(self.tools.keys())
 
+            soup = BeautifulSoup(response.text, 'lxml')
+            results = []
 
-# Global registry instance
-_registry = None
+            for result in soup.find_all('div', class_='result')[:num_results]:
+                title_elem = result.find('a', class_='result__a')
+                snippet_elem = result.find('a', class_='result__snippet')
 
-def get_tool_registry() -> ToolRegistry:
-    """Get the global tool registry"""
-    global _registry
-    if _registry is None:
-        _registry = ToolRegistry()
-    return _registry
+                if title_elem:
+                    results.append({
+                        'title': title_elem.get_text(strip=True),
+                        'url': title_elem['href'],
+                        'snippet': snippet_elem.get_text(strip=True) if snippet_elem else ""
+                    })
+
+            return ToolResult(
+                success=True,
+                output=results,
+                metadata={'query': query, 'count': len(results)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _save_note(self, params: Dict) -> ToolResult:
+        """Save note to knowledge base"""
+        title = params['title']
+        content = params['content']
+        tags = params.get('tags', [])
+
+        try:
+            from core.paths import get_data_dir
+            notes_dir = get_data_dir() / "notes"
+            notes_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create filename from title - sanitize to prevent path traversal
+            # Remove any path separators and only keep safe characters
+            sanitized_title = title.replace('/', '_').replace('\\', '_').replace('..', '_')
+            filename = "".join(c if c.isalnum() or c in ' -_' else '_' for c in sanitized_title[:50])
+            # Ensure filename is not empty and doesn't start with .
+            if not filename or filename.startswith('.'):
+                filename = f"note_{filename}"
+            filepath = notes_dir / f"{filename}.md"
+
+            # Verify the resolved path is within notes_dir (prevent path traversal)
+            resolved_path = filepath.resolve()
+            if not str(resolved_path).startswith(str(notes_dir.resolve())):
+                return ToolResult(success=False, output=None, error="Invalid note title (path traversal detected)")
+
+            # Write note
+            note_content = f"# {title}\n\nTags: {', '.join(tags)}\n\n{content}"
+            filepath.write_text(note_content)
+
+            return ToolResult(
+                success=True,
+                output=f"Saved note: {filepath}",
+                metadata={'path': str(filepath)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _search_notes(self, params: Dict) -> ToolResult:
+        """Search notes in knowledge base"""
+        query = params['query'].lower()
+
+        try:
+            from core.paths import get_data_dir
+            notes_dir = get_data_dir() / "notes"
+
+            if not notes_dir.exists():
+                return ToolResult(success=True, output=[], metadata={'count': 0})
+
+            results = []
+            for note_file in notes_dir.glob("*.md"):
+                try:
+                    content = note_file.read_text()
+                    if query in content.lower():
+                        results.append({
+                            'title': note_file.stem,
+                            'preview': content[:200],
+                            'path': str(note_file)
+                        })
+                except:
+                    pass
+
+            return ToolResult(
+                success=True,
+                output=results,
+                metadata={'count': len(results)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _rebuild_index(self, params: Dict) -> ToolResult:
+        """Rebuild RAG index"""
+        # Placeholder - integrate with RAG system
+        return ToolResult(
+            success=True,
+            output="Index rebuild triggered",
+            metadata={}
+        )
+
+    def _health_check(self, params: Dict) -> ToolResult:
+        """Check system health"""
+        from core.ollama_client import OllamaClient
+
+        checks = {}
+
+        # Check Ollama
+        client = OllamaClient()
+        ollama_health = client.health_check()
+        checks['ollama'] = ollama_health
+
+        # Check database
+        try:
+            from core.paths import get_data_dir
+            db_path = get_data_dir() / "rag_knowledge.db"
+            checks['database'] = {
+                'status': 'healthy' if db_path.exists() else 'missing',
+                'path': str(db_path)
+            }
+        except Exception as e:
+            checks['database'] = {'status': 'error', 'error': str(e)}
+
+        return ToolResult(
+            success=True,
+            output=checks,
+            metadata={}
+        )
+
+    def _cleanup_cache(self, params: Dict) -> ToolResult:
+        """Clean up cache"""
+        aggressive = params.get('aggressive', False)
+
+        try:
+            from core.paths import get_data_dir
+            cache_dir = get_data_dir() / "cache"
+
+            if not cache_dir.exists():
+                return ToolResult(success=True, output="No cache to clean", metadata={})
+
+            cleaned = 0
+            for item in cache_dir.rglob("*"):
+                if item.is_file():
+                    if aggressive or item.suffix in ['.tmp', '.log']:
+                        item.unlink()
+                        cleaned += 1
+
+            return ToolResult(
+                success=True,
+                output=f"Cleaned {cleaned} files",
+                metadata={'cleaned': cleaned}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))
+
+    def _view_logs(self, params: Dict) -> ToolResult:
+        """View logs"""
+        lines = params.get('lines', 50)
+        filter_pattern = params.get('filter')
+
+        try:
+            from core.paths import get_data_dir
+            log_path = get_data_dir() / "history" / "commands.log"
+
+            if not log_path.exists():
+                return ToolResult(success=True, output="No logs found", metadata={})
+
+            all_lines = log_path.read_text().splitlines()
+            recent = all_lines[-lines:]
+
+            if filter_pattern:
+                recent = [l for l in recent if filter_pattern in l]
+
+            return ToolResult(
+                success=True,
+                output="\n".join(recent),
+                metadata={'total_lines': len(recent)}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=str(e))

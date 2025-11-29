@@ -1,399 +1,378 @@
 """
 Ryx AI - LLM-based Intent Classifier
-Replaces brittle keyword lists with minimal rules + LLM classification
+Production-grade intent classification using minimal rules + LLM fallback
 """
 
-import json
 import re
+import json
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
 
 class IntentType(Enum):
-    """Intent types for routing"""
-    CHAT = "CHAT"
-    CODE_EDIT = "CODE_EDIT"
-    CONFIG_EDIT = "CONFIG_EDIT"
-    FILE_OPS = "FILE_OPS"
-    WEB_RESEARCH = "WEB_RESEARCH"
-    SYSTEM_TASK = "SYSTEM_TASK"
-    KNOWLEDGE = "KNOWLEDGE"
-    PERSONAL_CHAT = "PERSONAL_CHAT"
+    """Intent types for Ryx AI"""
+    CHAT = "chat"  # Short Q&A, brainstorming
+    CODE_EDIT = "code_edit"  # Refactor, add features, fix bugs, write tests
+    CONFIG_EDIT = "config_edit"  # System configs (Hyprland, Waybar, shell)
+    FILE_OPS = "file_ops"  # Find/open/create/move files
+    WEB_RESEARCH = "web_research"  # Search web, scrape pages
+    SYSTEM_TASK = "system_task"  # Run tests, diagnostics, cleanup
+    KNOWLEDGE_RAG = "knowledge_rag"  # Save/search notes
+    PERSONAL_CHAT = "personal_chat"  # Uncensored personal conversation
 
 
 @dataclass
 class ClassifiedIntent:
     """Result of intent classification"""
     intent_type: IntentType
-    confidence: float
-    needs_web: bool = False
-    needs_rag: bool = False
-    complexity: float = 0.5
-    target: Optional[str] = None
+    confidence: float  # 0.0 - 1.0
+    target: Optional[str] = None  # What to act on
     flags: Dict[str, Any] = field(default_factory=dict)
     original_prompt: str = ""
-    tier_override: Optional[str] = None
+    tier_override: Optional[str] = None  # User requested tier
+    needs_web: bool = False  # Whether web research is needed
+    needs_confirmation: bool = False  # Whether action needs user confirmation
 
 
 class IntentClassifier:
     """
-    LLM-centric intent classifier with minimal rule layer
-    
+    LLM-based intent classifier with minimal rule layer
+
     Strategy:
-    1. Quick rule check for obvious patterns (greetings, short commands)
-    2. LLM classification for ambiguous cases
-    3. Returns intent type, confidence, and optional flags
+    1. Fast rule-based classification for obvious cases (speed optimization)
+    2. LLM-based classification for ambiguous cases
+    3. Returns structured intent with confidence score
+
+    NO giant keyword tables - uses semantic understanding instead.
     """
-    
-    # Minimal rule patterns for obvious cases only
-    GREETING_PATTERNS = {
-        'hello', 'hi', 'hey', 'howdy', 'greetings', 'sup', 'yo',
-        'good morning', 'good evening', 'good afternoon', 'how are you',
-        'how are ya', "what's up", 'whats up'
-    }
-    
-    # Questions about capabilities - should NOT trigger commands
-    CAPABILITY_PATTERNS = {
-        'what can you do', 'what do you do', 'what are you', 'who are you',
-        'your capabilities', 'your features', 'help me', 'commands',
-        'what can i ask', 'what do you know', 'tell me about yourself'
-    }
-    
-    # Obvious action verbs that strongly indicate intent
-    CODE_EDIT_VERBS = {'refactor', 'implement', 'fix bug', 'add feature', 'write test', 'debug'}
-    CONFIG_EDIT_VERBS = {'configure', 'update config', 'edit config', 'change settings'}
-    FILE_OPS_VERBS = {'find file', 'create file', 'move file', 'delete file', 'list files', 'open'}
-    # NOTE: 'install' intentionally excluded from SYSTEM_VERBS to prevent 
-    # auto-triggering system installation commands (pacman, etc.)
-    SYSTEM_VERBS = {'run test', 'build', 'deploy', 'diagnose', 'cleanup'}
-    WEB_VERBS = {'search web', 'look up', 'google', 'find online', 'research'}
-    
-    # Config file indicators
-    CONFIG_INDICATORS = {
-        'hyprland', 'waybar', 'kitty', '.config', 'dotfile', 'bashrc', 
-        'zshrc', 'nvim', 'config', '.conf', 'settings', 'power menu'
-    }
-    
-    # Personal/uncensored indicators
-    PERSONAL_INDICATORS = {
-        'personal', 'private', 'uncensored', 'honest opinion', 'no filter',
-        'between us', 'off the record'
-    }
-    
-    def __init__(self):
-        """Initialize the intent classifier"""
-        self.classification_prompt = self._build_classification_prompt()
-    
-    def _build_classification_prompt(self) -> str:
-        """Build the system prompt for LLM-based classification"""
-        return """You are an intent classifier for a CLI assistant.
 
-Classify the user's prompt into ONE of these intent types:
-- CHAT: General conversation, questions, brainstorming
-- CODE_EDIT: Refactoring, adding features, fixing bugs, writing code
-- CONFIG_EDIT: Editing system configs (Hyprland, Waybar, shell configs, dotfiles)
-- FILE_OPS: Finding, opening, creating, moving files
-- WEB_RESEARCH: Searching the web, scraping pages
-- SYSTEM_TASK: Running tests, diagnostics, system commands
-- KNOWLEDGE: Saving or searching notes/knowledge base
-- PERSONAL_CHAT: Uncensored personal conversation
+    # Minimal rule patterns for obvious cases (fast path)
+    OBVIOUS_PATTERNS = {
+        # File operations - very clear verbs
+        IntentType.FILE_OPS: [
+            r'^(open|edit|show|find|where is|locate)\s+',
+            r'\.conf$|\.yaml$|\.json$|\.toml$|config\s*$',
+        ],
+        # Code editing - obvious code-related verbs
+        IntentType.CODE_EDIT: [
+            r'^(refactor|debug|implement|fix bug|write test|add test)',
+            r'(function|class|method|module)\s+(to|that|which)',
+        ],
+        # System tasks - obvious system verbs
+        IntentType.SYSTEM_TASK: [
+            r'^(run tests?|check|diagnose|cleanup|optimize)',
+            r'^(install|update|remove|uninstall)\s+',
+        ],
+        # Web research - obvious web verbs
+        IntentType.WEB_RESEARCH: [
+            r'^(search|google|look up|browse|scrape)',
+            r'^(what is|who is|explain|research)\s+',
+        ],
+        # Config editing - specific config mentions
+        IntentType.CONFIG_EDIT: [
+            r'(hyprland|waybar|kitty|nvim|zsh|bash)\s*(config|settings?)',
+            r'~/.config/',
+        ],
+    }
 
-Respond ONLY with valid JSON:
-{
-  "intent_type": "CHAT|CODE_EDIT|CONFIG_EDIT|FILE_OPS|WEB_RESEARCH|SYSTEM_TASK|KNOWLEDGE|PERSONAL_CHAT",
-  "confidence": 0.0-1.0,
-  "needs_web": true/false,
-  "needs_rag": true/false,
-  "complexity": 0.0-1.0,
-  "target": "optional target file/config/topic"
-}
+    # Slash command mappings
+    SLASH_COMMANDS = {
+        '/help': 'show_help',
+        '/status': 'show_status',
+        '/tier': 'set_tier',
+        '/quit': 'quit',
+        '/exit': 'quit',
+        '/q': 'quit',
+        '/clear': 'clear_context',
+        '/save': 'save_note',
+        '/search': 'search_notes',
+        '/models': 'show_models',
+    }
 
-Examples:
-"refactor the intent parser" -> {"intent_type": "CODE_EDIT", "confidence": 0.95, "needs_web": false, "needs_rag": false, "complexity": 0.7, "target": "intent parser"}
-"what's the weather?" -> {"intent_type": "WEB_RESEARCH", "confidence": 0.9, "needs_web": true, "needs_rag": false, "complexity": 0.2, "target": null}
-"update my hyprland config" -> {"intent_type": "CONFIG_EDIT", "confidence": 0.95, "needs_web": false, "needs_rag": false, "complexity": 0.5, "target": "hyprland config"}
-"tell me about yourself" -> {"intent_type": "CHAT", "confidence": 0.9, "needs_web": false, "needs_rag": false, "complexity": 0.2, "target": null}
-"""
-    
-    def classify(self, prompt: str, ollama_client=None) -> ClassifiedIntent:
+    # Tier keywords for user tier override detection
+    TIER_KEYWORDS = {
+        'fast': 'fast',
+        'quick': 'fast',
+        'small': 'fast',
+        'balanced': 'balanced',
+        'default': 'balanced',
+        'powerful': 'powerful',
+        'strong': 'powerful',
+        'big': 'powerful',
+        'ultra': 'ultra',
+        'heavy': 'ultra',
+        '30b': 'ultra',
+        'uncensored': 'uncensored',
+        'abliterated': 'uncensored',
+        'personal': 'uncensored',
+    }
+
+    def __init__(self, ollama_client=None):
         """
-        Classify user prompt to determine intent
-        
+        Initialize intent classifier
+
+        Args:
+            ollama_client: Optional Ollama client for LLM-based classification
+        """
+        self.ollama_client = ollama_client
+
+    def classify(self, prompt: str, context: Optional[Dict] = None) -> ClassifiedIntent:
+        """
+        Classify user intent from prompt
+
         Args:
             prompt: User's natural language prompt
-            ollama_client: Optional Ollama client for LLM classification
-            
+            context: Optional context (conversation history, current file, etc.)
+
         Returns:
-            ClassifiedIntent with type, confidence, and flags
+            ClassifiedIntent with type, confidence, and metadata
         """
-        prompt_lower = prompt.lower().strip()
-        prompt_stripped = prompt_lower.rstrip('!.,?')
-        
-        # Layer 1: Quick rule checks for obvious patterns
-        
-        # Check for greetings (instant response, no AI needed)
-        if prompt_stripped in self.GREETING_PATTERNS or len(prompt_stripped.split()) <= 2:
-            if any(g in prompt_stripped for g in self.GREETING_PATTERNS):
-                return ClassifiedIntent(
-                    intent_type=IntentType.CHAT,
-                    confidence=1.0,
-                    complexity=0.1,
-                    original_prompt=prompt,
-                    flags={'is_greeting': True}
-                )
-        
-        # Check for capability questions (should show help, not generate commands)
-        if any(cap in prompt_lower for cap in self.CAPABILITY_PATTERNS):
+        prompt = prompt.strip()
+
+        # Handle empty prompt
+        if not prompt:
             return ClassifiedIntent(
                 intent_type=IntentType.CHAT,
                 confidence=1.0,
-                complexity=0.1,
-                original_prompt=prompt,
-                flags={'is_capability_question': True}
+                original_prompt=prompt
             )
-        
-        # Check for tier override commands
-        tier_override = self._check_tier_override(prompt_lower)
-        if tier_override:
-            return ClassifiedIntent(
-                intent_type=IntentType.CHAT,
-                confidence=1.0,
-                complexity=0.1,
-                original_prompt=prompt,
-                tier_override=tier_override,
-                flags={'tier_switch': True}
-            )
-        
-        # Check for obvious action verbs
-        rule_result = self._check_obvious_patterns(prompt_lower)
-        if rule_result and rule_result.confidence >= 0.9:
-            rule_result.original_prompt = prompt
+
+        # Handle slash commands
+        if prompt.startswith('/'):
+            return self._handle_slash_command(prompt)
+
+        # Check for tier override request
+        tier_override = self._detect_tier_override(prompt)
+
+        # Try fast rule-based classification first
+        rule_result = self._classify_by_rules(prompt)
+        if rule_result and rule_result.confidence >= 0.8:
+            rule_result.tier_override = tier_override
             return rule_result
-        
-        # Layer 2: LLM-based classification for ambiguous cases
-        if ollama_client:
-            llm_result = self._classify_with_llm(prompt, ollama_client)
-            if llm_result:
-                llm_result.original_prompt = prompt
-                return llm_result
-        
-        # Layer 3: Fallback to rule-based with lower confidence
+
+        # Check for simple greetings (fast path)
+        if self._is_greeting(prompt):
+            return ClassifiedIntent(
+                intent_type=IntentType.CHAT,
+                confidence=1.0,
+                original_prompt=prompt,
+                tier_override=tier_override
+            )
+
+        # Check for short conversational prompts
+        if len(prompt.split()) < 5 and not self._has_action_indicators(prompt):
+            return ClassifiedIntent(
+                intent_type=IntentType.CHAT,
+                confidence=0.85,
+                original_prompt=prompt,
+                tier_override=tier_override
+            )
+
+        # Use LLM for ambiguous cases
+        if self.ollama_client:
+            llm_result = self._classify_by_llm(prompt, context)
+            llm_result.tier_override = tier_override
+            return llm_result
+
+        # Fallback to rule-based with lower confidence
         if rule_result:
-            rule_result.original_prompt = prompt
-            rule_result.confidence *= 0.8  # Lower confidence for fallback
+            rule_result.confidence = min(rule_result.confidence, 0.6)
+            rule_result.tier_override = tier_override
             return rule_result
-        
-        # Default to CHAT with medium confidence
+
+        # Default to chat
         return ClassifiedIntent(
             intent_type=IntentType.CHAT,
-            confidence=0.6,
-            complexity=self._estimate_complexity(prompt),
-            original_prompt=prompt
+            confidence=0.5,
+            original_prompt=prompt,
+            tier_override=tier_override
         )
-    
-    def _check_tier_override(self, prompt_lower: str) -> Optional[str]:
-        """Check if user is requesting a specific tier"""
-        tier_patterns = {
-            'fast': ['use fast', 'fast model', 'quick model', 'tier fast', 
-                    'use mistral', 'mistral as default', 'switch to mistral',
-                    'set fast', 'fast tier'],
-            'balanced': ['use balanced', 'balanced model', 'tier balanced', 'default model',
-                        'use qwen', 'qwen as default', 'switch to qwen', 'use coder',
-                        'set balanced', 'balanced tier'],
-            'powerful': ['use powerful', 'powerful model', 'tier powerful', 'strong model',
-                        'use deepseek', 'deepseek as default', 'switch to deepseek',
-                        'set powerful', 'powerful tier'],
-            'ultra': ['use ultra', 'ultra model', 'tier ultra', 'biggest model', 'best model',
-                     'use qwen3', 'qwen3 as default', '30b model', 'switch to 30b',
-                     'set ultra', 'ultra tier'],
-            'uncensored': ['use uncensored', 'uncensored model', 'tier uncensored', 'no filter',
-                          'use gpt-oss', 'gpt-oss as default', 'switch to gpt-oss',
-                          'personal chat', 'set uncensored', 'uncensored tier']
-        }
-        
-        for tier, patterns in tier_patterns.items():
-            if any(p in prompt_lower for p in patterns):
-                return tier
-        
-        return None
-    
-    def _check_obvious_patterns(self, prompt_lower: str) -> Optional[ClassifiedIntent]:
-        """Check for obvious patterns that don't need LLM"""
-        
-        # Check CODE_EDIT patterns
-        if any(v in prompt_lower for v in self.CODE_EDIT_VERBS):
-            return ClassifiedIntent(
-                intent_type=IntentType.CODE_EDIT,
-                confidence=0.95,
-                complexity=self._estimate_complexity(prompt_lower),
-                target=self._extract_target(prompt_lower)
-            )
-        
-        # Check CONFIG_EDIT patterns
-        if any(v in prompt_lower for v in self.CONFIG_EDIT_VERBS):
-            return ClassifiedIntent(
-                intent_type=IntentType.CONFIG_EDIT,
-                confidence=0.95,
-                complexity=0.5,
-                target=self._extract_config_target(prompt_lower)
-            )
-        
-        # Check if mentions config files without explicit verbs
-        if any(ind in prompt_lower for ind in self.CONFIG_INDICATORS):
-            # Editing intent with config indicator
-            if any(w in prompt_lower for w in ['edit', 'change', 'modify', 'update', 'fix', 'tune', 'adjust', 'tweak']):
-                return ClassifiedIntent(
-                    intent_type=IntentType.CONFIG_EDIT,
-                    confidence=0.85,
-                    complexity=0.5,
-                    target=self._extract_config_target(prompt_lower)
-                )
-            # Just looking at config
-            elif any(w in prompt_lower for w in ['open', 'show', 'find', 'where', 'look at']):
-                return ClassifiedIntent(
-                    intent_type=IntentType.FILE_OPS,
-                    confidence=0.85,
-                    complexity=0.3,
-                    target=self._extract_config_target(prompt_lower)
-                )
-        
-        # Check FILE_OPS patterns
-        if any(v in prompt_lower for v in self.FILE_OPS_VERBS):
-            return ClassifiedIntent(
-                intent_type=IntentType.FILE_OPS,
-                confidence=0.9,
-                complexity=0.3,
-                target=self._extract_target(prompt_lower)
-            )
-        
-        # Check SYSTEM_TASK patterns
-        if any(v in prompt_lower for v in self.SYSTEM_VERBS):
+
+    def _handle_slash_command(self, prompt: str) -> ClassifiedIntent:
+        """Handle slash commands"""
+        parts = prompt.split(maxsplit=1)
+        cmd = parts[0].lower()
+        args = parts[1] if len(parts) > 1 else ""
+
+        if cmd in self.SLASH_COMMANDS:
             return ClassifiedIntent(
                 intent_type=IntentType.SYSTEM_TASK,
-                confidence=0.9,
-                complexity=0.5,
-                target=self._extract_target(prompt_lower)
+                confidence=1.0,
+                target=self.SLASH_COMMANDS[cmd],
+                flags={'args': args, 'is_slash_command': True},
+                original_prompt=prompt
             )
-        
-        # Check WEB_RESEARCH patterns
-        if any(v in prompt_lower for v in self.WEB_VERBS):
+
+        # Handle /tier specifically
+        if cmd == '/tier' and args:
+            tier = self._detect_tier_override(args)
             return ClassifiedIntent(
-                intent_type=IntentType.WEB_RESEARCH,
-                confidence=0.9,
-                needs_web=True,
-                complexity=0.4,
-                target=self._extract_target(prompt_lower)
+                intent_type=IntentType.SYSTEM_TASK,
+                confidence=1.0,
+                target='set_tier',
+                flags={'tier': tier, 'is_slash_command': True},
+                original_prompt=prompt,
+                tier_override=tier
             )
-        
-        # Check PERSONAL_CHAT patterns
-        if any(ind in prompt_lower for ind in self.PERSONAL_INDICATORS):
-            return ClassifiedIntent(
-                intent_type=IntentType.PERSONAL_CHAT,
-                confidence=0.85,
-                complexity=0.3
-            )
-        
+
+        # Unknown slash command - treat as chat
+        return ClassifiedIntent(
+            intent_type=IntentType.CHAT,
+            confidence=0.7,
+            original_prompt=prompt,
+            flags={'unknown_command': cmd}
+        )
+
+    def _detect_tier_override(self, prompt: str) -> Optional[str]:
+        """Detect if user wants to override model tier"""
+        prompt_lower = prompt.lower()
+
+        # Check for explicit tier keywords
+        for keyword, tier in self.TIER_KEYWORDS.items():
+            # Only match if part of a tier request pattern
+            patterns = [
+                f'use {keyword}',
+                f'switch to {keyword}',
+                f'tier {keyword}',
+                f'--tier {keyword}',
+                f'{keyword} model',
+                f'{keyword} mode',
+            ]
+            for pattern in patterns:
+                if pattern in prompt_lower:
+                    return tier
+
         return None
-    
-    def _classify_with_llm(self, prompt: str, ollama_client) -> Optional[ClassifiedIntent]:
-        """Use LLM for classification of ambiguous prompts"""
-        try:
-            # Try to get available models and select a fast one
-            classification_model = "mistral:7b"  # Default
-            try:
-                available_models = ollama_client.list_models() if hasattr(ollama_client, 'list_models') else []
-                # Prefer fast models for classification
-                fast_models = ["mistral:7b", "qwen2.5:3b", "qwen2.5:1.5b", "llama3.2:1b"]
-                for model in fast_models:
-                    if model in available_models:
-                        classification_model = model
-                        break
-                # If no fast model, use first available
-                if classification_model not in available_models and available_models:
-                    classification_model = available_models[0]
-            except Exception:
-                pass  # Use default
-            
-            response = ollama_client.generate(
-                model=classification_model,
-                prompt=f"{self.classification_prompt}\n\nClassify this prompt:\n\"{prompt}\"",
-                stream=False,
-                options={
-                    "temperature": 0.1,  # Low temperature for consistent classification
-                    "num_predict": 256
-                }
-            )
-            
-            if response and 'response' in response:
-                # Parse JSON from response
-                response_text = response['response']
-                # Extract JSON from response
-                json_match = re.search(r'\{[^}]+\}', response_text, re.DOTALL)
-                if json_match:
-                    classification = json.loads(json_match.group())
-                    
-                    intent_type = IntentType[classification.get('intent_type', 'CHAT')]
-                    
+
+    def _classify_by_rules(self, prompt: str) -> Optional[ClassifiedIntent]:
+        """Fast rule-based classification for obvious cases"""
+        prompt_lower = prompt.lower()
+
+        for intent_type, patterns in self.OBVIOUS_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, prompt_lower, re.IGNORECASE):
+                    target = self._extract_target(prompt, intent_type)
                     return ClassifiedIntent(
                         intent_type=intent_type,
-                        confidence=float(classification.get('confidence', 0.7)),
-                        needs_web=bool(classification.get('needs_web', False)),
-                        needs_rag=bool(classification.get('needs_rag', False)),
-                        complexity=float(classification.get('complexity', 0.5)),
-                        target=classification.get('target')
+                        confidence=0.85,
+                        target=target,
+                        original_prompt=prompt,
+                        needs_web=intent_type == IntentType.WEB_RESEARCH
                     )
+
+        return None
+
+    def _classify_by_llm(self, prompt: str, context: Optional[Dict] = None) -> ClassifiedIntent:
+        """Use LLM to classify ambiguous prompts"""
+        classification_prompt = self._build_classification_prompt(prompt, context)
+
+        try:
+            response = self.ollama_client.generate(
+                prompt=classification_prompt,
+                system="You are an intent classifier. Respond ONLY with valid JSON.",
+                max_tokens=200,
+                temperature=0.1
+            )
+
+            result = self._parse_llm_classification(response, prompt)
+            return result
+
         except Exception as e:
-            # Silently fall back to rule-based
+            # Fallback to chat on error
+            return ClassifiedIntent(
+                intent_type=IntentType.CHAT,
+                confidence=0.5,
+                original_prompt=prompt,
+                flags={'classification_error': str(e)}
+            )
+
+    def _build_classification_prompt(self, prompt: str, context: Optional[Dict] = None) -> str:
+        """Build prompt for LLM classification"""
+        return f"""Classify this user request into one intent type.
+
+User Request: "{prompt}"
+
+Intent Types:
+- CHAT: General conversation, questions, brainstorming
+- CODE_EDIT: Refactoring, bug fixes, writing code/tests
+- CONFIG_EDIT: Editing system configs (hyprland, waybar, shell)
+- FILE_OPS: Finding, opening, creating, moving files
+- WEB_RESEARCH: Searching web, scraping pages
+- SYSTEM_TASK: Running tests, diagnostics, cleanup
+- KNOWLEDGE_RAG: Saving or searching personal notes
+- PERSONAL_CHAT: Personal/uncensored conversation
+
+Respond with JSON only:
+{{"type": "INTENT_TYPE", "confidence": 0.0-1.0, "target": "what to act on or null", "needs_web": true/false}}"""
+
+    def _parse_llm_classification(self, response: str, original_prompt: str) -> ClassifiedIntent:
+        """Parse LLM classification response"""
+        try:
+            # Extract JSON from response
+            json_match = re.search(r'\{[^}]+\}', response)
+            if json_match:
+                data = json.loads(json_match.group())
+
+                intent_type_str = data.get('type', 'CHAT').upper()
+                intent_type = IntentType[intent_type_str] if intent_type_str in IntentType.__members__ else IntentType.CHAT
+
+                return ClassifiedIntent(
+                    intent_type=intent_type,
+                    confidence=float(data.get('confidence', 0.7)),
+                    target=data.get('target'),
+                    original_prompt=original_prompt,
+                    needs_web=data.get('needs_web', False)
+                )
+
+        except (json.JSONDecodeError, KeyError, ValueError):
             pass
-        
-        return None
-    
-    def _estimate_complexity(self, prompt: str) -> float:
-        """Estimate task complexity from prompt characteristics"""
-        complexity = 0.3  # Base complexity
-        
-        words = prompt.split()
-        
-        # Length factor
-        if len(words) > 20:
-            complexity += 0.2
-        elif len(words) > 10:
-            complexity += 0.1
-        
-        # Complex indicators
-        complex_words = ['refactor', 'architecture', 'design', 'analyze', 'optimize', 
-                        'implement', 'multiple', 'all', 'entire', 'whole']
-        if any(w in prompt.lower() for w in complex_words):
-            complexity += 0.2
-        
-        # Code indicators
-        if '```' in prompt or 'function' in prompt.lower() or 'class' in prompt.lower():
-            complexity += 0.15
-        
-        # Multi-step indicators
-        if ' and ' in prompt.lower() or ' then ' in prompt.lower():
-            complexity += 0.1
-        
-        return min(1.0, complexity)
-    
-    def _extract_target(self, prompt_lower: str) -> Optional[str]:
-        """Extract the target of the action"""
-        # Remove common action words
-        action_words = ['please', 'can you', 'could you', 'i want to', 'i need to',
-                       'help me', 'show me', 'find', 'open', 'edit', 'create', 'move']
-        
-        result = prompt_lower
-        for word in action_words:
-            result = result.replace(word, ' ')
-        
-        # Clean up
-        result = ' '.join(result.split())
-        return result.strip() if result.strip() else None
-    
-    def _extract_config_target(self, prompt_lower: str) -> Optional[str]:
-        """Extract config file target"""
-        for config in self.CONFIG_INDICATORS:
-            if config in prompt_lower:
-                return config
-        return None
+
+        # Default fallback
+        return ClassifiedIntent(
+            intent_type=IntentType.CHAT,
+            confidence=0.5,
+            original_prompt=original_prompt
+        )
+
+    def _extract_target(self, prompt: str, intent_type: IntentType) -> Optional[str]:
+        """Extract target from prompt based on intent type"""
+        prompt_lower = prompt.lower()
+
+        # Remove common action verbs to get target
+        action_verbs = [
+            'open', 'edit', 'find', 'show', 'locate', 'where is',
+            'refactor', 'debug', 'implement', 'fix', 'write',
+            'search', 'google', 'look up', 'browse', 'scrape',
+            'run', 'check', 'diagnose', 'cleanup', 'optimize',
+            'please', 'can you', 'could you', 'i want to', 'i need to'
+        ]
+
+        target = prompt
+        for verb in action_verbs:
+            target = re.sub(rf'^{verb}\s+', '', target, flags=re.IGNORECASE)
+            target = re.sub(rf'\s+{verb}\s+', ' ', target, flags=re.IGNORECASE)
+
+        target = target.strip()
+        return target if target and target != prompt_lower else None
+
+    def _is_greeting(self, prompt: str) -> bool:
+        """Check if prompt is a simple greeting"""
+        greetings = {
+            'hello', 'hi', 'hey', 'howdy', 'greetings', 'sup',
+            'good morning', 'good afternoon', 'good evening',
+            'hallo', 'moin', 'servus', 'guten tag'
+        }
+        cleaned = prompt.lower().strip().rstrip('!.,?')
+        return cleaned in greetings
+
+    def _has_action_indicators(self, prompt: str) -> bool:
+        """Check if prompt contains action indicators"""
+        action_indicators = [
+            'open', 'edit', 'find', 'show', 'run', 'check',
+            'refactor', 'debug', 'search', 'browse', 'fix',
+            'create', 'delete', 'move', 'copy', 'install',
+            'configure', 'setup', 'analyze', 'optimize'
+        ]
+        prompt_lower = prompt.lower()
+        return any(indicator in prompt_lower for indicator in action_indicators)

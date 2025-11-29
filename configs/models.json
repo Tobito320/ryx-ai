@@ -1,37 +1,65 @@
 {
-  "tiers": {
-    "ultra-fast": {
-      "name": "qwen2.5:1.5b",
-      "vram_mb": 1500,
-      "typical_latency_ms": 50,
-      "specialties": [
-        "commands",
-        "simple_queries",
-        "file_operations"
-      ],
-      "tier_level": 1
+  "ollama_base_url": "http://localhost:11434",
+  "default_tier": "balanced",
+  "auto_fallback": true,
+  "stream_responses": true,
+  "models": {
+    "fast": {
+      "name": "mistral:7b",
+      "description": "Fast general model for quick tasks",
+      "vram_mb": 4500,
+      "typical_latency_ms": 200,
+      "specialties": ["quick_tasks", "simple_queries", "chat"],
+      "max_tokens": 2048,
+      "timeout_seconds": 30
     },
     "balanced": {
-      "name": "deepseek-coder:6.7b",
-      "vram_mb": 4000,
+      "name": "qwen2.5-coder:14b",
+      "description": "Main coding model (default)",
+      "vram_mb": 9000,
       "typical_latency_ms": 500,
-      "specialties": [
-        "code",
-        "scripts",
-        "moderate_complexity"
-      ],
-      "tier_level": 2
+      "specialties": ["coding", "scripts", "configs", "debugging"],
+      "max_tokens": 4096,
+      "timeout_seconds": 60
     },
     "powerful": {
-      "name": "qwen2.5-coder:14b",
-      "vram_mb": 9000,
-      "typical_latency_ms": 2000,
-      "specialties": [
-        "architecture",
-        "complex_reasoning",
-        "refactoring"
-      ],
-      "tier_level": 3
+      "name": "deepseek-coder-v2:16b",
+      "description": "Strong coder alternative",
+      "vram_mb": 10000,
+      "typical_latency_ms": 1000,
+      "specialties": ["complex_code", "refactoring", "analysis"],
+      "max_tokens": 8192,
+      "timeout_seconds": 90
+    },
+    "ultra": {
+      "name": "SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL",
+      "description": "Heavy reasoning, architecture",
+      "vram_mb": 16000,
+      "typical_latency_ms": 3000,
+      "specialties": ["architecture", "complex_reasoning", "large_refactors"],
+      "max_tokens": 16384,
+      "timeout_seconds": 180
+    },
+    "uncensored": {
+      "name": "huihui_ai/gpt-oss-abliterated:20b",
+      "description": "Uncensored personal reflection",
+      "vram_mb": 12000,
+      "typical_latency_ms": 1500,
+      "specialties": ["personal_chat", "uncensored", "creative"],
+      "max_tokens": 8192,
+      "timeout_seconds": 120
     }
-  }
+  },
+  "alternative_models": {
+    "fast_alt": ["llama2-uncensored:7b"],
+    "balanced_alt": ["deepseek-coder:6.7b"],
+    "uncensored_alt": ["gpt-oss:20b"]
+  },
+  "do_not_use_as_primary": [
+    "qwen2.5:3b",
+    "qwen2.5:1.5b",
+    "phi3:mini",
+    "llama3.2:1b",
+    "deepseek-coder:6.7b"
+  ]
 }

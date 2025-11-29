@@ -1,218 +1,159 @@
-# 🟣 Ryx AI V2 - Local Agentic CLI
+# 🟣 Ryx AI - Production-Grade Local Agentic CLI
 
-Your intelligent terminal companion powered by local AI models. Production-grade redesign with LLM-based intent classification, configurable model tiers, and agentic workflows.
+Your intelligent terminal companion for Arch Linux, powered by local AI models.
 
-## ✨ What's New in V2
+**Primary Interaction**: Just run `ryx` to start an interactive session.
 
-### 🎯 Single Interactive Experience
-```bash
-ryx                           # Start interactive session
-ryx "refactor the parser"     # One-shot query
-ryx --tier powerful "..."     # Use specific model tier
-```
+## ✨ Key Features
 
-**No more weird `ryx ::command` syntax** - just type naturally!
-
-### 🧠 LLM-Based Intent Classification
-- **Replaces brittle keyword lists** with intelligent classification
-- Automatic detection of: CHAT, CODE_EDIT, CONFIG_EDIT, FILE_OPS, WEB_RESEARCH, SYSTEM_TASK
-- Minimal rule layer for obvious patterns, LLM for ambiguous cases
-
-### ⚡ Configurable Model Tiers
-| Tier | Model | Use Case |
-|------|-------|----------|
-| `fast` | mistral:7b | Quick responses |
-| `balanced` | qwen2.5-coder:14b | Default coding (primary) |
-| `powerful` | deepseek-coder-v2:16b | Complex tasks |
-| `ultra` | Qwen3-Coder:30B | Heavy reasoning |
-| `uncensored` | gpt-oss:20b | Personal reflection |
-
-### 🔧 Agentic Workflows
-For complex tasks, Ryx automatically:
-1. 📋 **Plan**: Generate numbered plan
-2. 🔍 **Execute**: Call tools, feed outputs back
-3. 🧪 **Validate**: Run tests/linters
-4. ✅ **Summarize**: Bullet list of changes
-
-### 🎨 Purple-Themed UI
-```
-🟣 ryx – Local AI Agent | Tier: balanced (qwen2.5-coder:14b)
-
-📋 Planning...
-  🔍 Step 1: Search for files
-  🛠️ Step 2: Apply changes
-  ✅ Done
-```
+- **Natural Language First**: No weird syntax - just type what you want
+- **Intelligent Model Routing**: Automatically selects fast/balanced/powerful models
+- **Tool Orchestration**: Filesystem, web, shell, and RAG tools with safety controls
+- **Purple-Themed UI**: Beautiful terminal output with emoji indicators
+- **Graceful Interrupts**: Ctrl+C saves state, continue where you left off
 
 ## 🚀 Quick Start
 
-### Installation
 ```bash
-git clone https://github.com/Tobito320/ryx-ai
-cd ryx-ai
-pip install -r requirements.txt
-chmod +x ryx
-sudo ln -sf $(pwd)/ryx /usr/local/bin/ryx
-```
-
-### Usage
-```bash
-# Start interactive session
+# Start interactive session (recommended)
 ryx
 
-# One-shot queries
-ryx "how do I reload hyprland?"
+# Or run a single command
+ryx "open hyprland config"
 ryx "refactor the intent parser"
-ryx "edit my waybar config"
-
-# Use specific tier
-ryx --tier powerful "design a REST API"
-ryx --tier ultra "analyze this architecture"
-
-# Session commands
-/help       Show help
-/status     Current status
-/tier fast  Switch tier
-/clear      Clear history
-/quit       Exit
 ```
 
-## 📖 Examples
+## 📋 Requirements
 
-### Refactoring Code
+- **OS**: Arch Linux (or any Linux with Hyprland)
+- **Python**: 3.11+
+- **Ollama**: Running locally or in Docker
+- **RAM**: 16GB+ recommended
+- **GPU**: AMD RX 7800 XT or similar (16GB VRAM for larger models)
+
+### Recommended Models (7B+ only for primary use)
 ```bash
-ryx "refactor the intent parser to use LLM classification"
-
-📋 Planning...
-  1. Read current intent_parser.py
-  2. Design new LLM-based classification
-  3. Implement changes
-  4. Run tests
-
-  🔍 Step 1: Reading file...
-  🛠️ Step 2: Applying changes...
-  🧪 Step 3: Running tests...
-  ✅ Done
-
-**Summary**
-- Replaced keyword lists with LLM classification
-- Added IntentType enum
-- All 29 tests passing
+ollama pull qwen2.5-coder:14b    # Main coding model (default)
+ollama pull mistral:7b           # Fast general model
+ollama pull deepseek-coder-v2:16b # Strong coder alternative
 ```
 
-### Config Editing
+## 🎯 Model Tiers
+
+| Tier | Model | Best For |
+|------|-------|----------|
+| `fast` | mistral:7b | Quick tasks, chat |
+| `balanced` | qwen2.5-coder:14b | Coding (default) |
+| `powerful` | deepseek-coder-v2:16b | Complex code |
+| `ultra` | Qwen3-Coder:30B | Architecture |
+| `uncensored` | gpt-oss:20b | Personal chat |
+
+Switch tiers in session: `/tier fast` or `ryx --tier powerful "prompt"`
+
+## 📖 Usage
+
+### Interactive Session (Recommended)
 ```bash
-ryx "analyze my Hyprland config, research best practices, update it"
-
-🌐 Searching for Hyprland best practices...
-📂 Reading ~/.config/hypr/hyprland.conf...
-📋 Generating improvements...
-
-Suggested changes:
-1. Add workspace animation settings
-2. Optimize window rules
-3. Add screenshot keybinds
-
-Apply changes? [y/N]
+ryx
 ```
 
-### Web Research
+Shows:
+```
+╭────────────────────────────────────────────────────────────╮
+│ 🟣 ryx – Local AI Agent
+│
+│ Tier: balanced (qwen2.5-coder:14b)
+│ Repo: ~/ryx-ai
+│ Safety: normal
+╰────────────────────────────────────────────────────────────╯
+
+ℹ️  Type naturally. Use /help for commands.
+
+>
+```
+
+### Session Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show help |
+| `/status` | Show current status |
+| `/tier <name>` | Switch model tier |
+| `/models` | List available models |
+| `/clear` | Clear conversation |
+| `/save <title>` | Save conversation as note |
+| `/quit` | Exit session |
+
+### Direct Prompts
 ```bash
-ryx "research AI coding assistants, scrape and store comparison note"
-
-🔍 Searching: AI coding assistants comparison
-🌐 Found 5 results
-
-1. **Top AI Coding Assistants 2024**
-   https://example.com/...
-   
-💾 Saved note to knowledge base
+ryx "open hyprland config"          # File operation
+ryx "refactor the intent parser"    # Coding task
+ryx "search AI coding assistants"   # Web research
+ryx --tier fast "what time is it"   # Quick query
 ```
 
-### Uncensored Conversation
+### Safety Modes
 ```bash
-ryx --tier uncensored "have an honest conversation about..."
-
-⚠️ (uncensored mode)
-
-[Response without filters]
+ryx --strict   # Confirm all risky operations
+ryx --loose    # Auto-approve most operations
 ```
 
-## 🛠️ Configuration
+## 🎨 UI Indicators
 
-### Model Tiers (`configs/model_tiers.json`)
-```json
-{
-  "ollama_base_url": "http://localhost:11434",
-  "tiers": {
-    "fast": {"model": "mistral:7b", ...},
-    "balanced": {"model": "qwen2.5-coder:14b", ...},
-    "powerful": {"model": "deepseek-coder-v2:16b", ...}
-  },
-  "default_tier": "balanced"
-}
+| Emoji | Meaning |
+|-------|---------|
+| 📋 | Plan |
+| 🔍 | Search |
+| 🌐 | Browse |
+| 📂 | Files |
+| 🛠️ | Edit |
+| 🧪 | Test |
+| 💾 | Commit |
+| ✅ | Done |
+| ❌ | Error |
+| ⚠️ | Warning |
+
+## 🔧 Configuration
+
+### Environment Variables
+```bash
+export OLLAMA_BASE_URL=http://localhost:11434  # Default
+export OLLAMA_BASE_URL=http://docker-host:11434  # Docker
 ```
 
-### Safety Settings (`configs/ryx_config.json`)
-```json
-{
-  "safety": {
-    "level": "normal",
-    "require_confirmation": ["rm -rf", "chmod -R"],
-    "block": ["rm -rf /", "dd if=/dev"]
-  }
-}
-```
+### Config Files (`~/ryx-ai/configs/`)
+
+- `models.json` - Model tiers and settings
+- `safety.json` - Safety levels and blocked commands
+- `settings.json` - General preferences
 
 ## 🏗️ Architecture
 
 ```
-ryx (main entry)
-    │
-    ├─► SessionLoop (UI/Input)
-    │       │
-    │       ├─► IntentClassifier (LLM-based)
-    │       │       └─► Returns: CHAT, CODE_EDIT, CONFIG_EDIT, etc.
-    │       │
-    │       ├─► ModelRouter (Tier selection)
-    │       │       └─► fast/balanced/powerful/ultra/uncensored
-    │       │
-    │       └─► WorkflowOrchestrator (Complex tasks)
-    │               └─► Plan → Execute → Validate → Summary
-    │
-    ├─► ToolRegistry
-    │       ├─► Filesystem (search, read, write, patch)
-    │       ├─► Web (fetch, search)
-    │       ├─► Shell (with safety controls)
-    │       └─► Git (status, diff)
-    │
-    └─► RAGSystem (Caching)
+User Input
+    ↓
+Intent Classifier (LLM-based)
+    ↓
+Model Router (tier selection)
+    ↓
+Tool Registry (filesystem/web/shell/RAG)
+    ↓
+Ollama Client (streaming, retry)
+    ↓
+UI (purple theme, emoji)
 ```
 
-See [docs/ARCHITECTURE_V2.md](docs/ARCHITECTURE_V2.md) for detailed documentation.
+See `docs/ARCHITECTURE.md` for details.
 
-## 📋 Requirements
+## 🧹 Maintenance
 
-- **OS**: Linux (Arch Linux recommended)
-- **Python**: 3.11+
-- **Ollama**: Running locally or in Docker
-- **GPU**: AMD RX 7800 XT (16 GB VRAM) or equivalent
-- **RAM**: 32 GB recommended
-
-### Recommended Models
 ```bash
-ollama pull qwen2.5-coder:14b      # Default coding
-ollama pull deepseek-coder-v2:16b  # Complex tasks
-ollama pull mistral:7b             # Fast responses
-```
+# Check health
+/status              # In session
+ryx "check health"   # Direct
 
-## 🧪 Testing
-```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run new V2 architecture tests
-python -m pytest tests/test_v2_architecture.py -v
+# Cleanup
+ryx "cleanup cache"
 ```
 
 ## 🔧 Troubleshooting
@@ -221,39 +162,28 @@ python -m pytest tests/test_v2_architecture.py -v
 ```bash
 # Start Ollama
 ollama serve
-
-# Or set custom URL
-export OLLAMA_BASE_URL=http://localhost:11434
+# Or set OLLAMA_BASE_URL for Docker
 ```
 
 ### Model not available
 ```bash
-# List available models
-ollama list
-
-# Pull missing model
 ollama pull qwen2.5-coder:14b
 ```
 
-### Slow responses
+### Permission issues
 ```bash
-# Switch to faster tier
-/tier fast
-
-# Or use --tier flag
-ryx --tier fast "quick question"
+chmod +x ~/ryx-ai/ryx
 ```
 
 ## 📝 License
 
-MIT License - Use freely!
+MIT License
 
 ## 🙏 Acknowledgments
 
-- Built with [Ollama](https://ollama.ai)
-- Models: Qwen2.5-Coder, DeepSeek-Coder, Mistral
-- Designed for Arch Linux with Hyprland
+- [Ollama](https://ollama.ai) - Local LLM runtime
+- Powered by Qwen, DeepSeek, Mistral models
 
 ---
 
-**🟣 Ryx AI V2** - *Local AI that just works*
+**Made with 🟣 for the Arch Linux community**
