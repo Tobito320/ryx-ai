@@ -64,6 +64,8 @@ class IntentClassifier:
     CODE_EDIT_VERBS = {'refactor', 'implement', 'fix bug', 'add feature', 'write test', 'debug'}
     CONFIG_EDIT_VERBS = {'configure', 'update config', 'edit config', 'change settings'}
     FILE_OPS_VERBS = {'find file', 'create file', 'move file', 'delete file', 'list files', 'open'}
+    # NOTE: 'install' intentionally excluded from SYSTEM_VERBS to prevent 
+    # auto-triggering system installation commands (pacman, etc.)
     SYSTEM_VERBS = {'run test', 'build', 'deploy', 'diagnose', 'cleanup'}
     WEB_VERBS = {'search web', 'look up', 'google', 'find online', 'research'}
     

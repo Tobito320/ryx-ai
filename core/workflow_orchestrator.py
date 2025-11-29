@@ -109,7 +109,11 @@ class WorkflowOrchestrator:
         # Handle tier override
         if intent.tier_override:
             self.router.set_tier(intent.tier_override)
-            return f"🟣 Switched to {intent.tier_override} tier ({self.router.select_model(intent.tier_override)})"
+            try:
+                model_name = self.router.select_model(intent.tier_override)
+                return f"🟣 Switched to {intent.tier_override} tier ({model_name})"
+            except RuntimeError:
+                return f"🟣 Switched to {intent.tier_override} tier"
         
         # Handle greeting
         if intent.flags.get('is_greeting'):

@@ -298,16 +298,18 @@ class ShellCommandTool(BaseTool):
         'rm -rf /', 'rm -rf /*', 'dd if=/dev', 'mkfs', ':(){ :|:& };:',
         'chmod -R 777 /', '> /dev/sda', 'mv /* ', 'wget | sh', 'curl | sh',
         'pacman -Syu', 'pacman -S', 'yay -S', 'systemctl enable', 'systemctl disable',
-        'grub-install', 'mkinitcpio', 'bootctl', '/etc/fstab', '/etc/passwd',
-        'sudo rm', 'sudo dd', 'sudo mkfs', 'fdisk', 'parted', 'gparted'
+        'grub-install', 'mkinitcpio', 'bootctl', 'fdisk', 'parted', 'gparted'
     ]
     
-    # Commands that require confirmation
+    # Commands that require confirmation - use regex patterns
     DANGEROUS_PATTERNS = [
         r'rm\s+-rf', r'rm\s+-r', r'chmod\s+-R', r'chown\s+-R',
         r'git\s+reset\s+--hard', r'git\s+push\s+.*--force',
         r'pip\s+uninstall', r'npm\s+uninstall',
-        r'pacman\s', r'yay\s', r'sudo\s', r'/etc/', r'systemctl\s'
+        r'pacman\s', r'yay\s', r'sudo\s', r'systemctl\s',
+        r'/etc/\w+',  # Matches any /etc/ file paths
+        r'>\s*/etc/', r'>>\s*/etc/',  # Redirects to /etc
+        r'nano\s+/etc/', r'vim\s+/etc/', r'vi\s+/etc/',  # Editing /etc files
     ]
     
     # Safe directories (default operation areas)
