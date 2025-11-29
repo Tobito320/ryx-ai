@@ -156,10 +156,11 @@ ryx "check health"   # Direct
 ryx "cleanup cache"
 ```
 
-## 🐛 Troubleshooting
+## 🔧 Troubleshooting
 
 ### Ollama not running
 ```bash
+# Start Ollama
 ollama serve
 # Or set OLLAMA_BASE_URL for Docker
 ```
