@@ -4,6 +4,7 @@ Manages multi-step agentic workflows with plan/execute/validate
 """
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Callable
@@ -299,7 +300,6 @@ Format:
         params = {}
         
         # Try to extract path from step
-        import re
         path_match = re.search(r'[~/\w]+\.\w+|~?/[\w/]+', step_desc)
         if path_match:
             params['path'] = path_match.group()

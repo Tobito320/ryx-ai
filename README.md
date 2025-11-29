@@ -1,198 +1,165 @@
-# 🚀 Ryx AI - Ultra-Fast Local LLM Assistant
+# 🟣 Ryx AI V2 - Local Agentic CLI
 
-Your intelligent terminal companion for Arch Linux, powered by local AI models with **zero-latency responses**.
+Your intelligent terminal companion powered by local AI models. Production-grade redesign with LLM-based intent classification, configurable model tiers, and agentic workflows.
 
-## ✨ Features
+## ✨ What's New in V2
 
-### 🎯 Dual Operating Modes
-- **CLI Mode** (`ryx "prompt"`): Ultra-fast one-shot commands with 0ms cache hits
-- **Session Mode** (`ryx ::session`): Full interactive Gemini CLI-like experience
-
-### ⚡ Zero-Latency Intelligence
-- **3-Layer Cache System**: Hot (in-memory) → Warm (SQLite) → Cold (AI query)
-- **RAG Knowledge Base**: Learns file locations and system structure
-- **Smart Model Selection**: Automatically chooses fast/balanced/powerful models
-
-### 🛡️ Safety First
-- **3-Level Permissions**:
-  - `SAFE`: Read-only operations (auto-approved)
-  - `MODIFY`: File edits in safe directories (auto-approved)
-  - `DESTROY`: Dangerous operations (always requires confirmation)
-- **Command Filtering**: Blocks catastrophic commands automatically
-
-### 🧠 Self-Improving
-- Analyzes its own codebase
-- Suggests improvements
-- Tracks missing features
-- AI-powered fix suggestions
-
-### 🔧 Advanced Tools
-- **Web Scraper** (`::scrape`): Legal web content extraction
-- **Web Browser** (`::browse`): Search and analyze web content
-- **Council** (`::council`): Multi-model consensus for code review
-
-### 📦 Minimal Resources
-- **Idle**: 50-100MB RAM, 0% GPU
-- **Active**: Only when querying
-- **Auto-Cleanup**: Daily optimization
-- **Smart Caching**: Reduces repeated queries
-
-## 📋 Requirements
-
-- **OS**: Arch Linux (or any Linux)
-- **Python**: 3.11+
-- **Docker**: Latest version
-- **Ollama**: For AI models
-- **RAM**: 8GB minimum, 16GB+ recommended
-- **Storage**: 20GB for models + cache
-
-## 🚀 Quick Start Installation
-
-### Step 1: Download Files
-
-All artifacts have been created. Download them to `~/Downloads`.
-
-### Step 2: Run Installation
-
+### 🎯 Single Interactive Experience
 ```bash
-# Create project directory
-mkdir -p ~/ryx-ai
-cd ~/ryx-ai
-
-# Copy downloaded files (detailed steps below)
-# ... (see Installation Guide section)
-
-# Run installer
-chmod +x install.sh
-./install.sh
+ryx                           # Start interactive session
+ryx "refactor the parser"     # One-shot query
+ryx --tier powerful "..."     # Use specific model tier
 ```
 
-### Step 3: Test
+**No more weird `ryx ::command` syntax** - just type naturally!
 
+### 🧠 LLM-Based Intent Classification
+- **Replaces brittle keyword lists** with intelligent classification
+- Automatic detection of: CHAT, CODE_EDIT, CONFIG_EDIT, FILE_OPS, WEB_RESEARCH, SYSTEM_TASK
+- Minimal rule layer for obvious patterns, LLM for ambiguous cases
+
+### ⚡ Configurable Model Tiers
+| Tier | Model | Use Case |
+|------|-------|----------|
+| `fast` | mistral:7b | Quick responses |
+| `balanced` | qwen2.5-coder:14b | Default coding (primary) |
+| `powerful` | deepseek-coder-v2:16b | Complex tasks |
+| `ultra` | Qwen3-Coder:30B | Heavy reasoning |
+| `uncensored` | gpt-oss:20b | Personal reflection |
+
+### 🔧 Agentic Workflows
+For complex tasks, Ryx automatically:
+1. 📋 **Plan**: Generate numbered plan
+2. 🔍 **Execute**: Call tools, feed outputs back
+3. 🧪 **Validate**: Run tests/linters
+4. ✅ **Summarize**: Bullet list of changes
+
+### 🎨 Purple-Themed UI
+```
+🟣 ryx – Local AI Agent | Tier: balanced (qwen2.5-coder:14b)
+
+📋 Planning...
+  🔍 Step 1: Search for files
+  🛠️ Step 2: Apply changes
+  ✅ Done
+```
+
+## 🚀 Quick Start
+
+### Installation
 ```bash
-# Quick test
-ryx 'hello'
-
-# Open a file
-ryx 'open hyprland config'
-
-# Start session
-ryx ::session
+git clone https://github.com/Tobito320/ryx-ai
+cd ryx-ai
+pip install -r requirements.txt
+chmod +x ryx
+sudo ln -sf $(pwd)/ryx /usr/local/bin/ryx
 ```
 
-## 📖 Usage Guide
-
-### Basic Commands
-
+### Usage
 ```bash
-# Direct prompts
-ryx "how do i reload hyprland?"
-ryx "open waybar config"
-ryx "find all themes in my system"
+# Start interactive session
+ryx
 
-# Session mode (interactive)
-ryx ::session
-  You: show me my keybinds
-  Ryx: [shows keybinds]
-  You: add super+t for kitty
-  Ryx: [generates command]
-  You: /exec
-  [executes]
+# One-shot queries
+ryx "how do I reload hyprland?"
+ryx "refactor the intent parser"
+ryx "edit my waybar config"
 
-# System commands
-ryx ::status        # Show system status
-ryx ::help          # Full command list
-ryx ::config        # View configuration
-ryx ::models        # List AI models
-ryx ::clean         # Run cleanup
+# Use specific tier
+ryx --tier powerful "design a REST API"
+ryx --tier ultra "analyze this architecture"
+
+# Session commands
+/help       Show help
+/status     Current status
+/tier fast  Switch tier
+/clear      Clear history
+/quit       Exit
 ```
 
-### Advanced Tools
+## 📖 Examples
 
+### Refactoring Code
 ```bash
-# Web scraping (legal, educational use)
-ryx ::scrape https://docs.python.org/3/tutorial/
+ryx "refactor the intent parser to use LLM classification"
 
-# Web search and browse
-ryx ::browse "arch linux subnetting tutorial"
+📋 Planning...
+  1. Read current intent_parser.py
+  2. Design new LLM-based classification
+  3. Implement changes
+  4. Run tests
 
-# Multi-model consensus (experimental)
-ryx ::council "review my code: <paste code>"
+  🔍 Step 1: Reading file...
+  🛠️ Step 2: Applying changes...
+  🧪 Step 3: Running tests...
+  ✅ Done
 
-# Self-improvement
-ryx ::improve analyze      # Analyze codebase
-ryx ::improve interactive  # Get AI suggestions
+**Summary**
+- Replaced keyword lists with LLM classification
+- Added IntentType enum
+- All 29 tests passing
 ```
 
-### Session Mode Commands
+### Config Editing
+```bash
+ryx "analyze my Hyprland config, research best practices, update it"
 
+🌐 Searching for Hyprland best practices...
+📂 Reading ~/.config/hypr/hyprland.conf...
+📋 Generating improvements...
+
+Suggested changes:
+1. Add workspace animation settings
+2. Optimize window rules
+3. Add screenshot keybinds
+
+Apply changes? [y/N]
 ```
-/quit, /exit        Exit session
-/clear              Clear conversation
-/exec [number|all]  Execute pending commands
-/undo               Undo last exchange
-/save [filename]    Save conversation
-/status             Show session info
-/help               Show help
+
+### Web Research
+```bash
+ryx "research AI coding assistants, scrape and store comparison note"
+
+🔍 Searching: AI coding assistants comparison
+🌐 Found 5 results
+
+1. **Top AI Coding Assistants 2024**
+   https://example.com/...
+   
+💾 Saved note to knowledge base
 ```
 
-## 🎨 Configuration
+### Uncensored Conversation
+```bash
+ryx --tier uncensored "have an honest conversation about..."
 
-All configs in `~/ryx-ai/configs/`:
+⚠️ (uncensored mode)
 
-### `settings.json` - Main Settings
+[Response without filters]
+```
 
+## 🛠️ Configuration
+
+### Model Tiers (`configs/model_tiers.json`)
 ```json
 {
-  "ai": {
-    "default_model": "fast",
-    "temperature": 0.3,
-    "compact_responses": true
+  "ollama_base_url": "http://localhost:11434",
+  "tiers": {
+    "fast": {"model": "mistral:7b", ...},
+    "balanced": {"model": "qwen2.5-coder:14b", ...},
+    "powerful": {"model": "deepseek-coder-v2:16b", ...}
   },
-  "cache": {
-    "enabled": true,
-    "ttl_seconds": 86400,
-    "max_entries": 10000
-  }
+  "default_tier": "balanced"
 }
 ```
 
-### `permissions.json` - Safety Rules
-
-Customize what Ryx can do automatically:
-
+### Safety Settings (`configs/ryx_config.json`)
 ```json
 {
-  "levels": {
-    "SAFE": {
-      "auto_approve": true,
-      "allowed_commands": ["ls", "cat", "grep", ...]
-    },
-    "MODIFY": {
-      "auto_approve": true,
-      "safe_directories": ["~/.config", ...]
-    },
-    "DESTROY": {
-      "auto_approve": false,
-      "always_confirm": true
-    }
-  }
-}
-```
-
-### `models.json` - AI Models
-
-```json
-{
-  "models": {
-    "fast": {
-      "name": "deepseek-coder:6.7b",
-      "use_case": "quick_commands"
-    },
-    "balanced": {
-      "name": "qwen2.5-coder:14b",
-      "use_case": "complex_reasoning"
-    }
+  "safety": {
+    "level": "normal",
+    "require_confirmation": ["rm -rf", "chmod -R"],
+    "block": ["rm -rf /", "dd if=/dev"]
   }
 }
 ```
@@ -200,205 +167,82 @@ Customize what Ryx can do automatically:
 ## 🏗️ Architecture
 
 ```
-~/ryx-ai/
-├── core/               # Core AI engine
-│   ├── ai_engine.py    # Model management
-│   ├── rag_system.py   # Zero-latency cache
-│   ├── permissions.py  # Safety system
-│   └── self_improve.py # Self-analysis
-│
-├── tools/              # Advanced tools
-│   ├── scraper.py
-│   ├── browser.py
-│   └── council.py
-│
-├── modes/              # Operating modes
-│   ├── cli_mode.py
-│   └── session_mode.py
-│
-├── configs/            # Configuration
-├── data/               # Cache & knowledge
-└── docker/             # Container setup
+ryx (main entry)
+    │
+    ├─► SessionLoop (UI/Input)
+    │       │
+    │       ├─► IntentClassifier (LLM-based)
+    │       │       └─► Returns: CHAT, CODE_EDIT, CONFIG_EDIT, etc.
+    │       │
+    │       ├─► ModelRouter (Tier selection)
+    │       │       └─► fast/balanced/powerful/ultra/uncensored
+    │       │
+    │       └─► WorkflowOrchestrator (Complex tasks)
+    │               └─► Plan → Execute → Validate → Summary
+    │
+    ├─► ToolRegistry
+    │       ├─► Filesystem (search, read, write, patch)
+    │       ├─► Web (fetch, search)
+    │       ├─► Shell (with safety controls)
+    │       └─► Git (status, diff)
+    │
+    └─► RAGSystem (Caching)
 ```
 
-## 🔬 How It Works
+See [docs/ARCHITECTURE_V2.md](docs/ARCHITECTURE_V2.md) for detailed documentation.
 
-### Zero-Latency System
+## 📋 Requirements
 
-```
-User Query
-    ↓
-[Hot Cache]  ← In-memory (0ms)
-    ↓ miss
-[Warm Cache] ← SQLite (<10ms)
-    ↓ miss
-[RAG Context] ← Knowledge base
-    ↓
-[AI Model]   ← 500-2000ms
-    ↓
-[Cache & Learn]
-```
+- **OS**: Linux (Arch Linux recommended)
+- **Python**: 3.11+
+- **Ollama**: Running locally or in Docker
+- **GPU**: AMD RX 7800 XT (16 GB VRAM) or equivalent
+- **RAM**: 32 GB recommended
 
-### RAG Knowledge Base
-
-First time:
+### Recommended Models
 ```bash
-ryx "open hyprland config"
-→ Searches filesystem
-→ Finds ~/.config/hyprland/hyprland.conf
-→ Opens in nvim
-→ Saves location to knowledge base
+ollama pull qwen2.5-coder:14b      # Default coding
+ollama pull deepseek-coder-v2:16b  # Complex tasks
+ollama pull mistral:7b             # Fast responses
 ```
 
-Next time:
+## 🧪 Testing
 ```bash
-ryx "open hyprland config"
-→ Instant recall from knowledge base (0ms)
-→ Opens directly
+# Run all tests
+python -m pytest tests/ -v
+
+# Run new V2 architecture tests
+python -m pytest tests/test_v2_architecture.py -v
 ```
 
-### Permission System
-
-```python
-Command: "cp config.conf backup.conf"
-→ Level: MODIFY
-→ Directory: ~/.config (safe)
-→ Action: Auto-approved ✓
-
-Command: "rm config.conf"
-→ Level: DESTROY
-→ Action: Ask confirmation ⚠️
-```
-
-## 🧹 Maintenance
-
-### Auto-Cleanup
-
-```bash
-# Manual cleanup
-ryx ::clean
-
-# Schedule daily (auto-prompted during install)
-# Runs at 3 AM daily
-# - Clears old cache
-# - Removes unused Docker images
-# - Optimizes database
-# - Compresses logs
-```
-
-### Utility Scripts
-
-Comprehensive maintenance scripts in `scripts/`:
-
-```bash
-# System Diagnostics - Complete health check
-python scripts/system_diagnostics.py
-  → Checks Ollama status, databases, disk usage
-  → Detects common issues with fix suggestions
-  → Shows performance metrics
-  → Saves report to data/diagnostics_report.json
-
-# Database Maintenance - Optimize and clean databases
-python scripts/database_maintenance.py analyze   # Analyze all databases
-python scripts/database_maintenance.py optimize  # Optimize and VACUUM
-python scripts/database_maintenance.py cleanup   # Remove old data (30 days)
-python scripts/database_maintenance.py all       # Run all operations
-
-# Backup & Restore - Protect your data
-python scripts/backup_restore.py create             # Create backup
-python scripts/backup_restore.py create --include-logs  # With logs
-python scripts/backup_restore.py list               # List backups
-python scripts/backup_restore.py restore --backup-file <file> --confirm
-python scripts/backup_restore.py cleanup --keep 5   # Keep only 5 recent
-
-# Code Quality Check - AST-based analysis
-python scripts/code_quality_check.py
-  → Checks for missing docstrings
-  → Identifies long functions (>100 lines)
-  → Calculates quality score
-  → Saves report to data/code_quality_report.txt
-
-# Database Optimization - Quick database tune-up
-python scripts/optimize_databases.py
-  → Adds indexes for faster queries
-  → Runs VACUUM to reclaim space
-  → Runs ANALYZE for query optimization
-```
-
-### Database Management
-
-```bash
-# View stats
-ryx ::status
-
-# View cache
-cat ~/ryx-ai/data/rag_knowledge.db
-
-# Clear cache
-rm ~/ryx-ai/data/cache/*
-
-# Advanced database operations
-python scripts/database_maintenance.py analyze
-```
-
-## 🐛 Troubleshooting
+## 🔧 Troubleshooting
 
 ### Ollama not running
-
 ```bash
+# Start Ollama
 ollama serve
-# or add to ~/.config/hyprland/hyprland.conf:
-exec-once = ollama serve
+
+# Or set custom URL
+export OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### Model not available
+```bash
+# List available models
+ollama list
+
+# Pull missing model
+ollama pull qwen2.5-coder:14b
 ```
 
 ### Slow responses
-
 ```bash
-# Check which model is being used
-ryx ::models
+# Switch to faster tier
+/tier fast
 
-# Download faster model
-ollama pull deepseek-coder:6.7b
-
-# Set as default in configs/settings.json
+# Or use --tier flag
+ryx --tier fast "quick question"
 ```
-
-### Permission denied
-
-```bash
-# Make sure ryx is executable
-chmod +x ~/ryx-ai/ryx
-
-# Recreate symlink
-sudo ln -sf ~/ryx-ai/ryx /usr/local/bin/ryx
-```
-
-### Cache not working
-
-```bash
-# Check database
-sqlite3 ~/ryx-ai/data/rag_knowledge.db "SELECT COUNT(*) FROM quick_responses;"
-
-# Reset cache
-rm ~/ryx-ai/data/rag_knowledge.db
-# Will be recreated on next run
-```
-
-## 🤝 Contributing
-
-Ryx is designed to improve itself! Use:
-
-```bash
-ryx ::improve analyze
-```
-
-This will:
-1. Analyze all code
-2. Find issues
-3. Suggest improvements
-4. Generate implementation plan
-
-See `~/ryx-ai/data/improvement_plan.md` for details.
 
 ## 📝 License
 
@@ -407,20 +251,9 @@ MIT License - Use freely!
 ## 🙏 Acknowledgments
 
 - Built with [Ollama](https://ollama.ai)
-- Powered by [DeepSeek-Coder](https://github.com/deepseek-ai/DeepSeek-Coder)
-- UI with [Rich](https://github.com/Textualize/rich)
-
-## 🎯 Roadmap
-
-- [ ] Plugin system for custom tools
-- [ ] Voice input support
-- [ ] Clipboard integration
-- [ ] System-wide hotkey
-- [ ] Mobile companion app
-- [ ] Collaborative mode (share sessions)
+- Models: Qwen2.5-Coder, DeepSeek-Coder, Mistral
+- Designed for Arch Linux with Hyprland
 
 ---
 
-**Made with ❤️ for the Arch Linux community**
-
-*"AI so fast, it feels like telepathy"*
+**🟣 Ryx AI V2** - *Local AI that just works*

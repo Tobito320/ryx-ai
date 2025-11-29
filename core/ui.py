@@ -3,6 +3,7 @@ Ryx AI - UI Module
 Purple-themed CLI interface with emoji status indicators
 """
 
+import re
 import sys
 import json
 from pathlib import Path
@@ -256,8 +257,6 @@ class RyxUI:
     def format_response(self, response: str) -> str:
         """Format AI response for display"""
         # Handle code blocks
-        import re
-        
         def replace_code_block(match):
             lang = match.group(1) or 'bash'
             code = match.group(2)

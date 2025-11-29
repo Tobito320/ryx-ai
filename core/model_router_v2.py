@@ -270,7 +270,7 @@ class ModelRouter:
         Returns:
             ModelResponse with response and metadata
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
         
         # Determine tier
         use_tier = tier or self.user_override or self.current_tier
@@ -303,7 +303,7 @@ class ModelRouter:
             for chunk in self.ollama.generate_stream(model, prompt, system, options):
                 response_text += chunk
             
-            latency_ms = int((time.time() - start_time) * 1000)
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
             return ModelResponse(
                 response=response_text,
                 model_used=model,
@@ -312,7 +312,7 @@ class ModelRouter:
             )
         else:
             result = self.ollama.generate(model, prompt, system, False, options)
-            latency_ms = int((time.time() - start_time) * 1000)
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
             
             if result.get('error'):
                 return ModelResponse(

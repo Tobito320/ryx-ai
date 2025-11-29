@@ -13,6 +13,20 @@ from dataclasses import dataclass, field
 from enum import Enum
 from abc import ABC, abstractmethod
 
+# Optional imports with fallback
+try:
+    import requests
+    from bs4 import BeautifulSoup
+    WEB_TOOLS_AVAILABLE = True
+except ImportError:
+    WEB_TOOLS_AVAILABLE = False
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
 
 class ToolCategory(Enum):
     """Categories of tools"""
@@ -176,8 +190,10 @@ class FileWriteTool(BaseTool):
             path = os.path.expanduser(path)
             mode = 'a' if append else 'w'
             
-            # Create directory if needed
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+            # Create directory if needed (only if dirname is not empty)
+            dirname = os.path.dirname(path)
+            if dirname:
+                os.makedirs(dirname, exist_ok=True)
             
             with open(path, mode) as f:
                 f.write(content)
@@ -378,9 +394,10 @@ class WebFetchTool(BaseTool):
         )
     
     def execute(self, url: str, timeout: int = 30) -> ToolResult:
+        if not WEB_TOOLS_AVAILABLE:
+            return ToolResult(success=False, output="", error="requests library not installed")
+        
         try:
-            import requests
-            
             headers = {'User-Agent': 'Ryx-AI/2.0'}
             response = requests.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
@@ -414,10 +431,10 @@ class WebSearchTool(BaseTool):
         )
     
     def execute(self, query: str, num_results: int = 5) -> ToolResult:
+        if not WEB_TOOLS_AVAILABLE:
+            return ToolResult(success=False, output=[], error="requests/beautifulsoup4 libraries not installed")
+        
         try:
-            import requests
-            from bs4 import BeautifulSoup
-            
             search_url = f"https://html.duckduckgo.com/html/?q={query}"
             headers = {'User-Agent': 'Ryx-AI/2.0'}
             
@@ -536,9 +553,10 @@ class SystemInfoTool(BaseTool):
         )
     
     def execute(self) -> ToolResult:
+        if not PSUTIL_AVAILABLE:
+            return ToolResult(success=False, output={}, error="psutil library not installed")
+        
         try:
-            import psutil
-            
             info = {
                 "cpu_percent": psutil.cpu_percent(interval=1),
                 "memory": {

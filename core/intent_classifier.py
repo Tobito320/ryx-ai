@@ -269,9 +269,24 @@ Examples:
     def _classify_with_llm(self, prompt: str, ollama_client) -> Optional[ClassifiedIntent]:
         """Use LLM for classification of ambiguous prompts"""
         try:
-            # Use a fast model for classification
+            # Try to get available models and select a fast one
+            classification_model = "mistral:7b"  # Default
+            try:
+                available_models = ollama_client.list_models() if hasattr(ollama_client, 'list_models') else []
+                # Prefer fast models for classification
+                fast_models = ["mistral:7b", "qwen2.5:3b", "qwen2.5:1.5b", "llama3.2:1b"]
+                for model in fast_models:
+                    if model in available_models:
+                        classification_model = model
+                        break
+                # If no fast model, use first available
+                if classification_model not in available_models and available_models:
+                    classification_model = available_models[0]
+            except Exception:
+                pass  # Use default
+            
             response = ollama_client.generate(
-                model="mistral:7b",  # Fast model for classification
+                model=classification_model,
                 prompt=f"{self.classification_prompt}\n\nClassify this prompt:\n\"{prompt}\"",
                 stream=False,
                 options={
