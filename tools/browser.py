@@ -39,9 +39,13 @@ class WebBrowser:
                 snippet_elem = result.find('a', class_='result__snippet')
                 
                 if title_elem:
+                    url = title_elem['href']
+                    # Fix relative URLs
+                    if url.startswith('//'):
+                        url = 'https:' + url
                     results.append({
                         'title': title_elem.get_text(strip=True),
-                        'url': title_elem['href'],
+                        'url': url,
                         'snippet': snippet_elem.get_text(strip=True) if snippet_elem else ""
                     })
             

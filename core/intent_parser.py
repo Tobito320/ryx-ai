@@ -33,12 +33,52 @@ class IntentParser:
     # Modifier keywords that change how action is performed
     NEW_TERMINAL_KEYWORDS = ['new terminal', 'new window', 'separate terminal', 'separate window']
 
-    # Model switching keywords
+    # Model fallback chains (if preferred model not available, try these in order)
+    MODEL_FALLBACKS = {
+        'gpt-oss:20b': ['SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL', 'deepseek-coder:6.7b', 'qwen2.5:3b', 'qwen2.5:1.5b'],
+        'SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL': ['gpt-oss:20b', 'deepseek-coder:6.7b', 'qwen2.5:3b', 'qwen2.5:1.5b'],
+        'deepseek-coder:6.7b': ['qwen2.5:3b', 'qwen2.5:1.5b'],
+        'qwen2.5:3b': ['qwen2.5:1.5b'],
+        'qwen2.5:1.5b': [],  # Smallest model, no fallback
+    }
+
+    # Model switching keywords - maps user terms to actual model names
     MODEL_SWITCH_KEYWORDS = {
+        # Specific model names
         'deepseek': 'deepseek-coder:6.7b',
         'qwen': 'qwen2.5:1.5b',
+        'gpt-oss': 'gpt-oss:20b',
+        'gpt oss': 'gpt-oss:20b',
+        'llama': 'llama3.2:1b',
+        'phi3': 'phi3:mini',
+
+        # Size-based (try to find biggest available)
+        'strongest': 'gpt-oss:20b',  # Largest model
+        'smartest': 'gpt-oss:20b',   # Largest model
+        'biggest': 'gpt-oss:20b',    # Largest model
+        'best': 'gpt-oss:20b',       # Largest model
+        'most powerful': 'gpt-oss:20b',
+        'higher': 'deepseek-coder:6.7b',  # Next tier up
+        'better': 'deepseek-coder:6.7b',  # Next tier up
+        'stronger': 'deepseek-coder:6.7b',
+
+        # Speed/performance
         'fast': 'qwen2.5:1.5b',
-        'powerful': 'deepseek-coder:6.7b',
+        'faster': 'qwen2.5:1.5b',
+        'quick': 'qwen2.5:1.5b',
+        'small': 'qwen2.5:1.5b',
+
+        # Balanced
+        'balanced': 'deepseek-coder:6.7b',
+        'medium': 'deepseek-coder:6.7b',
+        'moderate': 'deepseek-coder:6.7b',
+
+        # Coding-specific
+        'coder': 'deepseek-coder:6.7b',
+        'coding': 'deepseek-coder:6.7b',
+
+        # Compatibility with session mode names
+        'powerful': 'gpt-oss:20b',
         'strong': 'deepseek-coder:6.7b',
     }
 
@@ -59,17 +99,23 @@ class IntentParser:
         if model_switch:
             # Remove model switch request from prompt
             cleaned_prompt = self._remove_model_switch_text(prompt, prompt_lower)
-            if cleaned_prompt.strip():
-                # Continue with remaining prompt
-                prompt = cleaned_prompt
-                prompt_lower = prompt.lower()
-            else:
+
+            # If the cleaned prompt is empty or very short (just filler words), treat it as pure model switch
+            cleaned_stripped = cleaned_prompt.strip()
+            filler_words = ['please', 'now', 'i', 'want', 'to', 'the', 'model', 'a']
+            remaining_words = [w for w in cleaned_stripped.lower().split() if w not in filler_words]
+
+            if not cleaned_stripped or len(remaining_words) == 0:
                 # Just a model switch request, no other action
                 return Intent(
                     action='model_switch',
                     model_switch=model_switch,
                     original_prompt=prompt
                 )
+            else:
+                # Continue with remaining prompt
+                prompt = cleaned_prompt
+                prompt_lower = prompt.lower()
 
         # Detect modifiers
         modifiers = []
@@ -116,14 +162,32 @@ class IntentParser:
         """
         Check if prompt is implicitly asking for file location
         e.g., "hyprland config" without "open" should just locate
+        FIXED: Now excludes conversational patterns to prevent false positives
         """
-        # Common file-related terms
-        file_indicators = ['config', 'configuration', '.conf', 'settings', 'dotfile']
+        # Exclude common conversational patterns
+        conversation_starters = [
+            'i need', 'i want', 'help me', 'how do', 'how can',
+            'what is', 'tell me', 'show me how', 'can you', 'could you'
+        ]
 
-        # Check if prompt is short and mentions a file
+        # If it starts with conversation, it's not a file query
+        for starter in conversation_starters:
+            if prompt_lower.startswith(starter):
+                return False
+
+        # Common file-related terms
+        file_indicators = ['config', 'configuration', '.conf', 'settings', 'dotfile', 'rc']
+
         words = prompt_lower.split()
-        if len(words) <= 4 and any(indicator in prompt_lower for indicator in file_indicators):
-            return True
+
+        # Tighter constraints: 2-3 words AND no action verbs
+        if 2 <= len(words) <= 3:
+            has_file_indicator = any(ind in prompt_lower for ind in file_indicators)
+            has_action_verb = any(kw in prompt_lower for kw in
+                                 self.EXECUTE_KEYWORDS + self.BROWSE_KEYWORDS)
+
+            # Only locate if: has file indicator AND no action verb
+            return has_file_indicator and not has_action_verb
 
         return False
 
@@ -168,25 +232,86 @@ class IntentParser:
     def _detect_model_switch(self, prompt_lower: str) -> Optional[str]:
         """Detect if user wants to switch models"""
 
-        # Check for explicit switch keywords
-        if 'switch to' in prompt_lower or 'use' in prompt_lower or 'change to' in prompt_lower:
-            for keyword, model in self.MODEL_SWITCH_KEYWORDS.items():
+        # Patterns that indicate model switching
+        switch_patterns = [
+            'switch to',
+            'use',
+            'change to',
+            'let me talk to',
+            'talk to',
+            'i want to use',
+            'i wanna use',
+            'now use',
+            'please use',
+            'please switch to',
+        ]
+
+        # Check if any switch pattern is present
+        has_switch_pattern = any(pattern in prompt_lower for pattern in switch_patterns)
+
+        if has_switch_pattern:
+            # Look for model keywords in order of specificity (most specific first)
+            # Check multi-word patterns first
+            for keyword, model in sorted(self.MODEL_SWITCH_KEYWORDS.items(), key=lambda x: -len(x[0])):
                 if keyword in prompt_lower:
                     return model
 
         return None
 
+    def get_best_available_model(self, requested_model: str, available_models: List[str]) -> Optional[str]:
+        """
+        Get the best available alternative if requested model is not available
+
+        Args:
+            requested_model: The model user requested
+            available_models: List of available models
+
+        Returns:
+            Best available alternative, or None if no alternatives
+        """
+        # If requested model is available, return it
+        if requested_model in available_models:
+            return requested_model
+
+        # Try fallback chain
+        fallbacks = self.MODEL_FALLBACKS.get(requested_model, [])
+        for fallback in fallbacks:
+            if fallback in available_models:
+                return fallback
+
+        # No specific fallback found, try to find any available model in order of preference
+        preference_order = [
+            'gpt-oss:20b',
+            'SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL',
+            'deepseek-coder:6.7b',
+            'qwen2.5:3b',
+            'qwen2.5:1.5b',
+            'llama3.2:1b',
+            'phi3:mini'
+        ]
+
+        for preferred in preference_order:
+            if preferred in available_models:
+                return preferred
+
+        # Return first available model as last resort
+        return available_models[0] if available_models else None
+
     def _remove_model_switch_text(self, prompt: str, prompt_lower: str) -> str:
         """Remove model switch request from prompt"""
 
-        # Common patterns to remove
+        # Common patterns to remove (more comprehensive)
         patterns = [
-            r'switch to \w+',
-            r'use \w+ model',
-            r'use \w+',
-            r'change to \w+',
-            r'please switch to \w+',
-            r'please use \w+',
+            r'please\s+switch\s+to\s+\w+(?:\s+\w+)?',  # "please switch to X" or "please switch to X Y"
+            r'switch\s+to\s+\w+(?:\s+\w+)?',           # "switch to X" or "switch to X Y"
+            r'use\s+\w+(?:\s+\w+)?\s+model',           # "use X model" or "use X Y model"
+            r'use\s+\w+(?:\s+\w+)?',                   # "use X" or "use X Y"
+            r'change\s+to\s+\w+(?:\s+\w+)?',           # "change to X" or "change to X Y"
+            r'let\s+me\s+talk\s+to\s+\w+(?:\s+\w+)?',  # "let me talk to X"
+            r'talk\s+to\s+\w+(?:\s+\w+)?',             # "talk to X"
+            r'i\s+want\s+to\s+use\s+\w+(?:\s+\w+)?',   # "i want to use X"
+            r'i\s+wanna\s+use\s+\w+(?:\s+\w+)?',       # "i wanna use X"
+            r'now\s+use\s+\w+(?:\s+\w+)?',             # "now use X"
         ]
 
         for pattern in patterns:
@@ -195,5 +320,6 @@ class IntentParser:
         # Clean up punctuation and extra spaces
         prompt = re.sub(r'\s*,\s*$', '', prompt)  # Remove trailing comma
         prompt = re.sub(r'\s+', ' ', prompt)  # Normalize whitespace
+        prompt = re.sub(r'^\s*and\s+', '', prompt, flags=re.IGNORECASE)  # Remove leading "and"
 
         return prompt.strip()

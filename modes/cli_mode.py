@@ -35,17 +35,53 @@ class CLIMode:
     def handle_prompt(self, prompt: str):
         """Handle direct prompt with intent-based routing"""
 
+        # Handle instant greetings (0-latency) - OPTIMIZATION
+        GREETINGS = {
+            'hello': 'Hello! How can I help you today?',
+            'hi': 'Hi there! What can I do for you?',
+            'hey': 'Hey! Ready to help.',
+            'howdy': 'Howdy! What do you need?',
+            'greetings': 'Greetings! How may I assist you?',
+            'sup': "What's up! Ask me anything.",
+        }
+
+        prompt_stripped = prompt.lower().strip().rstrip('!.,?')
+        if prompt_stripped in GREETINGS:
+            print(GREETINGS[prompt_stripped])
+            return
+
         # Parse user intent first
         intent = self.intent_parser.parse(prompt)
 
         # Handle model switching if requested
         if intent.model_switch:
             try:
-                self.ai.orchestrator.switch_model(intent.model_switch)
-                print(f"\033[1;32m✓\033[0m Switched to {intent.model_switch}")
-                # If this was just a model switch, return
-                if intent.action == 'model_switch':
-                    return
+                # Check if model is available first
+                if not self.ai.orchestrator._is_model_available(intent.model_switch):
+                    print(f"\033[1;33m⚠\033[0m  Model {intent.model_switch} is not available")
+
+                    # Get list of available models
+                    import subprocess
+                    result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+                    available_models = [line.split()[0] for line in result.stdout.split('\n')[1:] if line.strip()]
+
+                    if available_models:
+                        print(f"\033[1;36m▸\033[0m Available models:")
+                        for model in available_models[:8]:  # Show top 8
+                            print(f"    • {model}")
+
+                    print(f"\n\033[1;36m▸\033[0m To download: \033[1;37mollama pull {intent.model_switch}\033[0m")
+
+                    # If this was just a model switch, return
+                    if intent.action == 'model_switch':
+                        return
+                else:
+                    # Model is available, switch to it
+                    self.ai.orchestrator.switch_model(intent.model_switch)
+                    print(f"\033[1;32m✓\033[0m Switched to {intent.model_switch}")
+                    # If this was just a model switch, return
+                    if intent.action == 'model_switch':
+                        return
             except Exception as e:
                 print(f"\033[1;31m✗\033[0m Failed to switch model: {e}")
                 return
@@ -222,6 +258,12 @@ class CLIMode:
             for cmd_info in commands:
                 cmd = cmd_info["command"]
                 level = cmd_info["level"]
+
+                # Apply editor preference
+                editor = self.meta_learner.get_preference("editor", "nvim")
+                # Replace common editors with preferred one
+                import re
+                cmd = re.sub(r'\b(nano|vim|vi|emacs|nvim)\b', editor, cmd)
 
                 if cmd_info["auto_approve"]:
                     print(f"\033[1;32m▸\033[0m Executing: {cmd}")

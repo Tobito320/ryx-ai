@@ -160,32 +160,70 @@ class RAGSystem:
         """
         Determine if a response is worth caching
 
-        Don't cache:
-        - Generic greetings/hellos
-        - "How can I help" type responses
-        - Very short responses (< 20 chars)
-        - Responses that don't contain actual commands/paths/useful info
+        ONLY cache USEFUL things:
+        - File paths that were successfully found
+        - Commands that were executed successfully
+        - Solved problems with concrete solutions
+
+        DON'T cache:
+        - Generic conversational responses
+        - Questions about the AI itself
+        - Useless/nonsense commands
+        - Dangerous commands
         """
         response_lower = response.lower().strip()
+        prompt_lower = prompt.lower().strip()
 
-        # Don't cache generic greetings
-        generic_phrases = [
-            "hello", "hi there", "how can i help", "how can i assist",
-            "what can i do for you", "how may i help", "greetings",
-            "good morning", "good afternoon", "good evening"
+        # CRITICAL: Don't cache dangerous commands
+        dangerous_patterns = [
+            'rm -rf', 'rm -r /', 'dd if=', 'mkfs', ':(){:|:&};:',
+            '> /dev/sda', 'chmod -r 777 /', 'chown -r', 'dd of=/dev',
+            'shred', 'wipefs', 'format c:', ':(){ :|:& };:',
         ]
-
-        if any(phrase in response_lower for phrase in generic_phrases):
-            if len(response_lower) < 100:  # Short generic response
+        for pattern in dangerous_patterns:
+            if pattern in response_lower:
                 return False
 
-        # Don't cache very short responses (likely not useful)
+        # Don't cache useless system/notify commands
+        useless_patterns = [
+            'notify-send', 'sudo systemctl', 'systemctl start',
+            'systemctl stop', 'echo "', 'printf "',
+        ]
+        for pattern in useless_patterns:
+            if pattern in response_lower:
+                return False
+
+        # Don't cache meta questions about AI/model
+        meta_questions = [
+            'what model', 'which model', 'what ai', 'who are you',
+            'what are you', 'how do you', 'wie gehts', 'wie geht',
+        ]
+        if any(q in prompt_lower for q in meta_questions):
+            return False
+
+        # Don't cache generic responses without concrete info
+        generic_phrases = [
+            "here are some ideas", "feel free to ask", "sure!",
+            "how can i help", "how can i assist", "let me know",
+            "is there anything", "would you like", "can i help",
+        ]
+        if any(phrase in response_lower for phrase in generic_phrases):
+            return False
+
+        # Don't cache very short responses
         if len(response.strip()) < 20:
             return False
 
-        # Don't cache greetings prompts
-        prompt_lower = prompt.lower().strip()
-        if prompt_lower in ["hi", "hello", "hey", "greetings", "sup", "yo"]:
+        # ONLY cache if response contains useful info:
+        # - File paths (contains / or ~)
+        # - Config locations
+        # - Specific commands that solve a problem
+        has_path = '/' in response or '~/' in response
+        has_config = '.conf' in response or 'config' in response_lower
+        has_command = '```bash' in response or '```sh' in response
+
+        # Only cache if it has concrete, useful information
+        if not (has_path or has_config or has_command):
             return False
 
         return True
@@ -325,7 +363,46 @@ class RAGSystem:
             }
         
         return None
-    
+
+    def learn_from_documentation(self,
+                                  topic: str,
+                                  content: str,
+                                  source: str = "documentation",
+                                  category: str = "general"):
+        """
+        Learn from documentation/tutorial content and store in knowledge base
+
+        This allows RAG to recall documentation content when asked
+
+        Args:
+            topic: Document title/topic
+            content: The actual documentation content (can be a chunk)
+            source: Source URL or identifier
+            category: Category (arch-wiki, documentation, etc)
+        """
+        # Create a searchable query hash from topic + category
+        search_key = f"{category} {topic}".lower()
+        query_hash = self.hash_prompt(search_key)
+
+        # Store in knowledge table (reusing existing structure)
+        # We'll use file_type as "documentation" and file_path as source
+        preview = content[:200] + "..." if len(content) > 200 else content
+
+        self.cursor.execute("""
+            INSERT OR REPLACE INTO knowledge
+            (query_hash, file_type, file_path, content_preview, last_accessed, confidence, access_count)
+            VALUES (?, ?, ?, ?, ?,
+                    COALESCE((SELECT confidence FROM knowledge WHERE query_hash = ?), 0.95),
+                    COALESCE((SELECT access_count FROM knowledge WHERE query_hash = ?), 0) + 1)
+        """, (query_hash, "documentation", source, preview,
+              datetime.now().isoformat(), query_hash, query_hash))
+
+        self.conn.commit()
+
+        # Also add full content to a documentation-specific table if it exists
+        # For now, we're storing preview in knowledge table
+        # Could be extended with full-text search later
+
     def fuzzy_recall(self, query: str) -> List[Dict]:
         """
         Fuzzy search for similar queries

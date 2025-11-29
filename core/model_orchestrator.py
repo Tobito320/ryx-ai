@@ -463,8 +463,8 @@ class ModelOrchestrator:
                 "error": True
             }
 
-        # Build system prompt
-        system_prompt = self._build_system_prompt(system_context, preferences)
+        # Build system prompt with model identification
+        system_prompt = self._build_system_prompt(system_context, preferences, model_name)
 
         # Retry logic with exponential backoff for Ollama conflicts
         max_retries = 3
@@ -602,9 +602,20 @@ class ModelOrchestrator:
             "error": True
         }
 
-    def _build_system_prompt(self, context: str = "", preferences: Optional[Dict] = None) -> str:
-        """Build system prompt with preferences"""
-        base = """You are Ryx, an ultra-efficient Arch Linux CLI assistant.
+    def _build_system_prompt(self, context: str = "", preferences: Optional[Dict] = None, model_name: Optional[str] = None) -> str:
+        """Build system prompt with preferences and model identification"""
+        # Determine which model is being used
+        current_model = model_name or self.base_model_name
+
+        # Model-specific identity
+        model_identity = f"You are Ryx, an ultra-efficient Arch Linux CLI assistant powered by {current_model}."
+
+        base = model_identity + f"""
+
+IDENTITY:
+- You are running on the {current_model} model
+- If asked "what model are you" or similar, respond: "I'm using {current_model}"
+- If asked "which model" or "what model", always mention your current model: {current_model}
 
 CRITICAL RULES:
 1. DISTINGUISH conversation from commands:
@@ -738,6 +749,30 @@ kitty -e nvim README.md &
 
         for model_name in to_unload:
             self._unload_model(model_name)
+
+    def switch_model(self, model_name: str) -> bool:
+        """
+        Switch to a specific model
+
+        Args:
+            model_name: Model to switch to
+
+        Returns:
+            True if successful
+        """
+        if not self._is_model_available(model_name):
+            raise ValueError(f"Model {model_name} is not available")
+
+        # Update base model
+        self.base_model_name = model_name
+
+        # Ensure it's loaded
+        if model_name not in self.loaded_models:
+            success = self._load_model(model_name)
+            if not success:
+                raise RuntimeError(f"Failed to load model {model_name}")
+
+        return True
 
     def get_status(self) -> Dict[str, Any]:
         """Get orchestrator status"""

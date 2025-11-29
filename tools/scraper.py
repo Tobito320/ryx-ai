@@ -25,6 +25,10 @@ class WebScraper:
         }
         self.cache_dir = Path.home() / "ryx-ai" / "data" / "cache" / "scraped"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # NEW: RAG scrape directory for human-readable content
+        self.scrape_dir = Path.home() / "ryx-ai" / "data" / "scrape"
+        self.scrape_dir.mkdir(parents=True, exist_ok=True)
     
     def scrape(self, url: str, extract_text: bool = True) -> Optional[Dict]:
         """
@@ -63,9 +67,12 @@ class WebScraper:
                 "metadata": self._extract_metadata(soup)
             }
             
-            # Save to cache
+            # Save to cache (JSON format)
             self._cache_result(url, data)
-            
+
+            # NEW: Save to scrape folder (human-readable TXT format)
+            self._save_to_scrape(url, data)
+
             # Display summary
             self._display_summary(data)
             
@@ -79,16 +86,25 @@ class WebScraper:
             return None
     
     def _check_robots(self, url: str) -> bool:
-        """Simple robots.txt check"""
+        """Improved robots.txt check"""
         parsed = urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-        
+        path = parsed.path
+
         try:
             response = requests.get(robots_url, timeout=5)
             if response.status_code == 200:
-                # Very basic check - just see if user-agent * is disallowed
-                if "Disallow: /" in response.text:
-                    return False
+                # Check if this specific path is disallowed
+                for line in response.text.split('\n'):
+                    line = line.strip()
+                    if line.startswith('Disallow:'):
+                        disallowed_path = line.split(':', 1)[1].strip()
+                        if disallowed_path == '/':
+                            # Everything is disallowed
+                            return False
+                        # Check if our path starts with disallowed path
+                        if path.startswith(disallowed_path):
+                            return False
             return True
         except:
             # If can't fetch robots.txt, assume OK
@@ -141,10 +157,81 @@ class WebScraper:
         import hashlib
         url_hash = hashlib.md5(url.encode()).hexdigest()
         cache_file = self.cache_dir / f"{url_hash}.json"
-        
+
         with open(cache_file, 'w') as f:
             json.dump(data, f, indent=2)
-    
+
+    def _save_to_scrape(self, url: str, data: Dict):
+        """
+        Save scraped content to scrape folder in human-readable format
+        Automatically categorizes into subdirectories based on URL
+        """
+        from datetime import datetime
+
+        # Determine category from URL
+        parsed = urlparse(url)
+        domain = parsed.netloc.lower()
+
+        if 'arch' in domain and 'wiki' in domain:
+            category = 'arch-wiki'
+        elif 'documentation' in url.lower() or 'docs' in domain:
+            category = 'documentation'
+        elif 'tutorial' in url.lower() or 'guide' in url.lower():
+            category = 'tutorials'
+        else:
+            category = 'documentation'  # default
+
+        # Create category directory
+        category_dir = self.scrape_dir / category
+        category_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate filename from URL (sanitized)
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+        title_clean = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_'
+                             for c in data['title'][:50])
+        filename = f"{title_clean}_{url_hash}.txt"
+
+        # Create human-readable content
+        content = f"""
+╔════════════════════════════════════════════════════════════════════╗
+║  SCRAPED DOCUMENTATION                                             ║
+╚════════════════════════════════════════════════════════════════════╝
+
+Title: {data['title']}
+URL: {data['url']}
+Scraped: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Category: {category}
+
+{'─' * 70}
+DESCRIPTION
+{'─' * 70}
+
+{data.get('metadata', {}).get('description', 'No description available')}
+
+{'─' * 70}
+CONTENT
+{'─' * 70}
+
+{data['text']}
+
+{'─' * 70}
+LINKS ({len(data['links'])} total)
+{'─' * 70}
+
+{chr(10).join('  • ' + link for link in data['links'][:20])}
+
+{'─' * 70}
+END OF DOCUMENT
+{'─' * 70}
+"""
+
+        # Save to file
+        file_path = category_dir / filename
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content.strip())
+
+        print(f"\033[1;32m✓\033[0m Saved to: {file_path}")
+
     def _display_summary(self, data: Dict):
         """Display scraping summary"""
         print()
