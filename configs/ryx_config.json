@@ -1,4 +1,21 @@
 {
+  "relationship": {
+    "architect": "Tobi",
+    "agent": "Ryx",
+    "role": "technical_partner",
+    "description": "Ryx is Tobi's technical partner and extension of his engineering mind"
+  },
+  "search": {
+    "searxng_url": "http://localhost:8080",
+    "fallback_to_duckduckgo": true,
+    "max_results": 5,
+    "timeout_seconds": 10
+  },
+  "experience_cache": {
+    "enabled": true,
+    "auto_learn": true,
+    "db_path": "~/.ryx/data/experience_cache.db"
+  },
   "theme": {
     "primary_color": "purple",
     "accent_color": "magenta",
@@ -23,16 +40,16 @@
     "levels": {
       "strict": {
         "require_confirmation": ["rm", "mv", "cp", "chmod", "chown", "git push", "git reset", "pip uninstall", "npm uninstall"],
-        "block": ["rm -rf /", "dd if=", "mkfs", ":(){ :|:& };:", "chmod -R 777 /", "chown -R"],
+        "block": ["rm -rf /", "dd if=", "mkfs", ":(){ :|:& };:", "chmod -R 777 /", "chown -R", "pacman -Syu", "sudo"],
         "max_auto_execute": 1
       },
       "normal": {
-        "require_confirmation": ["rm -rf", "rm -r", "chmod -R", "chown -R", "git reset --hard", "git push --force"],
-        "block": ["rm -rf /", "dd if=/dev", "mkfs", ":(){ :|:& };:"],
+        "require_confirmation": ["rm -rf", "rm -r", "chmod -R", "chown -R", "git reset --hard", "git push --force", "pacman", "yay", "sudo"],
+        "block": ["rm -rf /", "dd if=/dev", "mkfs", ":(){ :|:& };:", "grub-install", "mkinitcpio", "bootctl"],
         "max_auto_execute": 3
       },
       "loose": {
-        "require_confirmation": ["rm -rf /", "dd if=/dev", "mkfs"],
+        "require_confirmation": ["rm -rf /", "dd if=/dev", "mkfs", "grub-install"],
         "block": [":(){ :|:& };:"],
         "max_auto_execute": 10
       }
@@ -47,7 +64,7 @@
   "browsing": {
     "max_pages_per_task": 5,
     "timeout_seconds": 30,
-    "user_agent": "Ryx-AI/2.0"
+    "user_agent": "Ryx-AI/2.0 (Tobi's Technical Partner)"
   },
   "rag": {
     "enabled": true,
@@ -58,9 +75,10 @@
     "/help": "Show help",
     "/status": "Show current status",
     "/tier": "Switch model tier (e.g., /tier powerful)",
+    "/experience": "Show learning/experience cache stats",
     "/clear": "Clear conversation history",
     "/save": "Save conversation",
     "/quit": "Exit session"
   },
-  "uncensored_disclaimer": "⚠️ Using uncensored model. Responses may not be filtered. Exercise caution."
+  "uncensored_disclaimer": "⚠️ Using uncensored model. I'm your technical partner, not a therapist or lawyer."
 }

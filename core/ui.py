@@ -101,20 +101,20 @@ class RyxUI:
         """Print session header"""
         header = f"""
 {Colors.BRIGHT_PURPLE}╭──────────────────────────────────────────────────────────╮
-│  {Colors.BOLD}🟣 ryx{Colors.RESET}{Colors.BRIGHT_PURPLE} – Local AI Agent                                   │
+│  {Colors.BOLD}🟣 ryx{Colors.RESET}{Colors.BRIGHT_PURPLE} – Tobi's Technical Partner                          │
 ╰──────────────────────────────────────────────────────────╯{Colors.RESET}
 
 {Colors.DIM}Tier: {Colors.RESET}{Colors.PURPLE}{tier}{Colors.RESET} ({Colors.DIM}{model}{Colors.RESET})
 {Colors.DIM}Repo: {Colors.RESET}{repo}
 {Colors.DIM}Safety: {Colors.RESET}{safety}
 
-{Colors.DIM}Commands: /help /status /tier /clear /quit{Colors.RESET}
+{Colors.DIM}Commands: /help /status /tier /experience /clear /quit{Colors.RESET}
 """
         print(header)
     
     def print_prompt(self):
         """Print the user input prompt"""
-        print(f"\n{Colors.BRIGHT_PURPLE}You:{Colors.RESET} ", end="")
+        print(f"\n{Colors.BRIGHT_PURPLE}Tobi:{Colors.RESET} ", end="")
         sys.stdout.flush()
     
     def print_response_header(self):
@@ -193,20 +193,22 @@ class RyxUI:
         """Print help message"""
         help_text = f"""
 {Colors.BRIGHT_PURPLE}╭─────────────────────────────────────────────────────────╮
-│  {Colors.BOLD}Ryx Help{Colors.RESET}{Colors.BRIGHT_PURPLE}                                                  │
+│  {Colors.BOLD}Ryx - Tobi's Technical Partner{Colors.RESET}{Colors.BRIGHT_PURPLE}                         │
 ╰─────────────────────────────────────────────────────────╯{Colors.RESET}
 
-{Colors.BOLD}What Ryx Can Do:{Colors.RESET}
-  • Edit & tune Hyprland, Waybar, kitty, and other configs
-  • Manage themes and wallpapers
-  • Help with coding tasks in your repos
-  • Research on the web and scrape pages
-  • Manage notes/RAG and run diagnostics
+{Colors.BOLD}What I Can Do (as your partner):{Colors.RESET}
+  • Design & implement Hyprland menus, keybindings, workflows
+  • Tune Waybar, kitty, wofi, and other configs
+  • Manage themes and wallpapers across your setup
+  • Refactor code, fix bugs, add features in your repos
+  • Search via SearxNG and scrape pages as needed
+  • Run diagnostics and automate maintenance tasks
 
 {Colors.BOLD}Session Commands:{Colors.RESET}
   {Colors.CYAN}/help{Colors.RESET}           Show this help
   {Colors.CYAN}/status{Colors.RESET}         Show current status
-  {Colors.CYAN}/tier <name>{Colors.RESET}    Switch model tier (fast/balanced/powerful/ultra)
+  {Colors.CYAN}/tier <name>{Colors.RESET}    Switch model tier
+  {Colors.CYAN}/experience{Colors.RESET}     Show learning stats
   {Colors.CYAN}/clear{Colors.RESET}          Clear conversation history
   {Colors.CYAN}/save{Colors.RESET}           Save conversation
   {Colors.CYAN}/quit{Colors.RESET}           Exit session
@@ -219,13 +221,13 @@ class RyxUI:
   {Colors.RED}uncensored{Colors.RESET}      Personal chat (gpt-oss:20b)
 
 {Colors.BOLD}Example Tasks:{Colors.RESET}
-  {Colors.DIM}"open my hyprland config"{Colors.RESET}
-  {Colors.DIM}"tune my waybar"{Colors.RESET}
-  {Colors.DIM}"refactor the intent parser"{Colors.RESET}
-  {Colors.DIM}"fix the power menu in my config"{Colors.RESET}
-  {Colors.DIM}"research AI coding assistants"{Colors.RESET}
+  {Colors.DIM}"Design a new power menu with options X, Y, Z"{Colors.RESET}
+  {Colors.DIM}"Create a theme switcher for my wallpapers"{Colors.RESET}
+  {Colors.DIM}"Refactor this module to use async"{Colors.RESET}
+  {Colors.DIM}"Research best Hyprland plugins and summarize"{Colors.RESET}
+  {Colors.DIM}"Set up recurring maintenance for my configs"{Colors.RESET}
 
-{Colors.DIM}Just type naturally - no special commands needed.{Colors.RESET}
+{Colors.DIM}Just tell me what you need - I'll plan and execute autonomously.{Colors.RESET}
 """
         print(help_text)
     

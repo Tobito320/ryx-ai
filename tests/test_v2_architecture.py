@@ -322,7 +322,35 @@ class TestSessionLoop:
         # (Can't fully test without terminal)
         session = SessionLoop()
         assert session.running == True
-        assert session.current_tier == 'balanced'
+        assert session.agent.current_tier == 'balanced'  # Tier is now on the agent
+
+
+class TestRyxAgent:
+    """Test the core RyxAgent"""
+    
+    def test_import(self):
+        """Test import of RyxAgent"""
+        from core.ryx_agent import RyxAgent, ExperienceCache, AgentState
+        assert RyxAgent is not None
+        assert ExperienceCache is not None
+    
+    def test_initialization(self):
+        """Test agent initialization"""
+        from core.ryx_agent import RyxAgent
+        
+        agent = RyxAgent()
+        assert agent.current_tier == 'balanced'
+        assert agent.state.value == 'idle'
+    
+    def test_status(self):
+        """Test agent status"""
+        from core.ryx_agent import RyxAgent
+        
+        agent = RyxAgent()
+        status = agent.get_status()
+        assert 'current_tier' in status
+        assert 'state' in status
+        assert 'experience_stats' in status
 
 
 class TestWorkflowOrchestrator:

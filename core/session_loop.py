@@ -1,6 +1,10 @@
 """
 Ryx AI - Session Loop
 Main interactive session for the CLI
+
+This is a thin wrapper around RyxAgent, handling only terminal I/O.
+The core logic is in RyxAgent, making it easy to add other frontends
+(TUI, speech, web) in the future.
 """
 
 import sys
@@ -11,40 +15,31 @@ from typing import Optional, Dict, List
 from datetime import datetime
 
 from core.ui import RyxUI, get_ui
-from core.model_router_v2 import ModelRouter
-from core.intent_classifier import IntentClassifier, IntentType
-from core.workflow_orchestrator import WorkflowOrchestrator
-from core.tool_registry import get_tool_registry
-from core.rag_system import RAGSystem
+from core.ryx_agent import RyxAgent, AgentState, AgentResponse
 from core.paths import get_project_root, get_data_dir
 
 
 class SessionLoop:
     """
-    Main interactive session for Ryx CLI
+    Terminal interface for RyxAgent
     
-    Features:
-    - Natural language input
-    - Automatic intent detection
-    - Model tier selection
-    - Workflow execution
-    - Session persistence
-    - Purple-themed UI
+    This is intentionally thin - just handles terminal I/O.
+    All intelligence is in RyxAgent.
+    
+    Future frontends (TUI popup, speech, web) can call RyxAgent directly.
     """
     
     def __init__(self):
         """Initialize session"""
         self.ui = get_ui()
-        self.router = ModelRouter()
-        self.classifier = IntentClassifier()
-        self.orchestrator = WorkflowOrchestrator(self.router)
-        self.tools = get_tool_registry()
-        self.rag = RAGSystem()
+        self.agent = RyxAgent()
+        
+        # Wire up agent callbacks for UI
+        self.agent.on_state_change = self._on_state_change
+        self.agent.on_progress = self._on_progress
         
         self.running = True
-        self.conversation_history: List[Dict] = []
         self.session_file = Path.home() / ".ryx" / "session_state.json"
-        self.current_tier = "balanced"
         
         # Install signal handler
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -52,14 +47,34 @@ class SessionLoop:
         # Try to restore previous session
         self._restore_session()
     
+    def _on_state_change(self, state: AgentState, message: str):
+        """Handle agent state changes"""
+        state_icons = {
+            AgentState.THINKING: "💭",
+            AgentState.PLANNING: "📋",
+            AgentState.EXECUTING: "⚡",
+            AgentState.SEARCHING: "🔍",
+            AgentState.EDITING: "🛠️",
+            AgentState.DONE: "✅",
+            AgentState.ERROR: "❌"
+        }
+        
+        if state != AgentState.IDLE and message:
+            icon = state_icons.get(state, "•")
+            print(f"\r{self.ui.colors.DIM}{icon} {message}{self.ui.colors.RESET}    ")
+    
+    def _on_progress(self, message: str):
+        """Handle progress updates from agent"""
+        print(f"{self.ui.colors.DIM}{message}{self.ui.colors.RESET}")
+    
     def _handle_interrupt(self, signum, frame):
         """Handle Ctrl+C gracefully"""
         print("\n")
         self.ui.print_warning("Session interrupted (Ctrl+C)")
         self._save_session()
         
-        if self.conversation_history:
-            self.ui.print_status(f"Saved {len(self.conversation_history)} messages")
+        if self.agent.conversation_history:
+            self.ui.print_status(f"Saved {len(self.agent.conversation_history)} messages")
         
         print(f"\n{self.ui.colors.DIM}Resume with: ryx{self.ui.colors.RESET}")
         print("Goodbye! 👋")
@@ -71,8 +86,8 @@ class SessionLoop:
         
         state = {
             'saved_at': datetime.now().isoformat(),
-            'conversation_history': self.conversation_history[-50:],
-            'current_tier': self.current_tier
+            'conversation_history': self.agent.conversation_history[-50:],
+            'current_tier': self.agent.current_tier
         }
         
         with open(self.session_file, 'w') as f:
@@ -87,12 +102,13 @@ class SessionLoop:
             with open(self.session_file, 'r') as f:
                 state = json.load(f)
             
-            self.conversation_history = state.get('conversation_history', [])
-            self.current_tier = state.get('current_tier', 'balanced')
+            self.agent.conversation_history = state.get('conversation_history', [])
+            tier = state.get('current_tier', 'balanced')
+            self.agent.set_tier(tier)
             
-            if self.conversation_history:
+            if self.agent.conversation_history:
                 self.ui.print_status(
-                    f"Restored {len(self.conversation_history)} messages from previous session",
+                    f"Restored {len(self.agent.conversation_history)} messages from previous session",
                     color=self.ui.colors.DIM
                 )
         except Exception:
@@ -107,7 +123,7 @@ class SessionLoop:
         # Show header
         self.ui.print_header(
             model=model,
-            tier=self.current_tier,
+            tier=self.agent.current_tier,
             repo=repo,
             safety="normal"
         )
@@ -126,8 +142,14 @@ class SessionLoop:
                     self._handle_slash_command(prompt)
                     continue
                 
-                # Process the request
-                self._process_request(prompt)
+                # Process through agent
+                self.ui.print_thinking()
+                response = self.agent.process(prompt)
+                self.ui.clear_thinking()
+                
+                # Display response
+                self.ui.print_response_header()
+                print(self.ui.format_response(response.content))
                 
             except KeyboardInterrupt:
                 print(f"\n\n{self.ui.colors.YELLOW}Use /quit to exit{self.ui.colors.RESET}")
@@ -161,8 +183,11 @@ class SessionLoop:
             else:
                 self._show_tiers()
         
+        elif cmd == '/experience':
+            self._show_experience()
+        
         elif cmd == '/clear':
-            self.conversation_history = []
+            self.agent.clear_history()
             self.ui.print_success("Conversation cleared")
         
         elif cmd == '/save':
@@ -176,101 +201,14 @@ class SessionLoop:
             self.ui.print_error(f"Unknown command: {cmd}")
             print(f"  {self.ui.colors.DIM}Type /help for available commands{self.ui.colors.RESET}")
     
-    def _process_request(self, prompt: str):
-        """Process a user request"""
-        # Add to history
-        self.conversation_history.append({
-            "role": "user",
-            "content": prompt,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Check cache first
-        cached = self.rag.query_cache(prompt)
-        if cached:
-            self.ui.print_cached()
-            self.ui.print_response_header()
-            print(self.ui.format_response(cached))
-            
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": cached,
-                "timestamp": datetime.now().isoformat(),
-                "from_cache": True
-            })
-            return
-        
-        # Classify intent
-        intent = self.classifier.classify(prompt, self.router.ollama)
-        
-        # Handle tier override
-        if intent.tier_override:
-            self._switch_tier(intent.tier_override)
-            return
-        
-        # Show thinking indicator
-        self.ui.print_thinking()
-        
-        # Process based on intent
-        if intent.intent_type in [IntentType.CODE_EDIT, IntentType.CONFIG_EDIT, 
-                                  IntentType.SYSTEM_TASK] and intent.complexity >= 0.5:
-            # Use workflow for complex tasks
-            self.ui.clear_thinking()
-            response = self.orchestrator.process_request(
-                prompt, 
-                stream_output=lambda x: print(x, end="", flush=True)
-            )
-        else:
-            # Simple query
-            tier = self.router.get_tier_for_intent(intent.intent_type.value)
-            
-            # Build context from conversation
-            context = self._build_context()
-            
-            result = self.router.query(prompt, tier=tier, system_context=context)
-            
-            self.ui.clear_thinking()
-            self.ui.print_response_header()
-            
-            if result.error:
-                self.ui.print_error(result.error_message)
-                return
-            
-            response = result.response
-            print(self.ui.format_response(response))
-        
-        # Add to history
-        self.conversation_history.append({
-            "role": "assistant",
-            "content": response,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Cache response if useful
-        self.rag.cache_response(prompt, response, self.router.current_tier)
-    
-    def _build_context(self) -> str:
-        """Build context from conversation history"""
-        # Keep last 6 messages (3 exchanges)
-        recent = self.conversation_history[-6:]
-        
-        context_lines = []
-        for msg in recent:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            context_lines.append(f"{role}: {msg['content'][:500]}")
-        
-        return "\n".join(context_lines) if context_lines else ""
-    
     def _switch_tier(self, tier: str):
         """Switch model tier"""
         tier = tier.lower()
         
-        if self.router.set_tier(tier):
-            self.current_tier = tier
+        if self.agent.set_tier(tier):
             model = self._get_current_model()
             self.ui.print_success(f"Switched to {tier} tier ({model})")
             
-            # Show uncensored warning
             if tier == 'uncensored':
                 self.ui.print_uncensored_warning()
         else:
@@ -290,41 +228,56 @@ class SessionLoop:
         }
         
         for name, (model, desc) in tiers.items():
-            current = " (current)" if name == self.current_tier else ""
+            current = " (current)" if name == self.agent.current_tier else ""
             print(f"  {self.ui.colors.CYAN}{name}{self.ui.colors.RESET}: {model} - {desc}{current}")
         
         print(f"\n{self.ui.colors.DIM}Switch with: /tier <name>{self.ui.colors.RESET}")
     
     def _show_status(self):
         """Show session status"""
-        status = self.router.get_status()
+        status = self.agent.get_status()
         
         print(f"\n{self.ui.icons.SUCCESS} {self.ui.colors.BOLD}Session Status{self.ui.colors.RESET}")
-        print(f"  Messages: {len(self.conversation_history)}")
-        print(f"  Current tier: {self.current_tier}")
+        print(f"  Messages: {status['conversation_length']}")
+        print(f"  Current tier: {status['current_tier']}")
+        print(f"  Agent state: {status['state']}")
         
         # Show model availability
+        router_status = status.get('router_status', {})
         print(f"\n{self.ui.colors.BOLD}Model Status:{self.ui.colors.RESET}")
-        for tier_name, tier_info in status.get('tiers', {}).items():
+        for tier_name, tier_info in router_status.get('tiers', {}).items():
             available = tier_info.get('available', False)
             icon = self.ui.icons.DONE if available else self.ui.icons.ERROR
             print(f"  {icon} {tier_name}: {tier_info.get('model', 'unknown')}")
         
-        # Show RAG stats
-        try:
-            rag_stats = self.rag.get_stats()
-            print(f"\n{self.ui.colors.BOLD}Cache:{self.ui.colors.RESET}")
-            print(f"  Cached responses: {rag_stats.get('cached_responses', 0)}")
-            print(f"  Cache hits: {rag_stats.get('total_cache_hits', 0)}")
-        except:
-            pass
+        # Show experience stats
+        exp_stats = status.get('experience_stats', {})
+        print(f"\n{self.ui.colors.BOLD}Experience Cache:{self.ui.colors.RESET}")
+        print(f"  Total experiences: {exp_stats.get('total_experiences', 0)}")
+        print(f"  Successful: {exp_stats.get('successful', 0)}")
         
+        print()
+    
+    def _show_experience(self):
+        """Show experience cache statistics"""
+        stats = self.agent.experience.get_stats()
+        
+        print(f"\n{self.ui.colors.BOLD}🧠 Experience Cache{self.ui.colors.RESET}")
+        print(f"  Total experiences: {stats['total_experiences']}")
+        print(f"  Successful: {stats['successful']}")
+        
+        if stats.get('by_intent'):
+            print(f"\n{self.ui.colors.BOLD}By Intent Type:{self.ui.colors.RESET}")
+            for intent, count in stats['by_intent'].items():
+                print(f"  • {intent}: {count}")
+        
+        print(f"\n{self.ui.colors.DIM}The more I learn, the better I get at helping you.{self.ui.colors.RESET}")
         print()
     
     def _show_models(self):
         """Show available models"""
-        status = self.router.get_status()
-        self.ui.print_model_status(status)
+        status = self.agent.get_status()
+        self.ui.print_model_status(status.get('router_status', {}))
     
     def _save_conversation(self, filename: str):
         """Save conversation to file"""
@@ -333,11 +286,11 @@ class SessionLoop:
         output_path = output_dir / filename
         
         with open(output_path, 'w') as f:
-            f.write(f"# Ryx AI Conversation\n")
+            f.write(f"# Ryx AI Conversation (Tobi's Technical Partner)\n")
             f.write(f"# Saved: {datetime.now().isoformat()}\n\n")
             
-            for msg in self.conversation_history:
-                role = msg["role"].title()
+            for msg in self.agent.conversation_history:
+                role = "Tobi" if msg["role"] == "user" else "Ryx"
                 content = msg["content"]
                 f.write(f"## {role}\n\n{content}\n\n")
         
@@ -346,7 +299,11 @@ class SessionLoop:
     def _get_current_model(self) -> str:
         """Get current model name"""
         try:
-            return self.router.select_model(self.current_tier)
+            status = self.agent.get_status()
+            router = status.get('router_status', {})
+            tier = self.agent.current_tier
+            tier_info = router.get('tiers', {}).get(tier, {})
+            return tier_info.get('model', 'unknown')
         except:
             return "unknown"
     

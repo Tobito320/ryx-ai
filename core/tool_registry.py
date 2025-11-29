@@ -474,6 +474,95 @@ class WebSearchTool(BaseTool):
             return ToolResult(success=False, output=[], error=str(e))
 
 
+class SearxNGSearchTool(BaseTool):
+    """Search using SearxNG (local instance preferred)"""
+    
+    @property
+    def definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="searxng_search",
+            description="Search using SearxNG - Tobi's preferred search backend",
+            category=ToolCategory.WEB,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "num_results": {"type": "integer", "description": "Number of results (max 10)"},
+                    "categories": {"type": "string", "description": "Search categories (e.g., 'general', 'images', 'it')"}
+                },
+                "required": ["query"]
+            }
+        )
+    
+    def execute(self, query: str, num_results: int = 5, categories: str = "general") -> ToolResult:
+        if not WEB_TOOLS_AVAILABLE:
+            return ToolResult(success=False, output=[], error="requests library not installed")
+        
+        # Try SearxNG first, fall back to DuckDuckGo
+        searxng_url = os.environ.get('SEARXNG_URL', 'http://localhost:8080')
+        
+        try:
+            # Try SearxNG JSON API
+            search_url = f"{searxng_url}/search"
+            params = {
+                'q': query,
+                'format': 'json',
+                'categories': categories
+            }
+            
+            response = requests.get(search_url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results = []
+                for item in data.get('results', [])[:num_results]:
+                    results.append({
+                        'title': item.get('title', ''),
+                        'url': item.get('url', ''),
+                        'snippet': item.get('content', '')[:200] if item.get('content') else ''
+                    })
+                
+                return ToolResult(
+                    success=True, 
+                    output=results, 
+                    metadata={"query": query, "source": "searxng"}
+                )
+        except Exception:
+            pass  # Fall back to DuckDuckGo
+        
+        # Fallback: DuckDuckGo
+        try:
+            search_url = f"https://html.duckduckgo.com/html/?q={query}"
+            headers = {'User-Agent': 'Ryx-AI/2.0 (Technical Partner)'}
+            
+            response = requests.get(search_url, headers=headers, timeout=10)
+            soup = BeautifulSoup(response.text, 'lxml')
+            
+            results = []
+            for result in soup.find_all('div', class_='result')[:num_results]:
+                title_elem = result.find('a', class_='result__a')
+                snippet_elem = result.find('a', class_='result__snippet')
+                
+                if title_elem:
+                    url = title_elem.get('href', '')
+                    if url.startswith('//'):
+                        url = 'https:' + url
+                    
+                    results.append({
+                        'title': title_elem.get_text(strip=True),
+                        'url': url,
+                        'snippet': snippet_elem.get_text(strip=True) if snippet_elem else ""
+                    })
+            
+            return ToolResult(
+                success=True, 
+                output=results, 
+                metadata={"query": query, "source": "duckduckgo_fallback"}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=[], error=str(e))
+
+
 # ============================================
 # Git Tools
 # ============================================
@@ -617,6 +706,7 @@ class ToolRegistry:
             ShellCommandTool(),
             WebFetchTool(),
             WebSearchTool(),
+            SearxNGSearchTool(),  # SearxNG - Tobi's preferred search backend
             GitStatusTool(),
             GitDiffTool(),
             SystemInfoTool(),
