@@ -70,3 +70,4 @@ logs/
 # Backups
 backups/
 .aider*
+data/notes/
