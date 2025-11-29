@@ -1,0 +1,66 @@
+{
+  "theme": {
+    "primary_color": "purple",
+    "accent_color": "magenta",
+    "status_icons": {
+      "plan": "📋",
+      "search": "🔍",
+      "browse": "🌐",
+      "files": "📂",
+      "edit": "🛠️",
+      "test": "🧪",
+      "commit": "💾",
+      "done": "✅",
+      "error": "❌",
+      "warning": "⚠️",
+      "thinking": "💭",
+      "loading": "⏳",
+      "success": "🟣"
+    }
+  },
+  "safety": {
+    "level": "normal",
+    "levels": {
+      "strict": {
+        "require_confirmation": ["rm", "mv", "cp", "chmod", "chown", "git push", "git reset", "pip uninstall", "npm uninstall"],
+        "block": ["rm -rf /", "dd if=", "mkfs", ":(){ :|:& };:", "chmod -R 777 /", "chown -R"],
+        "max_auto_execute": 1
+      },
+      "normal": {
+        "require_confirmation": ["rm -rf", "rm -r", "chmod -R", "chown -R", "git reset --hard", "git push --force"],
+        "block": ["rm -rf /", "dd if=/dev", "mkfs", ":(){ :|:& };:"],
+        "max_auto_execute": 3
+      },
+      "loose": {
+        "require_confirmation": ["rm -rf /", "dd if=/dev", "mkfs"],
+        "block": [":(){ :|:& };:"],
+        "max_auto_execute": 10
+      }
+    }
+  },
+  "session": {
+    "max_history": 50,
+    "context_window_messages": 6,
+    "auto_save": true,
+    "save_path": "~/.ryx/sessions"
+  },
+  "browsing": {
+    "max_pages_per_task": 5,
+    "timeout_seconds": 30,
+    "user_agent": "Ryx-AI/2.0"
+  },
+  "rag": {
+    "enabled": true,
+    "auto_index": true,
+    "similarity_threshold": 0.7
+  },
+  "slash_commands": {
+    "/help": "Show help",
+    "/status": "Show current status",
+    "/tier": "Switch model tier (e.g., /tier powerful)",
+    "/clear": "Clear conversation history",
+    "/save": "Save conversation",
+    "/quit": "Exit session"
+  },
+  "uncensored_disclaimer": "⚠️ Using uncensored model. Responses may not be filtered. Exercise caution."
+}
