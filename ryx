@@ -1,6 +1,9 @@
-#!/home/tobi/ryx-ai/.venv/bin/python3
+#!/usr/bin/env python3
 """
 Ryx AI - Main Entry Point
+
+Production-grade local agentic CLI.
+Primary interaction: `ryx` starts an interactive session.
 """
 import sys
 import os
@@ -15,22 +18,108 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Set environment variable for other modules to use
 os.environ['RYX_PROJECT_ROOT'] = str(PROJECT_ROOT)
 
+
 def main():
     args = sys.argv[1:]
-    
-    if not args:
-        # Show status/help
-        from modes.cli_mode import show_status
-        show_status()
-    elif args[0].startswith("::"):
-        # Command mode
+
+    # Parse global options
+    safety_mode = "normal"
+    remaining_args = []
+
+    for arg in args:
+        if arg.startswith('--safety='):
+            safety_mode = arg.split('=')[1]
+        elif arg == '--strict':
+            safety_mode = 'strict'
+        elif arg == '--loose':
+            safety_mode = 'loose'
+        elif arg == '--tier' and remaining_args:
+            # Handle --tier <name> separately
+            pass
+        else:
+            remaining_args.append(arg)
+
+    # Main entry point logic
+    if not remaining_args:
+        # No args = Start interactive session (primary interaction)
+        from core.session_loop import SessionLoop
+        session = SessionLoop(safety_mode=safety_mode)
+        session.run()
+
+    elif remaining_args[0] in ['--help', '-h']:
+        show_help()
+
+    elif remaining_args[0] in ['--version', '-v']:
+        print("Ryx AI v2.0.0 - Production-grade local agentic CLI")
+
+    elif remaining_args[0].startswith("::"):
+        # Legacy command mode (kept for backward compatibility)
         from modes.cli_mode import handle_command
-        handle_command(args[0], args[1:])
+        handle_command(remaining_args[0], remaining_args[1:])
+
+    elif remaining_args[0].startswith('--tier'):
+        # Direct tier specification: ryx --tier fast "prompt"
+        if len(remaining_args) >= 3 and remaining_args[0] == '--tier':
+            tier = remaining_args[1]
+            prompt = " ".join(remaining_args[2:])
+            from core.session_loop import SessionLoop
+            session = SessionLoop(safety_mode=safety_mode)
+            session.current_tier = session.router.get_tier_by_name(tier)
+            session._process_input(prompt)
+        else:
+            print("Usage: ryx --tier <tier_name> \"prompt\"")
+
     else:
-        # Direct prompt mode
-        from modes.cli_mode import handle_prompt
-        prompt = " ".join(args)
-        handle_prompt(prompt)
+        # Direct prompt mode - run prompt and exit
+        prompt = " ".join(remaining_args)
+        from core.session_loop import SessionLoop
+        session = SessionLoop(safety_mode=safety_mode)
+        session._process_input(prompt)
+
+
+def show_help():
+    """Show help message"""
+    print("""
+🟣 Ryx AI - Local Agentic CLI
+
+USAGE:
+    ryx                      Start interactive session (recommended)
+    ryx "prompt"             Run single prompt and exit
+    ryx --tier fast "prompt" Run with specific model tier
+    ryx --help               Show this help
+    ryx --version            Show version
+
+TIERS:
+    fast         Quick responses (mistral:7b)
+    balanced     Default coding (qwen2.5-coder:14b)
+    powerful     Complex tasks (deepseek-coder-v2:16b)
+    ultra        Heavy reasoning (Qwen3-Coder:30B)
+    uncensored   Personal chat (gpt-oss:20b)
+
+SESSION COMMANDS:
+    /help        Show help
+    /status      Show current status
+    /tier <name> Switch model tier
+    /models      List available models
+    /quit        Exit session
+
+SAFETY MODES:
+    --strict     Confirm all risky operations
+    --loose      Auto-approve risky operations
+    (default)    Normal mode - auto-approve safe operations
+
+EXAMPLES:
+    ryx                              # Start interactive session
+    ryx "open hyprland config"       # Quick file operation
+    ryx "refactor the intent parser" # Coding task
+    ryx --tier fast "what time is it" # Quick query with fast model
+
+CONFIGURATION:
+    OLLAMA_BASE_URL    Ollama API URL (default: http://localhost:11434)
+
+For more info: https://github.com/ryx-ai
+""")
+
 
 if __name__ == "__main__":
     main()
