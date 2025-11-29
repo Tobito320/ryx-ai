@@ -301,8 +301,20 @@ class SessionLoop:
             # Ask if user wants to open it
             if self.ui.confirm("Open in editor?", default=True):
                 import os
+                import subprocess
+                import shlex
+
                 editor = os.environ.get('EDITOR', 'nvim')
-                os.system(f"{editor} {file_path}")
+
+                # Validate file_path is a safe path (no shell metacharacters)
+                # Use subprocess with list args to prevent injection
+                try:
+                    # Use subprocess.run with list of arguments to prevent command injection
+                    subprocess.run([editor, file_path], check=False)
+                except FileNotFoundError:
+                    self.ui.error(f"Editor '{editor}' not found")
+                except Exception as e:
+                    self.ui.error(f"Failed to open file: {e}")
         else:
             # Couldn't find directly, ask AI for help
             self.ui.info("File not found directly, asking AI...")

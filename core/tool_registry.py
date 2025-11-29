@@ -529,14 +529,54 @@ class ToolRegistry:
         command = params['command']
         cwd = params.get('cwd')
 
-        # Check for dangerous patterns
-        dangerous = ['rm -rf /', 'dd if=', 'mkfs', ':(){:|:&};:', '> /dev/sd']
-        for pattern in dangerous:
-            if pattern in command:
+        # More robust dangerous command detection
+        # Check for dangerous patterns with various bypass attempts
+        dangerous_patterns = [
+            # Direct dangerous commands
+            r'rm\s+(-[rf]+\s+)*/\s*$',  # rm -rf /
+            r'rm\s+(-[rf]+\s+)*/\*',  # rm -rf /*
+            r'rm\s+(-[rf]+\s+)*~\s*$',  # rm -rf ~
+            r'rm\s+(-[rf]+\s+)*~/\*',  # rm -rf ~/*
+            r'dd\s+if=/dev/zero\s+of=/dev/sd',
+            r'dd\s+if=/dev/random\s+of=/dev/sd',
+            r'mkfs\.',  # mkfs.ext4, mkfs.ntfs, etc.
+            r':\(\)\{\s*:\|\s*:&\s*\}\s*;',  # Fork bomb
+            r'>\s*/dev/sd[a-z]',  # Overwrite disk
+            r'chmod\s+(-R\s+)?[0-7]*\s+/',  # chmod on root
+            r'chown\s+(-R\s+)?\w+\s+/',  # chown on root
+            r'shred\s+/dev/sd',
+            r'wipefs\s+',
+            r'curl\s+.*\|\s*(ba)?sh',  # Pipe from curl to shell
+            r'wget\s+.*\|\s*(ba)?sh',  # Pipe from wget to shell
+        ]
+
+        # Also check for exact dangerous strings (case-insensitive)
+        dangerous_exact = [
+            'rm -rf /',
+            'rm -rf ~',
+            '> /dev/sda',
+            ':(){:|:&};:',
+        ]
+
+        import re
+        command_lower = command.lower().strip()
+
+        # Check exact matches
+        for pattern in dangerous_exact:
+            if pattern in command_lower:
                 return ToolResult(
                     success=False,
                     output=None,
                     error=f"Dangerous command blocked: {pattern}"
+                )
+
+        # Check regex patterns
+        for pattern in dangerous_patterns:
+            if re.search(pattern, command_lower):
+                return ToolResult(
+                    success=False,
+                    output=None,
+                    error=f"Dangerous command blocked"
                 )
 
         try:
@@ -673,9 +713,19 @@ class ToolRegistry:
             notes_dir = get_data_dir() / "notes"
             notes_dir.mkdir(parents=True, exist_ok=True)
 
-            # Create filename from title
-            filename = "".join(c if c.isalnum() or c in ' -_' else '_' for c in title[:50])
+            # Create filename from title - sanitize to prevent path traversal
+            # Remove any path separators and only keep safe characters
+            sanitized_title = title.replace('/', '_').replace('\\', '_').replace('..', '_')
+            filename = "".join(c if c.isalnum() or c in ' -_' else '_' for c in sanitized_title[:50])
+            # Ensure filename is not empty and doesn't start with .
+            if not filename or filename.startswith('.'):
+                filename = f"note_{filename}"
             filepath = notes_dir / f"{filename}.md"
+
+            # Verify the resolved path is within notes_dir (prevent path traversal)
+            resolved_path = filepath.resolve()
+            if not str(resolved_path).startswith(str(notes_dir.resolve())):
+                return ToolResult(success=False, output=None, error="Invalid note title (path traversal detected)")
 
             # Write note
             note_content = f"# {title}\n\nTags: {', '.join(tags)}\n\n{content}"

@@ -248,6 +248,47 @@ class TestToolRegistry:
         finally:
             os.unlink(test_path)
 
+    def test_save_note_path_traversal(self):
+        """Test that save_note prevents path traversal attacks"""
+        from core.tool_registry import ToolRegistry
+
+        tools = ToolRegistry()
+
+        # Try to save a note with path traversal in the title
+        result = tools.execute_tool("save_note", {
+            "title": "../../../etc/passwd",
+            "content": "malicious content",
+            "tags": []
+        })
+
+        # The note should be saved but with sanitized filename
+        # or rejected entirely
+        if result.success:
+            # If saved, verify the path doesn't escape notes directory
+            from core.paths import get_data_dir
+            notes_dir = str(get_data_dir() / "notes")
+            assert notes_dir in result.metadata.get('path', ''), "Path traversal should be prevented"
+
+    def test_dangerous_command_blocking(self):
+        """Test that dangerous commands are blocked"""
+        from core.tool_registry import ToolRegistry
+
+        tools = ToolRegistry()
+
+        # Test various dangerous commands
+        dangerous_commands = [
+            "rm -rf /",
+            "rm -rf ~",
+            "dd if=/dev/zero of=/dev/sda",
+            ":(){:|:&};:",
+            "> /dev/sda",
+        ]
+
+        for cmd in dangerous_commands:
+            result = tools.execute_tool("run_command", {"command": cmd})
+            assert not result.success, f"Command '{cmd}' should be blocked"
+            assert "blocked" in result.error.lower(), f"Command '{cmd}' should show blocked message"
+
     def test_execute_nonexistent_tool(self):
         """Test executing non-existent tool"""
         from core.tool_registry import ToolRegistry
