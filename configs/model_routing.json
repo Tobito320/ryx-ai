@@ -1,0 +1,49 @@
+{
+  "tiers": {
+    "fast_utility": {
+      "name": "Qwen 3B",
+      "model": "qwen2.5:3b",
+      "use_cases": ["file_search", "app_launch", "simple_queries", "quick_help"],
+      "max_tokens": 1024,
+      "timeout": 8,
+      "priority": 1
+    },
+    "smart_conversational": {
+      "name": "Qwen 7B",
+      "model": "qwen2.5:7b",
+      "use_cases": ["chat", "explanation", "light_coding", "config_help"],
+      "max_tokens": 4096,
+      "timeout": 20,
+      "priority": 2
+    },
+    "tool_aware_tasks": {
+      "name": "DeepSeek 16B Coder",
+      "model": "second_constantine/deepseek-coder-v2:16b",
+      "use_cases": ["tool_use", "browsing", "multi_step", "coding_tasks", "system_analysis"],
+      "max_tokens": 8192,
+      "timeout": 40,
+      "priority": 3
+    },
+    "heavy_reasoning": {
+      "name": "Qwen 30B Coder",
+      "model": "SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL",
+      "use_cases": ["complex_refactor", "long_context", "repo_analysis", "arch_design"],
+      "max_tokens": 16384,
+      "timeout": 90,
+      "priority": 4
+    },
+    "expert_analysis": {
+      "name": "Qwen 32B Coder (if available)",
+      "model": "Qwen3-Coder:32B-AWQ",
+      "use_cases": ["deep_architecture", "rag_optimization", "major_system_redesign"],
+      "max_tokens": 32768,
+      "timeout": 120,
+      "priority": 5
+    }
+  },
+  "default_tier": "fast_utility",
+  "theme": "purple",
+  "auto_upgrade": true,
+  "rag_repair_tier": "heavy_reasoning",
+  "cache_validation_tier": "tool_aware_tasks"
+}
