@@ -196,6 +196,13 @@ class RyxUI:
 │  {Colors.BOLD}Ryx Help{Colors.RESET}{Colors.BRIGHT_PURPLE}                                                  │
 ╰─────────────────────────────────────────────────────────╯{Colors.RESET}
 
+{Colors.BOLD}What Ryx Can Do:{Colors.RESET}
+  • Edit & tune Hyprland, Waybar, kitty, and other configs
+  • Manage themes and wallpapers
+  • Help with coding tasks in your repos
+  • Research on the web and scrape pages
+  • Manage notes/RAG and run diagnostics
+
 {Colors.BOLD}Session Commands:{Colors.RESET}
   {Colors.CYAN}/help{Colors.RESET}           Show this help
   {Colors.CYAN}/status{Colors.RESET}         Show current status
@@ -205,18 +212,20 @@ class RyxUI:
   {Colors.CYAN}/quit{Colors.RESET}           Exit session
 
 {Colors.BOLD}Model Tiers:{Colors.RESET}
-  {Colors.GREEN}fast{Colors.RESET}            Quick responses (mistral:7b)
-  {Colors.CYAN}balanced{Colors.RESET}        Default coding (qwen2.5-coder:14b)
-  {Colors.YELLOW}powerful{Colors.RESET}        Complex tasks (deepseek-coder-v2:16b)
-  {Colors.MAGENTA}ultra{Colors.RESET}           Heavy reasoning (Qwen3-Coder:30B)
+  {Colors.GREEN}fast{Colors.RESET}            Chat & simple tasks (mistral:7b)
+  {Colors.CYAN}balanced{Colors.RESET}        Default for coding (qwen2.5-coder:14b)
+  {Colors.YELLOW}powerful{Colors.RESET}        Heavy reasoning (deepseek-coder-v2:16b)
+  {Colors.MAGENTA}ultra{Colors.RESET}           Big refactors (Qwen3-Coder:30B)
   {Colors.RED}uncensored{Colors.RESET}      Personal chat (gpt-oss:20b)
 
-{Colors.BOLD}Examples:{Colors.RESET}
-  {Colors.DIM}"refactor the intent parser to use LLM classification"{Colors.RESET}
-  {Colors.DIM}"analyze my Hyprland config and suggest improvements"{Colors.RESET}
-  {Colors.DIM}"search the web for best vim plugins 2024"{Colors.RESET}
+{Colors.BOLD}Example Tasks:{Colors.RESET}
+  {Colors.DIM}"open my hyprland config"{Colors.RESET}
+  {Colors.DIM}"tune my waybar"{Colors.RESET}
+  {Colors.DIM}"refactor the intent parser"{Colors.RESET}
+  {Colors.DIM}"fix the power menu in my config"{Colors.RESET}
+  {Colors.DIM}"research AI coding assistants"{Colors.RESET}
 
-{Colors.DIM}Just type naturally - Ryx understands intent.{Colors.RESET}
+{Colors.DIM}Just type naturally - no special commands needed.{Colors.RESET}
 """
         print(help_text)
     

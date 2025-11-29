@@ -49,20 +49,28 @@ class IntentClassifier:
     # Minimal rule patterns for obvious cases only
     GREETING_PATTERNS = {
         'hello', 'hi', 'hey', 'howdy', 'greetings', 'sup', 'yo',
-        'good morning', 'good evening', 'good afternoon'
+        'good morning', 'good evening', 'good afternoon', 'how are you',
+        'how are ya', "what's up", 'whats up'
+    }
+    
+    # Questions about capabilities - should NOT trigger commands
+    CAPABILITY_PATTERNS = {
+        'what can you do', 'what do you do', 'what are you', 'who are you',
+        'your capabilities', 'your features', 'help me', 'commands',
+        'what can i ask', 'what do you know', 'tell me about yourself'
     }
     
     # Obvious action verbs that strongly indicate intent
     CODE_EDIT_VERBS = {'refactor', 'implement', 'fix bug', 'add feature', 'write test', 'debug'}
     CONFIG_EDIT_VERBS = {'configure', 'update config', 'edit config', 'change settings'}
     FILE_OPS_VERBS = {'find file', 'create file', 'move file', 'delete file', 'list files', 'open'}
-    SYSTEM_VERBS = {'run test', 'build', 'deploy', 'install', 'diagnose', 'cleanup'}
+    SYSTEM_VERBS = {'run test', 'build', 'deploy', 'diagnose', 'cleanup'}
     WEB_VERBS = {'search web', 'look up', 'google', 'find online', 'research'}
     
     # Config file indicators
     CONFIG_INDICATORS = {
         'hyprland', 'waybar', 'kitty', '.config', 'dotfile', 'bashrc', 
-        'zshrc', 'nvim', 'config', '.conf', 'settings'
+        'zshrc', 'nvim', 'config', '.conf', 'settings', 'power menu'
     }
     
     # Personal/uncensored indicators
@@ -133,6 +141,16 @@ Examples:
                     flags={'is_greeting': True}
                 )
         
+        # Check for capability questions (should show help, not generate commands)
+        if any(cap in prompt_lower for cap in self.CAPABILITY_PATTERNS):
+            return ClassifiedIntent(
+                intent_type=IntentType.CHAT,
+                confidence=1.0,
+                complexity=0.1,
+                original_prompt=prompt,
+                flags={'is_capability_question': True}
+            )
+        
         # Check for tier override commands
         tier_override = self._check_tier_override(prompt_lower)
         if tier_override:
@@ -175,11 +193,21 @@ Examples:
     def _check_tier_override(self, prompt_lower: str) -> Optional[str]:
         """Check if user is requesting a specific tier"""
         tier_patterns = {
-            'fast': ['use fast', 'fast model', 'quick model', 'tier fast'],
-            'balanced': ['use balanced', 'balanced model', 'tier balanced', 'default model'],
-            'powerful': ['use powerful', 'powerful model', 'tier powerful', 'strong model'],
-            'ultra': ['use ultra', 'ultra model', 'tier ultra', 'biggest model', 'best model'],
-            'uncensored': ['use uncensored', 'uncensored model', 'tier uncensored', 'no filter']
+            'fast': ['use fast', 'fast model', 'quick model', 'tier fast', 
+                    'use mistral', 'mistral as default', 'switch to mistral',
+                    'set fast', 'fast tier'],
+            'balanced': ['use balanced', 'balanced model', 'tier balanced', 'default model',
+                        'use qwen', 'qwen as default', 'switch to qwen', 'use coder',
+                        'set balanced', 'balanced tier'],
+            'powerful': ['use powerful', 'powerful model', 'tier powerful', 'strong model',
+                        'use deepseek', 'deepseek as default', 'switch to deepseek',
+                        'set powerful', 'powerful tier'],
+            'ultra': ['use ultra', 'ultra model', 'tier ultra', 'biggest model', 'best model',
+                     'use qwen3', 'qwen3 as default', '30b model', 'switch to 30b',
+                     'set ultra', 'ultra tier'],
+            'uncensored': ['use uncensored', 'uncensored model', 'tier uncensored', 'no filter',
+                          'use gpt-oss', 'gpt-oss as default', 'switch to gpt-oss',
+                          'personal chat', 'set uncensored', 'uncensored tier']
         }
         
         for tier, patterns in tier_patterns.items():
@@ -212,7 +240,7 @@ Examples:
         # Check if mentions config files without explicit verbs
         if any(ind in prompt_lower for ind in self.CONFIG_INDICATORS):
             # Editing intent with config indicator
-            if any(w in prompt_lower for w in ['edit', 'change', 'modify', 'update', 'fix']):
+            if any(w in prompt_lower for w in ['edit', 'change', 'modify', 'update', 'fix', 'tune', 'adjust', 'tweak']):
                 return ClassifiedIntent(
                     intent_type=IntentType.CONFIG_EDIT,
                     confidence=0.85,

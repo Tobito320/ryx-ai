@@ -109,11 +109,15 @@ class WorkflowOrchestrator:
         # Handle tier override
         if intent.tier_override:
             self.router.set_tier(intent.tier_override)
-            return f"🟣 Switched to {intent.tier_override} tier"
+            return f"🟣 Switched to {intent.tier_override} tier ({self.router.select_model(intent.tier_override)})"
         
         # Handle greeting
         if intent.flags.get('is_greeting'):
             return self._handle_greeting(prompt)
+        
+        # Handle capability questions (what can you do?)
+        if intent.flags.get('is_capability_question'):
+            return self._handle_capability_question()
         
         # Simple chat - no workflow needed
         if intent.intent_type == IntentType.CHAT and intent.complexity < 0.5:
@@ -144,6 +148,8 @@ class WorkflowOrchestrator:
             'sup': "What's up! Ask me anything.",
             'good morning': 'Good morning! How can I assist?',
             'good evening': 'Good evening! What do you need?',
+            'how are you': "I'm doing great! Ready to help with your configs, coding, or research.",
+            'how are ya': "Doing well! What can I help you with?",
         }
         
         prompt_lower = prompt.lower().strip().rstrip('!.,?')
@@ -153,12 +159,28 @@ class WorkflowOrchestrator:
         
         return "Hello! How can I help?"
     
+    def _handle_capability_question(self) -> str:
+        """Handle questions about capabilities"""
+        return """I can help you with:
+
+• **Configs**: Edit & tune Hyprland, Waybar, kitty, and other dotfiles
+• **Themes**: Manage themes and wallpapers on your system
+• **Coding**: Refactor code, fix bugs, add features in your repos
+• **Research**: Search the web and scrape pages for information
+• **Notes**: Manage your knowledge base and notes
+• **Diagnostics**: Run tests and diagnose issues with your tools
+
+Just tell me what you need in natural language!"""
+    
     def _handle_simple_chat(self, prompt: str, intent: ClassifiedIntent) -> str:
         """Handle simple conversation without workflow"""
         tier = self.router.get_tier_for_intent(intent.intent_type.value)
         
-        system_context = """You are a helpful assistant. Be concise - respond in 1-3 sentences for simple questions.
-Do NOT generate bash commands or code unless explicitly asked."""
+        system_context = """You are Ryx, a local AI assistant for an Arch Linux developer.
+Be concise - respond in 1-3 sentences for simple questions.
+Do NOT generate bash commands, system install commands, or code unless explicitly asked.
+Focus on being helpful and conversational.
+If asked about your capabilities, describe configs/coding/themes/research help, NOT Arch Linux commands."""
         
         response = self.router.query(prompt, tier=tier, system_context=system_context)
         

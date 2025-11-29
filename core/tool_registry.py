@@ -293,17 +293,27 @@ class ListDirectoryTool(BaseTool):
 class ShellCommandTool(BaseTool):
     """Execute shell commands with safety controls"""
     
-    # Commands that are always blocked
+    # Commands that are always blocked - never execute these
     BLOCKED_COMMANDS = [
         'rm -rf /', 'rm -rf /*', 'dd if=/dev', 'mkfs', ':(){ :|:& };:',
-        'chmod -R 777 /', '> /dev/sda', 'mv /* ', 'wget | sh', 'curl | sh'
+        'chmod -R 777 /', '> /dev/sda', 'mv /* ', 'wget | sh', 'curl | sh',
+        'pacman -Syu', 'pacman -S', 'yay -S', 'systemctl enable', 'systemctl disable',
+        'grub-install', 'mkinitcpio', 'bootctl', '/etc/fstab', '/etc/passwd',
+        'sudo rm', 'sudo dd', 'sudo mkfs', 'fdisk', 'parted', 'gparted'
     ]
     
     # Commands that require confirmation
     DANGEROUS_PATTERNS = [
         r'rm\s+-rf', r'rm\s+-r', r'chmod\s+-R', r'chown\s+-R',
         r'git\s+reset\s+--hard', r'git\s+push\s+.*--force',
-        r'pip\s+uninstall', r'npm\s+uninstall'
+        r'pip\s+uninstall', r'npm\s+uninstall',
+        r'pacman\s', r'yay\s', r'sudo\s', r'/etc/', r'systemctl\s'
+    ]
+    
+    # Safe directories (default operation areas)
+    SAFE_DIRECTORIES = [
+        os.path.expanduser('~'),
+        '/tmp'
     ]
     
     @property
