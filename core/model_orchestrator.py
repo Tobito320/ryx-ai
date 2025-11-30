@@ -124,8 +124,30 @@ class ModelOrchestrator:
             with open(self.config_path, 'r') as f:
                 config = json.load(f)
 
-            # Parse model tiers
-            for tier_name, tier_config in config.get("tiers", {}).items():
+            # Parse model tiers - support both 'tiers' and 'models' keys
+            tiers_data = config.get("tiers", config.get("models", {}))
+            
+            for tier_name, tier_config in tiers_data.items():
+                # Handle different config formats
+                # New format has full ModelTier fields
+                # Old format (models.json) has different fields
+                if "tier_level" not in tier_config:
+                    # Map old format to new format with sensible defaults
+                    tier_levels = {
+                        "fast": 1, "ultra-fast": 1,
+                        "balanced": 2, 
+                        "powerful": 3,
+                        "ultra": 3,
+                        "uncensored": 2
+                    }
+                    tier_config = {
+                        "name": tier_config.get("name", "unknown"),
+                        "vram_mb": tier_config.get("vram_mb", 4000),
+                        "typical_latency_ms": tier_config.get("typical_latency_ms", 500),
+                        "specialties": tier_config.get("specialties", []),
+                        "tier_level": tier_levels.get(tier_name, 2)
+                    }
+                
                 self.model_tiers[tier_name] = ModelTier(**tier_config)
 
                 # Initialize performance tracking
@@ -134,6 +156,12 @@ class ModelOrchestrator:
                     self.model_performance[model_name] = ModelPerformance(
                         model_name=model_name
                     )
+            
+            # Ensure we have at least basic tiers for fallback
+            if not self.model_tiers:
+                self._create_default_config()
+                self._load_config()
+                
         except FileNotFoundError:
             # Use defaults if config doesn't exist
             self._create_default_config()
@@ -271,16 +299,33 @@ class ModelOrchestrator:
         Select appropriate model based on complexity score
 
         Complexity ranges:
-        - 0.0-0.5: Tier 1 (ultra-fast)
+        - 0.0-0.5: Tier 1 (fast/ultra-fast)
         - 0.5-0.7: Tier 2 (balanced)
-        - 0.7-1.0: Tier 3 (powerful)
+        - 0.7-1.0: Tier 3 (powerful/ultra)
+        
+        Handles both 'ultra-fast' and 'fast' tier names for compatibility.
         """
+        # Define tier priority for each complexity level
         if complexity < 0.5:
-            return self.model_tiers["ultra-fast"].name
+            # Try ultra-fast first, then fast as fallback
+            tier_priority = ["ultra-fast", "fast"]
         elif complexity < 0.7:
-            return self.model_tiers["balanced"].name
+            tier_priority = ["balanced"]
         else:
-            return self.model_tiers["powerful"].name
+            # Try powerful first, then ultra as fallback
+            tier_priority = ["powerful", "ultra"]
+        
+        # Find first available tier
+        for tier_name in tier_priority:
+            if tier_name in self.model_tiers:
+                return self.model_tiers[tier_name].name
+        
+        # Ultimate fallback - return first available model
+        if self.model_tiers:
+            return next(iter(self.model_tiers.values())).name
+        
+        # If no tiers configured, return base model
+        return self.base_model_name
 
     def _load_model(self, model_name: str) -> bool:
         """
