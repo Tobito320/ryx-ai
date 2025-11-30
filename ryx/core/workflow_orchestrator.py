@@ -27,7 +27,7 @@ class WorkflowEvent:
     node: Optional[str] = None
     message: str = ""
     latency: Optional[float] = None
-    data: Optional[Dict[str, Any]] = field(default_factory=dict)
+    data: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
 
 
