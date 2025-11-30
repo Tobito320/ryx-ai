@@ -64,10 +64,16 @@ class IntentClassifier:
             r'^(run tests?|check|diagnose|cleanup|optimize)',
             r'^(install|update|remove|uninstall)\s+',
         ],
-        # Web research - obvious web verbs
+        # Web research - explicit research requests
+        # NOTE: "what is X" is still handled as CHAT unless combined with search keywords
         IntentType.WEB_RESEARCH: [
-            r'^(search|google|look up|browse|scrape)',
-            r'^(what is|who is|explain|research)\s+',
+            r'^search\s+(the\s+)?web\s+for\s+',
+            r'^search\s+for\s+',  # "search for X" triggers web research
+            r'^(look\s+up|research|google|browse)\s+',
+            r'^(find|search)\s+(information|info|articles?|docs?)\s+(about|on|for)',
+            r'^scrape\s+(this\s+)?(url|page|site|website)',
+            r'search\s+online\s+for',
+            r'searxng\s+search',
         ],
         # Config editing - specific config mentions
         IntentType.CONFIG_EDIT: [
@@ -75,6 +81,32 @@ class IntentClassifier:
             r'~/.config/',
         ],
     }
+    
+    # Conversational patterns that should NEVER trigger web search
+    # These are questions directed at the AI itself
+    CONVERSATIONAL_PATTERNS = [
+        # Questions about the AI
+        r"^(what('s| is)?\s+)?your\s+name",
+        r"^who\s+are\s+you",
+        r"^(what|how)\s+(are|can)\s+you",
+        r"^(can|could|would)\s+you\s+",
+        r"^(tell|talk)\s+(me\s+)?(about\s+)?yourself",
+        r"^what('s| is)?\s+your\s+(purpose|job|role|function)",
+        # Greetings and social
+        r"^(how\s+are\s+you|how('s| is)\s+it\s+going)",
+        r"^(good\s+)?(morning|afternoon|evening|night)",
+        r"^(thanks?|thank\s+you)",
+        r"^(hi|hello|hey|howdy|sup)\b",
+        # Simple yes/no / opinion
+        r"^(yes|no|okay|ok|sure|maybe|perhaps)\b",
+        r"^(i\s+think|i\s+believe|in\s+my\s+opinion)",
+        # Help requests about the tool
+        r"^(how\s+do\s+i|how\s+can\s+i|how\s+to)\s+use\s+(you|this|ryx)",
+        r"^(what\s+can\s+you\s+do|what\s+are\s+your\s+capabilities)",
+        # Generic what/who that are likely conversational
+        r"^what\s+do\s+you\s+(think|know|mean)",
+        r"^what('s| is)\s+(up|happening|new)",
+    ]
 
     # Slash command mappings
     SLASH_COMMANDS = {
@@ -88,6 +120,7 @@ class IntentClassifier:
         '/save': 'save_note',
         '/search': 'search_notes',
         '/models': 'show_models',
+        '/webtest': 'web_search_health',
     }
 
     # Tier keywords for user tier override detection
@@ -145,20 +178,32 @@ class IntentClassifier:
         # Check for tier override request
         tier_override = self._detect_tier_override(prompt)
 
-        # Try fast rule-based classification first
-        rule_result = self._classify_by_rules(prompt)
-        if rule_result and rule_result.confidence >= 0.8:
-            rule_result.tier_override = tier_override
-            return rule_result
-
-        # Check for simple greetings (fast path)
+        # Check for simple greetings FIRST (fast path, sets is_greeting flag)
         if self._is_greeting(prompt):
             return ClassifiedIntent(
                 intent_type=IntentType.CHAT,
                 confidence=1.0,
                 original_prompt=prompt,
-                tier_override=tier_override
+                tier_override=tier_override,
+                flags={'is_greeting': True}
             )
+
+        # IMPORTANT: Check for conversational patterns BEFORE web research patterns
+        # This prevents "what is your name" from triggering web search
+        if self._is_conversational(prompt):
+            return ClassifiedIntent(
+                intent_type=IntentType.CHAT,
+                confidence=0.95,
+                original_prompt=prompt,
+                tier_override=tier_override,
+                needs_web=False
+            )
+
+        # Try fast rule-based classification first
+        rule_result = self._classify_by_rules(prompt)
+        if rule_result and rule_result.confidence >= 0.8:
+            rule_result.tier_override = tier_override
+            return rule_result
 
         # Check for short conversational prompts
         if len(prompt.split()) < 5 and not self._has_action_indicators(prompt):
@@ -355,6 +400,24 @@ Respond with JSON only:
 
         target = target.strip()
         return target if target and target != prompt_lower else None
+
+    def _is_conversational(self, prompt: str) -> bool:
+        """
+        Check if the prompt is conversational and should NOT trigger web search.
+        
+        This includes:
+        - Questions about the AI itself ("what is your name")
+        - Greetings and social exchanges
+        - Simple responses (yes, no, ok)
+        - Help requests about the tool
+        """
+        prompt_lower = prompt.lower().strip()
+        
+        for pattern in self.CONVERSATIONAL_PATTERNS:
+            if re.search(pattern, prompt_lower, re.IGNORECASE):
+                return True
+        
+        return False
 
     def _is_greeting(self, prompt: str) -> bool:
         """Check if prompt is a simple greeting"""
