@@ -267,6 +267,21 @@ export const ToolResults: React.FC<ToolResultsProps> = ({
   const results = externalResults || internalResults;
   const displayedResults = results.slice(-maxResults);
 
+  // Simple counter for unique ID generation
+  const resultIdRef = React.useRef(0);
+
+  // Node to tool type mapping
+  const nodeToToolType: Record<string, ToolType> = {
+    'tool-search': 'search_local',
+    'tool-web': 'search_web',
+    'tool-edit': 'edit_file',
+    'tool-launch': 'launch_app',
+    'search': 'search_local',
+    'web': 'search_web',
+    'edit': 'edit_file',
+    'launch': 'launch_app',
+  };
+
   // Convert workflow event to tool result
   const eventToToolResult = useCallback((event: WorkflowEvent): ToolResult | null => {
     // Only process tool-related events
@@ -274,17 +289,20 @@ export const ToolResults: React.FC<ToolResultsProps> = ({
       return null;
     }
 
-    const toolName = (event.data?.tool_name as ToolType) || 
-                     (event.node?.replace('tool-', '') as ToolType) || 
-                     'unknown';
+    // Use explicit mapping or data field, fallback to unknown
+    const toolName: ToolType = (event.data?.tool_name as ToolType) || 
+                               nodeToToolType[event.node || ''] || 
+                               'unknown';
 
     const status: ToolResult['status'] =
       event.event === 'node_complete' ? 'success' :
       event.event === 'node_failed' ? 'failed' :
       event.event === 'node_start' ? 'running' : 'pending';
 
+    resultIdRef.current += 1;
+
     return {
-      id: `${event.timestamp}-${event.node}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `tr-${event.timestamp}-${event.node}-${resultIdRef.current}`,
       toolName,
       status,
       output: event.data?.output as ToolResult['output'],

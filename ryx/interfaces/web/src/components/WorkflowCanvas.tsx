@@ -229,9 +229,15 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
       // Update node status based on event
       if (event.node) {
+        const eventNodeLower = event.node.toLowerCase();
+        
         setNodes((nds) =>
           nds.map((node) => {
-            if (node.id === event.node || node.data.label.toLowerCase().includes(event.node.toLowerCase())) {
+            // Direct ID match or label contains node name
+            const isMatch = node.id === event.node || 
+                           node.data.label.toLowerCase().includes(eventNodeLower);
+            
+            if (isMatch) {
               const newStatus = eventToStatus(event.event);
               return {
                 ...node,

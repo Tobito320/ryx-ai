@@ -78,9 +78,18 @@ const eventTypeToStatus = (eventType: WorkflowEventType): DisplayEvent['status']
   }
 };
 
+// Simple counter for unique ID generation
+let eventIdCounter = 0;
+
+// Generate unique ID for events
+const generateEventId = (event: WorkflowEvent): string => {
+  eventIdCounter += 1;
+  return `evt-${event.timestamp}-${event.node || event.step}-${eventIdCounter}`;
+};
+
 // Convert WorkflowEvent to DisplayEvent
 const workflowEventToDisplay = (event: WorkflowEvent): DisplayEvent => ({
-  id: `${event.timestamp}-${event.node || event.step}-${Math.random().toString(36).substr(2, 9)}`,
+  id: generateEventId(event),
   timestamp: new Date(event.timestamp),
   step: event.step?.toString() || 'N/A',
   node: event.node,

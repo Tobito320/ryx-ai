@@ -228,30 +228,35 @@ export function useWorkflowWebsocket(
         log('Connection closed:', event.code, event.reason);
         wsRef.current = null;
 
-        if (!isManualDisconnectRef.current && reconnectAttempts < maxReconnectAttempts) {
-          // Schedule reconnection with exponential backoff
-          const delay = reconnectBaseDelay * Math.pow(2, reconnectAttempts);
-          log(`Scheduling reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-          
-          setStatus('reconnecting');
-          setReconnectAttempts((prev) => prev + 1);
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, delay);
-        } else if (reconnectAttempts >= maxReconnectAttempts) {
-          setStatus('error');
-          setError(`Failed to connect after ${maxReconnectAttempts} attempts`);
-        } else {
-          setStatus('disconnected');
-        }
+        // Use functional update to get current reconnectAttempts value
+        setReconnectAttempts((currentAttempts) => {
+          if (!isManualDisconnectRef.current && currentAttempts < maxReconnectAttempts) {
+            // Schedule reconnection with exponential backoff
+            const delay = reconnectBaseDelay * Math.pow(2, currentAttempts);
+            log(`Scheduling reconnect in ${delay}ms (attempt ${currentAttempts + 1}/${maxReconnectAttempts})`);
+            
+            setStatus('reconnecting');
+            
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connect();
+            }, delay);
+            
+            return currentAttempts + 1;
+          } else if (currentAttempts >= maxReconnectAttempts) {
+            setStatus('error');
+            setError(`Failed to connect after ${maxReconnectAttempts} attempts`);
+          } else {
+            setStatus('disconnected');
+          }
+          return currentAttempts;
+        });
       };
     } catch (err) {
       log('Connection error:', err);
       setError(err instanceof Error ? err.message : 'Failed to create WebSocket');
       setStatus('error');
     }
-  }, [url, maxReconnectAttempts, reconnectBaseDelay, reconnectAttempts, parseMessage, emitEvent, log]);
+  }, [url, maxReconnectAttempts, reconnectBaseDelay, parseMessage, emitEvent, log]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
