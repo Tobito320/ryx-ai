@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+#
+# ryx-modal - Quick Ryx AI access via Wofi/Rofi
+# Integrates with Hyprland for keyboard shortcut activation
+#
+
+set -euo pipefail
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+RYX_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/ryx"
+HISTORY_FILE="$RYX_CONFIG_DIR/history.json"
+MAX_HISTORY=50
+
+# Dracula theme colors
+BG_COLOR="#282a36"
+FG_COLOR="#f8f8f2"
+ACCENT_COLOR="#bd93f9"
+SELECTED_BG="#44475a"
+
+# Detect launcher (prefer wofi, fallback to rofi)
+if command -v wofi &>/dev/null; then
+    LAUNCHER="wofi"
+elif command -v rofi &>/dev/null; then
+    LAUNCHER="rofi"
+else
+    notify-send "Ryx AI" "Error: Neither wofi nor rofi is installed" -u critical
+    exit 1
+fi
+
+# =============================================================================
+# Functions
+# =============================================================================
+
+# Get recent commands from history
+get_history() {
+    if [[ -f "$HISTORY_FILE" ]]; then
+        # Extract user messages from JSON history
+        jq -r '.[] | select(.role == "user") | .content' "$HISTORY_FILE" 2>/dev/null | \
+            tail -n "$MAX_HISTORY" | \
+            tac  # Reverse to show most recent first
+    fi
+}
+
+# Show launcher and get user input
+show_launcher() {
+    local prompt="🟣 Ryx: "
+    local history
+    history=$(get_history)
+    
+    if [[ "$LAUNCHER" == "wofi" ]]; then
+        echo "$history" | wofi \
+            --dmenu \
+            --prompt "$prompt" \
+            --cache-file=/dev/null \
+            --insensitive \
+            --allow-images \
+            --style="$RYX_CONFIG_DIR/wofi.css" 2>/dev/null || \
+        echo "$history" | wofi \
+            --dmenu \
+            --prompt "$prompt" \
+            --cache-file=/dev/null \
+            --insensitive
+    else
+        # Rofi with Dracula theme
+        echo "$history" | rofi \
+            -dmenu \
+            -p "$prompt" \
+            -i \
+            -theme-str "* { background: $BG_COLOR; foreground: $FG_COLOR; }" \
+            -theme-str "element selected { background: $SELECTED_BG; }" \
+            -theme-str "inputbar { background: $BG_COLOR; foreground: $ACCENT_COLOR; }"
+    fi
+}
+
+# Execute ryx command
+execute_ryx() {
+    local query="$1"
+    
+    if [[ -z "$query" ]]; then
+        return 0
+    fi
+    
+    # Show "working" notification
+    local notification_id
+    notification_id=$(notify-send "Ryx AI" "Processing: $query" --print-id -t 0 2>/dev/null || echo "")
+    
+    # Execute ryx and capture output
+    local output
+    local exit_code=0
+    output=$(ryx "$query" 2>&1) || exit_code=$?
+    
+    # Close "working" notification and show result
+    if [[ -n "$notification_id" ]] && command -v dunstify &>/dev/null; then
+        dunstify --close="$notification_id" 2>/dev/null || true
+    fi
+    
+    if [[ $exit_code -eq 0 ]]; then
+        notify-send "Ryx AI" "✓ Completed\n\n${output:0:200}" -t 5000
+    else
+        notify-send "Ryx AI" "✗ Error\n\n${output:0:200}" -u critical -t 10000
+    fi
+}
+
+# =============================================================================
+# Main
+# =============================================================================
+
+main() {
+    # Ensure config directory exists
+    mkdir -p "$RYX_CONFIG_DIR"
+    
+    # Show launcher and get input
+    local query
+    query=$(show_launcher)
+    
+    # Execute if we got input
+    if [[ -n "$query" ]]; then
+        execute_ryx "$query"
+    fi
+}
+
+main "$@"
