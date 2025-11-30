@@ -7,6 +7,7 @@ Provides Level 1-2-3 permission system with decorators:
 - Level 3 (DESTROY): Destructive operations, always requires confirmation
 """
 
+from contextvars import ContextVar
 from enum import IntEnum
 from functools import wraps
 from typing import Callable, Optional, Any, Dict, TypeVar, ParamSpec
@@ -48,22 +49,24 @@ class PermissionContext:
             return level >= PermissionLevel.DESTROY
 
 
-# Thread-local context storage
-_permission_context: Optional[PermissionContext] = None
+# Thread-safe context storage using contextvars
+_permission_context_var: ContextVar[Optional[PermissionContext]] = ContextVar(
+    'permission_context', default=None
+)
 
 
 def get_permission_context() -> PermissionContext:
-    """Get the current permission context"""
-    global _permission_context
-    if _permission_context is None:
-        _permission_context = PermissionContext()
-    return _permission_context
+    """Get the current permission context (thread-safe)"""
+    ctx = _permission_context_var.get()
+    if ctx is None:
+        ctx = PermissionContext()
+        _permission_context_var.set(ctx)
+    return ctx
 
 
 def set_permission_context(context: PermissionContext) -> None:
-    """Set the current permission context"""
-    global _permission_context
-    _permission_context = context
+    """Set the current permission context (thread-safe)"""
+    _permission_context_var.set(context)
 
 
 class PermissionDenied(Exception):
