@@ -1,0 +1,214 @@
+/**
+ * @file ryx/interfaces/web/src/styles/dracula.css
+ * @description Dracula theme color variables and utility classes for the Ryx AI workflow UI.
+ * 
+ * These colors are based on the official Dracula theme palette.
+ * Use CSS custom properties for consistent theming across components.
+ * 
+ * Tailwind config hints:
+ * - Add these colors to tailwind.config.js under theme.extend.colors
+ * - Use format: 'dracula-bg': 'var(--dracula-bg)', etc.
+ */
+
+:root {
+  /* Dracula Theme - Core Colors */
+  --dracula-bg: #282a36;
+  --dracula-current-line: #44475a;
+  --dracula-foreground: #f8f8f2;
+  --dracula-comment: #6272a4;
+  --dracula-cyan: #8be9fd;
+  --dracula-green: #50fa7b;
+  --dracula-orange: #ffb86c;
+  --dracula-pink: #ff79c6;
+  --dracula-purple: #bd93f9;
+  --dracula-red: #ff5555;
+  --dracula-yellow: #f1fa8c;
+
+  /* Dracula Theme - Extended Palette */
+  --dracula-selection: #44475a;
+  --dracula-darker: #21222c;
+  --dracula-border: #6272a4;
+  --dracula-highlight: rgba(139, 233, 253, 0.1);
+
+  /* Status Colors - Mapped to Dracula */
+  --status-pending: var(--dracula-yellow);
+  --status-running: var(--dracula-cyan);
+  --status-success: var(--dracula-green);
+  --status-failed: var(--dracula-red);
+  --status-info: var(--dracula-purple);
+  --status-warning: var(--dracula-orange);
+}
+
+/* Dracula Theme Utility Classes */
+.dracula-bg {
+  background-color: var(--dracula-bg);
+}
+
+.dracula-bg-dark {
+  background-color: var(--dracula-darker);
+}
+
+.dracula-bg-current {
+  background-color: var(--dracula-current-line);
+}
+
+.dracula-text {
+  color: var(--dracula-foreground);
+}
+
+.dracula-text-comment {
+  color: var(--dracula-comment);
+}
+
+.dracula-text-cyan {
+  color: var(--dracula-cyan);
+}
+
+.dracula-text-green {
+  color: var(--dracula-green);
+}
+
+.dracula-text-orange {
+  color: var(--dracula-orange);
+}
+
+.dracula-text-pink {
+  color: var(--dracula-pink);
+}
+
+.dracula-text-purple {
+  color: var(--dracula-purple);
+}
+
+.dracula-text-red {
+  color: var(--dracula-red);
+}
+
+.dracula-text-yellow {
+  color: var(--dracula-yellow);
+}
+
+.dracula-border {
+  border-color: var(--dracula-border);
+}
+
+/* Workflow Node Status Classes */
+.workflow-status-pending {
+  border-color: var(--status-pending);
+  box-shadow: 0 0 8px rgba(241, 250, 140, 0.3);
+}
+
+.workflow-status-running {
+  border-color: var(--status-running);
+  box-shadow: 0 0 12px rgba(139, 233, 253, 0.4);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.workflow-status-success {
+  border-color: var(--status-success);
+  box-shadow: 0 0 8px rgba(80, 250, 123, 0.3);
+}
+
+.workflow-status-failed {
+  border-color: var(--status-failed);
+  box-shadow: 0 0 8px rgba(255, 85, 85, 0.3);
+}
+
+/* Animations for workflow visualization */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(139, 233, 253, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(139, 233, 253, 0.6);
+  }
+}
+
+@keyframes edge-flow {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* React Flow Customizations */
+.react-flow__edge-path {
+  stroke: var(--dracula-comment);
+  stroke-width: 2;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: edge-flow 1s linear infinite;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--dracula-cyan);
+  stroke-width: 3;
+}
+
+.react-flow__handle {
+  background-color: var(--dracula-purple);
+  border: 2px solid var(--dracula-bg);
+}
+
+.react-flow__handle-left {
+  left: -8px;
+}
+
+.react-flow__handle-right {
+  right: -8px;
+}
+
+.react-flow__minimap {
+  background-color: var(--dracula-darker);
+  border: 1px solid var(--dracula-border);
+}
+
+.react-flow__controls {
+  background-color: var(--dracula-current-line);
+  border: 1px solid var(--dracula-border);
+  border-radius: 8px;
+}
+
+.react-flow__controls-button {
+  background-color: var(--dracula-bg);
+  border-color: var(--dracula-border);
+  fill: var(--dracula-foreground);
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--dracula-current-line);
+}
+
+/* Latency Badge Styles */
+.latency-badge {
+  background-color: var(--dracula-current-line);
+  color: var(--dracula-cyan);
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  font-family: ui-monospace, monospace;
+}
+
+/* Scrollbar styling for event lists */
+.dracula-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dracula-scrollbar::-webkit-scrollbar-track {
+  background: var(--dracula-darker);
+  border-radius: 4px;
+}
+
+.dracula-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--dracula-comment);
+  border-radius: 4px;
+}
+
+.dracula-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--dracula-purple);
+}

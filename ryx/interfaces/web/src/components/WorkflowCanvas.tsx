@@ -1,185 +1,398 @@
-import React from 'react';
-import { WorkflowNode } from './WorkflowNode';
-
 /**
- * Represents a node's data in the workflow
+ * @file ryx/interfaces/web/src/components/WorkflowCanvas.tsx
+ * @description React Flow workflow visualization canvas component.
+ * 
+ * Features:
+ * - Renders 8 workflow step nodes with React Flow
+ * - Subscribes to WebSocket events to update node status
+ * - Shows latency badges on edges
+ * - Highlights running step with animation
+ * - Supports zoom, pan, and node selection
+ * 
+ * Uses Dracula theme colors via Tailwind CSS.
  */
-export interface WorkflowNodeData {
-  /** Unique node identifier */
-  id: string;
-  /** Display label */
-  label: string;
-  /** Node type */
-  type: 'input' | 'process' | 'output' | 'tool';
-  /** Current execution status */
-  status: 'pending' | 'running' | 'success' | 'failed';
-  /** Node position on canvas */
-  position: { x: number; y: number };
-}
 
-/**
- * Represents an edge connecting two nodes
- */
-export interface WorkflowEdge {
-  /** Unique edge identifier */
-  id: string;
-  /** Source node ID */
-  source: string;
-  /** Target node ID */
-  target: string;
-  /** Edge latency in milliseconds */
-  latency?: number;
-}
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  Background,
+  BackgroundVariant,
+  useNodesState,
+  useEdgesState,
+  MarkerType,
+  ConnectionMode,
+  NodeChange,
+  EdgeChange,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
-/**
- * Props for the WorkflowCanvas component
- */
-interface WorkflowCanvasProps {
-  /** Array of node data */
-  nodes: WorkflowNodeData[];
-  /** Array of edge connections */
-  edges: WorkflowEdge[];
+import { WorkflowFlowNode, WorkflowNodeData, NodeExecutionStatus } from './WorkflowNode';
+import { WorkflowEvent, WorkflowEventType } from '../hooks/useWorkflowWebsocket';
+
+/** Props for WorkflowCanvas component */
+export interface WorkflowCanvasProps {
+  /** Initial nodes for the workflow (optional) */
+  initialNodes?: Node<WorkflowNodeData>[];
+  /** Initial edges connecting nodes (optional) */
+  initialEdges?: Edge[];
+  /** Callback when a workflow event is received */
+  onEvent?: (event: WorkflowEvent) => void;
+  /** Subscribe function from useWorkflowWebsocket */
+  subscribe?: (callback: (event: WorkflowEvent) => void) => () => void;
   /** Callback when a node is selected */
-  onNodeSelect?: (id: string) => void;
-  /** Callback when zoom level changes */
-  onZoom?: (level: number) => void;
+  onNodeSelect?: (nodeId: string | null) => void;
+  /** Callback when node action is triggered */
+  onNodeAction?: (nodeId: string) => void;
+  /** Whether to show controls */
+  showControls?: boolean;
+  /** Whether to show minimap */
+  showMinimap?: boolean;
+  /** Custom class name */
+  className?: string;
 }
 
+// Custom node types registration
+const nodeTypes = {
+  workflow: WorkflowFlowNode,
+};
+
+// Default 8-step workflow nodes
+const createDefaultNodes = (): Node<WorkflowNodeData>[] => [
+  {
+    id: 'input',
+    type: 'workflow',
+    position: { x: 50, y: 200 },
+    data: { label: 'Input', type: 'input', status: 'pending', step: 1 },
+  },
+  {
+    id: 'router',
+    type: 'workflow',
+    position: { x: 280, y: 200 },
+    data: { label: 'Router', type: 'router', status: 'pending', step: 2 },
+  },
+  {
+    id: 'model',
+    type: 'workflow',
+    position: { x: 510, y: 100 },
+    data: { label: 'Model', type: 'model', status: 'pending', step: 3 },
+  },
+  {
+    id: 'tool-search',
+    type: 'workflow',
+    position: { x: 510, y: 300 },
+    data: { label: 'Search Tool', type: 'tool', status: 'pending', step: 4 },
+  },
+  {
+    id: 'process',
+    type: 'workflow',
+    position: { x: 740, y: 200 },
+    data: { label: 'Process', type: 'process', status: 'pending', step: 5 },
+  },
+  {
+    id: 'tool-edit',
+    type: 'workflow',
+    position: { x: 970, y: 100 },
+    data: { label: 'Edit File', type: 'tool', status: 'pending', step: 6 },
+  },
+  {
+    id: 'tool-launch',
+    type: 'workflow',
+    position: { x: 970, y: 300 },
+    data: { label: 'Launch App', type: 'tool', status: 'pending', step: 7 },
+  },
+  {
+    id: 'output',
+    type: 'workflow',
+    position: { x: 1200, y: 200 },
+    data: { label: 'Output', type: 'output', status: 'pending', step: 8 },
+  },
+];
+
+// Default edges connecting the workflow
+const createDefaultEdges = (): Edge[] => [
+  {
+    id: 'input-router',
+    source: 'input',
+    target: 'router',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'router-model',
+    source: 'router',
+    target: 'model',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'router-search',
+    source: 'router',
+    target: 'tool-search',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'model-process',
+    source: 'model',
+    target: 'process',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'search-process',
+    source: 'tool-search',
+    target: 'process',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'process-edit',
+    source: 'process',
+    target: 'tool-edit',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'process-launch',
+    source: 'process',
+    target: 'tool-launch',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'edit-output',
+    source: 'tool-edit',
+    target: 'output',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+  {
+    id: 'launch-output',
+    source: 'tool-launch',
+    target: 'output',
+    animated: false,
+    style: { stroke: '#6272a4', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#6272a4' },
+  },
+];
+
+// Map event types to node status
+const eventToStatus = (eventType: WorkflowEventType): NodeExecutionStatus => {
+  switch (eventType) {
+    case 'node_start':
+      return 'running';
+    case 'node_complete':
+      return 'success';
+    case 'node_failed':
+      return 'failed';
+    case 'node_skipped':
+      return 'pending';
+    default:
+      return 'pending';
+  }
+};
+
 /**
- * WorkflowCanvas - A canvas component for rendering workflow visualization
- * Displays nodes and their connections using Dracula theme colors
+ * WorkflowCanvas - Main workflow visualization component using React Flow
  */
 export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
-  nodes,
-  edges,
+  initialNodes,
+  initialEdges,
+  subscribe,
+  onEvent,
   onNodeSelect,
-  onZoom,
+  onNodeAction,
+  showControls = true,
+  className = '',
 }) => {
-  const [zoomLevel, setZoomLevel] = React.useState(1);
-  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
+  const defaultNodes = useMemo(() => initialNodes || createDefaultNodes(), [initialNodes]);
+  const defaultEdges = useMemo(() => initialEdges || createDefaultEdges(), [initialEdges]);
 
-  const handleZoomIn = () => {
-    const newZoom = Math.min(zoomLevel + 0.1, 2);
-    setZoomLevel(newZoom);
-    onZoom?.(newZoom);
-  };
+  const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const handleZoomOut = () => {
-    const newZoom = Math.max(zoomLevel - 0.1, 0.5);
-    setZoomLevel(newZoom);
-    onZoom?.(newZoom);
-  };
+  // Handle workflow events
+  const handleWorkflowEvent = useCallback(
+    (event: WorkflowEvent) => {
+      onEvent?.(event);
 
-  const handleNodeSelect = (id: string) => {
-    setSelectedNodeId(id);
-    onNodeSelect?.(id);
-  };
+      // Update node status based on event
+      if (event.node) {
+        const eventNodeLower = event.node.toLowerCase();
+        
+        setNodes((nds) =>
+          nds.map((node) => {
+            // Direct ID match or label contains node name
+            const isMatch = node.id === event.node || 
+                           node.data.label.toLowerCase().includes(eventNodeLower);
+            
+            if (isMatch) {
+              const newStatus = eventToStatus(event.event);
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  status: newStatus,
+                  latency: event.latency ?? node.data.latency,
+                },
+              };
+            }
+            return node;
+          })
+        );
+
+        // Animate edges when node completes
+        if (event.event === 'node_complete') {
+          setEdges((eds) =>
+            eds.map((edge) => {
+              if (edge.source === event.node) {
+                return {
+                  ...edge,
+                  animated: true,
+                  style: { ...edge.style, stroke: '#8be9fd' },
+                  label: event.latency ? `${event.latency}ms` : undefined,
+                  labelStyle: { fill: '#8be9fd', fontSize: 12 },
+                  labelBgStyle: { fill: '#282a36', fillOpacity: 0.8 },
+                };
+              }
+              return edge;
+            })
+          );
+        }
+      }
+
+      // Handle workflow-level events
+      if (event.event === 'workflow_start') {
+        // Reset all nodes to pending
+        setNodes((nds) =>
+          nds.map((node) => ({
+            ...node,
+            data: { ...node.data, status: 'pending' as NodeExecutionStatus, latency: undefined },
+          }))
+        );
+        // Reset edges
+        setEdges((eds) =>
+          eds.map((edge) => ({
+            ...edge,
+            animated: false,
+            style: { ...edge.style, stroke: '#6272a4' },
+            label: undefined,
+          }))
+        );
+      }
+
+      if (event.event === 'workflow_complete') {
+        // Mark output node as success
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === 'output'
+              ? { ...node, data: { ...node.data, status: 'success' as NodeExecutionStatus } }
+              : node
+          )
+        );
+      }
+
+      if (event.event === 'workflow_failed') {
+        // Mark remaining running nodes as failed
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.data.status === 'running'
+              ? { ...node, data: { ...node.data, status: 'failed' as NodeExecutionStatus } }
+              : node
+          )
+        );
+      }
+    },
+    [onEvent, setNodes, setEdges]
+  );
+
+  // Subscribe to workflow events
+  useEffect(() => {
+    if (subscribe) {
+      const unsubscribe = subscribe(handleWorkflowEvent);
+      return unsubscribe;
+    }
+  }, [subscribe, handleWorkflowEvent]);
+
+  // Handle node selection
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onNodesChange(changes);
+
+      // Find selection changes
+      const selectionChange = changes.find(
+        (change) => change.type === 'select' && 'selected' in change
+      );
+      if (selectionChange && 'id' in selectionChange) {
+        const nodeId = selectionChange.selected ? selectionChange.id : null;
+        setSelectedNodeId(nodeId);
+        onNodeSelect?.(nodeId);
+      }
+    },
+    [onNodesChange, onNodeSelect]
+  );
+
+  // Inject onAction callback into node data
+  const nodesWithAction = useMemo(() => {
+    if (!onNodeAction) return nodes;
+    return nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        onAction: onNodeAction,
+      },
+    }));
+  }, [nodes, onNodeAction]);
 
   return (
-    <div className="relative w-full h-full bg-[#282a36] overflow-hidden rounded-lg border border-[#6272a4]">
-      {/* Zoom Controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-        <button
-          onClick={handleZoomIn}
-          className="p-2 bg-[#44475a] text-[#f8f8f2] rounded hover:bg-[#6272a4] transition-colors"
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        <span className="text-center text-xs text-[#8be9fd]">
-          {Math.round(zoomLevel * 100)}%
-        </span>
-        <button
-          onClick={handleZoomOut}
-          className="p-2 bg-[#44475a] text-[#f8f8f2] rounded hover:bg-[#6272a4] transition-colors"
-          aria-label="Zoom out"
-        >
-          -
-        </button>
-      </div>
-
-      {/* Canvas Content */}
-      <div
-        className="relative w-full h-full"
-        style={{
-          transform: `scale(${zoomLevel})`,
-          transformOrigin: 'center center',
-        }}
+    <div
+      className={`w-full h-full bg-[#282a36] rounded-lg border border-[#6272a4] ${className}`}
+      data-testid="workflow-canvas"
+    >
+      <ReactFlow
+        nodes={nodesWithAction}
+        edges={edges}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.3}
+        maxZoom={2}
+        attributionPosition="bottom-left"
+        proOptions={{ hideAttribution: true }}
       >
-        {/* SVG Layer for Edges */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {edges.map((edge) => {
-            const sourceNode = nodes.find((n) => n.id === edge.source);
-            const targetNode = nodes.find((n) => n.id === edge.target);
-
-            if (!sourceNode || !targetNode) return null;
-
-            return (
-              <g key={edge.id}>
-                <line
-                  x1={sourceNode.position.x + 75}
-                  y1={sourceNode.position.y + 40}
-                  x2={targetNode.position.x + 75}
-                  y2={targetNode.position.y + 40}
-                  stroke="#6272a4"
-                  strokeWidth="2"
-                  markerEnd="url(#arrowhead)"
-                />
-                {edge.latency !== undefined && (
-                  <text
-                    x={(sourceNode.position.x + targetNode.position.x) / 2 + 75}
-                    y={(sourceNode.position.y + targetNode.position.y) / 2 + 40}
-                    fill="#8be9fd"
-                    fontSize="12"
-                    textAnchor="middle"
-                  >
-                    {edge.latency}ms
-                  </text>
-                )}
-              </g>
-            );
-          })}
-          {/* Arrow marker definition */}
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 3.5, 0 7" fill="#6272a4" />
-            </marker>
-          </defs>
-        </svg>
-
-        {/* Nodes Layer */}
-        {nodes.map((node) => (
-          <div
-            key={node.id}
-            className="absolute"
-            style={{
-              left: node.position.x,
-              top: node.position.y,
-              width: '150px',
-            }}
-          >
-            <WorkflowNode
-              id={node.id}
-              label={node.label}
-              type={node.type}
-              status={node.status}
-              isSelected={selectedNodeId === node.id}
-              onSelect={handleNodeSelect}
-            />
-          </div>
-        ))}
-      </div>
+        {showControls && (
+          <Controls
+            className="!bg-[#44475a] !border-[#6272a4] !rounded-lg"
+            showZoom={true}
+            showFitView={true}
+            showInteractive={false}
+          />
+        )}
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color="#6272a4"
+        />
+      </ReactFlow>
 
       {/* Empty State */}
       {nodes.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <p className="text-[#6272a4]">No workflow nodes to display</p>
         </div>
       )}
@@ -188,3 +401,6 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 };
 
 export default WorkflowCanvas;
+
+// Re-export types for convenience
+export type { WorkflowNodeData } from './WorkflowNode';
