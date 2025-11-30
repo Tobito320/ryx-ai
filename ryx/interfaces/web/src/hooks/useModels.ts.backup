@@ -1,0 +1,87 @@
+import { useState, useEffect, useCallback } from 'react';
+import { Model } from '../types';
+
+const API_BASE = process.env.REACT_APP_API_URL || '/api';
+
+/**
+ * Hook to manage available models - fetches from backend API
+ * Models are discovered automatically from backend/models/ directory
+ */
+export const useModels = () => {
+  const [models, setModels] = useState<Model[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Fetch models from backend API
+   * Backend will list all .gguf files in the models directory
+   */
+  const fetchModels = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/models`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch models: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Transform backend response to frontend Model type
+      const transformedModels: Model[] = (data.models || []).map((model: any) => ({
+        id: model.id || model.path?.replace('.gguf', '') || model.name,
+        name: model.name || model.path?.replace('.gguf', '').replace(/-/g, ' '),
+        portRange: '8000-8010', // Your backend runs on port 8000
+        status: model.status || 'available',
+        size: model.size,
+        path: model.path,
+      }));
+
+      setModels(transformedModels);
+      console.log('✅ Models fetched from backend:', transformedModels);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error fetching models';
+      console.error('❌ Error fetching models:', err);
+      setError(errorMessage);
+      
+      // Don't set empty array on error - keep previous models if any
+      if (models.length === 0) {
+        setModels([]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * Refresh models list manually
+   */
+  const refreshModels = useCallback(async () => {
+    await fetchModels();
+  }, [fetchModels]);
+
+  /**
+   * Load models on mount and set up periodic refresh
+   */
+  useEffect(() => {
+    // Initial fetch
+    fetchModels();
+
+    // Refresh every 30 seconds to catch newly added models
+    const interval = setInterval(() => {
+      fetchModels();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchModels]);
+
+  return {
+    models,
+    isLoading,
+    error,
+    refreshModels,
+  };
+};
+
