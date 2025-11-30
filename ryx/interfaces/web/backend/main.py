@@ -6,7 +6,7 @@ REST and WebSocket API for the Ryx AI web interface
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -81,6 +81,8 @@ app = FastAPI(
 )
 
 # CORS middleware for development
+# NOTE: Allowing all origins for development only.
+# In production, restrict to specific frontend origins.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -126,7 +128,10 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.get("/api/history", response_model=HistoryResponse)
-async def get_history(limit: int = 50, offset: int = 0) -> HistoryResponse:
+async def get_history(
+    limit: int = Query(default=50, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0)
+) -> HistoryResponse:
     """
     Get conversation history.
 
@@ -172,7 +177,15 @@ async def workflow_stream(websocket: WebSocket) -> None:
     await websocket.accept()
     try:
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await websocket.receive_json()
+            except Exception:
+                # Handle invalid JSON
+                await websocket.send_json({
+                    "event": "error",
+                    "message": "Invalid JSON data"
+                })
+                continue
             # TODO: Implement actual workflow execution
             # Echo back for now
             await websocket.send_json({
@@ -195,4 +208,4 @@ async def health_check() -> dict:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
