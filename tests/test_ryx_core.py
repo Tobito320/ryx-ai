@@ -22,9 +22,11 @@ class TestPermissions:
             requires_destroy,
             PermissionContext,
             check_permission,
+            PermissionLevel,
         )
         assert permission_level is not None
         assert requires_safe is not None
+        assert PermissionLevel is not None
     
     def test_permission_levels(self):
         """Test PermissionLevel enum"""
@@ -417,6 +419,54 @@ class TestWorkflow:
         assert event_dict["event_type"] == "node_start"
         assert event_dict["workflow_id"] == "test-wf"
         assert event_dict["node_id"] == "node1"
+
+
+class TestCLI:
+    """Test CLI module"""
+    
+    def test_import(self):
+        """Test CLI imports"""
+        from ryx_core.cli import app
+        assert app is not None
+    
+    def test_cli_help(self):
+        """Test CLI help runs without error"""
+        from typer.testing import CliRunner
+        from ryx_core.cli import app
+        
+        runner = CliRunner()
+        result = runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        assert "Ryx AI" in result.output
+    
+    def test_cli_version(self):
+        """Test CLI version command"""
+        from typer.testing import CliRunner
+        from ryx_core.cli import app
+        
+        runner = CliRunner()
+        result = runner.invoke(app, ["version"])
+        assert result.exit_code == 0
+        assert "0.2.0" in result.output
+
+
+class TestAPI:
+    """Test FastAPI module"""
+    
+    def test_import(self):
+        """Test API imports"""
+        from ryx_core.api import app
+        assert app is not None
+    
+    def test_api_routes(self):
+        """Test API has expected routes"""
+        from ryx_core.api import app
+        
+        routes = [route.path for route in app.routes]
+        assert "/" in routes
+        assert "/api/health" in routes
+        assert "/api/chat" in routes
+        assert "/api/models" in routes
 
 
 if __name__ == "__main__":

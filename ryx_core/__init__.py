@@ -6,6 +6,8 @@ Provides clean abstractions for:
 - Model routing interfaces
 - Workflow orchestration
 - Tool registration
+- FastAPI backend with WebSocket streaming
+- Typer CLI
 """
 
 from .permissions import (
@@ -15,6 +17,7 @@ from .permissions import (
     requires_destroy,
     PermissionContext,
     check_permission,
+    PermissionLevel,
 )
 
 from .interfaces import (
@@ -24,19 +27,21 @@ from .interfaces import (
     WorkflowNode,
     WorkflowEdge,
     ExecutionContext,
+    ModelCapability,
+    NodeStatus,
 )
 
 from .router import (
     IntelligentRouter,
     RouteDecision,
-    ModelCapability,
+    ModelTier,
 )
 
 from .workflow import (
     WorkflowEngine,
     WorkflowState,
-    NodeStatus,
     ExecutionEvent,
+    SimpleWorkflow,
 )
 
 __all__ = [
@@ -47,6 +52,7 @@ __all__ = [
     "requires_destroy",
     "PermissionContext",
     "check_permission",
+    "PermissionLevel",
     
     # Interfaces
     "BaseModel",
@@ -55,17 +61,19 @@ __all__ = [
     "WorkflowNode",
     "WorkflowEdge",
     "ExecutionContext",
+    "ModelCapability",
+    "NodeStatus",
     
     # Router
     "IntelligentRouter",
     "RouteDecision",
-    "ModelCapability",
+    "ModelTier",
     
     # Workflow
     "WorkflowEngine",
     "WorkflowState",
-    "NodeStatus",
     "ExecutionEvent",
+    "SimpleWorkflow",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
