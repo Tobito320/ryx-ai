@@ -241,6 +241,9 @@ class SessionLoop:
             else:
                 self.ui.info("Usage: /search <query>")
 
+        elif target == 'web_search_health':
+            self._handle_web_search_health()
+
         else:
             self.ui.warning(f"Unknown command: {intent.original_prompt}")
 
@@ -396,7 +399,7 @@ If you need to run a command, show the command."""
         self.ui.summary(changes)
 
     def _handle_web_research(self, user_input: str, intent: ClassifiedIntent):
-        """Handle web research"""
+        """Handle web research with privacy-first SearxNG"""
         query = intent.target or user_input
 
         self.ui.status(Emoji.BROWSE, f"Searching: {query}", Color.CYAN)
@@ -408,7 +411,13 @@ If you need to run a command, show the command."""
 
         if result.success and result.output:
             results = result.output
+            # Show search source for transparency
+            source = result.metadata.get('source', 'web')
+            count = result.metadata.get('count', len(results))
             print()
+            print(f"  {Color.PURPLE}🌐 {source} search: '{query}' ({count} results){Color.RESET}")
+            print()
+            
             for i, r in enumerate(results[:5], 1):
                 print(f"  {Color.YELLOW_BOLD}[{i}]{Color.RESET} {r['title']}")
                 print(f"      {Color.CYAN}{r['url']}{Color.RESET}")
@@ -430,7 +439,10 @@ If you need to run a command, show the command."""
                 })
 
                 if scrape_result.success:
+                    domain = scrape_result.output.get('domain', 'unknown')
                     text = scrape_result.output.get('text', '')[:2000]
+                    
+                    print(f"\n  {Color.PURPLE}📄 Scraped from {domain} (BeautifulSoup local parsing){Color.RESET}\n")
 
                     # Summarize with AI
                     model = self.router.get_model(ModelTier.FAST)
@@ -442,8 +454,67 @@ If you need to run a command, show the command."""
 
                     if not summary.error:
                         self.ui.assistant_message(summary.response)
+                else:
+                    self.ui.error(f"Scraping failed: {scrape_result.error}")
         else:
             self.ui.error(f"Search failed: {result.error}")
+
+    def _handle_web_search_health(self):
+        """Handle /webtest command - check web search health"""
+        print()
+        self.ui.divider()
+        print(f"  {Color.PURPLE_BOLD}Web Search Health Check{Color.RESET}")
+        self.ui.divider()
+        
+        result = self.tools.execute_tool('web_search_health', {})
+        
+        if result.success:
+            health = result.output
+            overall = result.metadata.get('overall_status', 'unknown')
+            
+            # BeautifulSoup status
+            bs_status = health.get('beautifulsoup', {})
+            bs_color = Color.GREEN if bs_status.get('status') == 'healthy' else Color.RED
+            print(f"  BeautifulSoup: {bs_color}{bs_status.get('status', 'unknown')}{Color.RESET}")
+            if bs_status.get('message'):
+                print(f"    {Color.GRAY}{bs_status['message']}{Color.RESET}")
+            
+            # SearxNG config status
+            searxng_config = health.get('searxng_config', {})
+            config_status = searxng_config.get('status', 'unknown')
+            config_color = Color.GREEN if config_status == 'healthy' else (Color.YELLOW if config_status == 'not_configured' else Color.RED)
+            print(f"  SearxNG Config: {config_color}{config_status}{Color.RESET}")
+            if searxng_config.get('url'):
+                print(f"    URL: {Color.CYAN}{searxng_config['url']}{Color.RESET}")
+                print(f"    Timeout: {searxng_config.get('timeout', 10)}s, Max results: {searxng_config.get('max_results', 5)}")
+                print(f"    DuckDuckGo fallback: {'enabled' if searxng_config.get('fallback_enabled') else 'disabled'}")
+            elif searxng_config.get('message'):
+                print(f"    {Color.GRAY}{searxng_config['message']}{Color.RESET}")
+            
+            # SearxNG connection status
+            searxng_conn = health.get('searxng_connection', {})
+            conn_status = searxng_conn.get('status', 'unknown')
+            conn_color = Color.GREEN if conn_status == 'healthy' else (Color.YELLOW if conn_status in ['skipped', 'warning'] else Color.RED)
+            print(f"  SearxNG Connection: {conn_color}{conn_status}{Color.RESET}")
+            if searxng_conn.get('message'):
+                print(f"    {Color.GRAY}{searxng_conn['message']}{Color.RESET}")
+            
+            # Overall status
+            overall_color = Color.GREEN if overall == 'healthy' else (Color.YELLOW if overall == 'degraded' else Color.RED)
+            print()
+            print(f"  Overall: {overall_color}{overall.upper()}{Color.RESET}")
+            
+            if overall != 'healthy':
+                print()
+                print(f"  {Color.YELLOW}To enable web search:{Color.RESET}")
+                print(f"    1. Start SearxNG: docker run -d -p 8080:8080 searxng/searxng")
+                print(f"    2. Set URL: export SEARXNG_URL=http://localhost:8080")
+                print(f"    3. Or edit: configs/ryx_config.json → search.searxng_url")
+        else:
+            self.ui.error(f"Health check failed: {result.error}")
+        
+        self.ui.divider()
+        print()
 
     def _handle_system_task(self, user_input: str, intent: ClassifiedIntent):
         """Handle system tasks"""

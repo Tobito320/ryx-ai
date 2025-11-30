@@ -1,6 +1,11 @@
 """
 Ryx AI - Tool Registry
 Unified tool interface for filesystem, web, shell, and RAG operations
+
+Privacy-first design:
+- Web search goes through self-hosted SearxNG (configurable)
+- HTML parsing with BeautifulSoup (local, no external services)
+- No telemetry or third-party analytics
 """
 
 import os
@@ -11,8 +16,71 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Callable
 from enum import Enum
 import logging
+from urllib.parse import urljoin, urlparse
 
 logger = logging.getLogger(__name__)
+
+# Module-level registry singleton
+_registry_instance: Optional['ToolRegistry'] = None
+
+
+def get_tool_registry(safety_mode: str = "normal") -> 'ToolRegistry':
+    """Get the singleton ToolRegistry instance"""
+    global _registry_instance
+    if _registry_instance is None:
+        _registry_instance = ToolRegistry(safety_mode=safety_mode)
+    return _registry_instance
+
+
+def _get_searxng_config() -> Dict[str, Any]:
+    """
+    Load SearxNG configuration from config file or environment.
+    
+    Priority:
+    1. SEARXNG_URL environment variable
+    2. configs/ryx_config.json → search.searxng_url
+    3. Default to None (will trigger helpful error message)
+    """
+    # Try environment variable first
+    searxng_url = os.environ.get('SEARXNG_URL')
+    timeout = int(os.environ.get('SEARXNG_TIMEOUT', '10'))
+    max_results = int(os.environ.get('SEARXNG_MAX_RESULTS', '5'))
+    
+    if searxng_url:
+        return {
+            'searxng_url': searxng_url,
+            'timeout_seconds': timeout,
+            'max_results': max_results
+        }
+    
+    # Try config file
+    try:
+        config_paths = [
+            Path(__file__).parent.parent / "configs" / "ryx_config.json",
+            Path.home() / ".ryx" / "configs" / "ryx_config.json",
+            Path.home() / "ryx-ai" / "configs" / "ryx_config.json",
+        ]
+        
+        for config_path in config_paths:
+            if config_path.exists():
+                with open(config_path) as f:
+                    config = json.load(f)
+                    search_config = config.get('search', {})
+                    return {
+                        'searxng_url': search_config.get('searxng_url'),
+                        'timeout_seconds': search_config.get('timeout_seconds', 10),
+                        'max_results': search_config.get('max_results', 5),
+                        'fallback_to_duckduckgo': search_config.get('fallback_to_duckduckgo', False)
+                    }
+    except Exception as e:
+        logger.warning(f"Failed to load search config: {e}")
+    
+    return {
+        'searxng_url': None,
+        'timeout_seconds': 10,
+        'max_results': 5,
+        'fallback_to_duckduckgo': False
+    }
 
 
 class ToolCategory(Enum):
@@ -187,7 +255,7 @@ class ToolRegistry:
 
         self.register(ToolDefinition(
             name="scrape_page",
-            description="Scrape and extract text from a web page",
+            description="Scrape and extract readable text from a web page using BeautifulSoup (local parsing)",
             category=ToolCategory.WEB,
             safety_level=SafetyLevel.SAFE,
             parameters={
@@ -198,8 +266,20 @@ class ToolRegistry:
         ))
 
         self.register(ToolDefinition(
+            name="searxng_search",
+            description="Search the web using self-hosted SearxNG (privacy-first, local search)",
+            category=ToolCategory.WEB,
+            safety_level=SafetyLevel.SAFE,
+            parameters={
+                "query": "string - Search query",
+                "num_results": "int - Number of results (default: 5)"
+            },
+            handler=self._searxng_search
+        ))
+
+        self.register(ToolDefinition(
             name="web_search",
-            description="Search the web using DuckDuckGo",
+            description="Search the web (uses SearxNG if configured, otherwise DuckDuckGo fallback)",
             category=ToolCategory.WEB,
             safety_level=SafetyLevel.SAFE,
             parameters={
@@ -207,6 +287,15 @@ class ToolRegistry:
                 "num_results": "int - Number of results (default: 5)"
             },
             handler=self._web_search
+        ))
+
+        self.register(ToolDefinition(
+            name="web_search_health",
+            description="Check web search health (SearxNG connectivity and BeautifulSoup availability)",
+            category=ToolCategory.MISC,
+            safety_level=SafetyLevel.SAFE,
+            parameters={},
+            handler=self._web_search_health
         ))
 
         # RAG tools
@@ -630,54 +719,251 @@ class ToolRegistry:
             return ToolResult(success=False, output=None, error=str(e))
 
     def _scrape_page(self, params: Dict) -> ToolResult:
-        """Scrape web page"""
-        import requests
-        from bs4 import BeautifulSoup
+        """
+        Scrape web page using BeautifulSoup (local parsing).
+        
+        Returns:
+            Extracted text content and optionally links.
+            Mentions the domain for transparency.
+        """
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+        except ImportError as e:
+            return ToolResult(
+                success=False,
+                output=None,
+                error="BeautifulSoup not installed. Run: pip install beautifulsoup4 lxml"
+            )
 
         url = params['url']
         extract_links = params.get('extract_links', False)
 
         try:
+            # Parse domain for transparency
+            domain = urlparse(url).netloc
+            
             response = requests.get(url, timeout=10, headers={
-                'User-Agent': 'Ryx-AI/1.0 (Educational; +https://github.com/ryx-ai)'
+                'User-Agent': 'Ryx-AI/2.0 (Local; Privacy-First)'
             })
+            response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'lxml')
 
-            # Remove script and style
-            for script in soup(["script", "style"]):
-                script.decompose()
+            # Remove script, style, nav, footer elements
+            for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+                element.decompose()
 
-            text = soup.get_text()
+            # Try to find main content
+            main_content = soup.find('main') or soup.find('article') or soup.find('body')
+            
+            if main_content:
+                text = main_content.get_text(separator=' ', strip=True)
+            else:
+                text = soup.get_text(separator=' ', strip=True)
+            
+            # Clean up whitespace
             lines = (line.strip() for line in text.splitlines())
             text = ' '.join(chunk for chunk in lines if chunk)
+            
+            # Truncate to reasonable size
+            text = text[:5000]
 
-            result = {'text': text[:5000]}
+            result = {
+                'domain': domain,
+                'text': text,
+                'text_length': len(text)
+            }
 
             if extract_links:
-                links = [a.get('href') for a in soup.find_all('a', href=True)]
-                result['links'] = links[:50]
+                links = []
+                for a in soup.find_all('a', href=True):
+                    href = a.get('href', '')
+                    # Convert relative URLs to absolute
+                    if href and not href.startswith(('#', 'javascript:', 'mailto:')):
+                        full_url = urljoin(url, href)
+                        links.append(full_url)
+                result['links'] = list(set(links))[:50]  # Deduplicate and limit
 
             return ToolResult(
                 success=True,
                 output=result,
-                metadata={'url': url}
+                metadata={'url': url, 'domain': domain}
             )
+        except requests.exceptions.RequestException as e:
+            return ToolResult(success=False, output=None, error=f"Failed to fetch {url}: {str(e)}")
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
 
-    def _web_search(self, params: Dict) -> ToolResult:
-        """Search the web"""
-        import requests
-        from bs4 import BeautifulSoup
+    def _searxng_search(self, params: Dict) -> ToolResult:
+        """
+        Search using self-hosted SearxNG instance.
+        
+        Privacy-first: All queries go to your own SearxNG instance.
+        No direct calls to Google/Bing/etc.
+        
+        Returns structured results (title, URL, snippet) parsed with BeautifulSoup.
+        """
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+        except ImportError:
+            return ToolResult(
+                success=False,
+                output=None,
+                error="BeautifulSoup not installed. Run: pip install beautifulsoup4 lxml"
+            )
 
         query = params['query']
         num_results = params.get('num_results', 5)
-
+        
+        # Load SearxNG configuration
+        config = _get_searxng_config()
+        searxng_url = config.get('searxng_url')
+        timeout = config.get('timeout_seconds', 10)
+        
+        if not searxng_url:
+            return ToolResult(
+                success=False,
+                output=None,
+                error=(
+                    "❌ Web search disabled: SearxNG URL not configured.\n"
+                    "Set SEARXNG_URL environment variable or configure in:\n"
+                    "  configs/ryx_config.json → search.searxng_url\n\n"
+                    "Example: export SEARXNG_URL=http://localhost:8080\n"
+                    "Or add to ryx_config.json:\n"
+                    '  "search": { "searxng_url": "http://localhost:8080" }'
+                )
+            )
+        
         try:
+            # Build search URL (SearxNG JSON API)
+            search_endpoint = f"{searxng_url.rstrip('/')}/search"
+            
+            response = requests.get(
+                search_endpoint,
+                params={
+                    'q': query,
+                    'format': 'json',
+                    'categories': 'general'
+                },
+                timeout=timeout,
+                headers={'User-Agent': 'Ryx-AI/2.0 (Local; Privacy-First)'}
+            )
+            
+            if response.status_code != 200:
+                # Try HTML format as fallback
+                return self._searxng_search_html(query, searxng_url, num_results, timeout)
+            
+            data = response.json()
+            results = []
+            
+            for item in data.get('results', [])[:num_results]:
+                results.append({
+                    'title': item.get('title', 'No title'),
+                    'url': item.get('url', ''),
+                    'snippet': item.get('content', '')[:200] if item.get('content') else ''
+                })
+            
+            return ToolResult(
+                success=True,
+                output=results,
+                metadata={
+                    'query': query,
+                    'count': len(results),
+                    'source': 'SearxNG',
+                    'searxng_url': searxng_url
+                }
+            )
+            
+        except requests.exceptions.ConnectionError:
+            return ToolResult(
+                success=False,
+                output=None,
+                error=(
+                    f"❌ Cannot connect to SearxNG at {searxng_url}\n"
+                    "Make sure SearxNG is running. To start it:\n"
+                    "  docker run -d -p 8080:8080 searxng/searxng\n"
+                    "Or check your SEARXNG_URL configuration."
+                )
+            )
+        except requests.exceptions.Timeout:
+            return ToolResult(
+                success=False,
+                output=None,
+                error=f"SearxNG request timed out after {timeout}s. Try increasing timeout_seconds."
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=f"SearxNG search error: {str(e)}")
+
+    def _searxng_search_html(self, query: str, searxng_url: str, num_results: int, timeout: int) -> ToolResult:
+        """Fallback: Parse SearxNG HTML results if JSON API not available"""
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
+            search_endpoint = f"{searxng_url.rstrip('/')}/search"
+            response = requests.get(
+                search_endpoint,
+                params={'q': query},
+                timeout=timeout,
+                headers={'User-Agent': 'Ryx-AI/2.0 (Local; Privacy-First)'}
+            )
+            
+            soup = BeautifulSoup(response.text, 'lxml')
+            results = []
+            
+            # Try to find result containers (SearxNG HTML structure)
+            for article in soup.find_all(['article', 'div'], class_=['result', 'search-result'])[:num_results]:
+                title_elem = article.find(['h3', 'h4', 'a'])
+                link_elem = article.find('a', href=True)
+                snippet_elem = article.find(['p', 'span'], class_=['content', 'snippet', 'description'])
+                
+                if title_elem and link_elem:
+                    results.append({
+                        'title': title_elem.get_text(strip=True),
+                        'url': link_elem.get('href', ''),
+                        'snippet': snippet_elem.get_text(strip=True)[:200] if snippet_elem else ''
+                    })
+            
+            return ToolResult(
+                success=True,
+                output=results,
+                metadata={'query': query, 'count': len(results), 'source': 'SearxNG (HTML)'}
+            )
+        except Exception as e:
+            return ToolResult(success=False, output=None, error=f"SearxNG HTML parse error: {str(e)}")
+
+    def _web_search(self, params: Dict) -> ToolResult:
+        """
+        Search the web - uses SearxNG if configured, with optional DuckDuckGo fallback.
+        
+        Privacy note: SearxNG is preferred for privacy. DuckDuckGo is only used
+        as a fallback if explicitly enabled in config (fallback_to_duckduckgo: true).
+        """
+        query = params['query']
+        num_results = params.get('num_results', 5)
+        
+        # Try SearxNG first
+        searxng_result = self._searxng_search(params)
+        
+        if searxng_result.success:
+            return searxng_result
+        
+        # Check if fallback is allowed
+        config = _get_searxng_config()
+        if not config.get('fallback_to_duckduckgo', False):
+            # Return the SearxNG error with helpful message
+            return searxng_result
+        
+        # Fallback to DuckDuckGo HTML search
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
             search_url = f"https://html.duckduckgo.com/html/?q={query}"
             response = requests.get(search_url, timeout=10, headers={
-                'User-Agent': 'Ryx-AI/1.0 (Educational; +https://github.com/ryx-ai)'
+                'User-Agent': 'Ryx-AI/2.0 (Local; Privacy-First)'
             })
 
             soup = BeautifulSoup(response.text, 'lxml')
@@ -697,10 +983,108 @@ class ToolRegistry:
             return ToolResult(
                 success=True,
                 output=results,
-                metadata={'query': query, 'count': len(results)}
+                metadata={'query': query, 'count': len(results), 'source': 'DuckDuckGo (fallback)'}
             )
         except Exception as e:
-            return ToolResult(success=False, output=None, error=str(e))
+            return ToolResult(success=False, output=None, error=f"Web search failed: {str(e)}")
+
+    def _web_search_health(self, params: Dict) -> ToolResult:
+        """
+        Check web search health and configuration.
+        
+        Tests:
+        1. BeautifulSoup availability
+        2. SearxNG URL configuration
+        3. SearxNG connectivity (if configured)
+        """
+        health = {
+            'beautifulsoup': {'status': 'unknown'},
+            'searxng_config': {'status': 'unknown'},
+            'searxng_connection': {'status': 'unknown'}
+        }
+        
+        # Check BeautifulSoup
+        try:
+            from bs4 import BeautifulSoup
+            health['beautifulsoup'] = {
+                'status': 'healthy',
+                'message': 'BeautifulSoup is installed and working'
+            }
+        except ImportError:
+            health['beautifulsoup'] = {
+                'status': 'error',
+                'message': 'BeautifulSoup not installed. Run: pip install beautifulsoup4 lxml'
+            }
+        
+        # Check SearxNG configuration
+        config = _get_searxng_config()
+        searxng_url = config.get('searxng_url')
+        
+        if searxng_url:
+            health['searxng_config'] = {
+                'status': 'healthy',
+                'url': searxng_url,
+                'timeout': config.get('timeout_seconds', 10),
+                'max_results': config.get('max_results', 5),
+                'fallback_enabled': config.get('fallback_to_duckduckgo', False)
+            }
+            
+            # Test SearxNG connectivity
+            try:
+                import requests
+                response = requests.get(
+                    f"{searxng_url.rstrip('/')}/",
+                    timeout=5,
+                    headers={'User-Agent': 'Ryx-AI/2.0 (Health-Check)'}
+                )
+                if response.status_code == 200:
+                    health['searxng_connection'] = {
+                        'status': 'healthy',
+                        'message': f'SearxNG is reachable at {searxng_url}'
+                    }
+                else:
+                    health['searxng_connection'] = {
+                        'status': 'warning',
+                        'message': f'SearxNG returned status {response.status_code}'
+                    }
+            except requests.exceptions.ConnectionError:
+                health['searxng_connection'] = {
+                    'status': 'error',
+                    'message': f'Cannot connect to SearxNG at {searxng_url}. Is it running?'
+                }
+            except Exception as e:
+                health['searxng_connection'] = {
+                    'status': 'error',
+                    'message': str(e)
+                }
+        else:
+            health['searxng_config'] = {
+                'status': 'not_configured',
+                'message': (
+                    'SearxNG URL not set. Configure via:\n'
+                    '  - Environment: export SEARXNG_URL=http://localhost:8080\n'
+                    '  - Config file: configs/ryx_config.json → search.searxng_url'
+                )
+            }
+            health['searxng_connection'] = {
+                'status': 'skipped',
+                'message': 'Skipped - SearxNG not configured'
+            }
+        
+        # Determine overall status
+        statuses = [v['status'] for v in health.values()]
+        if 'error' in statuses:
+            overall = 'unhealthy'
+        elif 'warning' in statuses or 'not_configured' in statuses:
+            overall = 'degraded'
+        else:
+            overall = 'healthy'
+        
+        return ToolResult(
+            success=True,
+            output=health,
+            metadata={'overall_status': overall}
+        )
 
     def _save_note(self, params: Dict) -> ToolResult:
         """Save note to knowledge base"""
