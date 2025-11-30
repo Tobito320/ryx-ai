@@ -9,3 +9,10 @@ psutil>=5.9.0  # For system resource monitoring
 # Web Scraping & Search (Required for web features)
 beautifulsoup4>=4.12.0  # HTML parsing for web scraping (local, privacy-first)
 lxml>=4.9.0  # Fast HTML/XML parser for BeautifulSoup
+
+# CLI & API (ryx_core module)
+typer>=0.20.0  # Modern CLI framework
+rich>=13.0.0  # Rich terminal output
+fastapi>=0.100.0  # REST API framework
+uvicorn>=0.22.0  # ASGI server
+websockets>=11.0  # WebSocket support
