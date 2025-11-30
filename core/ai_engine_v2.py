@@ -281,8 +281,8 @@ class AIEngineV2:
         """
         # Determine model based on time budget
         if remaining_time_ms < 500:
-            # Critical time - use fast model only
-            model_override = options.model_override or "qwen2.5:1.5b"
+            # Critical time - use fast/base model only
+            model_override = options.model_override or self.orchestrator.base_model_name
         elif remaining_time_ms < 1500 and not options.model_override:
             # Limited time - prefer fast models
             # Let orchestrator decide but hint at fast
@@ -315,7 +315,7 @@ class AIEngineV2:
             },
             "tasks": {
                 "current": self.task_manager.current_task.description if self.task_manager.current_task else None,
-                "paused": len(self.task_manager.get_all_tasks(status=None))
+                "pending": len(self.task_manager.get_all_tasks())  # All tasks count
             }
         }
 

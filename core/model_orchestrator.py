@@ -62,6 +62,15 @@ class ModelOrchestrator:
     - Performance Tracking: Learns which models work best for different tasks
     """
 
+    # Default tier level mappings for config compatibility
+    DEFAULT_TIER_LEVELS = {
+        "fast": 1, "ultra-fast": 1,
+        "balanced": 2,
+        "powerful": 3,
+        "ultra": 3,
+        "uncensored": 2
+    }
+
     def __init__(self, config_path: Optional[Path] = None, metrics_collector=None) -> None:
         """Initialize model orchestrator with lazy loading and performance tracking"""
         if config_path is None:
@@ -126,28 +135,21 @@ class ModelOrchestrator:
 
             # Parse model tiers - support both 'tiers' and 'models' keys
             tiers_data = config.get("tiers", config.get("models", {}))
-            
+
             for tier_name, tier_config in tiers_data.items():
                 # Handle different config formats
                 # New format has full ModelTier fields
                 # Old format (models.json) has different fields
                 if "tier_level" not in tier_config:
-                    # Map old format to new format with sensible defaults
-                    tier_levels = {
-                        "fast": 1, "ultra-fast": 1,
-                        "balanced": 2, 
-                        "powerful": 3,
-                        "ultra": 3,
-                        "uncensored": 2
-                    }
+                    # Map old format to new format using class constant
                     tier_config = {
                         "name": tier_config.get("name", "unknown"),
                         "vram_mb": tier_config.get("vram_mb", 4000),
                         "typical_latency_ms": tier_config.get("typical_latency_ms", 500),
                         "specialties": tier_config.get("specialties", []),
-                        "tier_level": tier_levels.get(tier_name, 2)
+                        "tier_level": self.DEFAULT_TIER_LEVELS.get(tier_name, 2)
                     }
-                
+
                 self.model_tiers[tier_name] = ModelTier(**tier_config)
 
                 # Initialize performance tracking
@@ -156,12 +158,12 @@ class ModelOrchestrator:
                     self.model_performance[model_name] = ModelPerformance(
                         model_name=model_name
                     )
-            
+
             # Ensure we have at least basic tiers for fallback
             if not self.model_tiers:
                 self._create_default_config()
                 self._load_config()
-                
+
         except FileNotFoundError:
             # Use defaults if config doesn't exist
             self._create_default_config()

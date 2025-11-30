@@ -27,18 +27,17 @@ class TestModelOrchestrator:
 
         # Simple query should have low complexity
         simple = "open config"
-        complexity = orchestrator.analyze_complexity(simple)
-        assert complexity < 0.4, f"Simple query has too high complexity: {complexity}"
+        simple_complexity = orchestrator.analyze_complexity(simple)
+        assert simple_complexity < 0.4, f"Simple query has too high complexity: {simple_complexity}"
 
         # Complex query should have higher complexity than simple
         # Note: The actual threshold depends on keyword matching
         complex_query = "refactor this architecture to use design patterns and optimize performance"
-        complexity = orchestrator.analyze_complexity(complex_query)
-        simple_complexity = orchestrator.analyze_complexity(simple)
-        assert complexity > simple_complexity, \
-            f"Complex query ({complexity}) should have higher complexity than simple ({simple_complexity})"
+        complex_complexity = orchestrator.analyze_complexity(complex_query)
+        assert complex_complexity > simple_complexity, \
+            f"Complex query ({complex_complexity}) should have higher complexity than simple ({simple_complexity})"
         # Relax the threshold since this depends on keyword matching
-        assert complexity > 0.4, f"Complex query has too low complexity: {complexity}"
+        assert complex_complexity > 0.4, f"Complex query has too low complexity: {complex_complexity}"
 
     def test_model_selection(self):
         """Test model selection based on complexity"""
