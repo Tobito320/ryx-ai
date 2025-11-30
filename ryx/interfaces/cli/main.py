@@ -8,6 +8,8 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from ryx import __version__
+
 # Initialize Typer app
 app = typer.Typer(
     name="ryx",
@@ -83,7 +85,7 @@ def main(
         ryx -m qwen "explain this error"
     """
     if version:
-        console.print("ryx version 0.1.0")
+        console.print(f"ryx version {__version__}")
         raise typer.Exit()
 
     if ctx.invoked_subcommand is not None:
@@ -94,7 +96,15 @@ def main(
         console.print("Command executed: prompt")
         console.print(f"  Prompt: {prompt}")
         console.print(f"  Model: {model or 'auto'}")
-        mode_str = "code" if code else "chat" if chat else "dev" if dev else "auto"
+        # Determine mode based on flags
+        if code:
+            mode_str = "code"
+        elif chat:
+            mode_str = "chat"
+        elif dev:
+            mode_str = "dev"
+        else:
+            mode_str = "auto"
         console.print(f"  Mode: {mode_str}")
         # TODO: Implement actual prompt execution
     else:
