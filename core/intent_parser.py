@@ -158,12 +158,12 @@ class IntentParser:
         if any(kw in masked_prompt for kw in self.EXECUTE_KEYWORDS):
             return 'execute'
 
-        # Check browse keywords
-        if any(kw in prompt_lower for kw in self.BROWSE_KEYWORDS):
+        # Check browse keywords, using masked prompt for consistency
+        if any(kw in masked_prompt for kw in self.BROWSE_KEYWORDS):
             return 'browse'
 
-        # Check locate keywords
-        if any(kw in prompt_lower for kw in self.LOCATE_KEYWORDS):
+        # Check locate keywords, using masked prompt for consistency
+        if any(kw in masked_prompt for kw in self.LOCATE_KEYWORDS):
             return 'locate'
 
         # Check if prompt mentions a config file or path (implicit locate)
