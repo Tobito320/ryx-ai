@@ -361,6 +361,37 @@ class ToolRegistry:
             handler=self._view_logs
         ))
 
+        # Register tool aliases for test compatibility
+        # Tests expect: file_search, file_read, file_write, file_patch, list_directory, shell_command, web_fetch
+        self._register_tool_aliases()
+
+    def _register_tool_aliases(self):
+        """
+        Register aliases for tools to maintain backward compatibility.
+        Tests expect different tool names than what we use internally.
+        """
+        alias_map = {
+            'file_read': 'read_file',
+            'file_write': 'write_file',
+            'file_patch': 'patch_file',
+            'file_search': 'search_files',
+            'list_directory': 'list_tree',
+            'shell_command': 'run_command',
+            'web_fetch': 'fetch_url',
+        }
+        for alias, original in alias_map.items():
+            if original in self.tools and alias not in self.tools:
+                # Create a copy of the tool definition with the alias name
+                orig_tool = self.tools[original]
+                self.tools[alias] = ToolDefinition(
+                    name=alias,
+                    description=orig_tool.description,
+                    category=orig_tool.category,
+                    safety_level=orig_tool.safety_level,
+                    parameters=orig_tool.parameters,
+                    handler=orig_tool.handler
+                )
+
     def register(self, tool: ToolDefinition):
         """Register a tool"""
         self.tools[tool.name] = tool
@@ -430,20 +461,49 @@ class ToolRegistry:
 
         return confirmed
 
-    def get_tool_descriptions(self) -> str:
-        """Get tool descriptions for LLM context"""
+    def get_tool_descriptions(self) -> List[Dict[str, Any]]:
+        """
+        Get tool descriptions for LLM context.
+        
+        Returns list of dicts with name, description, and parameters for each tool.
+        """
         descriptions = []
 
         for name, tool in self.tools.items():
+            descriptions.append({
+                'name': name,
+                'description': tool.description,
+                'parameters': tool.parameters
+            })
+
+        return descriptions
+
+    def get_tool_descriptions_text(self) -> str:
+        """Get tool descriptions as formatted text for LLM prompts"""
+        lines = []
+        for name, tool in self.tools.items():
             param_str = ", ".join([f"{k}: {v}" for k, v in tool.parameters.items()])
-            descriptions.append(
-                f"- {name}({param_str}): {tool.description}"
-            )
+            lines.append(f"- {name}({param_str}): {tool.description}")
+        return "\n".join(lines)
 
-        return "\n".join(descriptions)
+    def list_tools(self, category: Optional[ToolCategory] = None) -> List[str]:
+        """
+        List available tools.
+        
+        Returns a list of tool names (strings) for simple iteration.
+        Use list_tools_detailed() for full tool information.
+        """
+        result = []
 
-    def list_tools(self, category: Optional[ToolCategory] = None) -> List[Dict[str, Any]]:
-        """List available tools"""
+        for name, tool in self.tools.items():
+            if category and tool.category != category:
+                continue
+            result.append(name)
+
+        return result
+
+    def list_tools_detailed(self, category: Optional[ToolCategory] = None) -> List[Dict[str, Any]]:
+        """List available tools with full details"""
         result = []
 
         for name, tool in self.tools.items():
@@ -559,10 +619,24 @@ class ToolRegistry:
         try:
             tree = []
             self._build_tree(path, tree, "", depth)
+            
+            # Count files and directories for summary
+            file_count = 0
+            dir_count = 0
+            for entry in path.rglob('*'):
+                if entry.is_file():
+                    file_count += 1
+                elif entry.is_dir():
+                    dir_count += 1
+            
+            # Add summary line for test compatibility (contains "files" and "directories")
+            summary = f"\n{dir_count} directories, {file_count} files"
+            output = "\n".join(tree) + summary
+            
             return ToolResult(
                 success=True,
-                output="\n".join(tree),
-                metadata={'path': str(path)}
+                output=output,
+                metadata={'path': str(path), 'files': file_count, 'directories': dir_count}
             )
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))

@@ -38,6 +38,7 @@ class Emoji:
     """Status emoji indicators"""
     # Status
     DONE = "✅"
+    SUCCESS = "✅"  # Alias for DONE (test compatibility)
     ERROR = "❌"
     WARNING = "⚠️"
     INFO = "ℹ️"
@@ -318,3 +319,13 @@ class RyxUI:
 
 # Global UI instance
 ui = RyxUI()
+
+# Aliases for backward compatibility with tests
+# The tests expect 'Colors' and 'Icons' class names
+Colors = Color
+Icons = Emoji
+
+# Singleton getter function for compatibility with tests expecting get_ui()
+def get_ui() -> RyxUI:
+    """Get the global UI instance (singleton pattern)."""
+    return ui

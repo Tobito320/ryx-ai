@@ -48,10 +48,21 @@ class IntentClassifier:
     """
 
     # Minimal rule patterns for obvious cases (fast path)
+    # NOTE: Order matters! More specific patterns (CONFIG_EDIT) must come before general ones (FILE_OPS)
     OBVIOUS_PATTERNS = {
+        # Config editing - specific config mentions (MUST be checked before FILE_OPS)
+        # Extended to cover: "edit my X config", "update X settings", "change X configuration"
+        IntentType.CONFIG_EDIT: [
+            r'(hyprland|waybar|kitty|nvim|zsh|bash)\s*(config|settings?)',
+            r'(edit|update|change|modify)\s+(my\s+)?(hyprland|waybar|kitty|nvim|zsh|bash)',
+            r'~/.config/',
+        ],
         # File operations - very clear verbs
+        # Extended to cover: open, edit, show, find, locate, create, move, copy, delete file(s)
         IntentType.FILE_OPS: [
             r'^(open|edit|show|find|where is|locate)\s+',
+            r'^(create|touch|make|new)\s+(file|folder|directory)',
+            r'^(move|copy|delete|remove)\s+(file|folder)',
             r'\.conf$|\.yaml$|\.json$|\.toml$|config\s*$',
         ],
         # Code editing - obvious code-related verbs
@@ -60,9 +71,12 @@ class IntentClassifier:
             r'(function|class|method|module)\s+(to|that|which)',
         ],
         # System tasks - obvious system verbs
+        # Extended to cover: build, test, compile, lint, format
         IntentType.SYSTEM_TASK: [
             r'^(run tests?|check|diagnose|cleanup|optimize)',
             r'^(install|update|remove|uninstall)\s+',
+            r'^build\s+(the\s+)?project',
+            r'^(build|compile|lint|format)\s+',
         ],
         # Web research - explicit research requests
         # NOTE: "what is X" is still handled as CHAT unless combined with search keywords
@@ -74,11 +88,6 @@ class IntentClassifier:
             r'^scrape\s+(this\s+)?(url|page|site|website)',
             r'search\s+online\s+for',
             r'searxng\s+search',
-        ],
-        # Config editing - specific config mentions
-        IntentType.CONFIG_EDIT: [
-            r'(hyprland|waybar|kitty|nvim|zsh|bash)\s*(config|settings?)',
-            r'~/.config/',
         ],
     }
     

@@ -54,6 +54,11 @@ class SessionLoop:
         # Session file for persistence
         self.session_file = get_data_dir() / "session_state.json"
 
+        # Initialize RyxAgent for UI-agnostic processing
+        # This provides access to core agent functionality including tier management
+        from core.ryx_agent import RyxAgent
+        self.agent = RyxAgent()
+
         # Install signal handlers
         signal.signal(signal.SIGINT, self._handle_interrupt)
 
