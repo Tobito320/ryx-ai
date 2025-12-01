@@ -1,17 +1,50 @@
 /**
  * @file ryx/interfaces/web/src/styles/dracula.css
- * @description Dracula theme color variables and utility classes for the Ryx AI workflow UI.
+ * @description Dracula/Hyprland theme color variables and utility classes for RyxHub.
  * 
- * These colors are based on the official Dracula theme palette.
- * Use CSS custom properties for consistent theming across components.
- * 
- * Tailwind config hints:
- * - Add these colors to tailwind.config.js under theme.extend.colors
- * - Use format: 'dracula-bg': 'var(--dracula-bg)', etc.
+ * Design System:
+ * - Background: #1e1e2e (dark charcoal)
+ * - Text Primary: #c0caf5 (light purple/lavender)
+ * - Text Secondary: #7aa2f7 (muted blue)
+ * - Accent (Ryx): #9d7cd8 (purple)
+ * - Success: #a6e3a1 (green)
+ * - Progress: #f9e2af (yellow)
+ * - Error: #f38ba8 (red)
+ * - Border: #45475a (subtle gray)
+ * - Hover BG: #313244 (slightly lighter)
  */
 
 :root {
-  /* Dracula Theme - Core Colors */
+  /* RyxHub Design System - Primary Colors */
+  --ryx-bg: #1e1e2e;
+  --ryx-bg-dark: #191a24;
+  --ryx-bg-elevated: #21222c;
+  --ryx-bg-hover: #313244;
+  --ryx-current-line: #44475a;
+  
+  /* Text Colors */
+  --ryx-text: #c0caf5;
+  --ryx-text-secondary: #7aa2f7;
+  --ryx-text-muted: #6272a4;
+  --ryx-foreground: #f8f8f2;
+  
+  /* Accent Colors */
+  --ryx-accent: #9d7cd8;
+  --ryx-purple: #bd93f9;
+  --ryx-cyan: #8be9fd;
+  --ryx-pink: #ff79c6;
+  --ryx-orange: #ffb86c;
+  
+  /* Status Colors */
+  --ryx-success: #a6e3a1;
+  --ryx-progress: #f9e2af;
+  --ryx-error: #f38ba8;
+  --ryx-warning: #f1fa8c;
+  
+  /* Border */
+  --ryx-border: #45475a;
+  
+  /* Legacy Dracula mappings for backward compatibility */
   --dracula-bg: #282a36;
   --dracula-current-line: #44475a;
   --dracula-foreground: #f8f8f2;
@@ -23,20 +56,38 @@
   --dracula-purple: #bd93f9;
   --dracula-red: #ff5555;
   --dracula-yellow: #f1fa8c;
-
-  /* Dracula Theme - Extended Palette */
   --dracula-selection: #44475a;
   --dracula-darker: #21222c;
   --dracula-border: #6272a4;
   --dracula-highlight: rgba(139, 233, 253, 0.1);
 
-  /* Status Colors - Mapped to Dracula */
-  --status-pending: var(--dracula-yellow);
-  --status-running: var(--dracula-cyan);
-  --status-success: var(--dracula-green);
-  --status-failed: var(--dracula-red);
-  --status-info: var(--dracula-purple);
-  --status-warning: var(--dracula-orange);
+  /* Status Colors - Mapped to RyxHub design */
+  --status-pending: var(--ryx-progress);
+  --status-running: var(--ryx-cyan);
+  --status-success: var(--ryx-success);
+  --status-failed: var(--ryx-error);
+  --status-info: var(--ryx-accent);
+  --status-warning: var(--ryx-orange);
+  
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, monospace;
+  --font-size-base: 14px;
+  --line-height: 1.6;
+  --letter-spacing: -0.01em;
+  
+  /* Spacing */
+  --panel-padding: 16px;
+  --panel-padding-lg: 24px;
+  --btn-padding-sm: 8px 12px;
+  --btn-padding-md: 12px 16px;
+  
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  
+  /* Transitions */
+  --transition-fast: 150ms ease-out;
+  --transition-normal: 200ms ease-in-out;
 }
 
 /* Dracula Theme Utility Classes */
@@ -211,4 +262,64 @@
 
 .dracula-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--dracula-purple);
+}
+
+/* RyxHub Scrollbar styling */
+.ryx-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ryx-text-muted) var(--ryx-bg-dark);
+}
+
+.ryx-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.ryx-scrollbar::-webkit-scrollbar-track {
+  background: var(--ryx-bg-dark);
+  border-radius: 3px;
+}
+
+.ryx-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--ryx-text-muted);
+  border-radius: 3px;
+}
+
+.ryx-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--ryx-accent);
+}
+
+/* Base font for RyxHub */
+body {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+  letter-spacing: var(--letter-spacing);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  /* Stack panels vertically on mobile */
+  .ryx-panel-grid {
+    flex-direction: column;
+  }
+  
+  .ryx-sidebar {
+    width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--ryx-border);
+  }
+  
+  .ryx-results-panel {
+    width: 100%;
+    max-height: 300px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* 2-column layout on tablet */
+  .ryx-results-panel {
+    width: 280px;
+  }
 }

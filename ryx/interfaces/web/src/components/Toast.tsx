@@ -118,7 +118,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
 export const useToast = () => {
   const [toasts, setToasts] = React.useState<Toast[]>([]);
 
-  const showToast = (message: string, type: ToastType = 'info', duration: number = 5000) => {
+  const showToast = React.useCallback((message: string, type: ToastType = 'info', duration: number = 5000) => {
     const id = `toast-${Date.now()}-${Math.random()}`;
     const newToast: Toast = {
       id,
@@ -129,32 +129,32 @@ export const useToast = () => {
 
     setToasts((prev) => [...prev, newToast]);
     return id;
-  };
+  }, []);
 
   /**
    * Show a persistent toast that doesn't auto-dismiss
    * Returns the toast ID for later dismissal
    */
-  const showPersistentToast = (message: string, type: ToastType = 'info') => {
+  const showPersistentToast = React.useCallback((message: string, type: ToastType = 'info') => {
     return showToast(message, type, 0); // 0 = persistent
-  };
+  }, [showToast]);
 
   /**
    * Update an existing toast's message
    */
-  const updateToast = (id: string, updates: Partial<Toast>) => {
+  const updateToast = React.useCallback((id: string, updates: Partial<Toast>) => {
     setToasts((prev) =>
       prev.map((toast) => (toast.id === id ? { ...toast, ...updates } : toast))
     );
-  };
+  }, []);
 
-  const dismissToast = (id: string) => {
+  const dismissToast = React.useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
-  const dismissAll = () => {
+  const dismissAll = React.useCallback(() => {
     setToasts([]);
-  };
+  }, []);
 
   return {
     toasts,

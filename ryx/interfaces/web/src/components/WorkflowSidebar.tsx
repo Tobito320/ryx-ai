@@ -5,11 +5,12 @@
  * Features:
  * - Collapsible workflow categories
  * - Click to execute workflows
+ * - Keyboard shortcuts (1-5 for workflow selection)
  * - Categories: Search, Code, Files, Browse, Chat
- * - Dracula theme styling
+ * - Dracula/Hyprland theme styling
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 /**
  * Workflow template interface
@@ -19,6 +20,7 @@ export interface WorkflowTemplate {
   icon: string;
   description: string;
   category: string;
+  shortcut?: number; // 1-5 keyboard shortcut
 }
 
 /**
@@ -41,13 +43,13 @@ export interface WorkflowSidebarProps {
   className?: string;
 }
 
-// Default workflow templates
+// Default workflow templates with keyboard shortcuts
 const DEFAULT_WORKFLOWS: WorkflowTemplate[] = [
-  { name: 'Search', icon: '🔍', description: 'Web search with SearxNG', category: 'Research' },
-  { name: 'Code Help', icon: '💻', description: 'Get coding assistance', category: 'Development' },
-  { name: 'File Mgmt', icon: '📁', description: 'Find and open files', category: 'System' },
-  { name: 'Browse', icon: '🌐', description: 'Browse and scrape pages', category: 'Research' },
-  { name: 'Chat', icon: '💬', description: 'General conversation', category: 'Chat' },
+  { name: 'Search', icon: '🔍', description: 'Web search + summarize', category: 'Research', shortcut: 1 },
+  { name: 'Code Help', icon: '💻', description: 'Code analysis/suggestions', category: 'Development', shortcut: 2 },
+  { name: 'File Mgmt', icon: '📁', description: 'Find/manage files', category: 'System', shortcut: 3 },
+  { name: 'Browse', icon: '🌐', description: 'Open RyxSurf browser', category: 'Research', shortcut: 4 },
+  { name: 'Chat', icon: '💬', description: 'Toggle chat panel', category: 'Chat', shortcut: 5 },
 ];
 
 // Category icons
@@ -95,33 +97,60 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
     });
   };
 
+  // Keyboard shortcuts for workflow selection (1-5)
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only handle 1-5 keys when not focused on an input or editable element
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+    const key = parseInt(e.key, 10);
+    if (key >= 1 && key <= 5) {
+      const workflow = workflows.find(w => w.shortcut === key);
+      if (workflow) {
+        e.preventDefault();
+        onWorkflowClick(workflow);
+      }
+    }
+  }, [workflows, onWorkflowClick]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   if (collapsed) {
     return (
       <div
-        className={`w-16 bg-[#21222c] border-r border-[#6272a4] flex flex-col items-center py-4 ${className}`}
+        className={`w-16 bg-ryx-bg-elevated border-r border-ryx-border flex flex-col items-center py-4 ${className}`}
       >
         {/* Expand button */}
         <button
           onClick={onToggleCollapse}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-[#44475a] hover:bg-[#6272a4] transition-colors mb-4"
+          className="w-10 h-10 flex items-center justify-center rounded-ryx bg-ryx-current-line hover:bg-ryx-bg-hover transition-colors mb-4"
           title="Expand sidebar"
+          aria-label="Expand sidebar"
         >
-          <span className="text-[#f8f8f2]">→</span>
+          <span className="text-ryx-foreground">→</span>
         </button>
 
         {/* Quick workflow icons */}
-        {workflows.slice(0, 5).map((workflow) => (
+        {workflows.slice(0, 5).map((workflow, index) => (
           <button
             key={workflow.name}
             onClick={() => onWorkflowClick(workflow)}
-            className={`w-10 h-10 flex items-center justify-center rounded-lg mb-2 transition-colors ${
+            className={`w-10 h-10 flex items-center justify-center rounded-ryx mb-2 transition-all duration-150 relative group ${
               selectedWorkflow === workflow.name
-                ? 'bg-[#bd93f9] text-[#282a36]'
-                : 'bg-[#44475a] hover:bg-[#6272a4] text-[#f8f8f2]'
+                ? 'bg-ryx-accent text-ryx-bg'
+                : 'bg-ryx-current-line hover:bg-ryx-bg-hover text-ryx-foreground'
             }`}
-            title={workflow.name}
+            title={`${workflow.name} (${index + 1})`}
+            aria-label={workflow.name}
           >
             <span>{workflow.icon}</span>
+            {/* Shortcut badge */}
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-ryx-accent text-ryx-bg text-[10px] font-bold rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {index + 1}
+            </span>
           </button>
         ))}
       </div>
@@ -130,33 +159,41 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
 
   return (
     <div
-      className={`w-64 bg-[#21222c] border-r border-[#6272a4] flex flex-col h-full ${className}`}
+      className={`w-64 bg-ryx-bg-elevated border-r border-ryx-border flex flex-col h-full ${className}`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-[#6272a4]">
-        <h2 className="text-[#bd93f9] font-bold text-lg flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-ryx-border">
+        <h2 className="text-ryx-accent font-bold text-lg font-mono flex items-center gap-2">
           <span>🟣</span>
           <span>Workflows</span>
         </h2>
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
-            className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#44475a] transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded hover:bg-ryx-current-line transition-colors"
             title="Collapse sidebar"
+            aria-label="Collapse sidebar"
           >
-            <span className="text-[#6272a4]">←</span>
+            <span className="text-ryx-text-muted">←</span>
           </button>
         )}
       </div>
 
+      {/* Search hint */}
+      <div className="px-4 py-2 border-b border-ryx-border/50">
+        <p className="text-xs text-ryx-text-muted font-mono">
+          Press <kbd className="px-1 bg-ryx-current-line rounded">1-5</kbd> to select
+        </p>
+      </div>
+
       {/* Workflow List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 dracula-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 ryx-scrollbar">
         {Object.entries(workflowsByCategory).map(([category, categoryWorkflows]) => (
           <div key={category} className="mb-3">
             {/* Category Header */}
             <button
               onClick={() => toggleCategory(category)}
-              className="w-full flex items-center gap-2 px-2 py-2 text-sm font-medium text-[#6272a4] hover:text-[#f8f8f2] transition-colors rounded hover:bg-[#44475a]/30"
+              className="w-full flex items-center gap-2 px-2 py-2 text-sm font-medium text-ryx-text-muted hover:text-ryx-foreground transition-colors rounded hover:bg-ryx-current-line/30 font-mono"
             >
               <span
                 className={`transform transition-transform ${
@@ -167,7 +204,7 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
               </span>
               <span>{CATEGORY_ICONS[category] || '📂'}</span>
               <span>{category}</span>
-              <span className="ml-auto text-xs text-[#6272a4]">
+              <span className="ml-auto text-xs text-ryx-text-muted">
                 {categoryWorkflows.length}
               </span>
             </button>
@@ -179,19 +216,25 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
                   <button
                     key={workflow.name}
                     onClick={() => onWorkflowClick(workflow)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-ryx transition-all duration-150 group ${
                       selectedWorkflow === workflow.name
-                        ? 'bg-[#bd93f9]/20 border border-[#bd93f9] text-[#f8f8f2]'
-                        : 'hover:bg-[#44475a] text-[#f8f8f2]'
+                        ? 'bg-ryx-accent/20 border border-ryx-accent text-ryx-foreground'
+                        : 'hover:bg-ryx-current-line text-ryx-foreground border border-transparent'
                     }`}
                   >
                     <span className="text-lg">{workflow.icon}</span>
-                    <div className="text-left">
-                      <div className="text-sm font-medium">{workflow.name}</div>
-                      <div className="text-xs text-[#6272a4] truncate">
+                    <div className="text-left flex-1">
+                      <div className="text-sm font-medium font-mono">{workflow.name}</div>
+                      <div className="text-xs text-ryx-text-muted truncate">
                         {workflow.description}
                       </div>
                     </div>
+                    {/* Shortcut badge */}
+                    {workflow.shortcut && (
+                      <span className="text-[10px] bg-ryx-current-line text-ryx-text-muted px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+                        {workflow.shortcut}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -202,10 +245,10 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
 
       {/* New Workflow Button */}
       {onNewWorkflow && (
-        <div className="p-3 border-t border-[#6272a4]">
+        <div className="p-3 border-t border-ryx-border">
           <button
             onClick={onNewWorkflow}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#50fa7b]/20 text-[#50fa7b] rounded-lg hover:bg-[#50fa7b]/30 transition-colors font-medium"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-ryx-success/20 text-ryx-success rounded-ryx hover:bg-ryx-success/30 transition-colors font-mono font-medium"
           >
             <span>+</span>
             <span>New Workflow</span>
