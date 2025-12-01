@@ -191,8 +191,9 @@ class IntentParser:
         question_words = ['can', 'could', 'how', 'what', 'why', 'would', 'should', 'is', 'are']
         
         # Check if prompt is question-like: ends with '?' or contains question words
+        # Use word boundary matching to avoid false positives (e.g., 'disconnect' contains 'can')
         is_question = prompt_lower.strip().endswith('?')
-        has_question_word = any(word in prompt_lower.split() for word in question_words)
+        has_question_word = any(re.search(rf'\b{word}\b', prompt_lower) for word in question_words)
         
         if not (is_question or has_question_word):
             return False
@@ -200,8 +201,9 @@ class IntentParser:
         # Explicit execute verbs that override the informational heuristic
         # Note: 'open' is NOT included here intentionally because 'open source'
         # is a common phrase that doesn't indicate execute intent
+        # Use word boundary matching to avoid false positives (e.g., 'startup' contains 'start')
         explicit_execute_verbs = ['run', 'execute', 'launch', 'start', 'edit']
-        has_explicit_execute = any(verb in prompt_lower for verb in explicit_execute_verbs)
+        has_explicit_execute = any(re.search(rf'\b{verb}\b', prompt_lower) for verb in explicit_execute_verbs)
         
         if has_explicit_execute:
             return False

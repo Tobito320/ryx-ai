@@ -80,7 +80,8 @@ class TestInformationalFindQueries:
         """Simple 'find' without question indicators should still work."""
         parser = IntentParser()
         intent = parser.parse("find config file")
-        # Should return 'locate' due to 'find' keyword
+        # Should return 'locate' due to 'find' keyword in LOCATE_KEYWORDS
+        # (not via the informational find query heuristic since no question indicators)
         assert intent.action == 'locate'
 
     def test_non_question_with_open_keyword(self):
@@ -89,6 +90,21 @@ class TestInformationalFindQueries:
         intent = parser.parse("open the config file")
         # Should return 'execute' because it's not a question
         assert intent.action == 'execute'
+
+    def test_word_boundary_startup_not_start(self):
+        """Word 'startup' should not trigger execute verb detection for 'start'."""
+        parser = IntentParser()
+        intent = parser.parse("where can I find the startup config?")
+        # 'startup' contains 'start' but shouldn't match as an execute verb
+        # due to word boundary matching
+        assert intent.action == 'locate'
+
+    def test_word_boundary_runtime_not_run(self):
+        """Word 'runtime' should not trigger execute verb detection for 'run'."""
+        parser = IntentParser()
+        intent = parser.parse("where can I find the runtime settings?")
+        # 'runtime' contains 'run' but shouldn't match as an execute verb
+        assert intent.action == 'locate'
 
 
 if __name__ == "__main__":
