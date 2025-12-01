@@ -92,7 +92,7 @@ class SessionLoop:
             self.ui.error(f"Failed to save session: {e}")
 
     def _restore_session(self):
-        """Restore previous session if exists"""
+        """Restore previous session if exists (silent by default)"""
         if not self.session_file.exists():
             return
 
@@ -100,7 +100,9 @@ class SessionLoop:
             with open(self.session_file, 'r') as f:
                 state = json.load(f)
 
-            self.conversation_history = state.get('conversation_history', [])
+            # Only restore last 10 messages to avoid bloat
+            history = state.get('conversation_history', [])
+            self.conversation_history = history[-10:] if len(history) > 10 else history
 
             tier_value = state.get('current_tier')
             if tier_value:
@@ -108,8 +110,7 @@ class SessionLoop:
 
             self.context = state.get('context', {})
 
-            if self.conversation_history:
-                self.ui.info(f"Restored {len(self.conversation_history)} messages from previous session")
+            # Silent restore - no verbose message
 
         except Exception:
             pass

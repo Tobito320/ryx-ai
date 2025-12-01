@@ -11,11 +11,12 @@ import re
 @dataclass
 class Intent:
     """Represents parsed user intent"""
-    action: str  # 'chat', 'locate', 'execute', 'browse'
-    target: Optional[str] = None  # What to act on (e.g., "hyprland config")
+    action: str  # 'chat', 'locate', 'execute', 'browse', 'service_start', 'service_stop', 'service_status'
+    target: Optional[str] = None  # What to act on (e.g., "hyprland config", "RyxHub")
     modifiers: List[str] = None  # Additional flags like "new_terminal"
     original_prompt: str = ""  # Original user input
     model_switch: Optional[str] = None  # If user requested model switch
+    service_name: Optional[str] = None  # For service management (RyxHub, session)
 
     def __post_init__(self):
         if self.modifiers is None:
@@ -26,9 +27,17 @@ class IntentParser:
     """Parse user intent from natural language prompts"""
 
     # Action keywords that determine what to do
-    EXECUTE_KEYWORDS = ['open', 'edit', 'run', 'execute', 'launch', 'start']
+    EXECUTE_KEYWORDS = ['open', 'edit', 'run', 'execute', 'launch']
     BROWSE_KEYWORDS = ['look up', 'browse', 'google', 'search', 'what is', 'who is', 'search for']
     LOCATE_KEYWORDS = ['find', 'where is', 'show me', 'locate', 'path to', 'where']
+
+    # Service management keywords
+    SERVICE_START_KEYWORDS = ['start', 'launch', 'run', 'boot', 'spin up']
+    SERVICE_STOP_KEYWORDS = ['stop', 'kill', 'shutdown', 'terminate', 'end']
+    SERVICE_STATUS_KEYWORDS = ['status', 'check', 'is running']
+
+    # Known services
+    KNOWN_SERVICES = ['ryxhub', 'hub', 'session', 'backend', 'frontend']
 
     # Non-action compound phrases containing action keywords (e.g., "open source" is not an action)
     # These phrases should be excluded from triggering action keyword detection.
@@ -97,6 +106,16 @@ class IntentParser:
             Intent object with action, target, and modifiers
         """
         prompt_lower = prompt.lower()
+
+        # Check for service management first
+        service_intent = self._detect_service_intent(prompt_lower)
+        if service_intent:
+            return Intent(
+                action=service_intent['action'],
+                target=service_intent.get('service'),
+                service_name=service_intent.get('service'),
+                original_prompt=prompt
+            )
 
         # Check for model switching first
         model_switch = self._detect_model_switch(prompt_lower)
@@ -364,3 +383,37 @@ class IntentParser:
         prompt = re.sub(r'^\s*and\s+', '', prompt, flags=re.IGNORECASE)  # Remove leading "and"
 
         return prompt.strip()
+
+    def _detect_service_intent(self, prompt_lower: str) -> Optional[dict]:
+        """
+        Detect if the prompt is a service management request.
+
+        Args:
+            prompt_lower: Lowercase prompt
+
+        Returns:
+            dict with 'action' and 'service' if detected, None otherwise
+        """
+        # Check for service names in the prompt
+        found_service = None
+        for service in self.KNOWN_SERVICES:
+            if service in prompt_lower:
+                found_service = service
+                break
+
+        if not found_service:
+            return None
+
+        # Check for start keywords
+        if any(kw in prompt_lower for kw in self.SERVICE_START_KEYWORDS):
+            return {'action': 'service_start', 'service': found_service}
+
+        # Check for stop keywords
+        if any(kw in prompt_lower for kw in self.SERVICE_STOP_KEYWORDS):
+            return {'action': 'service_stop', 'service': found_service}
+
+        # Check for status keywords
+        if any(kw in prompt_lower for kw in self.SERVICE_STATUS_KEYWORDS):
+            return {'action': 'service_status', 'service': found_service}
+
+        return None

@@ -5,15 +5,22 @@ import EnhancedChatHeader from './components/chat/EnhancedChatHeader';
 import EnhancedSidebar from './components/sidebar/EnhancedSidebar';
 import EnhancedMessageBubble from './components/chat/EnhancedMessageBubble';
 import EnhancedChatInput from './components/chat/EnhancedChatInput';
+import N8NLayout from './components/N8NLayout';
 import { useChat } from './hooks/useChat';
 import { useSessions } from './hooks/useSessions';
 import { useConnectionToast } from './hooks/useConnectionToast';
 import { useRAGFiles } from './hooks/useRAGFiles';
 import { useModels } from './hooks/useModels';
 import { matchesShortcut, SHORTCUTS } from './utils/keyboard';
+import './styles/dracula.css';
+
+type ViewMode = 'chat' | 'workflow';
 
 function App() {
   const { toasts, showToast, dismissToast } = useToast();
+  
+  // View mode - switch between chat and workflow views
+  const [viewMode, setViewMode] = useState<ViewMode>('workflow');
   
   // CRITICAL: Store BOTH display name AND actual .gguf filename
   const [selectedModelDisplay, setSelectedModelDisplay] = useState('');
@@ -205,9 +212,38 @@ function App() {
     showToast('Session deleted', 'info', 3000);
   };
 
+  // Render N8N workflow view
+  if (viewMode === 'workflow') {
+    return (
+      <ErrorBoundary>
+        <div className="relative">
+          {/* View Mode Toggle */}
+          <button
+            onClick={() => setViewMode('chat')}
+            className="fixed top-4 right-4 z-50 px-4 py-2 bg-[#44475a] text-[#f8f8f2] rounded-lg hover:bg-[#6272a4] transition-colors flex items-center gap-2"
+          >
+            <span>💬</span>
+            <span>Chat View</span>
+          </button>
+          <N8NLayout />
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
+  // Render traditional chat view
   return (
     <ErrorBoundary>
       <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 text-gray-100 overflow-hidden">
+        {/* View Mode Toggle */}
+        <button
+          onClick={() => setViewMode('workflow')}
+          className="fixed top-4 right-4 z-50 px-4 py-2 bg-[#bd93f9] text-[#282a36] rounded-lg hover:bg-[#bd93f9]/80 transition-colors flex items-center gap-2"
+        >
+          <span>📊</span>
+          <span>Workflow View</span>
+        </button>
+
         {/* Enhanced Sidebar */}
         <EnhancedSidebar
           connectionStatus={connectionStatus}
