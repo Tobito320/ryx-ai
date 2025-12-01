@@ -30,6 +30,10 @@ class IntentParser:
     BROWSE_KEYWORDS = ['look up', 'browse', 'google', 'search', 'what is', 'who is', 'search for']
     LOCATE_KEYWORDS = ['find', 'where is', 'show me', 'locate', 'path to', 'where']
 
+    # Non-action compound phrases containing action keywords (e.g., "open source" is not an action)
+    # These phrases should be excluded from triggering action keyword detection.
+    NON_ACTION_PHRASES = ['open source']
+
     # Modifier keywords that change how action is performed
     NEW_TERMINAL_KEYWORDS = ['new terminal', 'new window', 'separate terminal', 'separate window']
 
@@ -139,8 +143,19 @@ class IntentParser:
     def _detect_action(self, prompt_lower: str) -> str:
         """Detect the intended action from prompt"""
 
-        # Check execute keywords first (most specific)
-        if any(kw in prompt_lower for kw in self.EXECUTE_KEYWORDS):
+        # Mask non-action compound phrases (e.g., "open source") to prevent false positives.
+        # We replace them with placeholder text so action keywords within them are not detected.
+        masked_prompt = prompt_lower
+        for phrase in self.NON_ACTION_PHRASES:
+            masked_prompt = masked_prompt.replace(phrase, '_MASKED_')
+
+        # For informational queries containing 'find' (e.g., "where can I find X?"),
+        # prefer 'locate' over 'execute' to avoid misclassifying questions as actions.
+        if self._is_informational_find_query(prompt_lower):
+            return 'locate'
+
+        # Check execute keywords first (most specific), using masked prompt
+        if any(kw in masked_prompt for kw in self.EXECUTE_KEYWORDS):
             return 'execute'
 
         # Check browse keywords
@@ -157,6 +172,16 @@ class IntentParser:
 
         # Default to chat (just conversation)
         return 'chat'
+
+    def _is_informational_find_query(self, prompt_lower: str) -> bool:
+        """
+        Check if the prompt is an informational query containing 'find'.
+        Examples: "where can I find X?", "how do I find X?"
+        These should return 'locate' rather than potentially triggering 'execute'.
+        """
+        # Question patterns that suggest the user is asking for location/information
+        informational_patterns = ['where can i find', 'where do i find', 'how can i find', 'how do i find']
+        return any(pattern in prompt_lower for pattern in informational_patterns)
 
     def _is_implicit_locate(self, prompt_lower: str) -> bool:
         """
