@@ -51,8 +51,8 @@ class RAGSystem:
         """
         Compute semantic similarity between two texts (0.0 - 1.0)
 
-        Uses simple word-based similarity (Jaccard similarity)
-        For production, consider using embeddings (sentence-transformers)
+        Uses enhanced word-based similarity with partial matching.
+        For production, consider using embeddings (sentence-transformers).
 
         Returns:
             Similarity score (0.0 = completely different, 1.0 = identical)
@@ -64,11 +64,30 @@ class RAGSystem:
         if not words1 or not words2:
             return 0.0
 
-        # Jaccard similarity
-        intersection = len(words1.intersection(words2))
+        # Exact Jaccard similarity
+        exact_intersection = len(words1.intersection(words2))
         union = len(words1.union(words2))
-
-        return intersection / union if union > 0 else 0.0
+        
+        if union == 0:
+            return 0.0
+        
+        # Also count partial matches (prefix matching for abbreviations)
+        # e.g., "conf" -> "config", "hypr" -> "hyprland"
+        partial_matches = 0
+        for w1 in words1:
+            for w2 in words2:
+                if w1 != w2:  # Already counted in exact
+                    # Check if one is prefix of the other (min 3 chars)
+                    if len(w1) >= 3 and len(w2) >= 3:
+                        if w1.startswith(w2) or w2.startswith(w1):
+                            # Weight partial matches highly since they indicate semantic similarity
+                            partial_matches += 0.8
+        
+        # Use max of either set size as denominator for more generous scoring
+        # This prevents penalty for additional unique words
+        max_set_size = max(len(words1), len(words2))
+        total_similarity = (exact_intersection + partial_matches) / max_set_size
+        return min(1.0, total_similarity)  # Cap at 1.0
     
     def query_cache(self, prompt: str, similarity_threshold: float = 0.8) -> Optional[str]:
         """
