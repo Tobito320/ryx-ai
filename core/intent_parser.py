@@ -139,6 +139,23 @@ class IntentParser:
     def _detect_action(self, prompt_lower: str) -> str:
         """Detect the intended action from prompt"""
 
+        # Heuristic: Detect question-like prompts to avoid misclassifying informational queries.
+        # Questions containing 'find' or 'where' are likely asking for location info, not execution.
+        # For example: "where can I find the open source license?" should be 'locate', not 'execute'
+        # (because 'open source' is a noun phrase, not a command to open something).
+        is_question = self._is_question_like(prompt_lower)
+
+        # If it's a question and contains locate keywords (find/where), prefer 'locate' action
+        # unless explicit execute verbs (run/execute/start/install) are present.
+        if is_question:
+            has_locate_keyword = any(kw in prompt_lower for kw in self.LOCATE_KEYWORDS)
+            # These are unambiguous execute verbs that override the question heuristic
+            explicit_execute_verbs = ['run', 'execute', 'launch', 'start', 'install']
+            has_explicit_execute = any(verb in prompt_lower for verb in explicit_execute_verbs)
+
+            if has_locate_keyword and not has_explicit_execute:
+                return 'locate'
+
         # Check execute keywords first (most specific)
         if any(kw in prompt_lower for kw in self.EXECUTE_KEYWORDS):
             return 'execute'
@@ -157,6 +174,36 @@ class IntentParser:
 
         # Default to chat (just conversation)
         return 'chat'
+
+    def _is_question_like(self, prompt_lower: str) -> bool:
+        """
+        Detect if a prompt is question-like (informational query rather than command).
+
+        This heuristic is conservative: it checks for explicit question markers like:
+        - Ends with '?'
+        - Starts with question words: 'where', 'what', 'how', 'can', 'could', 'is', 'are'
+        - Contains question phrases: 'can I', 'where can', 'how do'
+
+        Returns True if the prompt appears to be a question, False otherwise.
+        """
+        # Check for question mark
+        if prompt_lower.strip().endswith('?'):
+            return True
+
+        # Question starters (common interrogative patterns)
+        question_starters = [
+            'where ', 'what ', 'how ', 'can i ', 'could i ', 'is there ',
+            'are there ', 'do you ', 'does ', 'which ', 'why ', 'when '
+        ]
+        if any(prompt_lower.startswith(starter) for starter in question_starters):
+            return True
+
+        # Question phrases that can appear mid-sentence
+        question_phrases = ['can i find', 'where can', 'how do i', 'where is']
+        if any(phrase in prompt_lower for phrase in question_phrases):
+            return True
+
+        return False
 
     def _is_implicit_locate(self, prompt_lower: str) -> bool:
         """
