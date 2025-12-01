@@ -139,6 +139,13 @@ class IntentParser:
     def _detect_action(self, prompt_lower: str) -> str:
         """Detect the intended action from prompt"""
 
+        # Heuristic: If query contains 'find' or 'where' and is question-like,
+        # prefer 'locate' unless explicit execute verbs are present.
+        # This prevents false positives like "where can I find the open source license?"
+        # from triggering 'execute' due to 'open source'.
+        if self._is_informational_find_query(prompt_lower):
+            return 'locate'
+
         # Check execute keywords first (most specific)
         if any(kw in prompt_lower for kw in self.EXECUTE_KEYWORDS):
             return 'execute'
@@ -157,6 +164,49 @@ class IntentParser:
 
         # Default to chat (just conversation)
         return 'chat'
+
+    def _is_informational_find_query(self, prompt_lower: str) -> bool:
+        """
+        Check if query is an informational 'find' query that should return 'locate'.
+        
+        Heuristic: If the input contains 'find' or 'where' and is question-like
+        (ends with '?' or contains question words), return True unless explicit
+        execute verbs ('run', 'execute', 'launch', 'start', 'edit') are present.
+        
+        This prevents queries like "where can I find the open source license?"
+        from triggering 'execute' due to 'open source'.
+        
+        Args:
+            prompt_lower: Lowercase user prompt
+            
+        Returns:
+            True if this is an informational find query
+        """
+        # Must contain 'find' or 'where' (locate-related keywords)
+        has_find_keyword = 'find' in prompt_lower or 'where' in prompt_lower
+        if not has_find_keyword:
+            return False
+        
+        # Question words that indicate informational intent
+        question_words = ['can', 'could', 'how', 'what', 'why', 'would', 'should', 'is', 'are']
+        
+        # Check if prompt is question-like: ends with '?' or contains question words
+        is_question = prompt_lower.strip().endswith('?')
+        has_question_word = any(word in prompt_lower.split() for word in question_words)
+        
+        if not (is_question or has_question_word):
+            return False
+        
+        # Explicit execute verbs that override the informational heuristic
+        # Note: 'open' is NOT included here intentionally because 'open source'
+        # is a common phrase that doesn't indicate execute intent
+        explicit_execute_verbs = ['run', 'execute', 'launch', 'start', 'edit']
+        has_explicit_execute = any(verb in prompt_lower for verb in explicit_execute_verbs)
+        
+        if has_explicit_execute:
+            return False
+        
+        return True
 
     def _is_implicit_locate(self, prompt_lower: str) -> bool:
         """
