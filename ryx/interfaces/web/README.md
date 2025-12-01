@@ -1,62 +1,54 @@
-# Ryx Web Interface
+# RYX Web Interface
 
-React-based web interface for Ryx AI.
+This is the web frontend for RYX AI, built with React and TypeScript.
 
 ## Prerequisites
 
 - Node.js (v18 or higher recommended)
 - npm
 
-## Getting Started
-
-### Install Dependencies
+## Installation
 
 ```bash
 npm install
 ```
 
-### Run Development Server
+## Running Tests
 
-```bash
-npm start
-```
+### Local Development
 
-This starts the development server at `http://localhost:3000`.
-
-### Build for Production
-
-```bash
-npm run build
-```
-
-This creates an optimized production build in the `build` folder.
-
-## Testing
-
-### Run Tests Locally
+Run tests in interactive watch mode:
 
 ```bash
 npm test
 ```
 
-This runs tests in interactive watch mode. Press `a` to run all tests, or `q` to quit.
+### CI Environment
 
-### Run Tests in CI
+Run tests without watch mode (suitable for CI pipelines):
 
 ```bash
 npm run test:ci
 ```
 
-This runs tests once without watch mode, suitable for CI/CD pipelines.
+Or use the `--watchAll=false` flag directly:
 
-## Project Structure
-
+```bash
+npm test -- --watchAll=false
 ```
-ryx/interfaces/web/
-├── public/          # Static assets
-├── src/             # React source files
-├── package.json     # Dependencies and scripts
-├── tailwind.config.js
-├── postcss.config.js
-└── tsconfig.json    # TypeScript configuration
+
+## Development
+
+Start the development server:
+
+```bash
+npm start
+```
+
+## Build
+
+Create a production build:
+
+```bash
+npm run build
 ```
