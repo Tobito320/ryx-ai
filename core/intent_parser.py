@@ -30,6 +30,12 @@ class IntentParser:
     BROWSE_KEYWORDS = ['look up', 'browse', 'google', 'search', 'what is', 'who is', 'search for']
     LOCATE_KEYWORDS = ['find', 'where is', 'show me', 'locate', 'path to', 'where']
 
+    # Explicit execute verbs that unambiguously indicate execution intent.
+    # Used to override the question heuristic in _detect_action.
+    # Note: 'open' and 'edit' are excluded because they appear in compound phrases
+    # like 'open source' or 'edit the conversation'.
+    EXPLICIT_EXECUTE_VERBS = ['run', 'execute', 'launch', 'start', 'install']
+
     # Modifier keywords that change how action is performed
     NEW_TERMINAL_KEYWORDS = ['new terminal', 'new window', 'separate terminal', 'separate window']
 
@@ -149,9 +155,7 @@ class IntentParser:
         # unless explicit execute verbs (run/execute/start/install) are present.
         if is_question:
             has_locate_keyword = any(kw in prompt_lower for kw in self.LOCATE_KEYWORDS)
-            # These are unambiguous execute verbs that override the question heuristic
-            explicit_execute_verbs = ['run', 'execute', 'launch', 'start', 'install']
-            has_explicit_execute = any(verb in prompt_lower for verb in explicit_execute_verbs)
+            has_explicit_execute = any(verb in prompt_lower for verb in self.EXPLICIT_EXECUTE_VERBS)
 
             if has_locate_keyword and not has_explicit_execute:
                 return 'locate'
