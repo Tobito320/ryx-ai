@@ -312,26 +312,80 @@ class ToolExecutor:
             ToolResult with list of SearchResult objects
 
         Note:
-            This is a mock implementation. Full implementation
-            would integrate with a search API.
+            Uses SearxNG if available, otherwise falls back to DuckDuckGo.
         """
         start_time = asyncio.get_event_loop().time()
 
         try:
             async with asyncio.timeout(self.TIMEOUT_WEB_SEARCH):
-                # Mock implementation - would integrate with DuckDuckGo/Google API
-                # For now, return empty results
                 results: List[SearchResult] = []
-
-                # TODO: Implement actual web search
-                # Example integration:
-                # async with httpx.AsyncClient() as client:
-                #     response = await client.get(
-                #         "https://api.duckduckgo.com/",
-                #         params={"q": query, "format": "json"}
-                #     )
-                #     data = response.json()
-                #     results = [SearchResult(...) for item in data["results"]]
+                
+                # Try to use the core tool_registry's web search if available
+                try:
+                    import sys
+                    from pathlib import Path
+                    
+                    # Ensure project root is in path
+                    current = Path(__file__).resolve().parent
+                    for _ in range(10):
+                        if (current / "pyproject.toml").exists() or (current / "core").is_dir():
+                            break
+                        current = current.parent
+                    sys.path.insert(0, str(current))
+                    
+                    from core.tool_registry import ToolRegistry
+                    
+                    registry = ToolRegistry()
+                    search_result = registry.execute_tool('web_search', {
+                        'query': query,
+                        'num_results': max_results
+                    })
+                    
+                    if search_result.success and search_result.output:
+                        for item in search_result.output:
+                            results.append(SearchResult(
+                                title=item.get('title', ''),
+                                url=item.get('url', ''),
+                                snippet=item.get('snippet', '')
+                            ))
+                except ImportError:
+                    pass
+                except Exception:
+                    pass
+                
+                # Fallback: Try DuckDuckGo HTML search if no results
+                if not results:
+                    try:
+                        import requests
+                        from bs4 import BeautifulSoup
+                        
+                        headers = {
+                            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0'
+                        }
+                        
+                        search_url = f"https://html.duckduckgo.com/html/?q={query}"
+                        response = requests.get(search_url, headers=headers, timeout=5)
+                        
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.text, 'lxml')
+                            result_divs = soup.find_all('div', class_='result')[:max_results]
+                            
+                            for div in result_divs:
+                                title_elem = div.find('a', class_='result__a')
+                                snippet_elem = div.find('a', class_='result__snippet')
+                                
+                                if title_elem:
+                                    title = title_elem.get_text(strip=True)
+                                    url = title_elem.get('href', '')
+                                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+                                    
+                                    results.append(SearchResult(
+                                        title=title,
+                                        url=url,
+                                        snippet=snippet
+                                    ))
+                    except Exception:
+                        pass
 
             latency = (asyncio.get_event_loop().time() - start_time) * 1000
 

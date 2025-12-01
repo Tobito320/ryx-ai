@@ -3,13 +3,34 @@ Ryx AI - FastAPI Backend
 REST and WebSocket API for the Ryx AI web interface
 """
 
+import sys
+import os
+import time
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 import asyncio
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+# Setup project root for imports
+def _setup_project_root() -> Path:
+    """Find and setup project root for core module imports."""
+    current = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (current / "pyproject.toml").exists() or (current / "core").is_dir():
+            return current
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return current
+
+PROJECT_ROOT = _setup_project_root()
+sys.path.insert(0, str(PROJECT_ROOT))
+os.environ.setdefault('RYX_PROJECT_ROOT', str(PROJECT_ROOT))
 
 
 # =============================================================================
@@ -175,8 +196,24 @@ async def get_models() -> ModelsResponse:
     Returns:
         ModelsResponse with list of available models
     """
-    # TODO: Implement actual model listing from Ollama
-    return ModelsResponse(models=[])
+    try:
+        from core.ollama_client import OllamaClient
+        client = OllamaClient()
+        model_names = client.list_models()
+        
+        models = [
+            ModelInfo(
+                id=name,
+                name=name.split(':')[0] if ':' in name else name,
+                size=name.split(':')[1] if ':' in name else "latest",
+                available=True
+            )
+            for name in model_names
+        ]
+        return ModelsResponse(models=models)
+    except Exception:
+        # Return empty list if Ollama is not available
+        return ModelsResponse(models=[])
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -190,12 +227,41 @@ async def chat(request: ChatRequest) -> ChatResponse:
     Returns:
         ChatResponse with AI response
     """
-    # TODO: Implement actual chat with LLM
-    return ChatResponse(
-        response="This is a stub response",
-        model_used=request.model or "default",
-        latency_ms=0.0
-    )
+    start_time = time.time()
+    model_name = request.model or "mistral:7b"
+    
+    try:
+        from core.ollama_client import OllamaClient
+        client = OllamaClient()
+        
+        result = client.generate(
+            prompt=request.message,
+            model=model_name,
+            system="You are Ryx, a helpful AI assistant.",
+            max_tokens=2048
+        )
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        if result.error:
+            return ChatResponse(
+                response=f"Error: {result.error}",
+                model_used=model_name,
+                latency_ms=latency_ms
+            )
+        
+        return ChatResponse(
+            response=result.response,
+            model_used=result.model,
+            latency_ms=latency_ms
+        )
+    except Exception as e:
+        latency_ms = (time.time() - start_time) * 1000
+        return ChatResponse(
+            response=f"Error connecting to Ollama: {str(e)}",
+            model_used=model_name,
+            latency_ms=latency_ms
+        )
 
 
 @app.get("/api/history", response_model=HistoryResponse)
@@ -213,8 +279,44 @@ async def get_history(
     Returns:
         HistoryResponse with conversation history
     """
-    # TODO: Implement actual history retrieval
-    return HistoryResponse(items=[], total=0)
+    try:
+        from core.paths import get_data_dir
+        import json
+        
+        history_file = get_data_dir() / "session_state.json"
+        
+        if not history_file.exists():
+            return HistoryResponse(items=[], total=0)
+        
+        with open(history_file, 'r') as f:
+            data = json.load(f)
+        
+        conversation_history = data.get('conversation_history', [])
+        total = len(conversation_history)
+        
+        # Apply pagination
+        paginated = conversation_history[offset:offset + limit]
+        
+        items = []
+        for i, entry in enumerate(paginated):
+            # Create HistoryItem from conversation history
+            if entry.get('role') == 'user':
+                # Find corresponding assistant response
+                assistant_response = ""
+                if i + 1 < len(paginated) and paginated[i + 1].get('role') == 'assistant':
+                    assistant_response = paginated[i + 1].get('content', '')
+                
+                items.append(HistoryItem(
+                    id=f"msg-{offset + i}",
+                    timestamp=datetime.fromisoformat(data.get('saved_at', datetime.now().isoformat())),
+                    user_message=entry.get('content', ''),
+                    assistant_response=assistant_response,
+                    model_used=data.get('current_tier', 'balanced')
+                ))
+        
+        return HistoryResponse(items=items, total=total)
+    except Exception:
+        return HistoryResponse(items=[], total=0)
 
 
 @app.post("/api/settings", response_model=StatusResponse)
@@ -228,8 +330,34 @@ async def update_settings(request: SettingsRequest) -> StatusResponse:
     Returns:
         StatusResponse indicating success/failure
     """
-    # TODO: Implement actual settings update
-    return StatusResponse(status="ok", message="Settings updated")
+    try:
+        from core.paths import get_config_dir
+        import json
+        
+        config_file = get_config_dir() / "ryx_config.json"
+        
+        # Load existing config or create new
+        config = {}
+        if config_file.exists():
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+        
+        # Update settings
+        if request.theme:
+            config.setdefault('ui', {})['theme'] = request.theme
+        if request.default_model:
+            config['default_model'] = request.default_model
+        if request.auto_scroll is not None:
+            config.setdefault('ui', {})['auto_scroll'] = request.auto_scroll
+        
+        # Save config
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        return StatusResponse(status="ok", message="Settings updated successfully")
+    except Exception as e:
+        return StatusResponse(status="error", message=f"Failed to update settings: {str(e)}")
 
 
 @app.post("/api/workflows/list", response_model=WorkflowListResponse)
@@ -255,18 +383,76 @@ async def execute_command(request: ExecuteRequest) -> Dict[str, Any]:
     Returns:
         Dict with execution results
     """
-    # TODO: Implement actual command execution
-    return {
-        "status": "completed",
-        "command": request.command,
-        "steps": [
-            {"step": 1, "action": "Parse", "status": "complete", "latency_ms": 50},
-            {"step": 2, "action": "Execute", "status": "complete", "latency_ms": 200},
-            {"step": 3, "action": "Format", "status": "complete", "latency_ms": 30},
-        ],
-        "result": f"Executed: {request.command}",
-        "total_latency_ms": 280
-    }
+    start_time = time.time()
+    steps = []
+    
+    try:
+        # Step 1: Parse intent
+        step_start = time.time()
+        from core.intent_classifier import IntentClassifier
+        classifier = IntentClassifier()
+        intent = classifier.classify(request.command, {})
+        step_latency = (time.time() - step_start) * 1000
+        steps.append({
+            "step": 1,
+            "action": "Parse Intent",
+            "status": "complete",
+            "latency_ms": round(step_latency, 2),
+            "data": {"intent": intent.intent_type.value if intent else "unknown"}
+        })
+        
+        # Step 2: Route to model
+        step_start = time.time()
+        from core.model_router import ModelRouter
+        router = ModelRouter()
+        model = router.get_model()
+        step_latency = (time.time() - step_start) * 1000
+        steps.append({
+            "step": 2,
+            "action": "Select Model",
+            "status": "complete",
+            "latency_ms": round(step_latency, 2),
+            "data": {"model": model.name}
+        })
+        
+        # Step 3: Generate response
+        step_start = time.time()
+        from core.ollama_client import OllamaClient
+        client = OllamaClient()
+        result = client.generate(
+            prompt=request.command,
+            model=request.model or model.name,
+            system="You are Ryx, a helpful AI assistant.",
+            max_tokens=2048
+        )
+        step_latency = (time.time() - step_start) * 1000
+        steps.append({
+            "step": 3,
+            "action": "Generate Response",
+            "status": "complete" if not result.error else "error",
+            "latency_ms": round(step_latency, 2),
+            "data": {"error": result.error} if result.error else {}
+        })
+        
+        total_latency = (time.time() - start_time) * 1000
+        
+        return {
+            "status": "completed" if not result.error else "error",
+            "command": request.command,
+            "steps": steps,
+            "result": result.response if not result.error else result.error,
+            "total_latency_ms": round(total_latency, 2)
+        }
+        
+    except Exception as e:
+        total_latency = (time.time() - start_time) * 1000
+        return {
+            "status": "error",
+            "command": request.command,
+            "steps": steps,
+            "result": f"Error: {str(e)}",
+            "total_latency_ms": round(total_latency, 2)
+        }
 
 
 @app.post("/api/results/cache")
@@ -282,11 +468,24 @@ async def get_cached_results(
     Returns:
         Dict with cached results
     """
-    # TODO: Implement actual cache retrieval
-    return {
-        "cached_results": [],
-        "total": 0
-    }
+    try:
+        from core.rag_system import RAGSystem
+        rag = RAGSystem()
+        
+        # Get cached responses from RAG system
+        cached = rag.get_recent_responses(limit=limit)
+        rag.close()
+        
+        return {
+            "cached_results": cached,
+            "total": len(cached)
+        }
+    except Exception:
+        # Return empty if RAG system not available
+        return {
+            "cached_results": [],
+            "total": 0
+        }
 
 
 @app.post("/api/service/start")
