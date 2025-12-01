@@ -38,7 +38,7 @@ dev = [
 ]
 
 [project.scripts]
-ryx = "ryx_cli:main"
+ryx = "ryx_main:cli_main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

@@ -305,8 +305,21 @@ async def start_service(request: ServiceRequest) -> ServiceStatusResponse:
     import os
     from pathlib import Path
 
-    # Add project root to path
-    project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    # Find project root by looking for marker files
+    def find_project_root(start_path: Path) -> Path:
+        """Find project root by looking for pyproject.toml or core/ directory"""
+        current = start_path
+        for _ in range(10):  # Limit search depth
+            if (current / "pyproject.toml").exists() or (current / "core").is_dir():
+                return current
+            parent = current.parent
+            if parent == current:  # Reached filesystem root
+                break
+            current = parent
+        # Fallback to calculated path
+        return start_path.parent.parent.parent.parent.parent
+
+    project_root = find_project_root(Path(__file__).resolve().parent)
     sys.path.insert(0, str(project_root))
     os.environ.setdefault('RYX_PROJECT_ROOT', str(project_root))
 
@@ -346,7 +359,19 @@ async def stop_service(request: ServiceRequest) -> ServiceStatusResponse:
     import os
     from pathlib import Path
 
-    project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    # Reuse project root finder
+    def find_project_root(start_path: Path) -> Path:
+        current = start_path
+        for _ in range(10):
+            if (current / "pyproject.toml").exists() or (current / "core").is_dir():
+                return current
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+        return start_path.parent.parent.parent.parent.parent
+
+    project_root = find_project_root(Path(__file__).resolve().parent)
     sys.path.insert(0, str(project_root))
     os.environ.setdefault('RYX_PROJECT_ROOT', str(project_root))
 
@@ -383,7 +408,19 @@ async def get_service_status() -> Dict[str, ServiceStatusResponse]:
     import os
     from pathlib import Path
 
-    project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+    # Reuse project root finder
+    def find_project_root(start_path: Path) -> Path:
+        current = start_path
+        for _ in range(10):
+            if (current / "pyproject.toml").exists() or (current / "core").is_dir():
+                return current
+            parent = current.parent
+            if parent == current:
+                break
+            current = parent
+        return start_path.parent.parent.parent.parent.parent
+
+    project_root = find_project_root(Path(__file__).resolve().parent)
     sys.path.insert(0, str(project_root))
     os.environ.setdefault('RYX_PROJECT_ROOT', str(project_root))
 

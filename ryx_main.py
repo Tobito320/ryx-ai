@@ -178,29 +178,33 @@ def handle_service_status(args: list):
 
 def handle_silent_prompt(prompt: str, safety_mode: str):
     """Handle prompt in silent mode - minimal output"""
+    import io
+    import sys
+    from contextlib import redirect_stdout
     from modes.cli_mode import CLIMode
 
     cli = CLIMode()
 
-    # Override to minimal output mode
-    original_print = __builtins__['print']
+    # Capture output using redirect_stdout
+    captured = io.StringIO()
+    with redirect_stdout(captured):
+        try:
+            cli.handle_prompt(prompt)
+        except Exception:
+            pass
+
+    # Get output and filter
+    output = captured.getvalue()
     output_lines = []
-
-    def silent_print(*args, **kwargs):
-        # Only capture meaningful output, skip thinking indicators
-        text = ' '.join(str(a) for a in args)
-        if '[thinking' not in text and '[searching' not in text and '[cached]' not in text:
-            output_lines.append(text)
-
-    try:
-        __builtins__['print'] = silent_print
-        cli.handle_prompt(prompt)
-    finally:
-        __builtins__['print'] = original_print
+    for line in output.split('\n'):
+        # Skip thinking indicators and empty lines
+        if line.strip() and '[thinking' not in line and '[searching' not in line and '[cached]' not in line:
+            # Skip ANSI escape sequences for "thinking" style text
+            if not line.startswith('\033[2m'):
+                output_lines.append(line)
 
     # Print only essential output (max 3 lines)
-    essential = [l for l in output_lines if l.strip() and not l.startswith('\033[2m')][:3]
-    for line in essential:
+    for line in output_lines[:3]:
         print(line)
 
 

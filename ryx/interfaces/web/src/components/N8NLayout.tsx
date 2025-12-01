@@ -83,14 +83,29 @@ export const N8NLayout: React.FC<N8NLayoutProps> = ({ className = '' }) => {
 
       addEvent(2, 'Executing workflow...', 'running');
       
-      // Make actual API call
-      const response = await fetch('/api/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: inputValue }),
-      });
+      // Make actual API call with error handling
+      let data: { result?: string } | undefined;
+      try {
+        const response = await fetch('/api/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command: inputValue }),
+        });
 
-      const data = await response.json();
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        data = await response.json();
+      } catch (fetchError) {
+        // Handle network errors gracefully
+        addEvent(2, `Network error: ${fetchError instanceof Error ? fetchError.message : 'Request failed'}`, 'error');
+        showToast('Failed to connect to backend', 'error');
+        setIsExecuting(false);
+        return;
+      }
+
       const totalLatency = Date.now() - startTime;
 
       addEvent(2, 'Workflow complete', 'success', totalLatency - 50);
@@ -101,7 +116,7 @@ export const N8NLayout: React.FC<N8NLayoutProps> = ({ className = '' }) => {
           id: `result-${Date.now()}`,
           type: 'text',
           title: `Executed: ${inputValue.slice(0, 30)}${inputValue.length > 30 ? '...' : ''}`,
-          content: data.result || JSON.stringify(data, null, 2),
+          content: data?.result || JSON.stringify(data, null, 2),
           metadata: { latency_ms: totalLatency },
           timestamp: new Date(),
         },

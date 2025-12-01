@@ -142,8 +142,25 @@ class ServiceManager:
 
         for service, pid in pids.items():
             try:
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-                stopped.append(service)
+                # Verify the process is still the one we started
+                import psutil
+                try:
+                    proc = psutil.Process(pid)
+                    # Check if process name contains expected keywords
+                    proc_name = proc.name().lower()
+                    proc_cmdline = ' '.join(proc.cmdline()).lower()
+                    
+                    # Only kill if it looks like our process
+                    if any(kw in proc_name or kw in proc_cmdline 
+                           for kw in ['python', 'uvicorn', 'npm', 'node']):
+                        os.killpg(os.getpgid(pid), signal.SIGTERM)
+                        stopped.append(service)
+                    else:
+                        # Process doesn't match, skip
+                        stopped.append(f"{service} (already stopped)")
+                except psutil.NoSuchProcess:
+                    # Process already dead
+                    stopped.append(service)
             except ProcessLookupError:
                 # Process already dead
                 stopped.append(service)
