@@ -166,9 +166,7 @@ class CLIMode:
             "Just have a friendly conversation."
         )
 
-        print("\033[2m[thinking...]\033[0m", end="\r")
         result = self.ai.query(prompt, context=system_context, use_cache=True, learn_preferences=True)
-        print(" " * 20, end="\r")  # Clear "thinking"
 
         if result.error:
             print(f"\033[1;31m✗\033[0m {result.error_message}")
@@ -198,9 +196,7 @@ class CLIMode:
             "Do NOT open, edit, or execute anything. Just show the file path."
         )
 
-        print("\033[2m[searching...]\033[0m", end="\r")
         result = self.ai.query(prompt, context=system_context, use_cache=True, learn_preferences=True)
-        print(" " * 20, end="\r")
 
         if result.error:
             print(f"\033[1;31m✗\033[0m {result.error_message}")
@@ -238,9 +234,7 @@ class CLIMode:
                 return
 
         # If file finder didn't work, query AI
-        print("\033[2m[thinking...]\033[0m", end="\r")
         result = self.ai.query(prompt, context=None, use_cache=True, learn_preferences=True)
-        print(" " * 20, end="\r")
 
         if result.error:
             print(f"\033[1;31m✗\033[0m {result.error_message}")

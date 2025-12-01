@@ -334,8 +334,10 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       const selectionChange = changes.find(
         (change) => change.type === 'select' && 'selected' in change
       );
-      if (selectionChange && 'id' in selectionChange) {
-        const nodeId = selectionChange.selected ? selectionChange.id : null;
+      if (selectionChange && 'id' in selectionChange && 'selected' in selectionChange) {
+        const nodeId = (selectionChange as { selected: boolean; id: string }).selected 
+          ? (selectionChange as { id: string }).id 
+          : null;
         setSelectedNodeId(nodeId);
         onNodeSelect?.(nodeId);
       }
