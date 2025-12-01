@@ -176,14 +176,13 @@ class IntentParser:
     def _is_informational_find_query(self, prompt_lower: str) -> bool:
         """
         Check if the prompt is an informational query containing 'find'.
+        
         Examples: "where can I find X?", "how do I find X?"
         These should return 'locate' rather than potentially triggering 'execute'.
         
         If explicit execute verbs (edit, run, execute, launch, start) are present,
         the query should be treated as an execute command, not an informational query.
         """
-        import re
-        
         # Question patterns that suggest the user is asking for location/information
         informational_patterns = ['where can i find', 'where do i find', 'how can i find', 'how do i find']
         
