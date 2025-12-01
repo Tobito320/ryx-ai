@@ -30,11 +30,9 @@ class IntentParser:
     BROWSE_KEYWORDS = ['look up', 'browse', 'google', 'search', 'what is', 'who is', 'search for']
     LOCATE_KEYWORDS = ['find', 'where is', 'show me', 'locate', 'path to', 'where']
 
-    # Explicit execute verbs that unambiguously indicate execution intent.
-    # Used to override the question heuristic in _detect_action.
-    # Note: 'open' and 'edit' are excluded because they appear in compound phrases
-    # like 'open source' or 'edit the conversation'.
-    EXPLICIT_EXECUTE_VERBS = ['run', 'execute', 'launch', 'start', 'install']
+    # Non-action compound phrases containing action keywords (e.g., "open source" is not an action)
+    # These phrases should be excluded from triggering action keyword detection.
+    NON_ACTION_PHRASES = ['open source']
 
     # Modifier keywords that change how action is performed
     NEW_TERMINAL_KEYWORDS = ['new terminal', 'new window', 'separate terminal', 'separate window']
@@ -145,31 +143,27 @@ class IntentParser:
     def _detect_action(self, prompt_lower: str) -> str:
         """Detect the intended action from prompt"""
 
-        # Heuristic: Detect question-like prompts to avoid misclassifying informational queries.
-        # Questions containing 'find' or 'where' are likely asking for location info, not execution.
-        # For example: "where can I find the open source license?" should be 'locate', not 'execute'
-        # (because 'open source' is a noun phrase, not a command to open something).
-        is_question = self._is_question_like(prompt_lower)
+        # Mask non-action compound phrases (e.g., "open source") to prevent false positives.
+        # We replace them with placeholder text so action keywords within them are not detected.
+        masked_prompt = prompt_lower
+        for phrase in self.NON_ACTION_PHRASES:
+            masked_prompt = masked_prompt.replace(phrase, '_MASKED_')
 
-        # If it's a question and contains locate keywords (find/where), prefer 'locate' action
-        # unless explicit execute verbs (run/execute/start/install) are present.
-        if is_question:
-            has_locate_keyword = any(kw in prompt_lower for kw in self.LOCATE_KEYWORDS)
-            has_explicit_execute = any(verb in prompt_lower for verb in self.EXPLICIT_EXECUTE_VERBS)
+        # For informational queries containing 'find' (e.g., "where can I find X?"),
+        # prefer 'locate' over 'execute' to avoid misclassifying questions as actions.
+        if self._is_informational_find_query(prompt_lower):
+            return 'locate'
 
-            if has_locate_keyword and not has_explicit_execute:
-                return 'locate'
-
-        # Check execute keywords first (most specific)
-        if any(kw in prompt_lower for kw in self.EXECUTE_KEYWORDS):
+        # Check execute keywords first (most specific), using masked prompt
+        if any(kw in masked_prompt for kw in self.EXECUTE_KEYWORDS):
             return 'execute'
 
-        # Check browse keywords
-        if any(kw in prompt_lower for kw in self.BROWSE_KEYWORDS):
+        # Check browse keywords, using masked prompt for consistency
+        if any(kw in masked_prompt for kw in self.BROWSE_KEYWORDS):
             return 'browse'
 
-        # Check locate keywords
-        if any(kw in prompt_lower for kw in self.LOCATE_KEYWORDS):
+        # Check locate keywords, using masked prompt for consistency
+        if any(kw in masked_prompt for kw in self.LOCATE_KEYWORDS):
             return 'locate'
 
         # Check if prompt mentions a config file or path (implicit locate)
@@ -179,35 +173,15 @@ class IntentParser:
         # Default to chat (just conversation)
         return 'chat'
 
-    def _is_question_like(self, prompt_lower: str) -> bool:
+    def _is_informational_find_query(self, prompt_lower: str) -> bool:
         """
-        Detect if a prompt is question-like (informational query rather than command).
-
-        This heuristic is conservative: it checks for explicit question markers like:
-        - Ends with '?'
-        - Starts with question words: 'where', 'what', 'how', 'can', 'could', 'is', 'are'
-        - Contains question phrases: 'can I', 'where can', 'how do'
-
-        Returns True if the prompt appears to be a question, False otherwise.
+        Check if the prompt is an informational query containing 'find'.
+        Examples: "where can I find X?", "how do I find X?"
+        These should return 'locate' rather than potentially triggering 'execute'.
         """
-        # Check for question mark
-        if prompt_lower.strip().endswith('?'):
-            return True
-
-        # Question starters (common interrogative patterns)
-        question_starters = [
-            'where ', 'what ', 'how ', 'can i ', 'could i ', 'is there ',
-            'are there ', 'do you ', 'does ', 'which ', 'why ', 'when '
-        ]
-        if any(prompt_lower.startswith(starter) for starter in question_starters):
-            return True
-
-        # Question phrases that can appear mid-sentence
-        question_phrases = ['can i find', 'where can', 'how do i', 'where is']
-        if any(phrase in prompt_lower for phrase in question_phrases):
-            return True
-
-        return False
+        # Question patterns that suggest the user is asking for location/information
+        informational_patterns = ['where can i find', 'where do i find', 'how can i find', 'how do i find']
+        return any(pattern in prompt_lower for pattern in informational_patterns)
 
     def _is_implicit_locate(self, prompt_lower: str) -> bool:
         """
