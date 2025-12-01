@@ -515,11 +515,48 @@ class WorkflowExecutor:
         # Build prompt with context
         prompt = self._build_prompt(state)
 
-        # TODO: Call LLM (simplified for now)
-        # In full implementation, would stream tokens
-        state.llm_response = (
-            f"Response from {state.selected_model} for: {state.processed_input}"
-        )
+        # Call LLM for response generation
+        try:
+            # Import OllamaClient here to avoid circular imports
+            import sys
+            import os
+            from pathlib import Path
+            
+            # Ensure project root is in path
+            current = Path(__file__).resolve().parent
+            for _ in range(10):
+                if (current / "pyproject.toml").exists() or (current / "core").is_dir():
+                    break
+                current = current.parent
+            sys.path.insert(0, str(current))
+            
+            from core.ollama_client import OllamaClient
+            
+            client = OllamaClient()
+            system_prompt = (
+                "You are Ryx, a helpful AI assistant. "
+                "Provide concise, accurate responses."
+            )
+            
+            result = client.generate(
+                prompt=prompt,
+                model=state.selected_model,
+                system=system_prompt,
+                max_tokens=2048
+            )
+            
+            if result.error:
+                state.llm_response = f"Error: {result.error}"
+                state.errors.append(result.error)
+            else:
+                state.llm_response = result.response
+                
+        except Exception as e:
+            # Fallback to stub response if LLM not available
+            state.llm_response = (
+                f"Response from {state.selected_model} for: {state.processed_input}"
+            )
+            state.errors.append(f"LLM call failed: {str(e)}")
 
         latency = (time.time() - start_time) * 1000
 
