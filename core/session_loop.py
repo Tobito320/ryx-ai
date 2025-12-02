@@ -23,12 +23,13 @@ from core.ryx_brain import RyxBrain, Plan, Intent, get_brain
 from core.ollama_client import OllamaClient
 from core.model_router import ModelRouter
 
-# Use new CLI UI
+# Use new CLI UI (try modern first, fall back to legacy)
 try:
-    from core.cli_ui import get_ui, get_cli, CLI
+    from core.cli_ui import get_ui, get_cli, get_modern_cli, CLI
 except ImportError:
     from core.rich_ui import get_ui, RyxUI as CLI
     get_cli = get_ui
+    get_modern_cli = get_ui
 
 
 class SessionLoop:
@@ -38,7 +39,8 @@ class SessionLoop:
     
     def __init__(self, safety_mode: str = "normal"):
         self.safety_mode = safety_mode
-        self.cli = get_cli()
+        # Try modern CLI with fixed input box, fall back to legacy
+        self.cli = get_modern_cli(cwd=os.getcwd()) or get_cli()
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         self.brain = get_brain(self.ollama)

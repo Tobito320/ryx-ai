@@ -752,26 +752,47 @@ class RyxUI(CLI):
 # Global Instances - MUST be after class definitions
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_cli: Optional[RyxUI] = None
+_cli = None
 
-# Try to use new TerminalUI (prompt_toolkit based), fall back to RyxUI
-_use_terminal_ui = True
+# Try modern full-screen UI first
+_use_modern_ui = True
+
+
+def get_modern_cli(cwd: str = None):
+    """Get ModernCLI (full-screen with fixed input box)"""
+    global _cli
+    if _cli is None and _use_modern_ui:
+        try:
+            from core.cli_ui_modern import create_modern_cli
+            _cli = create_modern_cli(cwd=cwd)
+            if _cli:
+                return _cli
+        except ImportError:
+            pass
+        except Exception as e:
+            import sys
+            print(f"Warning: ModernCLI failed: {e}", file=sys.stderr)
+    return _cli
+
 
 def get_cli():
-    """Get or create global CLI instance"""
+    """Get CLI instance - tries modern first, falls back to RyxUI"""
     global _cli
     if _cli is None:
-        if _use_terminal_ui:
+        # Try modern UI first
+        if _use_modern_ui:
             try:
-                from core.terminal_ui import get_terminal_ui
-                _cli = get_terminal_ui()
-            except ImportError:
-                _cli = RyxUI()
-        else:
-            _cli = RyxUI()
+                from core.cli_ui_modern import create_modern_cli
+                _cli = create_modern_cli()
+                if _cli:
+                    return _cli
+            except:
+                pass
+        # Fall back to legacy
+        _cli = RyxUI()
     return _cli
 
 
 def get_ui():
-    """Get or create global UI instance (legacy compat)"""
+    """Legacy compatibility"""
     return get_cli()
