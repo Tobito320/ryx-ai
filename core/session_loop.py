@@ -1,501 +1,426 @@
 """
-Ryx AI - Session Loop
-Main interactive session for the Ryx AI CLI
+Ryx AI - Session Loop V4: Copilot-Style Interactive Session
 
-This is the main entry point - uses ryx_brain_v2 for intelligent processing.
+Features:
+- True conversational flow with context
+- Quick y/n responses (instant, no LLM)
+- Slash commands for power users
+- Multi-language (German/English)
+- NEVER says "Could you be more specific?"
+- Precision mode for learning tasks
 """
 
-import sys
-import signal
-import json
 import os
-from pathlib import Path
-from typing import Optional, Dict, Any, List
+import sys
+import json
+import readline
+import signal
 from datetime import datetime
+from typing import Optional
 
-# Use the v2 brain for full AI understanding
-from core.ryx_brain_v2 import get_brain_v2, RyxBrainV2, ActionType, Action
-from core.model_router import ModelRouter, ModelTier
+from core.paths import get_data_dir
+from core.ryx_brain_v4 import RyxBrainV4, get_brain_v4, Plan, Intent
 from core.ollama_client import OllamaClient
-from core.ui import RyxUI, Color
-from core.paths import get_project_root, get_data_dir
-
-try:
-    from core.memory import get_memory, RyxMemory
-except ImportError:
-    get_memory = None
-    RyxMemory = None
+from core.model_router import ModelRouter
 
 
-class SessionLoop:
+class Color:
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    RESET = '\033[0m'
+
+
+class SessionUI:
+    @staticmethod
+    def success(msg: str):
+        print(f"{Color.GREEN}{msg}{Color.RESET}")
+    
+    @staticmethod
+    def error(msg: str):
+        print(f"{Color.RED}❌ {msg}{Color.RESET}")
+    
+    @staticmethod
+    def warning(msg: str):
+        print(f"{Color.YELLOW}⚠️ {msg}{Color.RESET}")
+    
+    @staticmethod
+    def info(msg: str):
+        print(f"{Color.DIM}ℹ️ {msg}{Color.RESET}")
+    
+    @staticmethod
+    def assistant(msg: str):
+        print(f"\n{Color.PURPLE}Ryx:{Color.RESET} {msg}")
+    
+    @staticmethod
+    def prompt() -> str:
+        try:
+            return input(f"\n{Color.CYAN}>{Color.RESET} ")
+        except EOFError:
+            return "/quit"
+
+
+class SessionLoopV4:
     """
-    Main interactive session loop for Ryx AI
-
-    Features:
-    - Intelligent AI-based understanding (no hardcoded patterns)
-    - Knowledge-backed responses (no hallucination)
-    - Clarification when ambiguous
-    - Action-biased (does things, doesn't explain)
-    - Conversational context and follow-ups
-    - Multi-language support (German/English)
+    Main interactive session - Copilot-style.
     """
-
+    
     def __init__(self, safety_mode: str = "normal"):
-        self.ui = RyxUI()
+        self.safety_mode = safety_mode
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
+        self.brain = get_brain_v4(self.ollama)
+        self.ui = SessionUI()
         
-        # Use the v2 brain for full AI understanding
-        self.brain = get_brain_v2(self.ollama)
-        
-        # Memory system (optional)
-        self.memory = get_memory() if get_memory else None
-
-        # Session state
         self.running = True
-        self.current_tier: Optional[ModelTier] = None
-        self.conversation_history: List[Dict[str, str]] = []
-        self.context: Dict[str, Any] = {}
-        self.safety_mode = safety_mode
         self.session_start = datetime.now()
+        self.history = []
         
-        # Stats
         self.stats = {
-            "prompts": 0,
-            "actions": 0,
-            "cache_hits": 0,
-            "llm_calls": 0,
-            "files_opened": 0,
-            "urls_opened": 0,
-            "searches": 0,
-            "scrapes": 0
+            'prompts': 0,
+            'actions': 0,
+            'files': 0,
+            'urls': 0,
+            'searches': 0,
+            'scrapes': 0
         }
-
-        # Session file for persistence
-        self.session_file = get_data_dir() / "session_state.json"
-
-        # Install signal handlers
-        signal.signal(signal.SIGINT, self._handle_interrupt)
-
-        # Try to restore previous session
-        self._restore_session()
-
-    def _handle_interrupt(self, signum, frame):
-        """Handle Ctrl+C gracefully"""
-        print()
-        self.ui.warning("Session interrupted (Ctrl+C)")
-        self._save_session()
-        self.ui.info("Session saved. Run 'ryx' to continue.")
-        sys.exit(0)
-
-    def _save_session(self):
-        """Save session state"""
-        try:
-            self.session_file.parent.mkdir(parents=True, exist_ok=True)
-            state = {
-                'saved_at': datetime.now().isoformat(),
-                'conversation_history': self.conversation_history[-50:],
-                'current_tier': self.current_tier.value if self.current_tier else None,
-                'context': self.context
-            }
-            with open(self.session_file, 'w') as f:
-                json.dump(state, f, indent=2)
-        except Exception as e:
-            pass  # Silent fail
-
-    def _restore_session(self):
-        """Restore previous session if exists"""
-        try:
-            if self.session_file.exists():
-                with open(self.session_file) as f:
-                    state = json.load(f)
-                self.conversation_history = state.get('conversation_history', [])
-                tier_name = state.get('current_tier')
-                if tier_name:
-                    self.current_tier = ModelTier(tier_name)
-                self.context = state.get('context', {})
-        except:
-            pass
-
-    def run(self):
-        """Main session loop"""
-        # Show header with precision mode indicator
-        mode_str = "PRECISION" if self.brain.precision_mode else "balanced"
-        self.ui.header(
-            tier=mode_str,
-            repo=str(get_project_root()),
-            safety=self.safety_mode
-        )
-        self.ui.info("Type naturally. Use /help for commands, @ for files, ! for shell.")
         
-        if self.conversation_history:
-            self.ui.info(f"Resumed session with {len(self.conversation_history)} messages")
-
+        self._setup_readline()
+        self._setup_signals()
+    
+    def _setup_readline(self):
+        history_file = get_data_dir() / "history" / "session_v4"
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            readline.read_history_file(history_file)
+        except FileNotFoundError:
+            pass
+        
+        readline.set_history_length(1000)
+        import atexit
+        atexit.register(readline.write_history_file, history_file)
+    
+    def _setup_signals(self):
+        def handler(sig, frame):
+            print()
+            self.ui.warning("Session unterbrochen (Ctrl+C)")
+            self._save()
+            self.ui.info("Session gespeichert. 'ryx' zum Fortsetzen.")
+            sys.exit(0)
+        
+        signal.signal(signal.SIGINT, handler)
+    
+    def run(self):
+        """Main loop"""
+        self._show_banner()
+        self._restore()
+        
         while self.running:
             try:
-                # Custom prompt based on brain state
-                custom_prompt = None
-                if self.brain.state.awaiting_confirmation:
-                    custom_prompt = "[y/n]"
-                elif self.brain.state.pending_items:
-                    custom_prompt = "[#]"
+                user_input = self.ui.prompt()
                 
-                user_input = self.ui.prompt(custom_prompt=custom_prompt)
-                if not user_input:
+                if not user_input.strip():
                     continue
-                self.stats["prompts"] += 1
-                self._process_input(user_input)
+                
+                self._process(user_input.strip())
+                
             except KeyboardInterrupt:
                 print()
-                continue
-            except EOFError:
+                self.ui.warning("Session unterbrochen")
+                self._save()
                 break
-
-        self._save_session()
-        self.ui.info("Goodbye!")
-
-    def _process_input(self, user_input: str):
-        """Process user input using the brain"""
-        user_input = user_input.strip()
-        
-        # Handle slash commands
-        if user_input.startswith('/'):
-            self._handle_slash_command(user_input)
-            return
-        
-        # Handle @ file references
-        if user_input.startswith('@'):
-            self._handle_file_reference(user_input)
-            return
-        
-        # Handle ! shell commands
-        if user_input.startswith('!'):
-            self._handle_shell_command(user_input[1:])
-            return
-        
-        # Handle greetings instantly
-        if self._is_greeting(user_input.lower()):
-            self._handle_greeting(user_input.lower())
-            return
-        
-        # Handle "get smarter" / "improve yourself" commands
-        if any(x in user_input.lower() for x in ['get smart', 'improve', 'learn more', 'fix your', 'update knowledge']):
-            self._handle_self_improvement()
-            return
-        
-        # Use the brain to understand and act
-        action = self.brain.understand(user_input)
-        
-        # Save to history
-        self.conversation_history.append({
-            "role": "user",
-            "content": user_input,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Handle the action
-        self._handle_action(action, user_input)
-
-    def _handle_file_reference(self, ref: str):
-        """Handle @file references"""
-        import os
-        path = ref[1:].strip()
-        path = os.path.expanduser(path)
-        
-        if os.path.exists(path):
-            try:
-                with open(path) as f:
-                    content = f.read()
-                print(f"\n{Color.DIM}--- {path} ---{Color.RESET}")
-                print(content[:2000])
-                if len(content) > 2000:
-                    print(f"\n{Color.DIM}... ({len(content)} chars total){Color.RESET}")
             except Exception as e:
-                self.ui.error(f"Cannot read {path}: {e}")
-        else:
-            self.ui.error(f"File not found: {path}")
-
-    def _handle_shell_command(self, cmd: str):
-        """Handle !shell commands"""
-        import subprocess
-        try:
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
-            if result.stdout:
-                print(result.stdout)
-            if result.stderr:
-                print(f"{Color.YELLOW}{result.stderr}{Color.RESET}")
-        except subprocess.TimeoutExpired:
-            self.ui.error("Command timed out")
-        except Exception as e:
-            self.ui.error(f"Command failed: {e}")
-
-    def _handle_action(self, action: Action, original_input: str):
-        """Handle an action from the brain"""
+                self.ui.error(f"Fehler: {e}")
+    
+    def _show_banner(self):
+        mode = "PRECISION" if self.brain.precision_mode else "normal"
+        model = self.brain.models.get("default", self.brain.precision_mode)
+        browsing = "ON" if self.brain.browsing_enabled else "OFF"
         
-        # Clarification needed
-        if action.type == ActionType.CLARIFY:
-            self.ui.assistant_message(action.question or "Was genau meinst du?")
+        print(f"""
+{Color.PURPLE}╭────────────────────────────────────────────────────────────╮
+│ 🟣 ryx v4 – Local AI Agent                                  │
+│                                                            │
+│ Mode: {mode:<12} Model: {model:<22}│
+│ Browsing: {browsing:<8}                                        │
+╰────────────────────────────────────────────────────────────╯{Color.RESET}
+
+{Color.DIM}Natürlich sprechen. /help für Befehle.{Color.RESET}
+""")
+    
+    def _process(self, user_input: str):
+        """Process user input"""
+        self.stats['prompts'] += 1
+        self.history.append({'role': 'user', 'content': user_input, 'ts': datetime.now().isoformat()})
+        
+        # Slash commands
+        if user_input.startswith('/'):
+            self._slash_command(user_input)
             return
         
-        # Just an answer - still need to execute to store context
-        if action.type == ActionType.ANSWER:
-            response = action.target or ""
-            if response:
-                self.ui.assistant_message(response)
-                # Store result for follow-ups (e.g., "open it" after "where is X")
-                self.brain.state.last_result = response
-                self.conversation_history.append({
-                    "role": "assistant",
-                    "content": response,
-                    "timestamp": datetime.now().isoformat()
-                })
+        # Special syntax
+        if user_input.startswith('@'):
+            self._file_include(user_input[1:])
             return
         
-        # Execute the action
-        success, result = self.brain.execute(action)
+        if user_input.startswith('!'):
+            self._shell_command(user_input[1:])
+            return
         
-        # Update stats
-        self.stats["actions"] += 1
-        if action.type == ActionType.OPEN_FILE:
-            self.stats["files_opened"] += 1
-        elif action.type == ActionType.OPEN_URL:
-            self.stats["urls_opened"] += 1
-        elif action.type == ActionType.SEARCH_WEB:
-            self.stats["searches"] += 1
-        elif action.type in [ActionType.SCRAPE_URL, ActionType.SCRAPE_HTML_CSS]:
-            self.stats["scrapes"] += 1
+        # Let brain understand and act
+        plan = self.brain.understand(user_input)
+        success, result = self.brain.execute(plan)
         
-        if success:
-            if action.type == ActionType.OPEN_FILE:
-                self.ui.success(f"Geöffnet: {result}")
-            elif action.type == ActionType.OPEN_URL:
-                self.ui.success("Im Browser geöffnet")
-            elif action.type == ActionType.FIND_FILE:
-                if "Mehrere" in str(result) or "Welche" in str(result):
-                    self.ui.assistant_message(result)
-                elif result:
-                    print(f"\n{Color.CYAN}{result}{Color.RESET}\n")
+        # Track stats
+        self.stats['actions'] += 1
+        if plan.intent == Intent.OPEN_FILE:
+            self.stats['files'] += 1
+        elif plan.intent == Intent.OPEN_URL:
+            self.stats['urls'] += 1
+        elif plan.intent == Intent.SEARCH_WEB:
+            self.stats['searches'] += 1
+        elif plan.intent in [Intent.SCRAPE, Intent.SCRAPE_HTML]:
+            self.stats['scrapes'] += 1
+        
+        # Show result
+        if result:
+            if success:
+                if result.startswith('✅') or result.startswith('📊'):
+                    print(f"\n{result}")
                 else:
-                    self.ui.info("Keine Dateien gefunden")
-            elif action.type == ActionType.GET_DATE:
-                self.ui.assistant_message(result)
-            elif action.type in [ActionType.SET_PREFERENCE, ActionType.SWITCH_MODEL, ActionType.TOGGLE_MODE]:
-                self.ui.success(result)
-            elif action.type == ActionType.SEARCH_WEB:
-                self.ui.assistant_message(result)
-            elif action.type in [ActionType.SCRAPE_URL, ActionType.SCRAPE_HTML_CSS]:
-                self.ui.success(result)
+                    self.ui.assistant(result)
             else:
-                if result:
-                    self.ui.assistant_message(result)
-                else:
-                    self.ui.success("Erledigt")
-        else:
-            self.ui.error(result)
-            
-            # Offer contextual help
-            if "nicht gefunden" in result.lower() and action.type == ActionType.OPEN_FILE:
-                self.ui.assistant_message("Soll ich danach suchen? (y/n)")
-                self.brain.state.awaiting_confirmation = True
-                self.brain.state.pending_question = "Soll ich danach suchen? (y/n)"
-                self.brain.state.last_action = Action(
-                    type=ActionType.FIND_FILE,
-                    target=action.target
-                )
-            elif "searxng" in result.lower():
-                self.ui.assistant_message("SearXNG starten? (y/n)")
-                self.brain.state.awaiting_confirmation = True
-                self.brain.state.pending_question = "SearXNG starten? (y/n)"
-                self.brain.state.last_action = Action(
-                    type=ActionType.START_SERVICE,
-                    target="searxng"
-                )
+                self.ui.error(result)
         
-        # Save to history
-        self.conversation_history.append({
-            "role": "assistant", 
-            "content": result if result else "Erledigt",
-            "action": action.type.value,
-            "timestamp": datetime.now().isoformat()
-        })
-
-    def _handle_slash_command(self, cmd: str):
+        self.history.append({'role': 'assistant', 'content': result, 'ts': datetime.now().isoformat()})
+    
+    def _slash_command(self, cmd: str):
         """Handle slash commands"""
         parts = cmd[1:].split(maxsplit=1)
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
         
-        if command in ['help', 'h', '?', 'hilfe']:
-            self._cmd_help()
-        elif command in ['quit', 'exit', 'q', 'beenden']:
-            self.running = False
-        elif command in ['clear', 'c', 'neu']:
-            self.conversation_history = []
-            self.context = {}
-            self.brain.state = type(self.brain.state)()  # Reset state
-            self.ui.success("Kontext gelöscht")
-        elif command in ['tier', 't', 'modell']:
-            self._set_tier(args)
-        elif command in ['models', 'm', 'modelle']:
-            models = self.router.list_models()
-            self.ui.models_list(models)
-        elif command in ['status', 's', 'usage', 'u']:
-            self._show_status()
-        elif command in ['smarter', 'verbessern']:
-            self._handle_self_improvement()
-        elif command == 'scrape':
-            self._cmd_scrape(args)
-        elif command in ['learn', 'lerne']:
-            self._cmd_learn(args)
-        elif command in ['search', 'suche']:
-            self._cmd_search(args)
-        elif command == 'export':
-            self._cmd_export()
-        elif command in ['precision', 'präzision', 'genau']:
-            self._cmd_precision_mode(args)
-        elif command in ['restart', 'neustart']:
-            self._cmd_restart(args)
+        cmds = {
+            'help': self._help, 'h': self._help, '?': self._help, 'hilfe': self._help,
+            'quit': self._quit, 'exit': self._quit, 'q': self._quit, 'beenden': self._quit,
+            'clear': self._clear, 'c': self._clear, 'neu': self._clear,
+            'status': self._status, 's': self._status, 'u': self._status,
+            'models': self._models, 'm': self._models, 'modelle': self._models,
+            'precision': lambda: self._precision(args), 'präzision': lambda: self._precision(args),
+            'browsing': lambda: self._browsing(args),
+            'scrape': lambda: self._scrape(args),
+            'search': lambda: self._search(args), 'suche': lambda: self._search(args),
+            'learn': self._learn, 'lerne': self._learn, 'digest': self._learn,
+            'smarter': self._smarter, 'verbessern': self._smarter,
+            'export': self._export,
+            'restart': lambda: self._restart(args), 'neustart': lambda: self._restart(args),
+        }
+        
+        handler = cmds.get(command)
+        if handler:
+            handler()
         else:
             self.ui.warning(f"Unbekannter Befehl: {command}")
     
-    def _cmd_help(self):
-        """Show comprehensive help"""
-        help_text = """
-╭─────────────────────────────────────────────────────────────╮
-│ 🟣 Ryx v2 - Befehle                                          │
-╰─────────────────────────────────────────────────────────────╯
+    def _help(self):
+        print(f"""
+{Color.PURPLE}╭─────────────────────────────────────────────────────────────╮
+│ 🟣 Ryx v4 - Befehle                                          │
+╰─────────────────────────────────────────────────────────────╯{Color.RESET}
 
-SLASH-BEFEHLE (nur in Session):
+{Color.CYAN}SLASH-BEFEHLE:{Color.RESET}
   /help, /hilfe       Diese Hilfe
   /quit, /beenden     Session beenden
   /clear, /neu        Kontext löschen
-  /status, /usage     Statistiken
+  /status             Statistiken
   /models, /modelle   Verfügbare Modelle
   /precision on/off   Präzisionsmodus (größere Modelle)
+  /browsing on/off    Web-Browsing aktivieren/deaktivieren
   /scrape <url>       Webseite scrapen
-  /search <query>     Web-Suche via SearXNG
-  /learn              Aus letztem Scrape lernen
+  /search <query>     Web-Suche
+  /learn, /digest     Aus gescraptem Inhalt lernen
   /smarter            Selbstverbesserung
-  /restart all        Alle Ryx-Dienste neustarten
+  /restart all        Ryx neustarten
   /export             Session exportieren
 
-SPEZIAL-SYNTAX:
-  @pfad/zur/datei     Datei-Inhalt anzeigen
+{Color.CYAN}SPEZIAL-SYNTAX:{Color.RESET}
+  @pfad/zur/datei     Datei-Inhalt einbinden
   !befehl             Shell-Befehl ausführen
 
-NATÜRLICHE BEFEHLE (Beispiele):
-  open youtube                    Website öffnen
-  hyprland config new terminal    Config in neuem Terminal
-  where is .zshrc                 Datei-Pfad finden
+{Color.CYAN}NATÜRLICHE BEFEHLE:{Color.RESET}
+  youtube                         Website öffnen
+  hyprland config                 Config in Editor öffnen
+  hyprlock config new terminal    Config in neuem Terminal
+  where is .zshrc                 Pfad anzeigen
+  find great wave                 Datei suchen
   scrape arch wiki                Webseite scrapen
-  search for python tutorials     Web-Suche
   set zen as default browser      Einstellung speichern
+  use gpt 20b as default          Modell wechseln
   mach mir einen lernzettel       Dokument erstellen
 
-INTERAKTION:
-  y/n                 Schnelle Bestätigung
-  1, 2, 3...         Aus Liste auswählen
-  "open it"           Letzte Datei/URL öffnen
-  "the first one"     Ersten Eintrag wählen
-"""
-        print(help_text)
+{Color.CYAN}SCHNELLE ANTWORTEN:{Color.RESET}
+  y/n/ja/nein         Bestätigung
+  1, 2, 3...          Aus Liste wählen
+  "open it"           Letztes Ergebnis öffnen
+""")
     
-    def _cmd_precision_mode(self, args: str):
-        """Toggle precision mode"""
-        if args.lower() in ['on', 'ein', 'true', '1']:
-            self.brain.toggle_precision_mode(True)
+    def _quit(self):
+        self._save()
+        self.running = False
+        self.ui.info("Auf Wiedersehen!")
+    
+    def _clear(self):
+        self.history = []
+        self.brain.ctx = type(self.brain.ctx)()
+        self.ui.success("Kontext gelöscht")
+    
+    def _status(self):
+        duration = datetime.now() - self.session_start
+        minutes = int(duration.total_seconds() / 60)
+        
+        precision = "EIN" if self.brain.precision_mode else "AUS"
+        browsing = "EIN" if self.brain.browsing_enabled else "AUS"
+        
+        print(f"""
+{Color.PURPLE}=== Ryx Status ==={Color.RESET}
+  Precision Mode: {precision}
+  Browsing: {browsing}
+  Kontext: {len(self.history)} Nachrichten
+  Dauer: {minutes} Minuten
+
+{Color.CYAN}Statistiken:{Color.RESET}
+  Prompts: {self.stats['prompts']}
+  Aktionen: {self.stats['actions']}
+  Dateien: {self.stats['files']}
+  URLs: {self.stats['urls']}
+  Suchen: {self.stats['searches']}
+  Scrapes: {self.stats['scrapes']}
+""")
+    
+    def _models(self):
+        plan = Plan(intent=Intent.LIST_MODELS)
+        _, result = self.brain.execute(plan)
+        print(result)
+    
+    def _precision(self, args: str):
+        if args.lower() in ['on', 'ein', '1', 'true']:
+            self.brain.precision_mode = True
             self.ui.success("Präzisionsmodus EIN - nutzt größere Modelle")
-        elif args.lower() in ['off', 'aus', 'false', '0']:
-            self.brain.toggle_precision_mode(False)
+        elif args.lower() in ['off', 'aus', '0', 'false']:
+            self.brain.precision_mode = False
             self.ui.success("Präzisionsmodus AUS")
         else:
             current = "EIN" if self.brain.precision_mode else "AUS"
-            self.ui.info(f"Präzisionsmodus: {current}. Nutze /precision on oder /precision off")
+            self.ui.info(f"Präzisionsmodus: {current}")
     
-    def _cmd_restart(self, args: str):
-        """Restart services"""
-        if 'all' in args.lower() or 'alles' in args.lower():
-            action = Action(
-                type=ActionType.RESTART_SERVICE,
-                target="ryx",
-                requires_confirmation=True,
-                question="Alle Ryx-Dienste neustarten? (y/n)"
-            )
-            success, result = self.brain.execute(action)
-            self.ui.assistant_message(result)
+    def _browsing(self, args: str):
+        if args.lower() in ['on', 'ein', '1', 'true']:
+            self.brain.browsing_enabled = True
+            self.ui.success("Browsing aktiviert")
+        elif args.lower() in ['off', 'aus', '0', 'false']:
+            self.brain.browsing_enabled = False
+            self.ui.success("Browsing deaktiviert")
         else:
-            self.ui.info("Nutzung: /restart all")
-
-    def _cmd_scrape(self, args: str):
-        """Scrape a URL"""
+            current = "EIN" if self.brain.browsing_enabled else "AUS"
+            self.ui.info(f"Browsing: {current}")
+    
+    def _scrape(self, args: str):
         if not args:
-            self.ui.error("Nutzung: /scrape <url oder name>")
+            self.ui.error("Nutzung: /scrape <url>")
             return
         
         self.ui.info("Scraping...")
-        action = Action(type=ActionType.SCRAPE_URL, target=args.strip())
-        success, result = self.brain.execute(action)
+        plan = Plan(intent=Intent.SCRAPE, target=args.strip())
+        success, result = self.brain.execute(plan)
         
         if success:
-            self.ui.success(result)
-        else:
-            self.ui.error(f"Scrape fehlgeschlagen: {result}")
-
-    def _cmd_learn(self, args: str):
-        """Learn from scraped content"""
-        if not self.brain.state.last_scraped_content:
-            scrape_dir = get_data_dir() / "scrape"
-            if not scrape_dir.exists() or not list(scrape_dir.glob("*.json")):
-                self.ui.error("Kein Scrape-Inhalt. Nutze erst /scrape <url>")
-                return
-            
-            # Load latest scrape
-            latest = max(scrape_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
-            with open(latest) as f:
-                data = json.load(f)
-            self.brain.state.last_scraped_content = data
-        
-        content = self.brain.state.last_scraped_content
-        self.ui.info(f"Lerne aus: {content.get('title', content.get('domain', 'Unbekannt'))}")
-        
-        try:
-            response = self.ollama.generate(
-                prompt=f"Fasse diesen Inhalt in 3-5 Stichpunkten zusammen:\n\n{content.get('text', '')[:3000]}",
-                model=self.brain.models['balanced'],
-                system="Sei präzise. Extrahiere die wichtigsten Fakten.",
-                max_tokens=500
-            )
-            
-            if response.response:
-                scrape_dir = get_data_dir() / "scrape"
-                title = content.get('title', content.get('domain', 'unknown'))
-                safe_name = "".join(c if c.isalnum() or c in ' -_' else '_' for c in title[:50])
-                summary_file = scrape_dir / f"{safe_name}_summary.md"
-                
-                with open(summary_file, 'w') as f:
-                    f.write(f"# {title}\n\n{response.response}")
-                
-                self.ui.success(f"Gelernt und gespeichert: {summary_file}")
-                print(response.response)
-        except Exception as e:
-            self.ui.error(f"Lernen fehlgeschlagen: {e}")
-
-    def _cmd_search(self, args: str):
-        """Web search"""
-        if not args:
-            self.ui.error("Nutzung: /search <suchanfrage>")
-            return
-        
-        action = Action(type=ActionType.SEARCH_WEB, target=args)
-        success, result = self.brain.execute(action)
-        
-        if success:
-            self.ui.assistant_message(result)
+            print(result)
         else:
             self.ui.error(result)
-
-    def _cmd_export(self):
-        """Export session"""
+    
+    def _search(self, args: str):
+        if not args:
+            self.ui.error("Nutzung: /search <query>")
+            return
+        
+        plan = Plan(intent=Intent.SEARCH_WEB, target=args)
+        success, result = self.brain.execute(plan)
+        
+        if success:
+            print(result)
+        else:
+            self.ui.error(result)
+    
+    def _learn(self):
+        if not self.brain.ctx.last_scraped:
+            scrape_dir = get_data_dir() / "scrape"
+            if scrape_dir.exists():
+                json_files = list(scrape_dir.glob("*.json"))
+                if json_files:
+                    latest = max(json_files, key=lambda p: p.stat().st_mtime)
+                    with open(latest) as f:
+                        self.brain.ctx.last_scraped = json.load(f)
+        
+        if not self.brain.ctx.last_scraped:
+            self.ui.error("Kein Scrape-Inhalt vorhanden. Nutze erst /scrape <url>")
+            return
+        
+        content = self.brain.ctx.last_scraped
+        title = content.get('title', content.get('domain', 'Unbekannt'))
+        text = content.get('text', '')[:5000]
+        
+        self.ui.info(f"Lerne aus: {title}")
+        
+        model = self.brain.models.get("precision", True)
+        
+        response = self.brain.ollama.generate(
+            prompt=f"Fasse diesen Inhalt in klaren Stichpunkten zusammen:\n\n{text}",
+            model=model,
+            system="Extrahiere die wichtigsten Fakten. Kurz und präzise.",
+            max_tokens=1000
+        )
+        
+        if response.error:
+            self.ui.error(f"Fehler: {response.error}")
+            return
+        
+        scrape_dir = get_data_dir() / "scrape"
+        safe_name = "".join(c if c.isalnum() or c in ' -_' else '_' for c in title[:50])
+        summary_file = scrape_dir / f"{safe_name}_summary.md"
+        
+        with open(summary_file, 'w') as f:
+            f.write(f"# {title}\n\n")
+            f.write(f"Quelle: {content.get('url', 'Unbekannt')}\n")
+            f.write(f"Gelernt: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n")
+            f.write(response.response)
+        
+        self.ui.success(f"Gelernt und gespeichert: {summary_file}")
+        print(f"\n{response.response}")
+        
+        # Add to RAG
+        self.ui.info("Füge zur Wissensbasis hinzu...")
+        try:
+            from core.rag_system import get_rag_system
+            rag = get_rag_system()
+            rag.add_document(
+                content=response.response,
+                metadata={"source": content.get('url', 'scrape'), "title": title, "type": "learned"}
+            )
+            self.ui.success("Zur RAG-Wissensbasis hinzugefügt")
+        except Exception as e:
+            self.ui.warning(f"RAG nicht verfügbar: {e}")
+    
+    def _smarter(self):
+        self.ui.info("Selbstverbesserung läuft...")
+        result = self.brain.get_smarter()
+        print(result)
+    
+    def _export(self):
         export_dir = get_data_dir() / "exports"
         export_dir.mkdir(parents=True, exist_ok=True)
         
@@ -504,74 +429,106 @@ INTERAKTION:
         
         with open(export_file, 'w') as f:
             f.write(f"# Ryx Session\n\nDatum: {datetime.now()}\n\n")
-            for msg in self.conversation_history:
-                role = msg.get('role', 'unbekannt').title()
+            for msg in self.history:
+                role = msg.get('role', 'unknown').title()
                 f.write(f"**{role}**: {msg.get('content', '')}\n\n")
         
         self.ui.success(f"Exportiert: {export_file}")
-
-    def _set_tier(self, tier_name: str):
-        """Set the model tier"""
-        if not tier_name:
-            self.ui.info("Verfügbar: fast, balanced, powerful, ultra")
+    
+    def _restart(self, args: str):
+        if 'all' in args.lower() or not args:
+            plan = Plan(
+                intent=Intent.RESTART,
+                target="all",
+                requires_confirmation=True,
+                question="Alle Ryx-Dienste neustarten? (y/n)"
+            )
+            _, result = self.brain.execute(plan)
+            print(result)
+        else:
+            self.ui.info("Nutzung: /restart all")
+    
+    def _file_include(self, path: str):
+        path = os.path.expanduser(path.strip())
+        
+        if not os.path.exists(path):
+            self.ui.error(f"Datei nicht gefunden: {path}")
             return
         
-        tier = self.router.get_tier_by_name(tier_name)
-        if tier:
-            self.current_tier = tier
-            model = self.router.get_model(tier)
-            self.ui.success(f"Gewechselt zu {tier.value} ({model.name})")
-        else:
-            self.ui.error(f"Unbekannte Stufe: {tier_name}")
-
-    def _show_status(self):
-        """Show current status with stats"""
-        duration = datetime.now() - self.session_start
-        minutes = int(duration.total_seconds() / 60)
+        try:
+            with open(path, 'r') as f:
+                content = f.read()
+            
+            lines = content.split('\n')
+            preview = '\n'.join(lines[:20])
+            if len(lines) > 20:
+                preview += f"\n... ({len(lines) - 20} weitere Zeilen)"
+            
+            print(f"\n{Color.DIM}--- {path} ---{Color.RESET}")
+            print(preview)
+            print(f"{Color.DIM}--- Ende ---{Color.RESET}")
+            
+            self.brain.ctx.last_path = path
+            
+        except Exception as e:
+            self.ui.error(f"Fehler beim Lesen: {e}")
+    
+    def _shell_command(self, cmd: str):
+        import subprocess
         
-        precision = "EIN" if self.brain.precision_mode else "AUS"
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            
+            if result.stdout:
+                print(result.stdout)
+            if result.stderr:
+                print(f"{Color.YELLOW}{result.stderr}{Color.RESET}")
+            
+            if result.returncode != 0:
+                self.ui.warning(f"Exit code: {result.returncode}")
+                
+        except subprocess.TimeoutExpired:
+            self.ui.error("Timeout")
+        except Exception as e:
+            self.ui.error(f"Fehler: {e}")
+    
+    def _save(self):
+        state_file = get_data_dir() / "session_state_v4.json"
         
-        print(f"""
-{Color.PURPLE}=== Ryx Status ==={Color.RESET}
-  Modus: {'PRECISION' if self.brain.precision_mode else 'Normal'}
-  Kontext: {len(self.conversation_history)} Nachrichten
-  Dauer: {minutes} Minuten
-
-{Color.CYAN}Statistiken:{Color.RESET}
-  Prompts: {self.stats['prompts']}
-  Aktionen: {self.stats['actions']}
-  Dateien: {self.stats['files_opened']}
-  URLs: {self.stats['urls_opened']}
-  Suchen: {self.stats['searches']}
-  Scrapes: {self.stats['scrapes']}
-""")
-
-    def _is_greeting(self, text: str) -> bool:
-        """Check if input is a simple greeting"""
-        greetings = {'hi', 'hello', 'hey', 'yo', 'sup', 'hallo', 'moin', 'servus', 
-                    'howdy', 'greetings', 'whatsup', 'whats up', 'guten tag'}
-        clean = text.rstrip('!.,?').replace("'", "").replace(" ", "").lower()
-        return clean in greetings
-
-    def _handle_greeting(self, text: str):
-        """Handle greetings without AI"""
-        responses = {
-            'hi': 'Hi! Was kann ich tun?',
-            'hello': 'Hallo! Wie kann ich helfen?',
-            'hey': 'Hey! Bereit.',
-            'yo': 'Yo! Was gibts?',
-            'sup': "Was geht!",
-            'hallo': 'Hallo! Was brauchst du?',
-            'moin': 'Moin! Was steht an?',
-            'servus': 'Servus! Wie kann ich helfen?',
+        state = {
+            'history': self.history[-50:],
+            'stats': self.stats,
+            'precision_mode': self.brain.precision_mode,
+            'browsing_enabled': self.brain.browsing_enabled,
+            'saved_at': datetime.now().isoformat()
         }
-        clean = text.rstrip('!.,?').replace("'", "").replace(" ", "").lower()
-        response = responses.get(clean, "Hallo! Bereit.")
-        self.ui.assistant_message(response)
+        
+        with open(state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+    
+    def _restore(self):
+        state_file = get_data_dir() / "session_state_v4.json"
+        
+        if state_file.exists():
+            try:
+                with open(state_file) as f:
+                    state = json.load(f)
+                
+                self.history = state.get('history', [])
+                self.brain.precision_mode = state.get('precision_mode', False)
+                self.brain.browsing_enabled = state.get('browsing_enabled', True)
+                
+                if self.history:
+                    self.ui.info(f"Session wiederhergestellt ({len(self.history)} Nachrichten)")
+                    
+            except Exception:
+                pass
 
-    def _handle_self_improvement(self):
-        """Run self-improvement"""
-        self.ui.info("Selbstverbesserung läuft...")
-        result = self.brain.get_smarter()
-        print(result)
 
+def main():
+    session = SessionLoopV4()
+    session.run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,786 +1,944 @@
 """
-Ryx AI - Brain Core
-The intelligent heart of Ryx. Copilot-style architecture.
+Ryx AI - Brain V4: Supervisor/Operator Architecture
+
+Two-stage intelligent agent system:
+1. Supervisor (10B+): Deep understanding, planning, error recovery
+2. Operator (3B-7B): Fast execution, tool use, iteration
 
 Key principles:
-1. AI understands prompts - NO hardcoded patterns
-2. Knowledge-backed responses - NO hallucinations
-3. Ask when uncertain - NEVER guess
-4. Do things - DON'T explain how to do them
-5. Learn from interactions - GET SMARTER over time
-6. Multi-action support - Handle complex requests
-7. Conversation context - Understand follow-ups
+- NEVER say "Could you be more specific?" - instead ASK a specific question
+- Follow-up questions use conversation context
+- Multi-action from single prompt
+- Precision mode uses larger models
+- German/English bilingual
+- Action-oriented, not explanation-oriented
 """
 
 import os
 import re
 import json
-import subprocess
 import sqlite3
+import subprocess
+import hashlib
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Dict, List, Optional, Tuple, Any, Union
 from dataclasses import dataclass, field
 from enum import Enum
 
-from core.paths import get_data_dir, get_project_root
+from core.paths import get_data_dir
 
 
-class ActionType(Enum):
-    """What Ryx should do"""
+class Intent(Enum):
+    """What the user wants to do"""
     OPEN_FILE = "open_file"
     OPEN_URL = "open_url"
     FIND_FILE = "find_file"
+    FIND_PATH = "find_path"  # Where is X?
     SEARCH_WEB = "search_web"
-    SCRAPE_URL = "scrape_url"
+    SCRAPE = "scrape"
+    SCRAPE_HTML = "scrape_html"
     RUN_COMMAND = "run_command"
-    ANSWER = "answer"
-    CLARIFY = "clarify"
-    MULTI = "multi"  # Multiple actions
-    SET_PREFERENCE = "set_preference"
-    START_SERVICE = "start_service"
-    GET_DATE = "get_date"
+    SET_PREFERENCE = "set_pref"
     SWITCH_MODEL = "switch_model"
+    CREATE_DOCUMENT = "create_doc"
+    START_SERVICE = "start_svc"
+    STOP_SERVICE = "stop_svc"
+    RESTART = "restart"
+    GET_INFO = "get_info"  # Date, time, system info
+    LIST_MODELS = "list_models"
+    CHAT = "chat"
+    CONFIRM = "confirm"  # Waiting for y/n
+    SELECT = "select"  # Waiting for number selection
+    UNCLEAR = "unclear"  # Need to ask clarifying question
 
 
 @dataclass
-class Action:
-    """A planned action"""
-    type: ActionType
+class Plan:
+    """Execution plan from supervisor"""
+    intent: Intent
     target: Optional[str] = None
     options: Dict[str, Any] = field(default_factory=dict)
-    question: Optional[str] = None
+    steps: List[str] = field(default_factory=list)
+    question: Optional[str] = None  # If we need to ask user
     confidence: float = 1.0
-    sub_actions: List['Action'] = field(default_factory=list)
+    requires_confirmation: bool = False
+    fallback_intents: List[Intent] = field(default_factory=list)
 
 
 @dataclass
 class ConversationContext:
-    """Track conversation for follow-ups"""
-    last_action: Optional[Action] = None
-    last_result: Optional[str] = None
-    last_query: Optional[str] = None
-    pending_items: List[Dict] = field(default_factory=list)  # For "which one?" scenarios
-
-
-class SmartCache:
-    """
-    SQLite-based cache for instant lookups.
-    Stores successful resolutions to skip LLM calls.
-    """
-    
-    def __init__(self):
-        self.db_path = get_data_dir() / "smart_cache.db"
-        self._init_db()
-    
-    def _init_db(self):
-        """Initialize the cache database"""
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS cache (
-                query_hash TEXT PRIMARY KEY,
-                query TEXT,
-                action_type TEXT,
-                target TEXT,
-                options TEXT,
-                success_count INTEGER DEFAULT 1,
-                fail_count INTEGER DEFAULT 0,
-                last_used TEXT,
-                created TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS preferences (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS learned_urls (
-                name TEXT PRIMARY KEY,
-                url TEXT,
-                source TEXT,
-                created TEXT
-            )
-        """)
-        conn.commit()
-        conn.close()
-    
-    def _hash_query(self, query: str) -> str:
-        """Create a normalized hash for a query"""
-        import hashlib
-        normalized = query.lower().strip()
-        # Remove common filler words for better matching
-        for word in ['please', 'can you', 'could you', 'the', 'a', 'my']:
-            normalized = normalized.replace(word, '').strip()
-        normalized = ' '.join(normalized.split())  # Normalize whitespace
-        return hashlib.md5(normalized.encode()).hexdigest()[:16]
-    
-    def lookup(self, query: str) -> Optional[Action]:
-        """Look up a cached action for a query"""
-        query_hash = self._hash_query(query)
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.execute(
-            "SELECT action_type, target, options, success_count, fail_count FROM cache WHERE query_hash = ?",
-            (query_hash,)
-        )
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
-            action_type, target, options_json, success, fail = row
-            # Only return if success rate > 70%
-            if success > 0 and success / (success + fail) > 0.7:
-                try:
-                    options = json.loads(options_json) if options_json else {}
-                    return Action(
-                        type=ActionType(action_type),
-                        target=target,
-                        options=options,
-                        confidence=0.95
-                    )
-                except:
-                    pass
-        return None
-    
-    def store(self, query: str, action: Action, success: bool = True):
-        """Store a successful resolution"""
-        query_hash = self._hash_query(query)
-        now = datetime.now().isoformat()
-        conn = sqlite3.connect(self.db_path)
-        
-        try:
-            cursor = conn.execute(
-                "SELECT success_count, fail_count FROM cache WHERE query_hash = ?",
-                (query_hash,)
-            )
-            existing = cursor.fetchone()
-            
-            if existing:
-                success_count, fail_count = existing
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                conn.execute(
-                    "UPDATE cache SET success_count = ?, fail_count = ?, last_used = ? WHERE query_hash = ?",
-                    (success_count, fail_count, now, query_hash)
-                )
-            else:
-                conn.execute(
-                    """INSERT INTO cache (query_hash, query, action_type, target, options, success_count, fail_count, last_used, created)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (query_hash, query.lower().strip(), action.type.value, action.target,
-                     json.dumps(action.options), 1 if success else 0, 0 if success else 1, now, now)
-                )
-            conn.commit()
-        finally:
-            conn.close()
-    
-    def get_preference(self, key: str) -> Optional[str]:
-        """Get a stored preference"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.execute("SELECT value FROM preferences WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        conn.close()
-        return row[0] if row else None
-    
-    def set_preference(self, key: str, value: str):
-        """Set a preference"""
-        conn = sqlite3.connect(self.db_path)
-        conn.execute(
-            "INSERT OR REPLACE INTO preferences (key, value, updated) VALUES (?, ?, ?)",
-            (key, value, datetime.now().isoformat())
-        )
-        conn.commit()
-        conn.close()
-    
-    def learn_url(self, name: str, url: str, source: str = "user"):
-        """Learn a new URL"""
-        conn = sqlite3.connect(self.db_path)
-        conn.execute(
-            "INSERT OR REPLACE INTO learned_urls (name, url, source, created) VALUES (?, ?, ?, ?)",
-            (name.lower(), url, source, datetime.now().isoformat())
-        )
-        conn.commit()
-        conn.close()
-    
-    def get_learned_url(self, name: str) -> Optional[str]:
-        """Get a learned URL"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.execute("SELECT url FROM learned_urls WHERE name = ?", (name.lower(),))
-        row = cursor.fetchone()
-        conn.close()
-        return row[0] if row else None
-    
-    def cleanup_bad_entries(self):
-        """Remove entries with high fail rates"""
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("""
-            DELETE FROM cache 
-            WHERE fail_count > success_count 
-            AND (success_count + fail_count) > 3
-        """)
-        conn.commit()
-        conn.close()
+    """Tracks conversation state"""
+    last_query: str = ""
+    last_result: str = ""
+    last_path: str = ""  # Last file/URL we talked about
+    last_intent: Optional[Intent] = None
+    pending_items: List[Dict] = field(default_factory=list)
+    pending_plan: Optional[Plan] = None
+    awaiting_confirmation: bool = False
+    awaiting_selection: bool = False
+    last_scraped: Optional[Dict] = None
+    language: str = "auto"
+    turn_count: int = 0
 
 
 class KnowledgeBase:
-    """
-    Pre-loaded knowledge for accurate responses.
-    No hallucinations - only verified data.
-    """
+    """Pre-loaded verified knowledge - NO LLM needed"""
     
     def __init__(self):
-        self.knowledge_dir = get_data_dir() / "knowledge"
+        self.data_dir = get_data_dir()
+        self.knowledge_dir = self.data_dir / "knowledge"
+        self.knowledge_dir.mkdir(parents=True, exist_ok=True)
+        
         self.arch_linux: Dict = {}
         self.websites: Dict = {}
-        self.file_system: Dict = {}
-        self._load_knowledge()
+        self.config_paths: Dict = {}
+        self.aliases: Dict = {}
+        
+        self._load()
     
-    def _load_knowledge(self):
-        """Load all knowledge files"""
-        # Load Arch Linux knowledge
+    def _load(self):
         arch_file = self.knowledge_dir / "arch_linux.json"
         if arch_file.exists():
             with open(arch_file) as f:
                 self.arch_linux = json.load(f)
         
-        # Build combined websites dict
-        self.websites = self.arch_linux.get("websites", {}).copy()
-        
-        # Load additional websites
-        websites_file = self.knowledge_dir / "websites.json"
-        if websites_file.exists():
-            with open(websites_file) as f:
-                self.websites.update(json.load(f))
+        self.config_paths = self.arch_linux.get("config_paths", {})
+        self.websites = self.arch_linux.get("websites", {})
+        self.aliases = self.arch_linux.get("aliases", {})
     
-    def get_config_path(self, name: str) -> Optional[str]:
-        """Get config file path from knowledge base"""
+    def resolve_config_name(self, name: str) -> str:
+        """Resolve aliases and typos to canonical name"""
         name_lower = name.lower().strip()
         
-        # Check aliases first
-        aliases = self.arch_linux.get("aliases", {})
-        if name_lower in aliases:
-            name_lower = aliases[name_lower]
+        # Direct alias
+        if name_lower in self.aliases:
+            return self.aliases[name_lower]
         
-        # Get from config paths
-        paths = self.arch_linux.get("config_paths", {})
-        path = paths.get(name_lower)
+        # Common typos
+        typo_map = {
+            "hyperland": "hyprland",
+            "hyperion": "hyprland",
+            "hypr": "hyprland",
+            "wayber": "waybar",
+            "waybr": "waybar",
+            "kity": "kitty",
+            "neovim": "nvim",
+            "vim": "nvim",
+        }
+        if name_lower in typo_map:
+            return typo_map[name_lower]
         
+        return name_lower
+    
+    def get_config_path(self, name: str) -> Optional[str]:
+        """Get config file path, handling aliases and typos"""
+        canonical = self.resolve_config_name(name)
+        
+        # Try direct lookup
+        path = self.config_paths.get(canonical)
         if path:
             expanded = os.path.expanduser(path)
-            if os.path.exists(expanded):
-                return expanded
+            return expanded
+        
+        # Try with _conf suffix
+        path = self.config_paths.get(f"{canonical}_conf")
+        if path:
+            return os.path.expanduser(path)
+        
+        # Try partial match
+        for key, val in self.config_paths.items():
+            if canonical in key:
+                return os.path.expanduser(val)
+        
         return None
     
     def get_website_url(self, name: str) -> Optional[str]:
-        """Get website URL from knowledge base"""
+        """Get URL for website name"""
         name_lower = name.lower().strip()
-        return self.websites.get(name_lower)
+        
+        # Direct match
+        if name_lower in self.websites:
+            return self.websites[name_lower]
+        
+        # Try without spaces
+        no_space = name_lower.replace(" ", "")
+        if no_space in self.websites:
+            return self.websites[no_space]
+        
+        # Partial match
+        for key, url in self.websites.items():
+            if name_lower in key or key in name_lower:
+                return url
+        
+        return None
     
-    def get_default(self, key: str) -> str:
-        """Get a default value"""
-        defaults = {
-            "browser": self.arch_linux.get("default_browser", "firefox"),
-            "editor": os.environ.get("EDITOR", self.arch_linux.get("default_editor", "nvim")),
-            "terminal": self.arch_linux.get("default_terminal", "kitty"),
-        }
-        return defaults.get(key, "")
-    
-    def save_knowledge(self):
-        """Save updated knowledge"""
+    def save(self):
         arch_file = self.knowledge_dir / "arch_linux.json"
         with open(arch_file, 'w') as f:
-            json.dump(self.arch_linux, f, indent=2)
+            json.dump(self.arch_linux, f, indent=2, ensure_ascii=False)
 
 
-class RyxBrain:
+class SmartCache:
+    """Learning cache - stores successful resolutions"""
+    
+    def __init__(self):
+        self.db_path = get_data_dir() / "smart_cache_v4.db"
+        self._init_db()
+    
+    def _init_db(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS resolutions (
+                query_hash TEXT PRIMARY KEY,
+                query TEXT,
+                intent TEXT,
+                target TEXT,
+                options TEXT,
+                success_count INTEGER DEFAULT 1,
+                fail_count INTEGER DEFAULT 0,
+                last_used TEXT
+            );
+            
+            CREATE TABLE IF NOT EXISTS preferences (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated TEXT
+            );
+            
+            CREATE TABLE IF NOT EXISTS learned_urls (
+                name TEXT PRIMARY KEY,
+                url TEXT,
+                domain TEXT,
+                created TEXT
+            );
+            
+            CREATE TABLE IF NOT EXISTS model_config (
+                role TEXT PRIMARY KEY,
+                model_name TEXT,
+                updated TEXT
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_query ON resolutions(query);
+        """)
+        conn.commit()
+        conn.close()
+    
+    def _hash(self, text: str) -> str:
+        normalized = re.sub(r'\s+', ' ', text.lower().strip())
+        return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+    
+    def lookup(self, query: str) -> Optional[Plan]:
+        """Check if we've successfully handled this before"""
+        h = self._hash(query)
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT intent, target, options, success_count, fail_count FROM resolutions WHERE query_hash = ?",
+            (h,)
+        ).fetchone()
+        conn.close()
+        
+        if row and row[3] > row[4]:  # More successes than failures
+            try:
+                return Plan(
+                    intent=Intent(row[0]),
+                    target=row[1],
+                    options=json.loads(row[2]) if row[2] else {},
+                    confidence=0.95
+                )
+            except:
+                pass
+        return None
+    
+    def store(self, query: str, plan: Plan, success: bool = True):
+        """Store resolution result"""
+        h = self._hash(query)
+        now = datetime.now().isoformat()
+        conn = sqlite3.connect(self.db_path)
+        
+        existing = conn.execute(
+            "SELECT success_count, fail_count FROM resolutions WHERE query_hash = ?",
+            (h,)
+        ).fetchone()
+        
+        if existing:
+            s, f = existing
+            if success:
+                s += 1
+            else:
+                f += 1
+            conn.execute(
+                "UPDATE resolutions SET success_count=?, fail_count=?, last_used=? WHERE query_hash=?",
+                (s, f, now, h)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO resolutions (query_hash, query, intent, target, options, success_count, fail_count, last_used) VALUES (?,?,?,?,?,?,?,?)",
+                (h, query.lower()[:200], plan.intent.value, plan.target, json.dumps(plan.options), 
+                 1 if success else 0, 0 if success else 1, now)
+            )
+        conn.commit()
+        conn.close()
+    
+    def get_preference(self, key: str) -> Optional[str]:
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute("SELECT value FROM preferences WHERE key=?", (key,)).fetchone()
+        conn.close()
+        return row[0] if row else None
+    
+    def set_preference(self, key: str, value: str):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT OR REPLACE INTO preferences (key, value, updated) VALUES (?,?,?)",
+            (key, value, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+    
+    def get_model(self, role: str) -> Optional[str]:
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute("SELECT model_name FROM model_config WHERE role=?", (role,)).fetchone()
+        conn.close()
+        return row[0] if row else None
+    
+    def set_model(self, role: str, model: str):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT OR REPLACE INTO model_config (role, model_name, updated) VALUES (?,?,?)",
+            (role, model, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+    
+    def learn_url(self, name: str, url: str):
+        domain = url.split('/')[2] if '/' in url else url
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT OR REPLACE INTO learned_urls (name, url, domain, created) VALUES (?,?,?,?)",
+            (name.lower(), url, domain, datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+    
+    def get_learned_url(self, name: str) -> Optional[str]:
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute("SELECT url FROM learned_urls WHERE name=?", (name.lower(),)).fetchone()
+        conn.close()
+        return row[0] if row else None
+    
+    def cleanup(self):
+        """Remove entries with more failures than successes"""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("DELETE FROM resolutions WHERE fail_count > success_count AND (success_count + fail_count) > 3")
+        conn.commit()
+        conn.close()
+
+
+class ModelManager:
+    """Manages model selection"""
+    
+    MODELS = {
+        # Fast (1-3B) - cached lookups, simple tasks
+        "fast": ["qwen2.5:1.5b", "qwen2.5:3b", "llama3.2:1b", "phi3:mini"],
+        # Balanced (7B) - general use, chat
+        "balanced": ["qwen2.5:7b", "mistral:7b"],
+        # Smart (14B+) - complex tasks, precision
+        "smart": ["qwen2.5-coder:14b", "gpt-oss:20b"],
+        # Precision (20B+) - learning, document creation
+        "precision": ["gpt-oss:20b", "huihui_ai/gpt-oss-abliterated:20b"],
+    }
+    
+    def __init__(self, cache: SmartCache):
+        self.cache = cache
+        self.available: List[str] = []
+        self._refresh()
+    
+    def _refresh(self):
+        try:
+            result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
+            self.available = [line.split()[0] for line in result.stdout.strip().split('\n')[1:] if line.strip()]
+        except:
+            self.available = []
+    
+    def get(self, role: str, precision_mode: bool = False) -> str:
+        """Get model for role"""
+        # Check user preference
+        saved = self.cache.get_model(role)
+        if saved and saved in self.available:
+            return saved
+        
+        # Precision mode uses bigger models
+        if precision_mode and role not in ["precision", "smart"]:
+            role = "precision"
+        
+        # Get from tier
+        for model in self.MODELS.get(role, self.MODELS["fast"]):
+            if model in self.available:
+                return model
+        
+        # Fallback
+        return self.available[0] if self.available else "qwen2.5:3b"
+    
+    def find(self, query: str) -> Optional[str]:
+        """Find model by natural language query"""
+        q = query.lower()
+        
+        # Direct match
+        for model in self.available:
+            if q in model.lower():
+                return model
+        
+        # Aliases
+        aliases = {
+            "gpt": "gpt-oss:20b", "gpt oss": "gpt-oss:20b", "gpt 20": "gpt-oss:20b",
+            "mistral": "mistral:7b", "qwen": "qwen2.5:3b", "qwen 3b": "qwen2.5:3b",
+            "qwen 7b": "qwen2.5:7b", "qwen coder": "qwen2.5-coder:14b",
+            "deepseek": "deepseek-coder:6.7b", "llama": "llama3.2:1b", "phi": "phi3:mini",
+        }
+        
+        for alias, model in aliases.items():
+            if alias in q and model in self.available:
+                return model
+        
+        return None
+    
+    def get_categorized(self) -> Dict[str, List[str]]:
+        """Get models organized by category"""
+        result = {cat: [] for cat in self.MODELS}
+        result["other"] = []
+        
+        categorized = set()
+        for cat, models in self.MODELS.items():
+            for model in models:
+                if model in self.available:
+                    result[cat].append(model)
+                    categorized.add(model)
+        
+        for model in self.available:
+            if model not in categorized:
+                result["other"].append(model)
+        
+        return result
+
+
+class RyxBrainV4:
     """
-    The intelligent core of Ryx.
-    Copilot-style: AI-driven understanding, knowledge-backed accuracy.
+    Supervisor/Operator AI Brain
+    
+    - Supervisor: Understands intent, creates plan, handles errors
+    - Operator: Executes plan, uses tools, iterates
     """
     
+    SUPERVISOR_PROMPT = '''Du bist ein Supervisor-Agent für Ryx AI auf Arch Linux + Hyprland.
+Analysiere die Anfrage und erstelle einen Ausführungsplan.
+
+KONTEXT:
+- Letzte Anfrage: {last_query}
+- Letztes Ergebnis: {last_result}
+- Letzter Pfad: {last_path}
+- Ausstehende Auswahl: {pending_items}
+- Sprache: {language}
+
+WICHTIGE REGELN:
+1. NIEMALS "Could you be more specific?" sagen
+2. Stattdessen eine KONKRETE Frage stellen
+3. Kontext-Referenzen verstehen ("open it", "edit that", "ja", "1")
+4. Typos korrigieren (hyperland → hyprland)
+5. Bei Unklarheit: Optionen anbieten, nicht abweisen
+
+INTENTS:
+- open_file: Datei öffnen (target=Pfad, options={{editor, terminal: new/same}})
+- open_url: URL öffnen (target=URL, options={{browser}})
+- find_file: Datei suchen (target=Suchmuster)
+- find_path: Pfad anzeigen (target=Name)
+- search_web: Web-Suche (target=Query)
+- scrape: Webseite scrapen (target=URL/Name)
+- set_pref: Einstellung setzen (target=Key, options={{value}})
+- switch_model: Modell wechseln (target=Modell, options={{role}})
+- create_doc: Dokument erstellen (target=Thema, options={{type}})
+- get_info: Info abrufen (target=date/time/system)
+- chat: Normale Unterhaltung
+- unclear: Nachfrage nötig (question muss gesetzt sein!)
+
+ANTWORT NUR ALS JSON:
+{{"intent": "<intent>", "target": "<ziel>", "options": {{}}, "question": "<falls unclear>"}}
+
+ANFRAGE: {prompt}'''
+
     def __init__(self, ollama_client):
         self.ollama = ollama_client
         self.kb = KnowledgeBase()
         self.cache = SmartCache()
-        self.context = ConversationContext()
+        self.models = ModelManager(self.cache)
+        self.ctx = ConversationContext()
         
-        # Model configuration - NO coding models for general tasks
-        self.tiny_model = "qwen2.5:1.5b"      # Cached hits only
-        self.fast_model = "qwen2.5:3b"        # Simple understanding
-        self.balanced_model = "mistral:7b"    # General tasks (NOT coding)
-        self.smart_model = "gpt-oss:20b"      # Complex reasoning (NOT coding)
-        
-        self.learning_mode = False
+        # Mode flags
+        self.precision_mode = False
+        self.browsing_enabled = True
         self.fail_count = 0
-        self.max_fails_before_upgrade = 2
     
-    def set_learning_mode(self, enabled: bool):
-        """Toggle learning mode (uses higher models)"""
-        self.learning_mode = enabled
-    
-    def understand(self, prompt: str) -> Action:
+    def understand(self, prompt: str) -> Plan:
         """
-        Main entry point: understand what the user wants.
-        Returns an Action to execute.
+        Main entry: understand what user wants.
+        Uses two-stage approach:
+        1. Try fast resolution (cache, knowledge base, patterns)
+        2. Fall back to LLM supervisor if needed
         """
-        prompt_clean = prompt.strip()
-        prompt_lower = prompt_clean.lower()
+        prompt = prompt.strip()
+        self.ctx.last_query = prompt
+        self.ctx.turn_count += 1
         
-        # Store query for caching
-        self.context.last_query = prompt_clean
+        # Detect language
+        german = ['bitte', 'öffne', 'zeig', 'mach', 'wo ist', 'was ist', 'erstelle']
+        self.ctx.language = 'de' if any(g in prompt.lower() for g in german) else 'en'
         
-        # Handle follow-up responses (y/n, numbers)
-        if self._is_followup_response(prompt_lower):
-            return self._handle_followup(prompt_lower)
+        # Stage 1: Quick resolution (no LLM)
         
-        # Handle "open it" - reference to last result
-        if prompt_lower in ['open it', 'open that', 'edit it', 'edit that']:
-            if self.context.last_result and os.path.exists(self.context.last_result):
-                return Action(
-                    type=ActionType.OPEN_FILE,
-                    target=self.context.last_result,
-                    options={"editor": self.cache.get_preference("editor") or self.kb.get_default("editor")}
-                )
+        # Handle y/n/number responses
+        if self._is_quick_response(prompt):
+            return self._handle_quick_response(prompt)
         
-        # Check cache first (instant, no LLM)
-        if not self.learning_mode:
-            cached = self.cache.lookup(prompt_clean)
+        # Handle context references ("open it", "edit that")
+        plan = self._handle_context_reference(prompt)
+        if plan:
+            return plan
+        
+        # Check cache (skip in precision mode)
+        if not self.precision_mode:
+            cached = self.cache.lookup(prompt)
             if cached:
                 return cached
         
-        # Try knowledge-based resolution (no LLM needed)
-        action = self._try_knowledge_resolution(prompt_clean)
-        if action:
-            return action
+        # Try knowledge-based resolution
+        plan = self._resolve_from_knowledge(prompt)
+        if plan:
+            return plan
         
-        # Use LLM to understand
-        model = self._select_model(prompt_clean)
-        return self._llm_understand(prompt_clean, model)
+        # Stage 2: LLM supervisor
+        return self._supervisor_understand(prompt)
     
-    def _is_followup_response(self, prompt: str) -> bool:
-        """Check if this is a follow-up response to a question"""
-        if prompt in ['y', 'yes', 'n', 'no', 'ok', 'okay', 'sure']:
-            return True
-        if prompt.isdigit():
-            return True
-        if prompt.startswith('the first') or prompt.startswith('the second'):
-            return True
-        return False
+    def _is_quick_response(self, prompt: str) -> bool:
+        """Check if this is a y/n/number response"""
+        p = prompt.lower().strip()
+        quick = {'y', 'yes', 'ja', 'n', 'no', 'nein', 'ok', 'okay', 'klar', 'sure'}
+        return p in quick or p.isdigit() or p.startswith('the first') or p.startswith('das erste')
     
-    def _handle_followup(self, prompt: str) -> Action:
-        """Handle follow-up responses"""
-        # If we have pending items (from a "which one?" question)
-        if self.context.pending_items:
-            if prompt.isdigit():
-                idx = int(prompt) - 1
-                if 0 <= idx < len(self.context.pending_items):
-                    item = self.context.pending_items[idx]
-                    self.context.pending_items = []
-                    # Return action based on item type
+    def _handle_quick_response(self, prompt: str) -> Plan:
+        """Handle y/n/number responses instantly"""
+        p = prompt.lower().strip()
+        
+        # Pending confirmation
+        if self.ctx.awaiting_confirmation and self.ctx.pending_plan:
+            if p in {'y', 'yes', 'ja', 'ok', 'okay', 'klar', 'sure'}:
+                plan = self.ctx.pending_plan
+                self.ctx.pending_plan = None
+                self.ctx.awaiting_confirmation = False
+                return plan
+            elif p in {'n', 'no', 'nein'}:
+                self.ctx.pending_plan = None
+                self.ctx.awaiting_confirmation = False
+                return Plan(intent=Intent.CHAT, target="Abgebrochen." if self.ctx.language == 'de' else "Cancelled.")
+        
+        # Pending selection
+        if self.ctx.awaiting_selection and self.ctx.pending_items:
+            if p.isdigit():
+                idx = int(p) - 1
+                if 0 <= idx < len(self.ctx.pending_items):
+                    item = self.ctx.pending_items[idx]
+                    self.ctx.pending_items = []
+                    self.ctx.awaiting_selection = False
+                    
                     if 'url' in item:
-                        return Action(type=ActionType.OPEN_URL, target=item['url'])
+                        return Plan(intent=Intent.OPEN_URL, target=item['url'])
                     elif 'path' in item:
-                        return Action(type=ActionType.OPEN_FILE, target=item['path'])
-            elif 'first' in prompt:
-                if self.context.pending_items:
-                    item = self.context.pending_items[0]
-                    self.context.pending_items = []
-                    if 'url' in item:
-                        return Action(type=ActionType.OPEN_URL, target=item['url'])
-        
-        # If we have a pending action
-        if self.context.last_action:
-            if prompt in ['y', 'yes', 'ok', 'sure']:
-                action = self.context.last_action
-                self.context.last_action = None
-                return action
-            elif prompt in ['n', 'no']:
-                self.context.last_action = None
-                return Action(type=ActionType.ANSWER, target="Cancelled.")
-        
-        return Action(type=ActionType.CLARIFY, question="What would you like me to do?")
-    
-    def _try_knowledge_resolution(self, prompt: str) -> Optional[Action]:
-        """
-        Try to resolve using knowledge base without LLM.
-        Fast path for common patterns.
-        """
-        prompt_lower = prompt.lower().strip()
-        
-        # Handle "set X as default" preferences
-        if 'set ' in prompt_lower and ' as default' in prompt_lower:
-            match = re.search(r'set (\w+) as default (\w+)', prompt_lower)
-            if match:
-                value, key = match.groups()
-                return Action(
-                    type=ActionType.SET_PREFERENCE,
-                    target=key,
-                    options={"value": value}
-                )
-        
-        # Handle "switch to X model" 
-        if 'switch to' in prompt_lower and 'model' in prompt_lower:
-            # Extract model name - look for size patterns
-            model_match = re.search(r'(\w+[:\-]?\d*b?)', prompt_lower)
-            if model_match:
-                return Action(
-                    type=ActionType.SWITCH_MODEL,
-                    target=model_match.group(1)
-                )
-        
-        # Handle date/time queries
-        if any(x in prompt_lower for x in ['what is the date', 'what day is', "today's date", 'what time']):
-            return Action(type=ActionType.GET_DATE)
-        
-        # Handle "start X" for services
-        if prompt_lower.startswith('start '):
-            service = prompt_lower[6:].strip()
-            if service in ['searxng', 'searx']:
-                return Action(
-                    type=ActionType.START_SERVICE,
-                    target="searxng",
-                    question="Should I start SearXNG? (docker run -d -p 8888:8080 searxng/searxng) y/n"
-                )
-        
-        # Special handling for "where is X" - return path as answer, not open
-        is_where_query = prompt_lower.startswith('where is ') or prompt_lower.startswith('where\'s ')
-        
-        # Extract the target from the prompt
-        target = prompt_lower
-        new_terminal = False
-        same_terminal = True
-        with_browser = None
-        
-        # Handle terminal flags
-        if ' in new terminal' in target or ' new terminal' in target:
-            target = target.replace(' in new terminal', '').replace(' new terminal', '')
-            new_terminal = True
-            same_terminal = False
-        elif ' in same terminal' in target or ' same terminal' in target:
-            target = target.replace(' in same terminal', '').replace(' same terminal', '')
-        
-        # Handle browser flags
-        browser_match = re.search(r'with (\w+)( browser)?', target)
-        if browser_match:
-            with_browser = browser_match.group(1)
-            target = re.sub(r'with \w+( browser)?', '', target)
-        
-        # Remove common prefixes
-        for prefix in ['open ', 'edit ', 'show ', 'find ', 'where is ', 'where\'s ',
-                       'search for ', 'open the ', 'edit the ', 'can you ', 'please ', 'could you ']:
-            if target.startswith(prefix):
-                target = target[len(prefix):]
-        
-        # Remove "config" suffix for config lookups but remember it
-        is_config_request = 'config' in target
-        target = target.replace(' config', '').replace('config', '').strip()
-        
-        # Remove common filler words
-        for word in ['the', 'my', 'a', 'for me', 'please']:
-            target = target.replace(f' {word} ', ' ').strip()
-        
-        target = target.strip()
-        
-        if not target:
-            return None
-        
-        # Check cache for learned URLs
-        learned_url = self.cache.get_learned_url(target)
-        if learned_url:
-            browser = with_browser or self.cache.get_preference("browser") or self.kb.get_default("browser")
-            return Action(
-                type=ActionType.OPEN_URL,
-                target=learned_url,
-                options={"browser": browser}
-            )
-        
-        # Check if it's a known website
-        url = self.kb.get_website_url(target)
-        if url:
-            browser = with_browser or self.cache.get_preference("browser") or self.kb.get_default("browser")
-            return Action(
-                type=ActionType.OPEN_URL,
-                target=url,
-                options={"browser": browser}
-            )
-        
-        # Check if it looks like a website (has .com, .org, etc or "website" in prompt)
-        if 'website' in prompt_lower or any(tld in target for tld in ['.com', '.org', '.net', '.io', '.dev']):
-            # Try to find it online
-            clean_name = target.replace(' website', '').strip()
-            return Action(
-                type=ActionType.SEARCH_WEB,
-                target=f"{clean_name} official website",
-                options={"intent": "find_url", "name": clean_name}
-            )
-        
-        # Check if it's a config file
-        config_path = self.kb.get_config_path(target)
-        if config_path:
-            # If "where is" query, just return the path as an answer
-            if is_where_query:
-                return Action(
-                    type=ActionType.ANSWER,
-                    target=config_path
-                )
+                        return Plan(intent=Intent.OPEN_FILE, target=item['path'])
             
-            editor = self.cache.get_preference("editor") or self.kb.get_default("editor")
-            terminal = self.cache.get_preference("terminal") or self.kb.get_default("terminal")
-            return Action(
-                type=ActionType.OPEN_FILE,
-                target=config_path,
-                options={
-                    "editor": editor,
-                    "terminal": terminal,
-                    "new_terminal": new_terminal
-                }
-            )
+            elif 'first' in p or 'erste' in p:
+                if self.ctx.pending_items:
+                    item = self.ctx.pending_items[0]
+                    self.ctx.pending_items = []
+                    self.ctx.awaiting_selection = False
+                    if 'url' in item:
+                        return Plan(intent=Intent.OPEN_URL, target=item['url'])
+                    elif 'path' in item:
+                        return Plan(intent=Intent.OPEN_FILE, target=item['path'])
         
-        # Check for file finding patterns
-        if any(x in prompt_lower for x in ['find ', 'where is ', 'locate ', 'search for ', 'look for ']):
-            return Action(
-                type=ActionType.FIND_FILE,
-                target=target
-            )
+        return Plan(intent=Intent.CHAT, target="Nichts ausgewählt." if self.ctx.language == 'de' else "Nothing selected.")
+    
+    def _handle_context_reference(self, prompt: str) -> Optional[Plan]:
+        """Handle 'open it', 'edit that', etc."""
+        p = prompt.lower()
+        
+        refs_open = ['open it', 'edit it', 'open that', 'öffne es', 'öffne das', 'bearbeite es']
+        refs_show = ['show it', 'zeig es', 'zeig das']
+        
+        if any(r in p for r in refs_open):
+            # Use last path or single pending item
+            if self.ctx.last_path and os.path.exists(self.ctx.last_path):
+                return Plan(
+                    intent=Intent.OPEN_FILE,
+                    target=self.ctx.last_path,
+                    options={"editor": self.cache.get_preference("editor") or "nvim"}
+                )
+            elif len(self.ctx.pending_items) == 1:
+                item = self.ctx.pending_items[0]
+                self.ctx.pending_items = []
+                if 'path' in item:
+                    return Plan(intent=Intent.OPEN_FILE, target=item['path'])
+                elif 'url' in item:
+                    return Plan(intent=Intent.OPEN_URL, target=item['url'])
         
         return None
     
-    def _select_model(self, prompt: str) -> str:
-        """Select appropriate model based on task complexity"""
-        if self.learning_mode:
-            return self.smart_model
+    def _resolve_from_knowledge(self, prompt: str) -> Optional[Plan]:
+        """Try to resolve using knowledge base - no LLM needed"""
+        p = prompt.lower()
         
-        # If we've failed multiple times, upgrade
-        if self.fail_count >= self.max_fails_before_upgrade:
-            return self.smart_model
+        # Date/time queries
+        date_words = ['date', 'time', 'datum', 'zeit', 'uhrzeit', 'today', 'heute', 'what day', 'welcher tag']
+        if any(d in p for d in date_words):
+            return Plan(intent=Intent.GET_INFO, target="datetime")
         
-        prompt_lower = prompt.lower()
+        # Model listing
+        if 'model' in p and ('list' in p or 'show' in p or 'zeig' in p or '/m' in p):
+            return Plan(intent=Intent.LIST_MODELS)
         
-        # Complex tasks need smarter model
-        if any(x in prompt_lower for x in ['explain', 'why', 'how does', 'analyze', 'compare']):
-            return self.balanced_model
+        # Config file patterns - VERY flexible matching
+        config_match = self._match_config_request(prompt)
+        if config_match:
+            return config_match
         
-        # Web/scraping tasks
-        if any(x in prompt_lower for x in ['scrape', 'search for', 'look up', 'find online']):
-            return self.balanced_model
+        # Website patterns
+        website_match = self._match_website_request(prompt)
+        if website_match:
+            return website_match
         
-        return self.fast_model
+        # File finding patterns
+        find_match = self._match_find_request(prompt)
+        if find_match:
+            return find_match
+        
+        return None
     
-    def _llm_understand(self, prompt: str, model: str) -> Action:
-        """Use LLM to understand the prompt"""
+    def _match_config_request(self, prompt: str) -> Optional[Plan]:
+        """Match config file requests flexibly"""
+        p = prompt.lower()
         
-        # Build context
-        context_parts = []
+        # Extract potential config name
+        # Patterns: "hyprland config", "open waybar", "edit kitty", "show nvim config"
+        words = p.replace('config', '').replace('configuration', '').replace('conf', '').split()
         
-        # Add last interaction for follow-up understanding
-        if self.context.last_query:
-            context_parts.append(f"Previous query: {self.context.last_query}")
-            if self.context.last_result:
-                context_parts.append(f"Previous result: {self.context.last_result[:200]}")
+        # Filter out action words
+        skip = {'open', 'edit', 'show', 'öffne', 'zeig', 'bearbeite', 'in', 'new', 'same', 'terminal', 
+                'neues', 'neuem', 'selben', 'diesem', 'the', 'my', 'mein', 'meine'}
         
-        context_str = "\n".join(context_parts) if context_parts else "No prior context."
+        config_name = None
+        for word in words:
+            if word not in skip and len(word) > 2:
+                # Check if it's a known config
+                path = self.kb.get_config_path(word)
+                if path:
+                    config_name = word
+                    break
         
-        # Get preferences
-        prefs = []
-        browser = self.cache.get_preference("browser")
-        if browser:
-            prefs.append(f"Browser: {browser}")
-        editor = self.cache.get_preference("editor")
-        if editor:
-            prefs.append(f"Editor: {editor}")
-        prefs_str = ", ".join(prefs) if prefs else "Using defaults"
+        if not config_name:
+            return None
         
-        system_prompt = f"""You are Ryx's brain. Analyze user intent and return a structured action.
-
-CONTEXT:
-{context_str}
-
-USER PREFERENCES: {prefs_str}
-
-KNOWN CONFIG PATHS: hyprland (~/.config/hypr/hyprland.conf), waybar, kitty, nvim, zsh (~/.zshrc)
-
-RULES:
-1. For opening websites/URLs → {{"action": "open_url", "target": "https://..."}}
-2. For opening files/configs → {{"action": "open_file", "target": "/path/to/file", "new_terminal": true/false}}
-3. For finding files → {{"action": "find_file", "target": "search query"}}
-4. For web searches → {{"action": "search_web", "target": "query"}}
-5. For questions you can answer → {{"action": "answer", "target": "brief answer"}}
-6. If UNCERTAIN → {{"action": "clarify", "question": "specific yes/no question"}}
-7. For multiple actions → {{"action": "multi", "actions": [...]}}
-
-IMPORTANT:
-- Be BRIEF in answers (1-2 sentences max)
-- NEVER make up file paths - use find_file if unsure
-- For unknown websites, use search_web to find them
-- If user says "open it" after finding something, refer to context
-
-RESPOND ONLY WITH JSON:
-"""
-
+        path = self.kb.get_config_path(config_name)
+        if not path:
+            return None
+        
+        # Check if asking "where is" vs "open"
+        if 'where' in p or 'wo' in p or 'path' in p or 'pfad' in p:
+            exists = os.path.exists(path)
+            note = "" if exists else " (existiert nicht)" if self.ctx.language == 'de' else " (doesn't exist)"
+            return Plan(intent=Intent.FIND_PATH, target=path + note)
+        
+        # Determine terminal mode
+        terminal = "same"
+        if 'new' in p or 'neues' in p or 'neuem' in p:
+            terminal = "new"
+        
+        return Plan(
+            intent=Intent.OPEN_FILE,
+            target=path,
+            options={
+                "editor": self.cache.get_preference("editor") or "nvim",
+                "terminal": terminal
+            }
+        )
+    
+    def _match_website_request(self, prompt: str) -> Optional[Plan]:
+        """Match website opening requests"""
+        p = prompt.lower()
+        
+        # Skip if this looks like a search/scrape request
+        if any(w in p for w in ['search', 'scrape', 'suche', 'find', 'finde']):
+            return None
+        
+        # Extract words and look for known websites
+        words = p.split()
+        skip = {'open', 'öffne', 'show', 'zeig', 'go', 'to', 'the', 'website', 'site', 'in', 'browser'}
+        
+        for word in words:
+            if word not in skip:
+                url = self.kb.get_website_url(word)
+                if url:
+                    browser = self.cache.get_preference("browser")
+                    return Plan(
+                        intent=Intent.OPEN_URL,
+                        target=url,
+                        options={"browser": browser} if browser else {}
+                    )
+                
+                # Check learned URLs
+                url = self.cache.get_learned_url(word)
+                if url:
+                    return Plan(intent=Intent.OPEN_URL, target=url)
+        
+        # Check if the whole phrase is a known site
+        url = self.kb.get_website_url(p.strip())
+        if url:
+            return Plan(intent=Intent.OPEN_URL, target=url)
+        
+        # Check if it looks like a website name (ends with common patterns)
+        for word in words:
+            if word not in skip and len(word) > 2:
+                # Try as direct URL
+                if '.' in word or word.endswith('hub') or word.endswith('tube'):
+                    url = f"https://{word}.com" if '.' not in word else f"https://{word}"
+                    return Plan(
+                        intent=Intent.OPEN_URL,
+                        target=url,
+                        options={"browser": self.cache.get_preference("browser")}
+                    )
+        
+        return None
+    
+    def _match_find_request(self, prompt: str) -> Optional[Plan]:
+        """Match file finding requests"""
+        p = prompt.lower()
+        
+        find_words = ['find', 'search', 'locate', 'where is', 'wo ist', 'finde', 'suche']
+        if not any(f in p for f in find_words):
+            return None
+        
+        # Don't match web search
+        if any(w in p for w in ['online', 'web', 'internet', 'google']):
+            return None
+        
+        # Extract search query
+        for fw in find_words:
+            if fw in p:
+                query = p.split(fw)[-1].strip()
+                # Remove common suffixes
+                query = re.sub(r'\s*(file|files|datei|dateien)$', '', query).strip()
+                if query:
+                    return Plan(intent=Intent.FIND_FILE, target=query)
+        
+        return None
+    
+    def _supervisor_understand(self, prompt: str) -> Plan:
+        """Use LLM supervisor to understand complex requests"""
+        model = self.models.get("smart" if self.precision_mode else "balanced", self.precision_mode)
+        
+        context = {
+            "last_query": self.ctx.last_query or "none",
+            "last_result": (self.ctx.last_result or "none")[:100],
+            "last_path": self.ctx.last_path or "none",
+            "pending_items": str(self.ctx.pending_items[:3]) if self.ctx.pending_items else "none",
+            "language": self.ctx.language,
+            "prompt": prompt
+        }
+        
         response = self.ollama.generate(
-            prompt=f"User: {prompt}",
+            prompt=self.SUPERVISOR_PROMPT.format(**context),
             model=model,
-            system=system_prompt,
+            system="Du bist ein JSON-Parser. Antworte NUR mit validem JSON. Keine Erklärungen.",
             max_tokens=300,
             temperature=0.1
         )
         
         if response.error:
             self.fail_count += 1
-            return Action(type=ActionType.ANSWER, target=f"Error: {response.error}")
+            if self.fail_count >= 2:
+                # Retry with bigger model
+                self.fail_count = 0
+                bigger = self.models.get("precision", True)
+                return self._supervisor_understand(prompt)
+            
+            # Fallback: ask clarifying question
+            return Plan(
+                intent=Intent.UNCLEAR,
+                question="Was genau möchtest du tun?" if self.ctx.language == 'de' else "What would you like me to do?"
+            )
         
-        # Parse JSON response
-        try:
-            text = response.response.strip()
-            
-            # Extract JSON
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0]
-            
-            # Find JSON object
-            json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
-            if json_match:
-                text = json_match.group()
-            
-            data = json.loads(text)
-            action_type = ActionType(data.get("action", "answer"))
-            
-            action = Action(
-                type=action_type,
-                target=data.get("target"),
-                question=data.get("question"),
-                options=data.get("options", {}),
-                confidence=data.get("confidence", 0.8)
-            )
-            
-            # Store context
-            self.context.last_query = prompt
-            
-            # Reset fail count on success
-            self.fail_count = 0
-            
-            return action
-            
-        except (json.JSONDecodeError, ValueError, KeyError) as e:
-            self.fail_count += 1
-            # Try to extract useful info from response
-            return Action(
-                type=ActionType.CLARIFY,
-                question="I'm not sure what you want. Can you rephrase?"
-            )
+        return self._parse_supervisor_response(response.response, prompt)
     
-    def execute(self, action: Action) -> Tuple[bool, str]:
-        """Execute an action and return (success, result)"""
+    def _parse_supervisor_response(self, response: str, original: str) -> Plan:
+        """Parse supervisor JSON response"""
+        try:
+            # Clean response
+            clean = response.strip()
+            if '```' in clean:
+                clean = clean.split('```')[1]
+                if clean.startswith('json'):
+                    clean = clean[4:]
+            clean = clean.strip()
+            
+            # Find JSON
+            start = clean.find('{')
+            end = clean.rfind('}') + 1
+            if start >= 0 and end > start:
+                clean = clean[start:end]
+            
+            data = json.loads(clean)
+            
+            intent_str = data.get("intent", "chat")
+            intent_map = {
+                "open_file": Intent.OPEN_FILE,
+                "open_url": Intent.OPEN_URL,
+                "find_file": Intent.FIND_FILE,
+                "find_path": Intent.FIND_PATH,
+                "search_web": Intent.SEARCH_WEB,
+                "scrape": Intent.SCRAPE,
+                "scrape_html": Intent.SCRAPE_HTML,
+                "run_command": Intent.RUN_COMMAND,
+                "set_pref": Intent.SET_PREFERENCE,
+                "switch_model": Intent.SWITCH_MODEL,
+                "create_doc": Intent.CREATE_DOCUMENT,
+                "start_svc": Intent.START_SERVICE,
+                "stop_svc": Intent.STOP_SERVICE,
+                "restart": Intent.RESTART,
+                "get_info": Intent.GET_INFO,
+                "list_models": Intent.LIST_MODELS,
+                "chat": Intent.CHAT,
+                "confirm": Intent.CONFIRM,
+                "select": Intent.SELECT,
+                "unclear": Intent.UNCLEAR,
+            }
+            
+            intent = intent_map.get(intent_str, Intent.CHAT)
+            
+            return Plan(
+                intent=intent,
+                target=data.get("target"),
+                options=data.get("options", {}),
+                question=data.get("question"),
+                requires_confirmation=data.get("requires_confirm", False)
+            )
+            
+        except json.JSONDecodeError:
+            # Fallback: treat as chat response
+            return Plan(intent=Intent.CHAT, target=response[:500])
+    
+    def execute(self, plan: Plan) -> Tuple[bool, str]:
+        """Execute a plan and return result"""
+        self.ctx.last_intent = plan.intent
         
         handlers = {
-            ActionType.OPEN_FILE: self._exec_open_file,
-            ActionType.OPEN_URL: self._exec_open_url,
-            ActionType.FIND_FILE: self._exec_find_file,
-            ActionType.SEARCH_WEB: self._exec_search_web,
-            ActionType.SCRAPE_URL: self._exec_scrape,
-            ActionType.RUN_COMMAND: self._exec_command,
-            ActionType.SET_PREFERENCE: self._exec_set_preference,
-            ActionType.START_SERVICE: self._exec_start_service,
-            ActionType.GET_DATE: self._exec_get_date,
-            ActionType.SWITCH_MODEL: self._exec_switch_model,
-            ActionType.CLARIFY: lambda a: (True, a.question or "Could you clarify?"),
-            ActionType.ANSWER: lambda a: (True, a.target or "I don't know."),
+            Intent.OPEN_FILE: self._exec_open_file,
+            Intent.OPEN_URL: self._exec_open_url,
+            Intent.FIND_FILE: self._exec_find_file,
+            Intent.FIND_PATH: self._exec_find_path,
+            Intent.SEARCH_WEB: self._exec_search_web,
+            Intent.SCRAPE: self._exec_scrape,
+            Intent.SCRAPE_HTML: self._exec_scrape_html,
+            Intent.RUN_COMMAND: self._exec_command,
+            Intent.SET_PREFERENCE: self._exec_set_pref,
+            Intent.SWITCH_MODEL: self._exec_switch_model,
+            Intent.CREATE_DOCUMENT: self._exec_create_doc,
+            Intent.START_SERVICE: self._exec_start_service,
+            Intent.STOP_SERVICE: self._exec_stop_service,
+            Intent.RESTART: self._exec_restart,
+            Intent.GET_INFO: self._exec_get_info,
+            Intent.LIST_MODELS: self._exec_list_models,
+            Intent.CHAT: self._exec_chat,
+            Intent.CONFIRM: self._exec_confirm,
+            Intent.SELECT: self._exec_select,
+            Intent.UNCLEAR: self._exec_unclear,
         }
         
-        handler = handlers.get(action.type)
-        if handler:
-            success, result = handler(action)
-            self.context.last_result = result
-            
-            # Cache successful resolutions
-            if success and self.context.last_query:
-                self.cache.store(self.context.last_query, action, success)
-            
-            return success, result
+        handler = handlers.get(plan.intent, self._exec_chat)
+        success, result = handler(plan)
         
-        return False, "Unknown action type"
+        self.ctx.last_result = result
+        
+        # Cache successful resolutions
+        if success and self.ctx.last_query:
+            self.cache.store(self.ctx.last_query, plan, success)
+        
+        return success, result
     
-    def _exec_open_file(self, action: Action) -> Tuple[bool, str]:
-        """Open a file in editor"""
-        path = action.target
+    def _exec_open_file(self, plan: Plan) -> Tuple[bool, str]:
+        path = plan.target
         if not path:
-            return False, "No file specified"
+            return False, "Welche Datei?" if self.ctx.language == 'de' else "Which file?"
         
         path = os.path.expanduser(path)
-        
         if not os.path.exists(path):
-            return False, f"File not found: {path}"
+            return False, f"Datei nicht gefunden: {path}" if self.ctx.language == 'de' else f"File not found: {path}"
         
-        editor = action.options.get("editor") or self.cache.get_preference("editor") or self.kb.get_default("editor")
-        new_terminal = action.options.get("new_terminal", False)
+        editor = plan.options.get("editor") or self.cache.get_preference("editor") or "nvim"
+        terminal = plan.options.get("terminal", "same")
         
         try:
-            if new_terminal:
-                terminal = action.options.get("terminal") or self.cache.get_preference("terminal") or self.kb.get_default("terminal")
-                subprocess.Popen([terminal, "-e", editor, path],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if terminal == "new":
+                term_app = self.cache.get_preference("terminal") or "kitty"
+                subprocess.Popen([term_app, editor, path])
             else:
                 subprocess.run([editor, path])
-            return True, path
+            
+            self.ctx.last_path = path
+            return True, f"✅ Geöffnet: {path}"
         except Exception as e:
-            return False, f"Failed to open: {e}"
+            return False, f"Fehler: {e}"
     
-    def _exec_open_url(self, action: Action) -> Tuple[bool, str]:
-        """Open URL in browser"""
-        url = action.target
+    def _exec_open_url(self, plan: Plan) -> Tuple[bool, str]:
+        url = plan.target
         if not url:
-            return False, "No URL specified"
+            return False, "Welche URL?" if self.ctx.language == 'de' else "Which URL?"
         
-        if not url.startswith(("http://", "https://")):
+        if not url.startswith(('http://', 'https://')):
             url = f"https://{url}"
         
-        browser = action.options.get("browser") or self.cache.get_preference("browser") or self.kb.get_default("browser")
+        browser = plan.options.get("browser") or self.cache.get_preference("browser")
         
         try:
-            subprocess.Popen([browser, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True, url
+            if browser:
+                try:
+                    subprocess.Popen([browser, url])
+                    return True, "✅ Im Browser geöffnet"
+                except FileNotFoundError:
+                    pass
+            
+            subprocess.Popen(["xdg-open", url])
+            return True, "✅ Im Browser geöffnet"
         except Exception as e:
-            return False, f"Failed to open URL: {e}"
+            return False, f"Fehler: {e}"
     
-    def _exec_find_file(self, action: Action) -> Tuple[bool, str]:
-        """Find files matching query"""
-        query = action.target
+    def _exec_find_file(self, plan: Plan) -> Tuple[bool, str]:
+        query = plan.target
         if not query:
-            return False, "No search query"
+            return False, "Was suchen?" if self.ctx.language == 'de' else "What to search?"
         
-        # Build search patterns
-        patterns = []
-        query_clean = query.lower().replace(" ", "*")
-        patterns.append(f"*{query_clean}*")
-        
-        # Add extension patterns
-        for ext in ['.conf', '.json', '.toml', '.yaml', '.yml']:
-            patterns.append(f"*{query_clean}*{ext}")
-        
-        # Search locations
-        search_dirs = [
+        # Build search
+        patterns = [f"*{query}*", f"*{query.replace(' ', '*')}*"]
+        dirs = [
             os.path.expanduser("~/.config"),
             os.path.expanduser("~"),
             os.path.expanduser("~/Downloads"),
             os.path.expanduser("~/Documents"),
-            os.path.expanduser("~/Pictures"),
         ]
         
         found = []
-        for search_dir in search_dirs:
-            if not os.path.exists(search_dir):
+        for d in dirs:
+            if not os.path.exists(d):
                 continue
-            
             for pattern in patterns:
                 try:
                     result = subprocess.run(
-                        ["find", search_dir, "-maxdepth", "4", "-iname", pattern, "-type", "f"],
+                        ["find", d, "-maxdepth", "4", "-iname", pattern, "-type", "f"],
                         capture_output=True, text=True, timeout=5
                     )
                     if result.stdout.strip():
@@ -792,192 +950,406 @@ RESPOND ONLY WITH JSON:
             unique = list(set(found))[:10]
             
             if len(unique) == 1:
+                self.ctx.last_path = unique[0]
                 return True, unique[0]
             else:
-                # Store as pending items for follow-up
-                self.context.pending_items = [{"path": p, "name": os.path.basename(p)} for p in unique]
-                result_lines = [f"{i+1}. {os.path.basename(p)}: {p}" for i, p in enumerate(unique)]
-                return True, "Found multiple:\n" + "\n".join(result_lines) + "\n\nWhich one? (enter number)"
+                self.ctx.pending_items = [{"path": p, "name": os.path.basename(p)} for p in unique]
+                self.ctx.awaiting_selection = True
+                lines = [f"{i+1}. {os.path.basename(p)}: {p}" for i, p in enumerate(unique)]
+                return True, "Gefunden:\n" + "\n".join(lines) + "\n\nWelche? (Nummer)"
         
-        return False, f"No files found matching '{query}'"
+        return False, f"Keine Dateien gefunden für '{query}'"
     
-    def _exec_search_web(self, action: Action) -> Tuple[bool, str]:
-        """Search the web"""
-        query = action.target
-        intent = action.options.get("intent", "search")
-        name = action.options.get("name", "")
+    def _exec_find_path(self, plan: Plan) -> Tuple[bool, str]:
+        """Just return the path without opening"""
+        return True, plan.target or ""
+    
+    def _exec_search_web(self, plan: Plan) -> Tuple[bool, str]:
+        query = plan.target
+        if not query:
+            return False, "Was suchen?"
         
-        # Try SearXNG
+        # Check SearXNG
         try:
-            from core.tool_registry import ToolRegistry
-            registry = ToolRegistry()
-            result = registry.execute_tool('web_search', {'query': query, 'num_results': 5})
-            
-            if result.success and result.output:
-                if intent == "find_url" and name:
-                    # Looking for a specific website
-                    for item in result.output:
-                        url = item.get('url', '')
-                        title = item.get('title', '').lower()
-                        # Match if name appears in title
-                        if name.lower() in title or name.lower() in url.lower():
-                            # Learn this URL
-                            self.cache.learn_url(name, url, "search")
-                            return True, url
-                
-                # Return search results
-                lines = []
-                for i, item in enumerate(result.output[:5]):
-                    lines.append(f"{i+1}. {item.get('title', 'No title')}")
-                    lines.append(f"   {item.get('url', '')}")
-                    if item.get('snippet'):
-                        lines.append(f"   {item.get('snippet', '')[:100]}...")
-                    lines.append("")
-                
-                # Store as pending
-                self.context.pending_items = [{"url": item.get('url')} for item in result.output[:5]]
-                
-                return True, "\n".join(lines) + "\nWhich one? (enter number)"
-            
-            return False, result.error or "Search failed"
-            
-        except Exception as e:
-            return False, f"Search error: {e}. Is SearXNG running?"
-    
-    def _exec_scrape(self, action: Action) -> Tuple[bool, str]:
-        """Scrape a webpage"""
-        url = action.target
-        if not url:
-            return False, "No URL to scrape"
+            import requests
+            requests.get("http://localhost:8888", timeout=2)
+        except:
+            self.ctx.pending_plan = Plan(
+                intent=Intent.RUN_COMMAND,
+                target="docker run -d -p 8888:8080 --name searxng searxng/searxng"
+            )
+            self.ctx.awaiting_confirmation = True
+            return False, "SearXNG läuft nicht. Starten? (y/n)"
         
         try:
-            from core.tool_registry import ToolRegistry
-            registry = ToolRegistry()
-            result = registry.execute_tool('scrape_page', {'url': url})
+            import requests
+            resp = requests.get(
+                "http://localhost:8888/search",
+                params={"q": query, "format": "json"},
+                timeout=10
+            )
+            data = resp.json()
+            results = data.get("results", [])[:10]
             
-            if result.success and result.output:
-                text = result.output.get('text', '')
-                domain = result.output.get('domain', '')
-                
-                # Save scraped content
-                scrape_dir = get_data_dir() / "scrape"
-                scrape_dir.mkdir(parents=True, exist_ok=True)
-                
-                safe_name = re.sub(r'[^\w\-_.]', '_', domain)[:50]
-                scrape_file = scrape_dir / f"{safe_name}.json"
-                
-                with open(scrape_file, 'w') as f:
-                    json.dump({
-                        "url": url,
-                        "domain": domain,
-                        "text": text,
-                        "scraped_at": datetime.now().isoformat()
-                    }, f, indent=2)
-                
-                return True, f"Scraped {domain}\nSaved to: {scrape_file}\nText length: {len(text)} chars"
+            if not results:
+                return False, f"Keine Ergebnisse für '{query}'"
+            
+            lines = []
+            self.ctx.pending_items = []
+            
+            for i, r in enumerate(results):
+                title = r.get("title", "")
+                url = r.get("url", "")
+                lines.append(f"{i+1}. {title}")
+                lines.append(f"   {url}")
+                self.ctx.pending_items.append({"url": url, "title": title})
+            
+            self.ctx.awaiting_selection = True
+            return True, "\n".join(lines) + "\n\nWelches? (Nummer)"
+            
         except Exception as e:
-            return False, f"Scrape failed: {e}"
-        
-        return False, "Scrape failed"
+            return False, f"Suche fehlgeschlagen: {e}"
     
-    def _exec_command(self, action: Action) -> Tuple[bool, str]:
-        """Execute a shell command"""
-        cmd = action.target
+    def _exec_scrape(self, plan: Plan) -> Tuple[bool, str]:
+        target = plan.target
+        if not target:
+            return False, "Was scrapen?"
+        
+        # Resolve URL
+        if not target.startswith(('http://', 'https://')):
+            url = self.cache.get_learned_url(target) or self.kb.get_website_url(target)
+            if url:
+                target = url
+            else:
+                return False, f"URL für '{target}' unbekannt. Bitte vollständige URL angeben."
+        
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
+            resp = requests.get(target, timeout=15, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Ryx/4.0"
+            })
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
+                tag.decompose()
+            
+            text = soup.get_text(separator='\n', strip=True)
+            title = soup.title.string if soup.title else target
+            
+            # Save
+            scrape_dir = get_data_dir() / "scrape"
+            scrape_dir.mkdir(parents=True, exist_ok=True)
+            
+            domain = target.split('/')[2] if '/' in target else target
+            safe_name = re.sub(r'[^\w\-_.]', '_', domain)[:50]
+            
+            data = {
+                "url": target,
+                "title": title,
+                "domain": domain,
+                "text": text[:50000],
+                "scraped_at": datetime.now().isoformat()
+            }
+            
+            scrape_file = scrape_dir / f"{safe_name}.json"
+            with open(scrape_file, 'w') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            self.ctx.last_scraped = data
+            
+            # Learn URL
+            self.cache.learn_url(domain.split('.')[0], target)
+            
+            return True, f"✅ Gescraped: {title}\n   Gespeichert: {scrape_file}\n   Text: {len(text)} Zeichen"
+            
+        except Exception as e:
+            return False, f"Scrape fehlgeschlagen: {e}"
+    
+    def _exec_scrape_html(self, plan: Plan) -> Tuple[bool, str]:
+        target = plan.target
+        if not target:
+            return False, "Welche Website?"
+        
+        if not target.startswith(('http://', 'https://')):
+            url = self.cache.get_learned_url(target) or self.kb.get_website_url(target)
+            if url:
+                target = url
+            else:
+                return False, f"URL für '{target}' unbekannt."
+        
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
+            resp = requests.get(target, timeout=15, headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Ryx/4.0"
+            })
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            # Extract CSS
+            css_content = []
+            for style in soup.find_all('style'):
+                css_content.append(style.string or "")
+            for link in soup.find_all('link', rel='stylesheet'):
+                href = link.get('href')
+                if href:
+                    try:
+                        if not href.startswith('http'):
+                            href = f"{target.rsplit('/', 1)[0]}/{href}"
+                        css_resp = requests.get(href, timeout=5)
+                        css_content.append(f"/* {href} */\n{css_resp.text}")
+                    except:
+                        pass
+            
+            # Save
+            scrape_dir = get_data_dir() / "scrape"
+            domain = target.split('/')[2] if '/' in target else target
+            safe_name = re.sub(r'[^\w\-_.]', '_', domain)[:50]
+            
+            site_dir = scrape_dir / safe_name
+            site_dir.mkdir(parents=True, exist_ok=True)
+            
+            html_file = site_dir / "index.html"
+            css_file = site_dir / "styles.css"
+            
+            with open(html_file, 'w') as f:
+                f.write(resp.text)
+            with open(css_file, 'w') as f:
+                f.write('\n\n'.join(css_content))
+            
+            return True, f"✅ HTML/CSS gescraped:\n   HTML: {html_file}\n   CSS: {css_file}"
+            
+        except Exception as e:
+            return False, f"Fehler: {e}"
+    
+    def _exec_command(self, plan: Plan) -> Tuple[bool, str]:
+        cmd = plan.target
         if not cmd:
-            return False, "No command"
+            return False, "Welcher Befehl?"
+        
+        if plan.requires_confirmation:
+            self.ctx.pending_plan = Plan(
+                intent=Intent.RUN_COMMAND,
+                target=cmd,
+                requires_confirmation=False
+            )
+            self.ctx.awaiting_confirmation = True
+            return True, f"Ausführen: {cmd}\nBist du sicher? (y/n)"
         
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
             output = result.stdout or result.stderr
-            return result.returncode == 0, output.strip()
+            return result.returncode == 0, output.strip() or "Ausgeführt"
         except subprocess.TimeoutExpired:
-            return False, "Command timed out"
+            return False, "Timeout"
         except Exception as e:
-            return False, f"Command failed: {e}"
+            return False, f"Fehler: {e}"
     
-    def _exec_set_preference(self, action: Action) -> Tuple[bool, str]:
-        """Set a user preference"""
-        key = action.target
-        value = action.options.get("value", "")
+    def _exec_set_pref(self, plan: Plan) -> Tuple[bool, str]:
+        key = plan.target
+        value = plan.options.get("value", "")
         
         if key and value:
             self.cache.set_preference(key, value)
-            return True, f"Set {key} = {value}"
+            return True, f"✅ {key} = {value}"
         
-        return False, "Invalid preference"
+        return False, "Ungültige Einstellung"
     
-    def _exec_start_service(self, action: Action) -> Tuple[bool, str]:
-        """Start a service"""
-        service = action.target
+    def _exec_switch_model(self, plan: Plan) -> Tuple[bool, str]:
+        query = plan.target
+        role = plan.options.get("role", "default")
         
-        if service == "searxng":
-            # Check if already running
+        if not query:
+            return False, "Welches Modell?"
+        
+        model = self.models.find(query)
+        if model:
+            self.cache.set_model(role, model)
+            return True, f"✅ {role}: {model}"
+        
+        available = "\n".join([f"  - {m}" for m in self.models.available])
+        return False, f"Modell '{query}' nicht gefunden.\n\nVerfügbar:\n{available}"
+    
+    def _exec_create_doc(self, plan: Plan) -> Tuple[bool, str]:
+        topic = plan.target
+        doc_type = plan.options.get("type", "lernzettel")
+        
+        if not topic:
+            return False, "Welches Thema?"
+        
+        model = self.models.get("precision", True)
+        
+        prompt = f"""Erstelle einen {doc_type} über: {topic}
+
+Format:
+- Klare Überschriften
+- Stichpunkte
+- Wichtige Begriffe hervorheben
+- Prüfungsrelevante Punkte
+- Beispiele wenn hilfreich
+- Max 2 Seiten
+
+Sprache: Deutsch"""
+
+        response = self.ollama.generate(
+            prompt=prompt,
+            model=model,
+            system="Du erstellst präzise, gut strukturierte Lernmaterialien.",
+            max_tokens=2000,
+            temperature=0.3
+        )
+        
+        if response.error:
+            return False, f"Fehler: {response.error}"
+        
+        # Save
+        docs_dir = get_data_dir() / "notes"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        
+        safe_topic = re.sub(r'[^\w\-_]', '_', topic)[:30]
+        doc_file = docs_dir / f"{doc_type}_{safe_topic}_{datetime.now().strftime('%Y%m%d')}.md"
+        
+        with open(doc_file, 'w') as f:
+            f.write(f"# {doc_type.title()}: {topic}\n\n")
+            f.write(f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n")
+            f.write(response.response)
+        
+        self.ctx.last_path = str(doc_file)
+        
+        return True, f"✅ {doc_type.title()} erstellt:\n{doc_file}\n\nÖffnen? (y/n)"
+    
+    def _exec_start_service(self, plan: Plan) -> Tuple[bool, str]:
+        service = (plan.target or "").lower()
+        
+        if service in ['searxng', 'searx', 'search']:
             try:
                 import requests
                 requests.get("http://localhost:8888", timeout=2)
-                return True, "SearXNG is already running"
+                return True, "SearXNG läuft bereits"
             except:
-                pass
-            
-            # Need confirmation
-            if action.question:
-                self.context.last_action = Action(
-                    type=ActionType.RUN_COMMAND,
+                self.ctx.pending_plan = Plan(
+                    intent=Intent.RUN_COMMAND,
                     target="docker run -d -p 8888:8080 --name searxng searxng/searxng"
                 )
-                return True, action.question
+                self.ctx.awaiting_confirmation = True
+                return True, "SearXNG starten? (y/n)"
         
-        return False, f"Unknown service: {service}"
+        return False, f"Unbekannter Service: {service}"
     
-    def _exec_get_date(self, action: Action) -> Tuple[bool, str]:
-        """Get current date/time"""
-        now = datetime.now()
-        return True, now.strftime("%A, %B %d, %Y - %H:%M")
-    
-    def _exec_switch_model(self, action: Action) -> Tuple[bool, str]:
-        """Switch to a different model"""
-        model_query = action.target
-        if not model_query:
-            return False, "No model specified"
+    def _exec_stop_service(self, plan: Plan) -> Tuple[bool, str]:
+        service = (plan.target or "").lower()
         
-        # List available models
-        try:
-            result = subprocess.run(
-                ["ollama", "list"],
-                capture_output=True, text=True, timeout=10
+        if service in ['searxng', 'searx']:
+            try:
+                subprocess.run(["docker", "stop", "searxng"], capture_output=True, timeout=10)
+                subprocess.run(["docker", "rm", "searxng"], capture_output=True, timeout=10)
+                return True, "SearXNG gestoppt"
+            except Exception as e:
+                return False, f"Fehler: {e}"
+        
+        return False, f"Unbekannter Service: {service}"
+    
+    def _exec_restart(self, plan: Plan) -> Tuple[bool, str]:
+        target = (plan.target or "").lower()
+        
+        if target in ['all', 'ryx', '']:
+            self.ctx.pending_plan = Plan(
+                intent=Intent.RUN_COMMAND,
+                target="pkill -f ryx_main; sleep 1; ryx &"
             )
-            available = result.stdout.lower()
-            
-            # Try to find matching model
-            if model_query.lower() in available:
-                self.balanced_model = model_query
-                return True, f"Switched to {model_query}"
-            
-            # Fuzzy match
-            for line in result.stdout.strip().split('\n')[1:]:
-                model_name = line.split()[0]
-                if model_query.lower() in model_name.lower():
-                    self.balanced_model = model_name
-                    return True, f"Switched to {model_name}"
-            
-            return False, f"Model '{model_query}' not found. Available:\n{result.stdout}"
-            
-        except Exception as e:
-            return False, f"Failed to switch model: {e}"
+            self.ctx.awaiting_confirmation = True
+            return True, "Ryx neustarten? (y/n)"
+        
+        return False, f"Neustart von '{target}' nicht unterstützt"
+    
+    def _exec_get_info(self, plan: Plan) -> Tuple[bool, str]:
+        info_type = (plan.target or "").lower()
+        now = datetime.now()
+        
+        if info_type in ['datetime', 'date', 'time', 'datum', 'zeit']:
+            if self.ctx.language == 'de':
+                return True, now.strftime("%A, %d. %B %Y - %H:%M Uhr")
+            return True, now.strftime("%A, %B %d, %Y - %H:%M")
+        
+        return True, now.strftime("%Y-%m-%d %H:%M")
+    
+    def _exec_list_models(self, plan: Plan) -> Tuple[bool, str]:
+        categorized = self.models.get_categorized()
+        
+        lines = ["📊 Verfügbare Modelle:\n"]
+        
+        for cat, models in categorized.items():
+            if models:
+                lines.append(f"\n{cat.upper()}:")
+                for m in models:
+                    lines.append(f"  • {m}")
+        
+        lines.append("\n\n⚙️ Aktuelle Einstellungen:")
+        for role in ["default", "chatting", "precision", "fast"]:
+            model = self.cache.get_model(role)
+            if model:
+                lines.append(f"  {role}: {model}")
+        
+        return True, "\n".join(lines)
+    
+    def _exec_chat(self, plan: Plan) -> Tuple[bool, str]:
+        """Handle general chat - use LLM for response"""
+        if plan.target:
+            return True, plan.target
+        
+        # Generate response
+        model = self.models.get("balanced", self.precision_mode)
+        
+        response = self.ollama.generate(
+            prompt=self.ctx.last_query,
+            model=model,
+            system="Du bist Ryx, ein hilfreicher AI-Assistent. Antworte kurz und präzise.",
+            max_tokens=500,
+            temperature=0.7
+        )
+        
+        if response.error:
+            return False, f"Fehler: {response.error}"
+        
+        return True, response.response
+    
+    def _exec_confirm(self, plan: Plan) -> Tuple[bool, str]:
+        self.ctx.awaiting_confirmation = True
+        self.ctx.pending_plan = plan
+        return True, plan.question or "Bist du sicher? (y/n)"
+    
+    def _exec_select(self, plan: Plan) -> Tuple[bool, str]:
+        self.ctx.awaiting_selection = True
+        return True, plan.question or "Bitte wähle eine Option (Nummer)"
+    
+    def _exec_unclear(self, plan: Plan) -> Tuple[bool, str]:
+        """Ask clarifying question - NEVER generic"""
+        if plan.question:
+            return True, plan.question
+        
+        # Generate specific question based on context
+        if 'config' in self.ctx.last_query.lower():
+            return True, "Welche Config-Datei? (z.B. hyprland, waybar, kitty)"
+        elif 'open' in self.ctx.last_query.lower():
+            return True, "Was soll ich öffnen? (Datei, Website, oder Programm?)"
+        elif 'search' in self.ctx.last_query.lower():
+            return True, "Web-Suche oder lokale Dateisuche?"
+        
+        return True, "Was genau möchtest du tun?"
     
     def get_smarter(self) -> str:
-        """Self-improvement: analyze and improve knowledge"""
-        # Clean bad cache entries
-        self.cache.cleanup_bad_entries()
+        """Self-improvement: fix knowledge and clean cache"""
+        self.cache.cleanup()
         
-        # Discover system and update knowledge
         updates = []
         
-        # Check which configs actually exist
-        for name, path in list(self.kb.arch_linux.get("config_paths", {}).items()):
+        # Verify and fix config paths
+        for name, path in list(self.kb.config_paths.items()):
             expanded = os.path.expanduser(path)
             if not os.path.exists(expanded):
-                # Try to find the correct path
+                # Try to find it
                 try:
                     result = subprocess.run(
                         ["find", os.path.expanduser("~/.config"), "-name", f"*{name}*", "-type", "f"],
@@ -985,29 +1357,28 @@ RESPOND ONLY WITH JSON:
                     )
                     if result.stdout.strip():
                         found = result.stdout.strip().split('\n')[0]
+                        self.kb.config_paths[name] = found
                         self.kb.arch_linux["config_paths"][name] = found
                         updates.append(f"Fixed: {name} → {found}")
                 except:
                     pass
         
-        # Save updated knowledge
         if updates:
-            self.kb.save_knowledge()
+            self.kb.save()
         
-        return f"Cleaned cache, verified {len(self.kb.arch_linux.get('config_paths', {}))} config paths.\n" + "\n".join(updates) if updates else "Knowledge base is up to date."
+        return "🧠 Self-improvement abgeschlossen\n" + "\n".join(updates) if updates else "Wissensbasis ist aktuell."
 
 
 # Global instance
-_brain: Optional[RyxBrain] = None
+_brain_v4: Optional[RyxBrainV4] = None
 
-def get_brain(ollama_client=None) -> RyxBrain:
-    """Get or create the brain instance"""
-    global _brain
-    if _brain is None:
+def get_brain_v4(ollama_client=None) -> RyxBrainV4:
+    global _brain_v4
+    if _brain_v4 is None:
         if ollama_client is None:
             from core.ollama_client import OllamaClient
             from core.model_router import ModelRouter
             router = ModelRouter()
             ollama_client = OllamaClient(base_url=router.get_ollama_url())
-        _brain = RyxBrain(ollama_client)
-    return _brain
+        _brain_v4 = RyxBrainV4(ollama_client)
+    return _brain_v4

@@ -71,3 +71,17 @@ logs/
 backups/
 .aider*
 data/notes/
+
+# Dev folder - keep structure but ignore contents
+dev/test_results/
+dev/benchmarks/
+dev/experiments/*.db
+
+# Session data
+data/sessions/
+data/scrape/
+data/exports/
+
+# Node
+node_modules/
+.npm/
