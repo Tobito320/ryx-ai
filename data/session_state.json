@@ -1,26 +1,6 @@
 {
   "history": [
     {
-      "role": "user",
-      "content": "was ist rekursion",
-      "ts": "2025-12-02T21:28:59.017647"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:29:01.627464"
-    },
-    {
-      "role": "user",
-      "content": "/quit",
-      "ts": "2025-12-02T21:35:17.880611"
-    },
-    {
-      "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T21:35:19.972070"
-    },
-    {
       "role": "assistant",
       "content": "(streamed)",
       "ts": "2025-12-02T21:35:22.406476"
@@ -249,11 +229,31 @@
       "role": "assistant",
       "content": "(streamed)",
       "ts": "2025-12-02T21:45:30.390432"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:49:26.033398"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:49:26.192651"
+    },
+    {
+      "role": "user",
+      "content": "wie gehts",
+      "ts": "2025-12-02T21:49:30.380239"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:49:31.349717"
     }
   ],
   "stats": {
-    "prompts": 3,
-    "actions": 3,
+    "prompts": 2,
+    "actions": 2,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -267,5 +267,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-02T21:49:24.265604"
+  "saved_at": "2025-12-02T21:56:02.831385"
 }

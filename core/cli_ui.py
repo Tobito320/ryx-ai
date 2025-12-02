@@ -134,34 +134,9 @@ class CLI:
     # ═══════════════════════════════════════════════════════════════════════════
     
     def prompt(self) -> str:
-        """Simple fancy prompt with separator line"""
-        # Colors
-        path_c = "\033[38;2;239;159;118m"      # Peach
-        branch_c = "\033[38;2;153;209;219m"   # Teal
-        model_c = "\033[38;2;244;184;228m"    # Pink
-        line_c = "\033[38;2;98;104;128m"      # Gray
+        """Simple prompt - just > with purple color, nothing else"""
         prompt_c = "\033[38;2;202;158;230m"   # Purple
-        dim_c = "\033[38;2;108;111;133m"      # Dim
         reset = "\033[0m"
-        
-        # Build status line: ~/path (branch)                    model
-        path = (self.current_path or os.getcwd()).replace(os.path.expanduser("~"), "~")
-        model = self.current_model.split(":")[0] if self.current_model else "ryx"
-        
-        left = f"{path_c}{path}{reset}"
-        if self.current_branch:
-            left += f" {dim_c}({branch_c}{self.current_branch}{dim_c}){reset}"
-        
-        right = f"{model_c}{model}{reset}"
-        
-        # Calculate visible lengths (without ANSI codes)
-        left_len = len(path) + (len(self.current_branch) + 3 if self.current_branch else 0)
-        right_len = len(model)
-        pad = self.width - left_len - right_len - 2
-        
-        # Print status + separator + prompt
-        print(f"{left}{' ' * max(1, pad)}{right}")
-        print(f"{line_c}{'─' * self.width}{reset}")
         
         try:
             user_input = input(f"{prompt_c}>{reset} ").strip()
