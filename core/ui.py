@@ -19,6 +19,7 @@ class Color:
     WHITE = "\033[37m"
     WHITE_BOLD = "\033[1;37m"
     GRAY = "\033[2;37m"
+    DIM = "\033[2m"  # Dim modifier
     GREEN = "\033[32m"
     GREEN_BOLD = "\033[1;32m"
     YELLOW = "\033[33m"
@@ -235,6 +236,19 @@ class RyxUI:
     def divider(self, char: str = "─"):
         """Print divider line"""
         print(f"{Color.PURPLE_DIM}{char * 60}{Color.RESET}")
+
+    def panel(self, content: str, title: str = ""):
+        """Display content in a panel"""
+        print(f"\n{Color.PURPLE_BOLD}╭{'─' * 60}╮{Color.RESET}")
+        if title:
+            print(f"{Color.PURPLE_BOLD}│{Color.RESET} {title}")
+            print(f"{Color.PURPLE_BOLD}├{'─' * 60}┤{Color.RESET}")
+        for line in content.strip().split('\n'):
+            # Handle rich markup (strip it for now)
+            clean_line = line.replace('[bold purple]', '').replace('[/bold purple]', '')
+            clean_line = clean_line.replace('[cyan]', '').replace('[/cyan]', '')
+            print(f"{Color.PURPLE_BOLD}│{Color.RESET} {clean_line}")
+        print(f"{Color.PURPLE_BOLD}╰{'─' * 60}╯{Color.RESET}\n")
 
     def help_section(self, title: str, commands: List[tuple]):
         """Display help section"""
