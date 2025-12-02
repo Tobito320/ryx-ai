@@ -127,8 +127,16 @@ class SessionLoop:
         self._health_check()
         self._restore()
         
+        # Show hint on first run
+        self.printer.dim("Type naturally. /help for commands. @ for files.")
+        
         while self.running:
             try:
+                # Modern prompt with bottom hints
+                self.printer.print_bottom_hints(
+                    left="Ctrl+c Exit · /help",
+                    right=f"Session: {len(self.history)} msgs"
+                )
                 user_input = self.ui.prompt()
                 
                 if not user_input.strip():
@@ -161,14 +169,34 @@ class SessionLoop:
                 self.ui.warning(err)
     
     def _show_banner(self):
-        mode = "PRECISION" if self.brain.precision_mode else "normal"
-        # Use new router to get the default model
+        """Show modern status bar instead of banner box"""
         from core.model_router import select_model
-        model_config = select_model("hi")  # Get default chat model
-        model = model_config.name
-        browsing = self.brain.browsing_enabled
+        import subprocess
         
-        self.printer.print_banner(mode=mode, model=model, browsing=browsing)
+        model_config = select_model("hi")
+        model = model_config.name
+        
+        # Get git branch if in repo
+        branch = ""
+        try:
+            result = subprocess.run(
+                ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                capture_output=True, text=True, timeout=1
+            )
+            if result.returncode == 0:
+                branch = result.stdout.strip()
+        except:
+            pass
+        
+        # Calculate context tokens (rough estimate from history)
+        context_tokens = sum(len(h.get('content', '')) // 4 for h in self.history)
+        
+        self.printer.print_status_bar(
+            cwd=os.getcwd(),
+            branch=branch,
+            model=model,
+            context_tokens=context_tokens
+        )
     
     def _process(self, user_input: str):
         """Process user input"""

@@ -517,7 +517,7 @@ Browsing: {browsing_str}"""
         print(f"\n{t.primary('Ryx')}{model_tag}: {message}")
     
     # ─────────────────────────────────────────────────────────────
-    # Streaming Output
+    # Streaming Output with Stats
     # ─────────────────────────────────────────────────────────────
     
     def stream_start(self, label: str = "Generating", model: str = ""):
@@ -526,15 +526,28 @@ Browsing: {browsing_str}"""
         model_tag = f" [{model}]" if model else ""
         sys.stdout.write(f"\n{t.primary('Ryx')}{t.dim(model_tag)}: ")
         sys.stdout.flush()
+        self._stream_start_time = __import__('time').time()
+        self._stream_tokens = 0
     
     def stream_token(self, token: str):
         """Print a single token in the stream"""
         sys.stdout.write(token)
         sys.stdout.flush()
+        self._stream_tokens = getattr(self, '_stream_tokens', 0) + 1
     
-    def stream_end(self):
-        """End streaming output"""
-        print()  # New line after stream
+    def stream_end(self, show_stats: bool = True):
+        """End streaming output with optional stats"""
+        import time
+        t = self.theme
+        
+        elapsed = time.time() - getattr(self, '_stream_start_time', time.time())
+        tokens = getattr(self, '_stream_tokens', 0)
+        
+        if show_stats and elapsed > 0.1 and tokens > 0:
+            tps = tokens / elapsed
+            print(f"\n{t.dim(f'  {tokens} tokens · {tps:.1f} tok/s · {elapsed:.1f}s')}")
+        else:
+            print()  # New line after stream
     
     def stream_thinking(self, phase: str, detail: str = ""):
         """Show what the system is currently doing (live update)"""
@@ -553,6 +566,66 @@ Browsing: {browsing_str}"""
         # Clear line and print final status
         sys.stdout.write(f"\r{color(icon)} {phase}{detail_str}    \n")
         sys.stdout.flush()
+    
+    # ─────────────────────────────────────────────────────────────
+    # Modern Status Bar (Claude CLI style)
+    # ─────────────────────────────────────────────────────────────
+    
+    def print_status_bar(
+        self,
+        cwd: str = "",
+        branch: str = "",
+        model: str = "",
+        context_tokens: int = 0
+    ):
+        """
+        Print a modern status bar like Claude CLI.
+        
+        Example:
+        ~/ryx-ai[⎇ main]                                    qwen2.5-coder:14b
+        ─────────────────────────────────────────────────────────────────────
+        """
+        import os
+        t = self.theme
+        width = self._get_terminal_width()
+        
+        # Left side: cwd + branch
+        cwd_short = cwd.replace(os.path.expanduser("~"), "~") if cwd else os.getcwd().replace(os.path.expanduser("~"), "~")
+        
+        if branch:
+            left = f"{cwd_short}[{t.info('⎇')} {branch}]"
+            left_plain = f"{cwd_short}[⎇ {branch}]"
+        else:
+            left = cwd_short
+            left_plain = cwd_short
+        
+        # Right side: model + context tokens
+        if context_tokens > 0:
+            ctx_str = f"{context_tokens} tokens"
+            right = f"{model} · {ctx_str}" if model else ctx_str
+        else:
+            right = model or ""
+        
+        # Calculate spacing
+        padding = width - len(left_plain) - len(right) - 2
+        
+        print(f"\n{left}{' ' * max(1, padding)}{t.dim(right)}")
+        print(t.border(self._make_line(width=width - 2)))
+    
+    def print_input_bar(self, hint: str = "Enter @ for files or / for commands"):
+        """Print input bar separator with hint"""
+        t = self.theme
+        width = self._get_terminal_width()
+        print(t.border(self._make_line(width=width - 2)))
+        print(t.dim(f" >  {hint}"))
+        print(t.border(self._make_line(width=width - 2)))
+    
+    def print_bottom_hints(self, left: str = "Ctrl+c Exit", right: str = ""):
+        """Print bottom hints like Claude CLI"""
+        t = self.theme
+        width = self._get_terminal_width()
+        padding = width - len(left) - len(right) - 4
+        print(t.dim(f"{left}{' ' * max(1, padding)}{right}"))
 
 
 # Global printer instance
