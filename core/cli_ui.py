@@ -98,15 +98,17 @@ class ResponseStats:
 
 class CLI:
     """
-    Claude Code CLI style - minimal, clean.
+    Fancy minimal CLI - no box, just beautiful colors.
     
     Layout:
-    [scrollable content area - responses, steps, etc.]
+    ~/path (branch)                                              model
+    ──────────────────────────────────────────────────────────────────
+    > prompt here
     
-    ~                                                          model-name (1x)
-    ────────────────────────────────────────────────────────────────────────────
-    > Enter @ to mention files or / for commands
-    Ctrl+c Exit · Ctrl+r Expand recent                    Remaining: X messages
+    [response in green]
+    
+    ──────────────────────────────────────────────────────────────────
+    > next prompt
     """
     
     def __init__(self):
@@ -128,56 +130,48 @@ class CLI:
         self._welcome_shown = False
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # Input Area - Fixed at bottom (Claude Code style)
+    # Prompt - Simple and beautiful
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def _draw_input_area(self):
-        """
-        Draw the input area: model line, separator, hint line.
-        Called before each prompt.
-        """
-        # Line 1: ~ on left, model on right
-        model_display = self.current_model.split(":")[0] if self.current_model else "ryx"
-        left = Text("~", style="dim")
-        right = Text(f"{model_display}", style="model")
-        
-        pad = self.width - 1 - len(right.plain) - 2
-        self.console.print(left + Text(" " * max(1, pad)) + right)
-        
-        # Line 2: Separator line
-        self.console.print("─" * self.width, style="border")
-    
-    def _draw_hints(self):
-        """
-        Draw hints line after response.
-        """
-        # Left: shortcuts
-        left = Text()
-        left.append("Ctrl+c", style="muted")
-        left.append(" Exit · ", style="dim")
-        left.append("Ctrl+r", style="muted")
-        left.append(" Expand recent", style="dim")
-        
-        # Right: message count
-        right = Text()
-        if self.msg_count > 0:
-            right.append(f"{self.msg_count} messages", style="muted")
-        
-        pad = self.width - len(left.plain) - len(right.plain)
-        self.console.print(left + Text(" " * max(1, pad)) + right)
-    
     def prompt(self) -> str:
-        """
-        Claude Code style prompt:
-        > [cursor blinks here]
-        """
-        # Draw input area before prompt
-        self._draw_input_area()
+        """Simple fancy prompt with separator line"""
+        # Colors
+        path_c = "\033[38;2;239;159;118m"      # Peach
+        branch_c = "\033[38;2;153;209;219m"   # Teal
+        model_c = "\033[38;2;244;184;228m"    # Pink
+        line_c = "\033[38;2;98;104;128m"      # Gray
+        prompt_c = "\033[38;2;202;158;230m"   # Purple
+        dim_c = "\033[38;2;108;111;133m"      # Dim
+        reset = "\033[0m"
+        
+        # Build status line: ~/path (branch)                    model
+        path = (self.current_path or os.getcwd()).replace(os.path.expanduser("~"), "~")
+        model = self.current_model.split(":")[0] if self.current_model else "ryx"
+        
+        left = f"{path_c}{path}{reset}"
+        if self.current_branch:
+            left += f" {dim_c}({branch_c}{self.current_branch}{dim_c}){reset}"
+        
+        right = f"{model_c}{model}{reset}"
+        
+        # Calculate visible lengths (without ANSI codes)
+        left_len = len(path) + (len(self.current_branch) + 3 if self.current_branch else 0)
+        right_len = len(model)
+        pad = self.width - left_len - right_len - 2
+        
+        # Print status + separator + prompt
+        print(f"{left}{' ' * max(1, pad)}{right}")
+        print(f"{line_c}{'─' * self.width}{reset}")
         
         try:
-            # Simple prompt: > with purple color
-            prompt_str = "\033[38;2;202;158;230m>\033[0m "
-            user_input = input(prompt_str).strip()
+            user_input = input(f"{prompt_c}>{reset} ").strip()
+            self.msg_count += 1
+            return user_input
+        except EOFError:
+            return "/quit"
+        except KeyboardInterrupt:
+            print()
+            return ""
             self.msg_count += 1
             return user_input
         except EOFError:
@@ -217,13 +211,12 @@ class CLI:
     
     def footer(self, model: str = "", msgs: int = 0, precision: bool = False,
                tok_s: float = 0.0, extra: str = ""):
-        """Draw hints line (called after response)"""
+        """Just update state, no visible output"""
         if msgs > 0:
             self.msg_count = msgs
         if tok_s > 0:
             self.last_tok_s = tok_s
-        self._draw_hints()
-        self.console.print()  # Blank line before next prompt
+        # No hints line - keep it clean
     
     # ═══════════════════════════════════════════════════════════════════════════
     # Spinner - Minimal thinking indicator (cyan)

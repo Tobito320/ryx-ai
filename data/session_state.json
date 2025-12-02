@@ -2,36 +2,6 @@
   "history": [
     {
       "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T21:28:39.877970"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:40.046317"
-    },
-    {
-      "role": "user",
-      "content": "wer war nikolas",
-      "ts": "2025-12-02T21:28:45.136239"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:45.737416"
-    },
-    {
-      "role": "user",
-      "content": "wer war niko",
-      "ts": "2025-12-02T21:28:50.185824"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:50.659416"
-    },
-    {
-      "role": "user",
       "content": "was ist rekursion",
       "ts": "2025-12-02T21:28:59.017647"
     },
@@ -249,11 +219,41 @@
       "role": "user",
       "content": "/quit",
       "ts": "2025-12-02T21:42:56.864073"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:45:25.743059"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:45:25.898289"
+    },
+    {
+      "role": "user",
+      "content": "wer",
+      "ts": "2025-12-02T21:45:27.957921"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:45:28.232492"
+    },
+    {
+      "role": "user",
+      "content": "ist da",
+      "ts": "2025-12-02T21:45:29.880824"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:45:30.390432"
     }
   ],
   "stats": {
-    "prompts": 10,
-    "actions": 7,
+    "prompts": 3,
+    "actions": 3,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -267,5 +267,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-02T21:42:56.864166"
+  "saved_at": "2025-12-02T21:49:24.265604"
 }
