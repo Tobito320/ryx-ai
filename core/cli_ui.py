@@ -754,15 +754,24 @@ class RyxUI(CLI):
 
 _cli: Optional[RyxUI] = None
 
+# Try to use new TerminalUI (prompt_toolkit based), fall back to RyxUI
+_use_terminal_ui = True
 
-def get_cli() -> RyxUI:
+def get_cli():
     """Get or create global CLI instance"""
     global _cli
     if _cli is None:
-        _cli = RyxUI()
+        if _use_terminal_ui:
+            try:
+                from core.terminal_ui import get_terminal_ui
+                _cli = get_terminal_ui()
+            except ImportError:
+                _cli = RyxUI()
+        else:
+            _cli = RyxUI()
     return _cli
 
 
-def get_ui() -> RyxUI:
+def get_ui():
     """Get or create global UI instance (legacy compat)"""
     return get_cli()
