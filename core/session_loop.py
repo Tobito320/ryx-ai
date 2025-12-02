@@ -159,12 +159,23 @@ class SessionLoop:
             self._shell_command(user_input[1:])
             return
         
-        # Minimal spinner while thinking
-        with self.cli.spinner():
+        # Show processing box while thinking (for ModernCLI)
+        if hasattr(self.cli, 'show_processing_box'):
+            self.cli.show_processing_box("Understanding...")
             plan = self.brain.understand(user_input)
+            self.cli.clear_processing_box()
+            self.cli.show_processing_box("Processing...")
+        else:
+            # Fallback for legacy CLI
+            with self.cli.spinner():
+                plan = self.brain.understand(user_input)
         
         # Execute
         success, result = self.brain.execute(plan)
+        
+        # Clear processing box after execution
+        if hasattr(self.cli, 'clear_processing_box'):
+            self.cli.clear_processing_box()
         
         # Track stats
         self.stats['actions'] += 1

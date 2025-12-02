@@ -134,11 +134,26 @@
       "role": "user",
       "content": "/quit",
       "ts": "2025-12-02T21:18:27.248442"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "ts": "2025-12-02T21:18:33.552566"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:18:36.200194"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T21:21:26.470089"
     }
   ],
   "stats": {
-    "prompts": 4,
-    "actions": 3,
+    "prompts": 2,
+    "actions": 1,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -152,5 +167,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-02T21:18:27.248527"
+  "saved_at": "2025-12-02T21:21:26.470194"
 }
