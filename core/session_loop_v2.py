@@ -1,6 +1,7 @@
 """
 Ryx AI - Session Loop v2
 Copilot-style interactive session with intelligent understanding.
+Now using RyxBrainV2 for true AI understanding.
 """
 
 import sys
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from core.ryx_brain import get_brain, RyxBrain, ActionType, Action
+from core.ryx_brain_v2 import get_brain_v2, RyxBrainV2, ActionType, Action
 from core.model_router import ModelRouter, ModelTier
 from core.ollama_client import OllamaClient
 from core.ui import RyxUI, Color
@@ -37,8 +38,8 @@ class SessionLoopV2:
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         
-        # The brain - intelligent core
-        self.brain = get_brain(self.ollama)
+        # The brain v2 - intelligent core with full AI understanding
+        self.brain = get_brain_v2(self.ollama)
         
         # Session state
         self.running = True

@@ -106,9 +106,11 @@ class RyxUI:
         print(f"{Color.PURPLE_BOLD}╰{'─' * 60}╯{Color.RESET}")
         print()
 
-    def prompt(self) -> str:
+    def prompt(self, custom_prompt: Optional[str] = None) -> str:
         """Show input prompt and get user input"""
         try:
+            if custom_prompt:
+                return input(f"{Color.PURPLE_BOLD}{custom_prompt}>{Color.RESET} ").strip()
             return input(f"{Color.PURPLE_BOLD}>{Color.RESET} ").strip()
         except EOFError:
             return "/quit"

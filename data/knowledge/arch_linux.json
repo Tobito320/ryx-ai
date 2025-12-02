@@ -112,12 +112,30 @@
     "twitch": "https://twitch.tv",
     "discord": "https://discord.com/app",
     "chatgpt": "https://chat.openai.com",
-    "claude": "https://claude.ai"
+    "claude": "https://claude.ai",
+    "arch wiki": "https://wiki.archlinux.org"
   },
-  "browsers": ["firefox", "chromium", "brave", "qutebrowser"],
+  "browsers": [
+    "firefox",
+    "chromium",
+    "brave",
+    "qutebrowser"
+  ],
   "default_browser": "firefox",
-  "editors": ["nvim", "vim", "nano", "code", "kate", "gedit"],
+  "editors": [
+    "nvim",
+    "vim",
+    "nano",
+    "code",
+    "kate",
+    "gedit"
+  ],
   "default_editor": "nvim",
-  "terminals": ["kitty", "alacritty", "foot", "wezterm"],
+  "terminals": [
+    "kitty",
+    "alacritty",
+    "foot",
+    "wezterm"
+  ],
   "default_terminal": "kitty"
 }

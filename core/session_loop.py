@@ -2,7 +2,7 @@
 Ryx AI - Session Loop
 Main interactive session for the Ryx AI CLI
 
-This is the main entry point - uses ryx_brain for intelligent processing.
+This is the main entry point - uses ryx_brain_v2 for intelligent processing.
 """
 
 import sys
@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-# Use the new brain instead of intelligent_agent
-from core.ryx_brain import get_brain, RyxBrain, ActionType, Action
+# Use the v2 brain for full AI understanding
+from core.ryx_brain_v2 import get_brain_v2, RyxBrainV2, ActionType, Action
 from core.model_router import ModelRouter, ModelTier
 from core.ollama_client import OllamaClient
 from core.ui import RyxUI, Color
@@ -36,6 +36,8 @@ class SessionLoop:
     - Knowledge-backed responses (no hallucination)
     - Clarification when ambiguous
     - Action-biased (does things, doesn't explain)
+    - Conversational context and follow-ups
+    - Multi-language support (German/English)
     """
 
     def __init__(self, safety_mode: str = "normal"):
@@ -43,8 +45,8 @@ class SessionLoop:
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         
-        # Use the new brain
-        self.brain = get_brain(self.ollama)
+        # Use the v2 brain for full AI understanding
+        self.brain = get_brain_v2(self.ollama)
         
         # Memory system (optional)
         self.memory = get_memory() if get_memory else None
@@ -117,8 +119,10 @@ class SessionLoop:
 
     def run(self):
         """Main session loop"""
+        # Show header with precision mode indicator
+        mode_str = "PRECISION" if self.brain.precision_mode else "balanced"
         self.ui.header(
-            tier=self.current_tier.value if self.current_tier else "balanced",
+            tier=mode_str,
             repo=str(get_project_root()),
             safety=self.safety_mode
         )
@@ -129,7 +133,14 @@ class SessionLoop:
 
         while self.running:
             try:
-                user_input = self.ui.prompt()
+                # Custom prompt based on brain state
+                custom_prompt = None
+                if self.brain.state.awaiting_confirmation:
+                    custom_prompt = "[y/n]"
+                elif self.brain.state.pending_items:
+                    custom_prompt = "[#]"
+                
+                user_input = self.ui.prompt(custom_prompt=custom_prompt)
                 if not user_input:
                     continue
                 self.stats["prompts"] += 1
@@ -223,20 +234,21 @@ class SessionLoop:
         
         # Clarification needed
         if action.type == ActionType.CLARIFY:
-            self.ui.assistant_message(action.question or "Could you be more specific?")
+            self.ui.assistant_message(action.question or "Was genau meinst du?")
             return
         
         # Just an answer - still need to execute to store context
         if action.type == ActionType.ANSWER:
-            response = action.target or "I'm not sure how to help."
-            self.ui.assistant_message(response)
-            # Store result for follow-ups (e.g., "open it" after "where is X")
-            self.brain.context.last_result = response
-            self.conversation_history.append({
-                "role": "assistant",
-                "content": response,
-                "timestamp": datetime.now().isoformat()
-            })
+            response = action.target or ""
+            if response:
+                self.ui.assistant_message(response)
+                # Store result for follow-ups (e.g., "open it" after "where is X")
+                self.brain.state.last_result = response
+                self.conversation_history.append({
+                    "role": "assistant",
+                    "content": response,
+                    "timestamp": datetime.now().isoformat()
+                })
             return
         
         # Execute the action
@@ -248,45 +260,53 @@ class SessionLoop:
             self.stats["files_opened"] += 1
         elif action.type == ActionType.OPEN_URL:
             self.stats["urls_opened"] += 1
+        elif action.type == ActionType.SEARCH_WEB:
+            self.stats["searches"] += 1
+        elif action.type in [ActionType.SCRAPE_URL, ActionType.SCRAPE_HTML_CSS]:
+            self.stats["scrapes"] += 1
         
         if success:
             if action.type == ActionType.OPEN_FILE:
-                self.ui.success(f"Opened: {result}")
+                self.ui.success(f"Geöffnet: {result}")
             elif action.type == ActionType.OPEN_URL:
-                self.ui.success("Opened in browser")
+                self.ui.success("Im Browser geöffnet")
             elif action.type == ActionType.FIND_FILE:
-                if "Found multiple" in str(result) or "Which one" in str(result):
+                if "Mehrere" in str(result) or "Welche" in str(result):
                     self.ui.assistant_message(result)
                 elif result:
                     print(f"\n{Color.CYAN}{result}{Color.RESET}\n")
                 else:
-                    self.ui.info("No files found")
+                    self.ui.info("Keine Dateien gefunden")
             elif action.type == ActionType.GET_DATE:
                 self.ui.assistant_message(result)
-            elif action.type == ActionType.SET_PREFERENCE:
-                self.ui.success(result)
-            elif action.type == ActionType.SWITCH_MODEL:
+            elif action.type in [ActionType.SET_PREFERENCE, ActionType.SWITCH_MODEL, ActionType.TOGGLE_MODE]:
                 self.ui.success(result)
             elif action.type == ActionType.SEARCH_WEB:
                 self.ui.assistant_message(result)
+            elif action.type in [ActionType.SCRAPE_URL, ActionType.SCRAPE_HTML_CSS]:
+                self.ui.success(result)
             else:
                 if result:
                     self.ui.assistant_message(result)
                 else:
-                    self.ui.success("Done")
+                    self.ui.success("Erledigt")
         else:
             self.ui.error(result)
             
             # Offer contextual help
-            if "not found" in result.lower() and action.type == ActionType.OPEN_FILE:
-                self.ui.assistant_message("Want me to search for it? (y/n)")
-                self.brain.context.last_action = Action(
+            if "nicht gefunden" in result.lower() and action.type == ActionType.OPEN_FILE:
+                self.ui.assistant_message("Soll ich danach suchen? (y/n)")
+                self.brain.state.awaiting_confirmation = True
+                self.brain.state.pending_question = "Soll ich danach suchen? (y/n)"
+                self.brain.state.last_action = Action(
                     type=ActionType.FIND_FILE,
                     target=action.target
                 )
             elif "searxng" in result.lower():
-                self.ui.assistant_message("Should I start SearXNG? (y/n)")
-                self.brain.context.last_action = Action(
+                self.ui.assistant_message("SearXNG starten? (y/n)")
+                self.brain.state.awaiting_confirmation = True
+                self.brain.state.pending_question = "SearXNG starten? (y/n)"
+                self.brain.state.last_action = Action(
                     type=ActionType.START_SERVICE,
                     target="searxng"
                 )
@@ -294,7 +314,7 @@ class SessionLoop:
         # Save to history
         self.conversation_history.append({
             "role": "assistant", 
-            "content": result if result else "Done",
+            "content": result if result else "Erledigt",
             "action": action.type.value,
             "timestamp": datetime.now().isoformat()
         })
@@ -305,135 +325,165 @@ class SessionLoop:
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
         
-        if command in ['help', 'h', '?']:
+        if command in ['help', 'h', '?', 'hilfe']:
             self._cmd_help()
-        elif command in ['quit', 'exit', 'q']:
+        elif command in ['quit', 'exit', 'q', 'beenden']:
             self.running = False
-        elif command in ['clear', 'c']:
+        elif command in ['clear', 'c', 'neu']:
             self.conversation_history = []
             self.context = {}
-            self.brain.context.last_query = None
-            self.brain.context.last_result = None
-            self.brain.context.pending_items = []
-            self.ui.success("Context cleared")
-        elif command in ['tier', 't']:
+            self.brain.state = type(self.brain.state)()  # Reset state
+            self.ui.success("Kontext gelöscht")
+        elif command in ['tier', 't', 'modell']:
             self._set_tier(args)
-        elif command in ['models', 'm']:
+        elif command in ['models', 'm', 'modelle']:
             models = self.router.list_models()
             self.ui.models_list(models)
         elif command in ['status', 's', 'usage', 'u']:
             self._show_status()
-        elif command == 'smarter':
+        elif command in ['smarter', 'verbessern']:
             self._handle_self_improvement()
         elif command == 'scrape':
             self._cmd_scrape(args)
-        elif command == 'learn':
+        elif command in ['learn', 'lerne']:
             self._cmd_learn(args)
-        elif command == 'search':
+        elif command in ['search', 'suche']:
             self._cmd_search(args)
         elif command == 'export':
             self._cmd_export()
-        elif command == 'learning':
-            self._cmd_learning_mode(args)
+        elif command in ['precision', 'präzision', 'genau']:
+            self._cmd_precision_mode(args)
+        elif command in ['restart', 'neustart']:
+            self._cmd_restart(args)
         else:
-            self.ui.warning(f"Unknown command: {command}")
+            self.ui.warning(f"Unbekannter Befehl: {command}")
     
     def _cmd_help(self):
         """Show comprehensive help"""
         help_text = """
-Ryx Commands:
+╭─────────────────────────────────────────────────────────────╮
+│ 🟣 Ryx v2 - Befehle                                          │
+╰─────────────────────────────────────────────────────────────╯
 
-Slash Commands (session mode only):
-  /help, /h, /?     Show this help
-  /quit, /q         Exit session
-  /clear, /c        Clear conversation history
-  /usage, /u        Show session statistics
-  /models, /m       List available models
-  /tier <name>      Switch model tier (fast/balanced/smart)
-  /scrape <url>     Scrape webpage content
-  /learn            Learn from last scrape
-  /search <query>   Web search via SearXNG
-  /smarter          Self-improvement mode
-  /learning on/off  Toggle learning mode
-  /export           Export session to markdown
+SLASH-BEFEHLE (nur in Session):
+  /help, /hilfe       Diese Hilfe
+  /quit, /beenden     Session beenden
+  /clear, /neu        Kontext löschen
+  /status, /usage     Statistiken
+  /models, /modelle   Verfügbare Modelle
+  /precision on/off   Präzisionsmodus (größere Modelle)
+  /scrape <url>       Webseite scrapen
+  /search <query>     Web-Suche via SearXNG
+  /learn              Aus letztem Scrape lernen
+  /smarter            Selbstverbesserung
+  /restart all        Alle Ryx-Dienste neustarten
+  /export             Session exportieren
 
-Special Syntax:
-  @path/to/file     Include file contents in context
-  !command          Run shell command directly
+SPEZIAL-SYNTAX:
+  @pfad/zur/datei     Datei-Inhalt anzeigen
+  !befehl             Shell-Befehl ausführen
 
-Natural Commands:
-  open youtube      Open website in browser
-  hyprland config   Open config in editor
-  find great wave   Search for files
-  scrape arch wiki  Scrape and save content
+NATÜRLICHE BEFEHLE (Beispiele):
+  open youtube                    Website öffnen
+  hyprland config new terminal    Config in neuem Terminal
+  where is .zshrc                 Datei-Pfad finden
+  scrape arch wiki                Webseite scrapen
+  search for python tutorials     Web-Suche
+  set zen as default browser      Einstellung speichern
+  mach mir einen lernzettel       Dokument erstellen
 
-Flags:
-  "new terminal"    Open in new terminal window
-  "same terminal"   Open in current terminal
+INTERAKTION:
+  y/n                 Schnelle Bestätigung
+  1, 2, 3...         Aus Liste auswählen
+  "open it"           Letzte Datei/URL öffnen
+  "the first one"     Ersten Eintrag wählen
 """
         print(help_text)
+    
+    def _cmd_precision_mode(self, args: str):
+        """Toggle precision mode"""
+        if args.lower() in ['on', 'ein', 'true', '1']:
+            self.brain.toggle_precision_mode(True)
+            self.ui.success("Präzisionsmodus EIN - nutzt größere Modelle")
+        elif args.lower() in ['off', 'aus', 'false', '0']:
+            self.brain.toggle_precision_mode(False)
+            self.ui.success("Präzisionsmodus AUS")
+        else:
+            current = "EIN" if self.brain.precision_mode else "AUS"
+            self.ui.info(f"Präzisionsmodus: {current}. Nutze /precision on oder /precision off")
+    
+    def _cmd_restart(self, args: str):
+        """Restart services"""
+        if 'all' in args.lower() or 'alles' in args.lower():
+            action = Action(
+                type=ActionType.RESTART_SERVICE,
+                target="ryx",
+                requires_confirmation=True,
+                question="Alle Ryx-Dienste neustarten? (y/n)"
+            )
+            success, result = self.brain.execute(action)
+            self.ui.assistant_message(result)
+        else:
+            self.ui.info("Nutzung: /restart all")
 
     def _cmd_scrape(self, args: str):
         """Scrape a URL"""
         if not args:
-            self.ui.error("Usage: /scrape <url>")
+            self.ui.error("Nutzung: /scrape <url oder name>")
             return
         
-        url = args.strip()
-        if not url.startswith('http'):
-            known_url = self.brain.kb.get_website_url(url.replace(' ', ''))
-            if known_url:
-                url = known_url
-            else:
-                url = f"https://{url.replace(' ', '')}"
-        
         self.ui.info("Scraping...")
-        action = Action(type=ActionType.SCRAPE_URL, target=url)
+        action = Action(type=ActionType.SCRAPE_URL, target=args.strip())
         success, result = self.brain.execute(action)
         
         if success:
-            self.ui.success(f"Scraped: {result.split(chr(10))[0] if result else 'OK'}")
+            self.ui.success(result)
         else:
-            self.ui.error(f"Scrape failed: {result}")
+            self.ui.error(f"Scrape fehlgeschlagen: {result}")
 
     def _cmd_learn(self, args: str):
         """Learn from scraped content"""
-        scrape_dir = get_data_dir() / "scrape"
-        if not scrape_dir.exists() or not list(scrape_dir.glob("*.json")):
-            self.ui.error("No scrape data. Use /scrape <url> first.")
-            return
-        
-        latest = max(scrape_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
-        self.ui.info("Learning...")
-        
-        try:
-            import json
+        if not self.brain.state.last_scraped_content:
+            scrape_dir = get_data_dir() / "scrape"
+            if not scrape_dir.exists() or not list(scrape_dir.glob("*.json")):
+                self.ui.error("Kein Scrape-Inhalt. Nutze erst /scrape <url>")
+                return
+            
+            # Load latest scrape
+            latest = max(scrape_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
             with open(latest) as f:
                 data = json.load(f)
-            
-            text = data.get('text', '')
-            domain = data.get('domain', 'unknown')
-            
+            self.brain.state.last_scraped_content = data
+        
+        content = self.brain.state.last_scraped_content
+        self.ui.info(f"Lerne aus: {content.get('title', content.get('domain', 'Unbekannt'))}")
+        
+        try:
             response = self.ollama.generate(
-                prompt=f"Summarize this content in 3-5 bullet points:\n\n{text[:3000]}",
-                model=self.brain.balanced_model,
-                system="Be concise and extract key facts.",
+                prompt=f"Fasse diesen Inhalt in 3-5 Stichpunkten zusammen:\n\n{content.get('text', '')[:3000]}",
+                model=self.brain.models['balanced'],
+                system="Sei präzise. Extrahiere die wichtigsten Fakten.",
                 max_tokens=500
             )
             
             if response.response:
-                summary_file = scrape_dir / f"{domain.replace('.', '_')}_summary.md"
+                scrape_dir = get_data_dir() / "scrape"
+                title = content.get('title', content.get('domain', 'unknown'))
+                safe_name = "".join(c if c.isalnum() or c in ' -_' else '_' for c in title[:50])
+                summary_file = scrape_dir / f"{safe_name}_summary.md"
+                
                 with open(summary_file, 'w') as f:
-                    f.write(f"# {domain}\n\n{response.response}")
-                self.ui.success(f"Learned about: {domain}")
-                self.ui.info(f"Saved to: {summary_file}")
+                    f.write(f"# {title}\n\n{response.response}")
+                
+                self.ui.success(f"Gelernt und gespeichert: {summary_file}")
+                print(response.response)
         except Exception as e:
-            self.ui.error(f"Learn failed: {e}")
+            self.ui.error(f"Lernen fehlgeschlagen: {e}")
 
     def _cmd_search(self, args: str):
         """Web search"""
         if not args:
-            self.ui.error("Usage: /search <query>")
+            self.ui.error("Nutzung: /search <suchanfrage>")
             return
         
         action = Action(type=ActionType.SEARCH_WEB, target=args)
@@ -453,84 +503,75 @@ Flags:
         export_file = export_dir / f"session_{timestamp}.md"
         
         with open(export_file, 'w') as f:
-            f.write(f"# Ryx Session\n\nDate: {datetime.now()}\n\n")
+            f.write(f"# Ryx Session\n\nDatum: {datetime.now()}\n\n")
             for msg in self.conversation_history:
-                f.write(f"**{msg.get('role', 'unknown').title()}**: {msg.get('content', '')}\n\n")
+                role = msg.get('role', 'unbekannt').title()
+                f.write(f"**{role}**: {msg.get('content', '')}\n\n")
         
-        self.ui.success(f"Exported to: {export_file}")
-
-    def _cmd_learning_mode(self, args: str):
-        """Toggle learning mode"""
-        if args.lower() in ['on', 'true', '1', 'yes']:
-            self.brain.set_learning_mode(True)
-            self.ui.success("Learning mode ON")
-        elif args.lower() in ['off', 'false', '0', 'no']:
-            self.brain.set_learning_mode(False)
-            self.ui.success("Learning mode OFF")
-        else:
-            current = "ON" if self.brain.learning_mode else "OFF"
-            self.ui.info(f"Learning mode: {current}. Use /learning on or /learning off")
+        self.ui.success(f"Exportiert: {export_file}")
 
     def _set_tier(self, tier_name: str):
         """Set the model tier"""
         if not tier_name:
-            self.ui.info("Available: fast, balanced, powerful, ultra")
+            self.ui.info("Verfügbar: fast, balanced, powerful, ultra")
             return
         
         tier = self.router.get_tier_by_name(tier_name)
         if tier:
             self.current_tier = tier
             model = self.router.get_model(tier)
-            self.ui.success(f"Switched to {tier.value} ({model.name})")
+            self.ui.success(f"Gewechselt zu {tier.value} ({model.name})")
         else:
-            self.ui.error(f"Unknown tier: {tier_name}")
+            self.ui.error(f"Unbekannte Stufe: {tier_name}")
 
     def _show_status(self):
         """Show current status with stats"""
         duration = datetime.now() - self.session_start
         minutes = int(duration.total_seconds() / 60)
         
+        precision = "EIN" if self.brain.precision_mode else "AUS"
+        
         print(f"""
 {Color.PURPLE}=== Ryx Status ==={Color.RESET}
-  Tier: {self.current_tier.value if self.current_tier else 'balanced'}
-  Context: {len(self.conversation_history)} messages
-  Safety: {self.safety_mode}
-  Duration: {minutes} minutes
-  Learning mode: {'ON' if self.brain.learning_mode else 'OFF'}
+  Modus: {'PRECISION' if self.brain.precision_mode else 'Normal'}
+  Kontext: {len(self.conversation_history)} Nachrichten
+  Dauer: {minutes} Minuten
 
-{Color.CYAN}Stats:{Color.RESET}
+{Color.CYAN}Statistiken:{Color.RESET}
   Prompts: {self.stats['prompts']}
-  Actions: {self.stats['actions']}
-  Files opened: {self.stats['files_opened']}
-  URLs opened: {self.stats['urls_opened']}
+  Aktionen: {self.stats['actions']}
+  Dateien: {self.stats['files_opened']}
+  URLs: {self.stats['urls_opened']}
+  Suchen: {self.stats['searches']}
+  Scrapes: {self.stats['scrapes']}
 """)
 
     def _is_greeting(self, text: str) -> bool:
         """Check if input is a simple greeting"""
-        greetings = {'hi', 'hello', 'hey', 'yo', 'sup', 'hola', 'hallo', 
-                    'howdy', 'greetings', 'whatsup', 'whats up'}
-        clean = text.rstrip('!.,?').replace("'", "").replace(" ", "")
+        greetings = {'hi', 'hello', 'hey', 'yo', 'sup', 'hallo', 'moin', 'servus', 
+                    'howdy', 'greetings', 'whatsup', 'whats up', 'guten tag'}
+        clean = text.rstrip('!.,?').replace("'", "").replace(" ", "").lower()
         return clean in greetings
 
     def _handle_greeting(self, text: str):
         """Handle greetings without AI"""
         responses = {
-            'hi': 'Hi! What do you need?',
-            'hello': 'Hello! How can I help?',
-            'hey': 'Hey! Ready.',
-            'yo': 'Yo! What can I do?',
-            'sup': "What's up!",
-            'hola': 'Hola!',
-            'hallo': 'Hallo!',
+            'hi': 'Hi! Was kann ich tun?',
+            'hello': 'Hallo! Wie kann ich helfen?',
+            'hey': 'Hey! Bereit.',
+            'yo': 'Yo! Was gibts?',
+            'sup': "Was geht!",
+            'hallo': 'Hallo! Was brauchst du?',
+            'moin': 'Moin! Was steht an?',
+            'servus': 'Servus! Wie kann ich helfen?',
         }
-        clean = text.rstrip('!.,?').replace("'", "").replace(" ", "")
-        response = responses.get(clean, "Hi! Ready.")
+        clean = text.rstrip('!.,?').replace("'", "").replace(" ", "").lower()
+        response = responses.get(clean, "Hallo! Bereit.")
         self.ui.assistant_message(response)
 
     def _handle_self_improvement(self):
         """Run self-improvement"""
-        self.ui.info("Self-improving...")
+        self.ui.info("Selbstverbesserung läuft...")
         result = self.brain.get_smarter()
-        self.ui.success("Self-improvement complete")
         print(result)
 

@@ -1,0 +1,78 @@
+{
+  "id": "20251202_031227",
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "Could you be more specific? What exactly do you want me to do?",
+      "action": "clarify",
+      "source": "llm"
+    },
+    {
+      "role": "assistant",
+      "content": "~/.config/hypr/hyprland.conf",
+      "action": "answer",
+      "source": "cache"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you be more specific? What exactly do you want me to do?",
+      "action": "clarify",
+      "source": "llm"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you be more specific? What exactly do you want me to do?",
+      "action": "clarify",
+      "source": "llm"
+    },
+    {
+      "role": "assistant",
+      "content": "I need to search the web for that, but SearXNG isn't running. Start it with `docker run -p 8888:8080 searxng/searxng` or I can try to scrape a specific page if you give me a URL.",
+      "action": "refuse",
+      "source": "system"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you be more specific? What exactly do you want me to do?",
+      "action": "clarify",
+      "source": "llm"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Opened in browser",
+      "action": "open_url",
+      "source": "inferred"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Opened in browser",
+      "action": "open_url",
+      "source": "inferred"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you be more specific? What exactly do you want me to do?",
+      "action": "clarify",
+      "source": "llm"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you be more specific? What exactly do you want me to do?",
+      "action": "clarify",
+      "source": "llm"
+    }
+  ],
+  "stats": {
+    "started_at": "2025-12-02T03:12:27.580422",
+    "duration_minutes": 0,
+    "prompts": 0,
+    "actions": 0,
+    "files_opened": 0,
+    "urls_opened": 0,
+    "searches": 0,
+    "scrapes": 0,
+    "llm_calls": 0,
+    "cache_hits": 0
+  },
+  "context_files": []
+}

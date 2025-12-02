@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 """
-Ryx AI - Main Entry Point Module
+Ryx AI v3 - Main Entry Point
 
-Production-grade local agentic CLI.
-Primary interaction: `ryx` starts an interactive session.
+Copilot-style local AI assistant.
+- No hardcoded commands
+- AI understands everything
+- Asks when unclear, acts when clear
 """
 import sys
 import os
 from pathlib import Path
 from typing import Dict
 
-# Auto-detect project root (resolve symlinks first, then get parent)
+# Auto-detect project root
 PROJECT_ROOT = Path(__file__).resolve().parent
-
-# Add project to path
 sys.path.insert(0, str(PROJECT_ROOT))
-
-# Set environment variable for other modules to use
 os.environ['RYX_PROJECT_ROOT'] = str(PROJECT_ROOT)
 
 
@@ -24,7 +22,7 @@ def cli_main():
     """Main CLI entry point - AI interprets all commands"""
     args = sys.argv[1:]
 
-    # Parse global options only (these are the only "hardcoded" flags for CLI UX)
+    # Parse global options
     safety_mode = "normal"
     silent_mode = False
     remaining_args = []
@@ -42,27 +40,34 @@ def cli_main():
             show_help()
             return
         elif arg in ['--version', '-v']:
-            print("Ryx AI v2.0.0 - Production-grade local agentic CLI")
+            print("Ryx AI v3.0.0 - Copilot-style local AI assistant")
             return
         else:
             remaining_args.append(arg)
 
-    # No args = Start interactive session
+    # No args = Start interactive session (v3)
     if not remaining_args:
-        from core.session_loop import SessionLoop
-        session = SessionLoop(safety_mode=safety_mode)
+        from core.session_loop_v3 import SessionLoopV3
+        session = SessionLoopV3(safety_mode=safety_mode)
         session.run()
         return
 
-    # Everything else: Let AI interpret the prompt
+    # Everything else: Let brain understand and execute
     prompt = " ".join(remaining_args)
     
-    from core.ai_interpreter import interpret_command
+    from core.ryx_brain_v3 import get_brain_v3
+    from core.ollama_client import OllamaClient
+    from core.model_router import ModelRouter
     
-    action = interpret_command(prompt)
+    router = ModelRouter()
+    ollama = OllamaClient(base_url=router.get_ollama_url())
+    brain = get_brain_v3(ollama)
     
-    # Execute the AI-determined action
-    execute_action(action, safety_mode, silent_mode)
+    action = brain.understand(prompt)
+    success, result = brain.execute(action)
+    
+    if result:
+        print(result)
 
 
 def execute_action(action, safety_mode: str, silent_mode: bool):
@@ -291,37 +296,49 @@ def handle_silent_prompt(prompt: str, safety_mode: str):
 def show_help():
     """Show help message"""
     print("""
-🟣 Ryx AI - Local Agentic CLI
+🟣 Ryx AI v3 - Copilot-Style Local AI
 
 USAGE:
     ryx                      Start interactive session
-    ryx "prompt"             Run any command in natural language
-    ryx -s "prompt"          Silent mode (max 3 lines output)
+    ryx "prompt"             Run command in natural language
+    ryx -s "prompt"          Silent mode (minimal output)
 
-EXAMPLES (AI interprets all commands naturally):
-    ryx "start ryxhub"                    # Start web interface
-    ryx "can you please start the hub"    # Same thing, natural language
-    ryx "fire up the dashboard"           # Same thing, different phrasing
-    ryx "strat ryxub"                     # Works even with typos!
-    ryx "stop the web interface"          # Stop services
-    ryx "open hyprland config"            # Open files
-    ryx "search for python tutorials"     # Web search
-    ryx "what time is it"                 # General questions
+EXAMPLES:
+    ryx "open youtube"                    # Open website
+    ryx "hyprland config"                 # Open config file
+    ryx "hyprland config new terminal"    # Open in new terminal
+    ryx "where is .zshrc"                 # Find file
+    ryx "search for IPv6"                 # Web search
+    ryx "scrape arch wiki"                # Scrape webpage
+    ryx "set zen as default browser"      # Save preference
+    ryx "use gpt 20b as default"          # Change model
+    ryx "mach mir einen lernzettel"       # Create document (German)
 
-The AI understands:
-    • Typos and misspellings
-    • Natural language variations
-    • Implicit intent from context
-    • Service names (ryxhub, hub, dashboard, web ui, etc.)
+FEATURES:
+    • Understands typos and natural language
+    • Asks when unclear, acts when clear
+    • German and English support
+    • Web browsing and scraping
+    • File operations
+    • Model switching
 
-SESSION COMMANDS (inside interactive mode):
+SESSION COMMANDS (/):
     /help        Show help
-    /status      Show current status
-    /tier <name> Switch model tier
     /models      List available models
+    /precision   Toggle precision mode
+    /browsing    Toggle web browsing
+    /scrape      Scrape webpage
+    /search      Web search
+    /learn       Learn from scraped content
+    /smarter     Self-improvement
+    /status      Show statistics
     /quit        Exit session
 
-For more info: https://github.com/ryx-ai
+SPECIAL SYNTAX:
+    @file        Include file contents
+    !command     Run shell command
+    y/n          Quick confirmation
+    1, 2, 3      Select from list
 """)
 
 

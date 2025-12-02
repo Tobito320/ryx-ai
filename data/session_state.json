@@ -1,84 +1,35 @@
 {
-  "saved_at": "2025-12-02T03:08:45.040139",
-  "conversation_history": [
+  "history": [
     {
-      "role": "assistant",
-      "content": "nvim ~/.config/hypr/tools/ai-coding-tools.lua"
+      "role": "user",
+      "content": "/help",
+      "timestamp": "2025-12-02T04:14:59.994767"
     },
     {
       "role": "user",
-      "content": "ryx hi"
-    },
-    {
-      "role": "assistant",
-      "content": "Hello. A: \"sudo pacman -Syu\""
+      "content": "/quit",
+      "timestamp": "2025-12-02T04:14:59.994847"
     },
     {
       "role": "user",
-      "content": "what is rust"
-    },
-    {
-      "role": "assistant",
-      "content": "Rust: A systems programming language."
+      "content": "/models",
+      "timestamp": "2025-12-02T04:15:04.982482"
     },
     {
       "role": "user",
-      "content": "search online what is rust"
-    },
-    {
-      "role": "assistant",
-      "content": "run: nvim /home/tobi/ryx-ai/searches/rust.md"
-    },
-    {
-      "role": "user",
-      "content": "ryx open hyprland config"
-    },
-    {
-      "role": "assistant",
-      "content": "nvim /home/tobi/ryx-ai/hypr/hyprland.conf"
-    },
-    {
-      "role": "user",
-      "content": "open ryxhub"
-    },
-    {
-      "role": "user",
-      "content": "what is the date today",
-      "timestamp": "2025-12-02T03:06:08.368600"
-    },
-    {
-      "role": "assistant",
-      "content": "Tuesday, December 02, 2025 - 03:06",
-      "action": "get_date",
-      "timestamp": "2025-12-02T03:06:08.368627"
-    },
-    {
-      "role": "user",
-      "content": "what is the date today",
-      "timestamp": "2025-12-02T03:08:44.671998"
-    },
-    {
-      "role": "assistant",
-      "content": "Tuesday, December 02, 2025 - 03:08",
-      "action": "get_date",
-      "timestamp": "2025-12-02T03:08:44.672033"
-    },
-    {
-      "role": "user",
-      "content": "where is hyprland config",
-      "timestamp": "2025-12-02T03:08:44.672359"
-    },
-    {
-      "role": "assistant",
-      "content": "/home/tobi/.config/hypr/hyprland.conf",
-      "timestamp": "2025-12-02T03:08:44.672373"
-    },
-    {
-      "role": "user",
-      "content": "open it",
-      "timestamp": "2025-12-02T03:08:45.040033"
+      "content": "/quit",
+      "timestamp": "2025-12-02T04:15:04.992888"
     }
   ],
-  "current_tier": "fast",
-  "context": {}
+  "stats": {
+    "prompts": 2,
+    "actions": 0,
+    "files_opened": 0,
+    "urls_opened": 0,
+    "searches": 0,
+    "scrapes": 0
+  },
+  "precision_mode": false,
+  "browsing_enabled": true,
+  "saved_at": "2025-12-02T04:15:04.993016"
 }
