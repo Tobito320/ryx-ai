@@ -1,5 +1,5 @@
 """
-Ryx AI V2 - Model Orchestrator
+Ryx AI - Model Orchestrator
 Intelligent model selection, lazy loading, and dynamic resource management
 """
 

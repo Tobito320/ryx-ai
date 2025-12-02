@@ -1,5 +1,5 @@
 """
-Ryx AI V2 - Meta Learner
+Ryx AI - Meta Learner
 Learns user preferences, patterns, and behaviors to provide personalized assistance
 """
 

@@ -1,6 +1,6 @@
-# 🟣 Ryx AI - Production-Grade Local Agentic CLI
+# 🟣 Ryx AI - Local AI Agent for Arch Linux
 
-Your intelligent terminal companion for Arch Linux, powered by local AI models.
+Your intelligent terminal companion, powered by local AI models.
 
 **Primary Interaction**: Just run `ryx` to start an interactive session.
 
@@ -9,8 +9,9 @@ Your intelligent terminal companion for Arch Linux, powered by local AI models.
 - **Natural Language First**: No weird syntax - just type what you want
 - **Intelligent Model Routing**: Automatically selects fast/balanced/powerful models
 - **Tool Orchestration**: Filesystem, web, shell, and RAG tools with safety controls
-- **Purple-Themed UI**: Beautiful terminal output with emoji indicators
+- **Modern Terminal UI**: Themed output with Dracula/Nord/Catppuccin themes
 - **Graceful Interrupts**: Ctrl+C saves state, continue where you left off
+- **Context Aware**: Remembers conversation and learns preferences
 
 ## 🚀 Quick Start
 
@@ -27,15 +28,31 @@ ryx "refactor the intent parser"
 
 - **OS**: Arch Linux (or any Linux with Hyprland)
 - **Python**: 3.11+
-- **Ollama**: Running locally or in Docker
+- **Ollama**: Running locally
 - **RAM**: 16GB+ recommended
-- **GPU**: AMD RX 7800 XT or similar (16GB VRAM for larger models)
+- **GPU**: AMD RX 7800 XT or similar (16GB VRAM ideal for larger models)
 
-### Recommended Models (7B+ only for primary use)
+### Hardware Optimization (AMD 5900X + 7800 XT)
+
+With your hardware, you can run:
+- **qwen2.5-coder:14b** - Fits entirely in VRAM (14GB), fast inference
+- **mistral:7b** - Ultra-fast, leaves room for other models
+- **deepseek-coder-v2:16b** - Maximum capability, uses full VRAM
+
 ```bash
-ollama pull qwen2.5-coder:14b    # Main coding model (default)
+# Optimal model setup for 7800 XT (16GB VRAM)
+ollama pull qwen2.5-coder:14b    # Primary coding model
+ollama pull qwen2.5:3b           # Ultra-fast for simple tasks
 ollama pull mistral:7b           # Fast general model
-ollama pull deepseek-coder-v2:16b # Strong coder alternative
+
+# Optional: For maximum capability (will use more VRAM)
+ollama pull deepseek-coder-v2:16b
+```
+
+### ROCm Setup (AMD GPU)
+```bash
+# Ensure ROCm is properly configured
+export HSA_OVERRIDE_GFX_VERSION=11.0.0  # For RDNA3 GPUs
 ```
 
 ## 🎯 Model Tiers
@@ -80,6 +97,10 @@ Shows:
 | `/status` | Show current status |
 | `/tier <name>` | Switch model tier |
 | `/models` | List available models |
+| `/tools` | List available tools |
+| `/tool <name> on/off` | Toggle a tool |
+| `/theme <name>` | Switch theme (dracula/nord/catppuccin) |
+| `/themes` | List available themes |
 | `/clear` | Clear conversation |
 | `/save <title>` | Save conversation as note |
 | `/quit` | Exit session |

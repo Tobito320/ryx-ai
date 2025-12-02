@@ -1,5 +1,5 @@
 """
-Ryx AI V2 - Enhanced AI Engine
+Ryx AI - Enhanced AI Engine
 JARVIS-grade unified AI engine with <2s latency target, intelligent model routing,
 and automatic failover.
 
@@ -473,3 +473,7 @@ class ResponseFormatter:
                 current_block.append(line.strip())
 
         return commands
+
+
+# Aliases for cleaner naming
+AIEngine = AIEngineV2

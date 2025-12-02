@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ryx AI v3 - Main Entry Point
+Ryx AI - Main Entry Point
 
 Copilot-style local AI assistant.
 - No hardcoded commands
@@ -40,28 +40,33 @@ def cli_main():
             show_help()
             return
         elif arg in ['--version', '-v']:
-            print("Ryx AI v4.0.0 - Copilot-style local AI assistant")
+            print("Ryx AI 1.0.0 - Local AI assistant")
             return
         else:
             remaining_args.append(arg)
 
     # No args = Start interactive session
     if not remaining_args:
-        from core.session_loop import SessionLoopV4
-        session = SessionLoopV4(safety_mode=safety_mode)
+        from core.session_loop import SessionLoop
+        session = SessionLoop(safety_mode=safety_mode)
         session.run()
         return
 
     # Everything else: Let brain understand and execute
-    prompt = " ".join(remaining_args)
+    prompt = " ".join(remaining_args).strip()
     
-    from core.ryx_brain import RyxBrainV4
+    # Empty or whitespace-only prompt
+    if not prompt:
+        print("How can I help you? Try: ryx --help")
+        return
+    
+    from core.ryx_brain import RyxBrain
     from core.ollama_client import OllamaClient
     from core.model_router import ModelRouter
     
     router = ModelRouter()
     ollama = OllamaClient(base_url=router.get_ollama_url())
-    brain = RyxBrainV4(ollama)
+    brain = RyxBrain(ollama)
     
     plan = brain.understand(prompt)
     success, result = brain.execute(plan)
@@ -296,7 +301,7 @@ def handle_silent_prompt(prompt: str, safety_mode: str):
 def show_help():
     """Show help message"""
     print("""
-🟣 Ryx AI v4 - Copilot-Style Local AI
+🟣 Ryx AI - Local AI Assistant
 
 USAGE:
     ryx                      Start interactive session
@@ -312,27 +317,27 @@ EXAMPLES:
     ryx "search for IPv6"                 # Web search
     ryx "scrape arch wiki"                # Scrape webpage
     ryx "set zen as default browser"      # Save preference
-    ryx "use gpt 20b as default"          # Change model
-    ryx "mach mir einen lernzettel"       # Create document (German)
 
 FEATURES:
-    • Understands typos and natural language
-    • Asks when unclear, acts when clear
+    • Natural language understanding
+    • Context-aware conversations
     • German and English support
     • Web browsing and scraping
-    • File operations
-    • Model switching
-    • Precision mode for complex tasks
+    • File operations with safety controls
+    • Intelligent model routing
+    • Themed UI (dracula/nord/catppuccin)
 
 SESSION COMMANDS (/):
     /help        Show help
     /models      List available models
-    /precision   Toggle precision mode (larger models)
+    /tools       List available tools
+    /tool        Toggle tool on/off
+    /theme       Change UI theme
+    /themes      List themes
+    /precision   Toggle precision mode
     /browsing    Toggle web browsing
     /scrape      Scrape webpage
     /search      Web search
-    /learn       Learn from scraped content
-    /smarter     Self-improvement
     /status      Show statistics
     /quit        Exit session
 
@@ -340,7 +345,6 @@ SPECIAL SYNTAX:
     @file        Include file contents
     !command     Run shell command
     y/n          Quick confirmation
-    1, 2, 3      Select from list
 """)
 
 

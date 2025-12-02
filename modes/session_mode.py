@@ -1,5 +1,5 @@
 """
-Ryx AI V2 - Session Mode
+Ryx AI - Session Mode
 Interactive Gemini CLI-like experience with graceful interrupts and state persistence
 """
 

@@ -1,5 +1,5 @@
 """
-Ryx AI V2 - Task Manager
+Ryx AI - Task Manager
 State persistence and graceful interrupt handling for complex tasks
 """
 

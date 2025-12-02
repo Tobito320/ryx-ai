@@ -1,17 +1,15 @@
 """
-Ryx AI - Brain V4: Supervisor/Operator Architecture
+Ryx AI - Brain
 
-Two-stage intelligent agent system:
-1. Supervisor (10B+): Deep understanding, planning, error recovery
-2. Operator (3B-7B): Fast execution, tool use, iteration
+Core intelligence for Ryx AI assistant.
+Like Copilot CLI / Claude CLI - uses tools to get things done.
 
 Key principles:
-- NEVER say "Could you be more specific?" - instead ASK a specific question
+- NEVER say "Could you be more specific?" - ASK a specific question
+- Use web search to ground answers (reduce hallucination)
 - Follow-up questions use conversation context
-- Multi-action from single prompt
-- Precision mode uses larger models
-- German/English bilingual
 - Action-oriented, not explanation-oriented
+- German/English bilingual
 """
 
 import os
@@ -183,7 +181,7 @@ class SmartCache:
     """Learning cache - stores successful resolutions"""
     
     def __init__(self):
-        self.db_path = get_data_dir() / "smart_cache_v4.db"
+        self.db_path = get_data_dir() / "smart_cache.db"
         self._init_db()
     
     def _init_db(self):
@@ -421,12 +419,13 @@ class ModelManager:
         return result
 
 
-class RyxBrainV4:
+class RyxBrain:
     """
-    Supervisor/Operator AI Brain
+    Ryx AI Brain - Core intelligence
     
-    - Supervisor: Understands intent, creates plan, handles errors
-    - Operator: Executes plan, uses tools, iterates
+    - Understands intent, creates plan, handles errors
+    - Executes plans using tools
+    - Uses search to reduce hallucination
     """
     
     SUPERVISOR_PROMPT = '''Du bist ein Supervisor-Agent für Ryx AI auf Arch Linux + Hyprland.
@@ -472,10 +471,25 @@ ANFRAGE: {prompt}'''
         self.models = ModelManager(self.cache)
         self.ctx = ConversationContext()
         
+        # Tools
+        from core.tools import get_tools
+        self.tools = get_tools()
+        
         # Mode flags
         self.precision_mode = False
         self.browsing_enabled = True
         self.fail_count = 0
+        
+        # New agent system (can be toggled)
+        self.use_new_agents = False
+        self._executor = None
+    
+    def enable_new_agents(self, enabled: bool = True):
+        """Enable/disable the new supervisor/operator agent system"""
+        self.use_new_agents = enabled
+        if enabled and self._executor is None:
+            from core.execution import TaskExecutor
+            self._executor = TaskExecutor(self.ollama, verbose=False)
     
     def understand(self, prompt: str) -> Plan:
         """
@@ -670,10 +684,37 @@ ANFRAGE: {prompt}'''
     
     def _match_website_request(self, prompt: str) -> Optional[Plan]:
         """Match website opening requests"""
-        p = prompt.lower()
+        p = prompt.lower().strip()
         
         # Skip if this looks like a search/scrape request
-        if any(w in p for w in ['search', 'scrape', 'suche', 'find', 'finde']):
+        if any(w in p for w in ['search for', 'scrape', 'suche nach', 'find info']):
+            return None
+        
+        # Single word - check if it's a known website directly
+        if ' ' not in p:
+            url = self.kb.get_website_url(p)
+            if url:
+                browser = self.cache.get_preference("browser")
+                return Plan(
+                    intent=Intent.OPEN_URL,
+                    target=url,
+                    options={"browser": browser} if browser else {}
+                )
+            # Also check learned URLs
+            url = self.cache.get_learned_url(p)
+            if url:
+                return Plan(intent=Intent.OPEN_URL, target=url)
+        
+        # Must have some indication they want a website
+        website_intents = ['open', 'öffne', 'go to', 'browse', 'visit', 'show me', 'zeig mir']
+        has_website_intent = any(w in p for w in website_intents)
+        
+        # Or must explicitly mention website-related words
+        website_words = ['website', 'site', 'page', 'url', '.com', '.org', '.de', '.io', 'http']
+        has_website_word = any(w in p for w in website_words)
+        
+        # Skip completely if no website intent AND prompt is too short/generic
+        if not has_website_intent and not has_website_word:
             return None
         
         # Extract words and look for known websites
@@ -701,17 +742,16 @@ ANFRAGE: {prompt}'''
         if url:
             return Plan(intent=Intent.OPEN_URL, target=url)
         
-        # Check if it looks like a website name (ends with common patterns)
+        # Only try as direct URL if it has a dot (actual domain pattern)
         for word in words:
-            if word not in skip and len(word) > 2:
-                # Try as direct URL
-                if '.' in word or word.endswith('hub') or word.endswith('tube'):
-                    url = f"https://{word}.com" if '.' not in word else f"https://{word}"
-                    return Plan(
-                        intent=Intent.OPEN_URL,
-                        target=url,
-                        options={"browser": self.cache.get_preference("browser")}
-                    )
+            if word not in skip and '.' in word:
+                # Looks like an actual domain
+                url = f"https://{word}" if not word.startswith('http') else word
+                return Plan(
+                    intent=Intent.OPEN_URL,
+                    target=url,
+                    options={"browser": self.cache.get_preference("browser")}
+                )
         
         return None
     
@@ -870,6 +910,39 @@ ANFRAGE: {prompt}'''
         
         return success, result
     
+    def execute_with_agents(self, prompt: str) -> Tuple[bool, str]:
+        """
+        Execute using the new supervisor/operator agent system.
+        
+        This provides:
+        - Intelligent task routing based on complexity
+        - Multi-step planning for complex tasks
+        - Automatic retry and error recovery
+        - Tool-based execution
+        """
+        if self._executor is None:
+            from core.execution import TaskExecutor
+            self._executor = TaskExecutor(self.ollama, verbose=False)
+        
+        # Build context from current state
+        from core.planning import Context as AgentContext
+        context = AgentContext(
+            cwd=os.getcwd(),
+            recent_commands=[],  # Could track these
+            last_result=self.ctx.last_result,
+            language=self.ctx.language,
+            editor=self.cache.get_preference("editor") or "nvim",
+            terminal=self.cache.get_preference("terminal") or "kitty",
+        )
+        
+        # Execute with new system
+        result = self._executor.execute(prompt, context)
+        
+        # Update our context
+        self.ctx.last_result = result.output
+        
+        return result.success, result.output
+    
     def _exec_open_file(self, plan: Plan) -> Tuple[bool, str]:
         path = plan.target
         if not path:
@@ -965,107 +1038,52 @@ ANFRAGE: {prompt}'''
         return True, plan.target or ""
     
     def _exec_search_web(self, plan: Plan) -> Tuple[bool, str]:
+        """Search the web using the WebSearchTool"""
         query = plan.target
         if not query:
             return False, "Was suchen?"
         
-        # Check SearXNG
-        try:
-            import requests
-            requests.get("http://localhost:8888", timeout=2)
-        except:
-            self.ctx.pending_plan = Plan(
-                intent=Intent.RUN_COMMAND,
-                target="docker run -d -p 8888:8080 --name searxng searxng/searxng"
-            )
-            self.ctx.awaiting_confirmation = True
-            return False, "SearXNG läuft nicht. Starten? (y/n)"
+        # Use the new web search tool (tries SearXNG first, then DuckDuckGo)
+        result = self.tools.web_search.search(query, num_results=10)
         
-        try:
-            import requests
-            resp = requests.get(
-                "http://localhost:8888/search",
-                params={"q": query, "format": "json"},
-                timeout=10
-            )
-            data = resp.json()
-            results = data.get("results", [])[:10]
-            
-            if not results:
-                return False, f"Keine Ergebnisse für '{query}'"
-            
-            lines = []
-            self.ctx.pending_items = []
-            
-            for i, r in enumerate(results):
-                title = r.get("title", "")
-                url = r.get("url", "")
-                lines.append(f"{i+1}. {title}")
-                lines.append(f"   {url}")
-                self.ctx.pending_items.append({"url": url, "title": title})
-            
-            self.ctx.awaiting_selection = True
-            return True, "\n".join(lines) + "\n\nWelches? (Nummer)"
-            
-        except Exception as e:
-            return False, f"Suche fehlgeschlagen: {e}"
+        if not result.success:
+            return False, result.error or "Search failed"
+        
+        if not result.data:
+            return False, f"Keine Ergebnisse für '{query}'"
+        
+        # Store for selection
+        self.ctx.pending_items = [{"url": r["url"], "title": r["title"]} for r in result.data]
+        self.ctx.awaiting_selection = True
+        
+        return True, result.output + "\n\nWelches? (Nummer)"
     
     def _exec_scrape(self, plan: Plan) -> Tuple[bool, str]:
+        """Scrape webpage using ScrapeTool"""
         target = plan.target
         if not target:
             return False, "Was scrapen?"
         
-        # Resolve URL
+        # Resolve URL if needed
         if not target.startswith(('http://', 'https://')):
             url = self.cache.get_learned_url(target) or self.kb.get_website_url(target)
             if url:
                 target = url
             else:
-                return False, f"URL für '{target}' unbekannt. Bitte vollständige URL angeben."
+                # Offer to search for it
+                return False, f"URL für '{target}' unbekannt. Soll ich danach suchen? (/search {target})"
         
-        try:
-            import requests
-            from bs4 import BeautifulSoup
-            
-            resp = requests.get(target, timeout=15, headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Ryx/4.0"
-            })
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            
-            for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
-                tag.decompose()
-            
-            text = soup.get_text(separator='\n', strip=True)
-            title = soup.title.string if soup.title else target
-            
-            # Save
-            scrape_dir = get_data_dir() / "scrape"
-            scrape_dir.mkdir(parents=True, exist_ok=True)
-            
-            domain = target.split('/')[2] if '/' in target else target
-            safe_name = re.sub(r'[^\w\-_.]', '_', domain)[:50]
-            
-            data = {
-                "url": target,
-                "title": title,
-                "domain": domain,
-                "text": text[:50000],
-                "scraped_at": datetime.now().isoformat()
-            }
-            
-            scrape_file = scrape_dir / f"{safe_name}.json"
-            with open(scrape_file, 'w') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            self.ctx.last_scraped = data
-            
-            # Learn URL
-            self.cache.learn_url(domain.split('.')[0], target)
-            
-            return True, f"✅ Gescraped: {title}\n   Gespeichert: {scrape_file}\n   Text: {len(text)} Zeichen"
-            
-        except Exception as e:
-            return False, f"Scrape fehlgeschlagen: {e}"
+        # Use the scrape tool
+        result = self.tools.scrape.scrape(target)
+        
+        if result.success and result.data:
+            self.ctx.last_scraped = result.data
+            # Learn the URL for future use
+            domain = result.data.get("domain", "")
+            if domain:
+                self.cache.learn_url(domain.split('.')[0], target)
+        
+        return result.success, result.output if result.success else result.error
     
     def _exec_scrape_html(self, plan: Plan) -> Tuple[bool, str]:
         target = plan.target
@@ -1295,17 +1313,39 @@ Sprache: Deutsch"""
         return True, "\n".join(lines)
     
     def _exec_chat(self, plan: Plan) -> Tuple[bool, str]:
-        """Handle general chat - use LLM for response"""
+        """
+        Handle general chat - use web search for grounding when appropriate.
+        This reduces hallucination by getting real information first.
+        """
         if plan.target:
             return True, plan.target
         
-        # Generate response
+        query = self.ctx.last_query
+        
+        # Determine if we should search first (for factual questions)
+        should_search = self._should_search_first(query)
+        search_context = ""
+        
+        if should_search and self.browsing_enabled:
+            # Search web first for grounding
+            search_result = self.tools.web_search.search(query, num_results=3)
+            if search_result.success and search_result.data:
+                # Build context from search results
+                search_context = "\n\nWeb search results:\n"
+                for r in search_result.data[:3]:
+                    search_context += f"- {r['title']}: {r['content'][:200]}\n"
+        
+        # Generate response with search context
         model = self.models.get("balanced", self.precision_mode)
         
+        system_prompt = "Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux. Antworte kurz und präzise."
+        if search_context:
+            system_prompt += f"\n\nNutze diese Suchergebnisse für deine Antwort:{search_context}"
+        
         response = self.ollama.generate(
-            prompt=self.ctx.last_query,
+            prompt=query,
             model=model,
-            system="Du bist Ryx, ein hilfreicher AI-Assistent. Antworte kurz und präzise.",
+            system=system_prompt,
             max_tokens=500,
             temperature=0.7
         )
@@ -1314,6 +1354,31 @@ Sprache: Deutsch"""
             return False, f"Fehler: {response.error}"
         
         return True, response.response
+    
+    def _should_search_first(self, query: str) -> bool:
+        """Determine if we should search before answering"""
+        q = query.lower()
+        
+        # Search for factual questions about things we might not know
+        factual_indicators = [
+            'what is', 'was ist', 'how to', 'wie',
+            'explain', 'erkläre', 'tell me about', 'erzähl',
+            'latest', 'newest', 'current', 'aktuell',
+            'why does', 'warum', 'when did', 'wann',
+            'documentation', 'docs', 'tutorial',
+        ]
+        
+        # Don't search for personal/system questions
+        personal_indicators = [
+            'my', 'mein', 'config', 'file', 'datei',
+            'open', 'öffne', 'find', 'finde', 'where',
+        ]
+        
+        # Check if factual and not personal
+        is_factual = any(f in q for f in factual_indicators)
+        is_personal = any(p in q for p in personal_indicators)
+        
+        return is_factual and not is_personal
     
     def _exec_confirm(self, plan: Plan) -> Tuple[bool, str]:
         self.ctx.awaiting_confirmation = True
@@ -1329,15 +1394,23 @@ Sprache: Deutsch"""
         if plan.question:
             return True, plan.question
         
-        # Generate specific question based on context
-        if 'config' in self.ctx.last_query.lower():
-            return True, "Welche Config-Datei? (z.B. hyprland, waybar, kitty)"
-        elif 'open' in self.ctx.last_query.lower():
-            return True, "Was soll ich öffnen? (Datei, Website, oder Programm?)"
-        elif 'search' in self.ctx.last_query.lower():
-            return True, "Web-Suche oder lokale Dateisuche?"
+        query = self.ctx.last_query.lower() if self.ctx.last_query else ""
         
-        return True, "Was genau möchtest du tun?"
+        # Generate specific question based on context
+        if 'config' in query:
+            return True, "Which config file? (e.g., hyprland, waybar, kitty)" if self.ctx.language == 'en' else "Welche Config-Datei? (z.B. hyprland, waybar, kitty)"
+        elif 'open' in query or 'öffne' in query:
+            return True, "What should I open? (file, website, or app?)" if self.ctx.language == 'en' else "Was soll ich öffnen? (Datei, Website, oder Programm?)"
+        elif 'search' in query or 'suche' in query:
+            return True, "Web search or local file search?" if self.ctx.language == 'en' else "Web-Suche oder lokale Dateisuche?"
+        elif 'find' in query or 'finde' in query:
+            return True, "What are you looking for? (filename or content)" if self.ctx.language == 'en' else "Was suchst du? (Dateiname oder Inhalt)"
+        elif not query.strip():
+            return True, "How can I help you?" if self.ctx.language == 'en' else "Wie kann ich dir helfen?"
+        
+        # Default with example
+        examples = "Try: 'open youtube', 'find bashrc', 'hyprland config'" if self.ctx.language == 'en' else "Versuche: 'open youtube', 'find bashrc', 'hyprland config'"
+        return True, f"I didn't understand that. {examples}" if self.ctx.language == 'en' else f"Das habe ich nicht verstanden. {examples}"
     
     def get_smarter(self) -> str:
         """Self-improvement: fix knowledge and clean cache"""
@@ -1367,18 +1440,54 @@ Sprache: Deutsch"""
             self.kb.save()
         
         return "🧠 Self-improvement abgeschlossen\n" + "\n".join(updates) if updates else "Wissensbasis ist aktuell."
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Check system health - Ollama, models, etc."""
+        health = {
+            "ollama": False,
+            "models": [],
+            "default_model": None,
+            "errors": []
+        }
+        
+        try:
+            # Check Ollama is reachable
+            import requests
+            response = requests.get(f"{self.ollama.base_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                health["ollama"] = True
+                data = response.json()
+                health["models"] = [m["name"] for m in data.get("models", [])]
+                
+                # Check if we have our preferred models
+                preferred = ["qwen2.5:3b", "qwen2.5-coder:7b", "qwen2.5-coder:14b"]
+                for model in preferred:
+                    if any(model in m for m in health["models"]):
+                        health["default_model"] = model
+                        break
+                
+                if not health["models"]:
+                    health["errors"].append("No models installed. Run: ollama pull qwen2.5:3b")
+            else:
+                health["errors"].append(f"Ollama returned status {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            health["errors"].append("Cannot connect to Ollama. Is it running?")
+        except Exception as e:
+            health["errors"].append(f"Health check error: {e}")
+        
+        return health
 
 
 # Global instance
-_brain_v4: Optional[RyxBrainV4] = None
+_brain: Optional[RyxBrain] = None
 
-def get_brain_v4(ollama_client=None) -> RyxBrainV4:
-    global _brain_v4
-    if _brain_v4 is None:
+def get_brain(ollama_client=None) -> RyxBrain:
+    global _brain
+    if _brain is None:
         if ollama_client is None:
             from core.ollama_client import OllamaClient
             from core.model_router import ModelRouter
             router = ModelRouter()
             ollama_client = OllamaClient(base_url=router.get_ollama_url())
-        _brain_v4 = RyxBrainV4(ollama_client)
-    return _brain_v4
+        _brain = RyxBrain(ollama_client)
+    return _brain

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Ryx AI - Main executable
+# Usage: ryx [prompt] or just ryx for interactive session
+
+PROJECT_ROOT="/home/tobi/ryx-ai"
+
+# Activate venv if exists
+if [ -d "$PROJECT_ROOT/venv" ]; then
+    source "$PROJECT_ROOT/venv/bin/activate"
+fi
+
+# Run main
+cd "$PROJECT_ROOT"
+exec python3 ryx_main.py "$@"

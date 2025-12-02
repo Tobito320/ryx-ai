@@ -1,0 +1,21 @@
+{
+  "query": "arch linux hyprland",
+  "results": [
+    {
+      "title": "Hyprland - ArchWiki",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwiki.archlinux.org%2Ftitle%2FHyprland&rut=e4e15d3ed7eb25466810c0561d314552e9b7b477cc45319f99caccdf8ca1eaf8",
+      "content": "HyprlandHyprlandis an independent tiling Wayland compositor written in C++. Noteworthy features ofHyprlandinclude dynamic tiling, tabbed windows, a clean and readable C++ code-base, and a custom renderer that provides window animations, rounded corners, and Dual-Kawase Blur on transparent windows."
+    },
+    {
+      "title": "Installing the Much Hyped Hyprland on Linux - It's FOSS",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fitsfoss.com%2Finstall%2Dhyprland%2F&rut=25718158cb4a4f53d2d26251e0c9dceb0926491b9b54a0447750a4a32ff11634",
+      "content": "Hyprlandis a dynamic tiling window compositor that is popular amongLinuxricing enthusiasts. Learn how to installHyprlandonArchLinuxusing archinstall script or base install, and on Ubuntu using a third-party repository."
+    },
+    {
+      "title": "Hyprland on Arch \u2014 Minimal Setup Guide",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tonybtw.com%2Ftutorial%2Fhyprland%2F&rut=995cd7efb918e8162e9a99099cfbf201075360066179dd0f7e41c60a3b2753d7",
+      "content": "We're going to be usingArchlinuxtoday, buthyprlandis available on most distrobutions, so if you are a NixOS user, or Gentoo, or even Debian, check out the wiki for installation instructions, but other than that, the customization aspect of this guide will still apply to you."
+    }
+  ],
+  "timestamp": "2025-12-02T13:19:41.321171"
+}

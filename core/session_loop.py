@@ -1,5 +1,5 @@
 """
-Ryx AI - Session Loop V4: Copilot-Style Interactive Session
+Ryx AI - Session Loop: Interactive Session
 
 Features:
 - True conversational flow with context
@@ -8,6 +8,7 @@ Features:
 - Multi-language (German/English)
 - NEVER says "Could you be more specific?"
 - Precision mode for learning tasks
+- Modern themed UI
 """
 
 import os
@@ -19,9 +20,11 @@ from datetime import datetime
 from typing import Optional
 
 from core.paths import get_data_dir
-from core.ryx_brain import RyxBrainV4, Plan, Intent, get_brain_v4
+from core.ryx_brain import RyxBrain, Plan, Intent, get_brain
 from core.ollama_client import OllamaClient
 from core.model_router import ModelRouter
+from core.printer import get_printer, RyxPrinter, StepStatus
+from core.progress import Spinner
 
 
 class Color:
@@ -36,44 +39,47 @@ class Color:
 
 
 class SessionUI:
+    """Legacy UI wrapper - delegates to new printer"""
+    
+    def __init__(self):
+        self.printer = get_printer()
+    
     @staticmethod
     def success(msg: str):
-        print(f"{Color.GREEN}{msg}{Color.RESET}")
+        get_printer().success(msg)
     
     @staticmethod
     def error(msg: str):
-        print(f"{Color.RED}❌ {msg}{Color.RESET}")
+        get_printer().error(msg)
     
     @staticmethod
     def warning(msg: str):
-        print(f"{Color.YELLOW}⚠️ {msg}{Color.RESET}")
+        get_printer().warning(msg)
     
     @staticmethod
     def info(msg: str):
-        print(f"{Color.DIM}ℹ️ {msg}{Color.RESET}")
+        get_printer().info(msg)
     
     @staticmethod
     def assistant(msg: str):
-        print(f"\n{Color.PURPLE}Ryx:{Color.RESET} {msg}")
+        get_printer().assistant(msg)
     
     @staticmethod
     def prompt() -> str:
-        try:
-            return input(f"\n{Color.CYAN}>{Color.RESET} ")
-        except EOFError:
-            return "/quit"
+        return get_printer().prompt()
 
 
-class SessionLoopV4:
+class SessionLoop:
     """
-    Main interactive session - Copilot-style.
+    Main interactive session with modern UI.
     """
     
     def __init__(self, safety_mode: str = "normal"):
         self.safety_mode = safety_mode
+        self.printer = get_printer()
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
-        self.brain = get_brain_v4(self.ollama)
+        self.brain = get_brain(self.ollama)
         self.ui = SessionUI()
         
         self.running = True
@@ -93,7 +99,7 @@ class SessionLoopV4:
         self._setup_signals()
     
     def _setup_readline(self):
-        history_file = get_data_dir() / "history" / "session_v4"
+        history_file = get_data_dir() / "history" / "session"
         history_file.parent.mkdir(parents=True, exist_ok=True)
         
         try:
@@ -118,6 +124,7 @@ class SessionLoopV4:
     def run(self):
         """Main loop"""
         self._show_banner()
+        self._health_check()
         self._restore()
         
         while self.running:
@@ -131,27 +138,34 @@ class SessionLoopV4:
                 
             except KeyboardInterrupt:
                 print()
-                self.ui.warning("Session unterbrochen")
+                self.ui.warning("Session interrupted")
                 self._save()
                 break
             except Exception as e:
-                self.ui.error(f"Fehler: {e}")
+                self.ui.error(f"Error: {e}")
+    
+    def _health_check(self):
+        """Check system health on startup"""
+        health = self.brain.health_check()
+        
+        if not health["ollama"]:
+            self.ui.error("Ollama not reachable. Start with: systemctl start ollama")
+            return
+        
+        if not health["models"]:
+            self.ui.warning("No models installed. Run: ollama pull qwen2.5:3b")
+            return
+        
+        if health["errors"]:
+            for err in health["errors"]:
+                self.ui.warning(err)
     
     def _show_banner(self):
         mode = "PRECISION" if self.brain.precision_mode else "normal"
         model = self.brain.models.get("default", self.brain.precision_mode)
-        browsing = "ON" if self.brain.browsing_enabled else "OFF"
+        browsing = self.brain.browsing_enabled
         
-        print(f"""
-{Color.PURPLE}╭────────────────────────────────────────────────────────────╮
-│ 🟣 ryx v4 – Local AI Agent                                  │
-│                                                            │
-│ Mode: {mode:<12} Model: {model:<22}│
-│ Browsing: {browsing:<8}                                        │
-╰────────────────────────────────────────────────────────────╯{Color.RESET}
-
-{Color.DIM}Natürlich sprechen. /help für Befehle.{Color.RESET}
-""")
+        self.printer.print_banner(mode=mode, model=model, browsing=browsing)
     
     def _process(self, user_input: str):
         """Process user input"""
@@ -172,9 +186,15 @@ class SessionLoopV4:
             self._shell_command(user_input[1:])
             return
         
-        # Let brain understand and act
-        plan = self.brain.understand(user_input)
-        success, result = self.brain.execute(plan)
+        # Let brain understand and act (with spinner for LLM calls)
+        spinner = Spinner("Thinking...")
+        spinner.start()
+        try:
+            plan = self.brain.understand(user_input)
+            spinner.update("Executing...")
+            success, result = self.brain.execute(plan)
+        finally:
+            spinner.stop()
         
         # Track stats
         self.stats['actions'] += 1
@@ -219,6 +239,12 @@ class SessionLoopV4:
             'smarter': self._smarter, 'verbessern': self._smarter,
             'export': self._export,
             'restart': lambda: self._restart(args), 'neustart': lambda: self._restart(args),
+            # New UI commands
+            'tools': self._tools,
+            'tool': lambda: self._tool(args),
+            'theme': lambda: self._theme(args), 'themes': self._themes,
+            # Agent system
+            'agents': lambda: self._agents(args),
         }
         
         handler = cmds.get(command)
@@ -228,46 +254,32 @@ class SessionLoopV4:
             self.ui.warning(f"Unbekannter Befehl: {command}")
     
     def _help(self):
-        print(f"""
-{Color.PURPLE}╭─────────────────────────────────────────────────────────────╮
-│ 🟣 Ryx v4 - Befehle                                          │
-╰─────────────────────────────────────────────────────────────╯{Color.RESET}
+        t = self.printer.theme
+        self.printer.print_box("""COMMANDS:
+  /help            Show this help
+  /quit            Exit session
+  /clear           Clear context
+  /status          Show statistics
+  /models          Available models
+  /precision on/off  Precision mode (larger models)
+  /browsing on/off   Web browsing toggle
+  /agents on/off   New agent system (supervisor/operator)
 
-{Color.CYAN}SLASH-BEFEHLE:{Color.RESET}
-  /help, /hilfe       Diese Hilfe
-  /quit, /beenden     Session beenden
-  /clear, /neu        Kontext löschen
-  /status             Statistiken
-  /models, /modelle   Verfügbare Modelle
-  /precision on/off   Präzisionsmodus (größere Modelle)
-  /browsing on/off    Web-Browsing aktivieren/deaktivieren
-  /scrape <url>       Webseite scrapen
-  /search <query>     Web-Suche
-  /learn, /digest     Aus gescraptem Inhalt lernen
-  /smarter            Selbstverbesserung
-  /restart all        Ryx neustarten
-  /export             Session exportieren
+TOOLS:
+  /tools           List available tools
+  /tool <name> on/off  Toggle tool
+  /theme <name>    Change theme
+  /themes          List themes
 
-{Color.CYAN}SPEZIAL-SYNTAX:{Color.RESET}
-  @pfad/zur/datei     Datei-Inhalt einbinden
-  !befehl             Shell-Befehl ausführen
+SCRAPING:
+  /scrape <url>    Scrape webpage
+  /search <query>  Web search
+  /learn           Learn from scraped content
 
-{Color.CYAN}NATÜRLICHE BEFEHLE:{Color.RESET}
-  youtube                         Website öffnen
-  hyprland config                 Config in Editor öffnen
-  hyprlock config new terminal    Config in neuem Terminal
-  where is .zshrc                 Pfad anzeigen
-  find great wave                 Datei suchen
-  scrape arch wiki                Webseite scrapen
-  set zen as default browser      Einstellung speichern
-  use gpt 20b as default          Modell wechseln
-  mach mir einen lernzettel       Dokument erstellen
-
-{Color.CYAN}SCHNELLE ANTWORTEN:{Color.RESET}
-  y/n/ja/nein         Bestätigung
-  1, 2, 3...          Aus Liste wählen
-  "open it"           Letztes Ergebnis öffnen
-""")
+SPECIAL:
+  @file            Include file contents
+  !command         Run shell command
+  y/n              Quick confirmation""", title="🟣 Ryx - Help")
     
     def _quit(self):
         self._save()
@@ -448,6 +460,71 @@ class SessionLoopV4:
         else:
             self.ui.info("Nutzung: /restart all")
     
+    def _tools(self):
+        """List all available tools with their status"""
+        self.printer.print_tools()
+    
+    def _tool(self, args: str):
+        """Toggle a tool on/off"""
+        parts = args.split()
+        if len(parts) < 2:
+            self.ui.error("Usage: /tool <name> on|off")
+            self.printer.print_tools()
+            return
+        
+        name = parts[0].lower()
+        state = parts[1].lower()
+        
+        if state in ['on', 'ein', '1', 'true']:
+            enabled = True
+        elif state in ['off', 'aus', '0', 'false']:
+            enabled = False
+        else:
+            self.ui.error("State must be: on or off")
+            return
+        
+        if self.printer.set_tool_state(name, enabled):
+            status = "enabled" if enabled else "disabled"
+            self.ui.success(f"Tool '{name}' {status}")
+        else:
+            self.ui.error(f"Unknown tool: {name}")
+            self.printer.print_tools()
+    
+    def _themes(self):
+        """List available themes"""
+        self.printer.print_themes()
+    
+    def _theme(self, args: str):
+        """Switch theme"""
+        if not args:
+            self.printer.print_themes()
+            return
+        
+        name = args.strip().lower()
+        if self.printer.set_theme(name):
+            self.ui.success(f"Theme switched to: {name}")
+        else:
+            self.ui.error(f"Unknown theme: {name}")
+            self.printer.print_themes()
+    
+    def _agents(self, args: str):
+        """Toggle new agent system"""
+        if not args:
+            status = "ON" if self.brain.use_new_agents else "OFF"
+            self.ui.info(f"Agent system: {status}")
+            self.ui.info("Usage: /agents on|off")
+            return
+        
+        state = args.strip().lower()
+        if state in ['on', 'ein', '1', 'true']:
+            self.brain.enable_new_agents(True)
+            self.ui.success("Agent system enabled (supervisor/operator)")
+        elif state in ['off', 'aus', '0', 'false']:
+            self.brain.enable_new_agents(False)
+            self.ui.success("Agent system disabled (classic mode)")
+        else:
+            self.ui.error("Usage: /agents on|off")
+    
     def _file_include(self, path: str):
         path = os.path.expanduser(path.strip())
         
@@ -493,7 +570,7 @@ class SessionLoopV4:
             self.ui.error(f"Fehler: {e}")
     
     def _save(self):
-        state_file = get_data_dir() / "session_state_v4.json"
+        state_file = get_data_dir() / "session_state.json"
         
         state = {
             'history': self.history[-50:],
@@ -507,7 +584,7 @@ class SessionLoopV4:
             json.dump(state, f, indent=2)
     
     def _restore(self):
-        state_file = get_data_dir() / "session_state_v4.json"
+        state_file = get_data_dir() / "session_state.json"
         
         if state_file.exists():
             try:
@@ -526,7 +603,7 @@ class SessionLoopV4:
 
 
 def main():
-    session = SessionLoopV4()
+    session = SessionLoop()
     session.run()
 
 

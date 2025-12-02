@@ -1,13 +1,13 @@
 [project]
 name = "ryx-ai"
-version = "2.0.0"
-description = "Ryx AI - Production-grade local agentic CLI"
+version = "1.0.0"
+description = "Ryx AI - Local agentic CLI for Arch Linux"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 keywords = ["ai", "cli", "ollama", "llm", "agentic"]
 authors = [
-    {name = "Ryx AI Team"}
+    {name = "Tobi"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

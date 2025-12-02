@@ -1,5 +1,5 @@
 """
-Ryx AI V2 - Health Monitor
+Ryx AI - Health Monitor
 Continuous system monitoring with automatic healing capabilities
 """
 

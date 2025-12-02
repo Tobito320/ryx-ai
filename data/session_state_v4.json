@@ -9,10 +9,140 @@
       "role": "user",
       "content": "/quit",
       "ts": "2025-12-02T05:07:28.786374"
+    },
+    {
+      "role": "user",
+      "content": "test: 2+2",
+      "ts": "2025-12-02T05:28:03.961547"
+    },
+    {
+      "role": "assistant",
+      "content": "What would you like me to do?",
+      "ts": "2025-12-02T05:28:03.965597"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:28:03.965620"
+    },
+    {
+      "role": "user",
+      "content": "/tools",
+      "ts": "2025-12-02T05:45:10.981789"
+    },
+    {
+      "role": "user",
+      "content": "/themes",
+      "ts": "2025-12-02T05:45:10.981881"
+    },
+    {
+      "role": "user",
+      "content": "/theme nord",
+      "ts": "2025-12-02T05:45:10.981941"
+    },
+    {
+      "role": "user",
+      "content": "/tool search off",
+      "ts": "2025-12-02T05:45:10.982118"
+    },
+    {
+      "role": "user",
+      "content": "/tool search on",
+      "ts": "2025-12-02T05:45:10.982150"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T05:45:10.982172"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:45:10.982348"
+    },
+    {
+      "role": "user",
+      "content": "/invalid_command",
+      "ts": "2025-12-02T05:55:24.051707"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:55:24.051740"
+    },
+    {
+      "role": "user",
+      "content": "/scrape",
+      "ts": "2025-12-02T05:55:28.800070"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:55:28.800105"
+    },
+    {
+      "role": "user",
+      "content": "/tool",
+      "ts": "2025-12-02T05:55:33.603400"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:55:33.603496"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "ts": "2025-12-02T05:55:49.502295"
+    },
+    {
+      "role": "assistant",
+      "content": "What would you like me to do?",
+      "ts": "2025-12-02T05:55:49.504549"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:55:49.504565"
+    },
+    {
+      "role": "user",
+      "content": "hello",
+      "ts": "2025-12-02T06:05:05.797376"
+    },
+    {
+      "role": "assistant",
+      "content": "I didn't understand that. Try: 'open youtube', 'find bashrc', 'hyprland config'",
+      "ts": "2025-12-02T06:05:05.877720"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T06:05:05.877741"
+    },
+    {
+      "role": "user",
+      "content": "/tools",
+      "ts": "2025-12-02T06:10:50.986249"
+    },
+    {
+      "role": "user",
+      "content": "/themes",
+      "ts": "2025-12-02T06:10:50.986367"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T06:10:50.986421"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T06:10:50.986592"
     }
   ],
   "stats": {
-    "prompts": 2,
+    "prompts": 4,
     "actions": 0,
     "files": 0,
     "urls": 0,
@@ -21,5 +151,5 @@
   },
   "precision_mode": false,
   "browsing_enabled": true,
-  "saved_at": "2025-12-02T05:07:28.786425"
+  "saved_at": "2025-12-02T06:10:50.986635"
 }
