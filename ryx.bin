@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Ryx AI - Main Entry Point
+Ryx AI - Global Entry Point
 
 Production-grade local agentic CLI.
-Primary interaction: `ryx` starts an interactive session.
+Works from any directory - AI interprets all commands naturally.
 """
 import sys
 import os
 from pathlib import Path
+from typing import Dict
 
 # Auto-detect project root (resolve symlinks first, then get parent)
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -20,10 +21,12 @@ os.environ['RYX_PROJECT_ROOT'] = str(PROJECT_ROOT)
 
 
 def main():
+    """Main entry point - AI interprets all commands"""
     args = sys.argv[1:]
 
-    # Parse global options
+    # Parse global options only (these are the only "hardcoded" flags for CLI UX)
     safety_mode = "normal"
+    silent_mode = False
     remaining_args = []
 
     for arg in args:
@@ -33,48 +36,232 @@ def main():
             safety_mode = 'strict'
         elif arg == '--loose':
             safety_mode = 'loose'
-        elif arg == '--tier' and remaining_args:
-            # Handle --tier <name> separately
-            pass
+        elif arg == '--silent' or arg == '-s':
+            silent_mode = True
+        elif arg in ['--help', '-h']:
+            show_help()
+            return
+        elif arg in ['--version', '-v']:
+            print("Ryx AI v2.0.0 - Production-grade local agentic CLI")
+            return
         else:
             remaining_args.append(arg)
 
-    # Main entry point logic
+    # No args = Start interactive session
     if not remaining_args:
-        # No args = Start interactive session (primary interaction)
         from core.session_loop import SessionLoop
         session = SessionLoop(safety_mode=safety_mode)
         session.run()
+        return
 
-    elif remaining_args[0] in ['--help', '-h']:
-        show_help()
+    # Everything else: Let AI interpret the prompt
+    prompt = " ".join(remaining_args)
+    
+    from core.ai_interpreter import interpret_command
+    
+    action = interpret_command(prompt)
+    
+    # Execute the AI-determined action
+    execute_action(action, safety_mode, silent_mode)
 
-    elif remaining_args[0] in ['--version', '-v']:
-        print("Ryx AI v2.0.0 - Production-grade local agentic CLI")
 
-    elif remaining_args[0].startswith("::"):
-        # Legacy command mode (kept for backward compatibility)
-        from modes.cli_mode import handle_command
-        handle_command(remaining_args[0], remaining_args[1:])
-
-    elif remaining_args[0].startswith('--tier'):
-        # Direct tier specification: ryx --tier fast "prompt"
-        if len(remaining_args) >= 3 and remaining_args[0] == '--tier':
-            tier = remaining_args[1]
-            prompt = " ".join(remaining_args[2:])
+def execute_action(action, safety_mode: str, silent_mode: bool):
+    """Execute an AI-determined action"""
+    action_type = action.action_type
+    target = action.target
+    
+    if action_type == "start_service":
+        _start_service(target or "ryxhub")
+    
+    elif action_type == "stop_service":
+        _stop_service(target or "ryxhub")
+    
+    elif action_type == "service_status":
+        _service_status(target)
+    
+    elif action_type == "self_heal":
+        _run_self_healing(action.parameters.get("aggressive", False))
+    
+    elif action_type == "remember":
+        _remember(target, action.parameters)
+    
+    elif action_type == "recall":
+        _recall(target)
+    
+    elif action_type == "chat":
+        if silent_mode:
+            _handle_silent_prompt(action.original_prompt, safety_mode)
+        else:
             from core.session_loop import SessionLoop
             session = SessionLoop(safety_mode=safety_mode)
-            session.current_tier = session.router.get_tier_by_name(tier)
-            session._process_input(prompt)
-        else:
-            print("Usage: ryx --tier <tier_name> \"prompt\"")
-
-    else:
-        # Direct prompt mode - run prompt and exit
-        prompt = " ".join(remaining_args)
+            session._process_input(action.original_prompt)
+    
+    elif action_type in ["open_file", "find_file", "code_help", "search_web", "system_task"]:
         from core.session_loop import SessionLoop
         session = SessionLoop(safety_mode=safety_mode)
-        session._process_input(prompt)
+        session._process_input(action.original_prompt)
+    
+    elif action_type == "run_command":
+        if action.parameters.get("confirm", True):
+            confirm = input(f"Run command: {target}? [y/N] ")
+            if confirm.lower() != 'y':
+                print("Cancelled")
+                return
+        import subprocess
+        subprocess.run(target, shell=True)
+    
+    else:
+        from core.session_loop import SessionLoop
+        session = SessionLoop(safety_mode=safety_mode)
+        session._process_input(action.original_prompt)
+
+
+def _start_service(service: str):
+    """Start a service"""
+    service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
+    
+    if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
+        from core.service_manager import ServiceManager
+        manager = ServiceManager()
+        result = manager.start_ryxhub()
+        if result['success']:
+            print("✅ Starting RyxHub...")
+            for line in result.get('info', []):
+                print(f"  ├─ {line}")
+            print("✅ RyxHub is running")
+        else:
+            print(f"❌ Failed to start RyxHub: {result.get('error', 'Unknown error')}")
+    
+    elif service in ["session", "interactive", "cli", "terminal"]:
+        from core.session_loop import SessionLoop
+        session = SessionLoop()
+        session.run()
+    
+    else:
+        print(f"❌ Unknown service: {service}")
+        print("Available: ryxhub, session")
+
+
+def _stop_service(service: str):
+    """Stop a service"""
+    service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
+    
+    if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
+        from core.service_manager import ServiceManager
+        manager = ServiceManager()
+        result = manager.stop_ryxhub()
+        if result['success']:
+            print("✅ Stopped RyxHub")
+        else:
+            print(f"❌ Failed to stop RyxHub: {result.get('error', 'Unknown error')}")
+    else:
+        print(f"❌ Unknown service: {service}")
+
+
+def _service_status(service: str = None):
+    """Check service status"""
+    from core.service_manager import ServiceManager
+    manager = ServiceManager()
+    status = manager.get_status()
+    
+    print("🔍 Service Status:")
+    for svc, info in status.items():
+        state = "🟢 Running" if info.get('running') else "🔴 Stopped"
+        print(f"  {svc}: {state}")
+        if info.get('ports'):
+            for port_info in info['ports']:
+                print(f"    └─ {port_info}")
+
+
+def _run_self_healing(aggressive: bool = False):
+    """Run AI-driven self-healing"""
+    print("🧠 Running self-healing...")
+    print()
+    
+    from core.self_healer import run_self_healing
+    result = run_self_healing(aggressive=aggressive)
+    
+    for detail in result.details:
+        print(detail)
+    
+    print()
+    print(result.summary)
+
+
+def _remember(content: str, parameters: Dict):
+    """Store something in long-term memory"""
+    from core.memory import get_memory
+    
+    memory = get_memory()
+    memory_type = parameters.get("type", "fact")
+    
+    if memory_type == "preference" and "key" in parameters:
+        memory.learn_preference(
+            parameters["key"], 
+            parameters.get("value", content),
+            source="explicit"
+        )
+        print(f"✅ Remembered preference: {parameters['key']} = {parameters.get('value', content)}")
+    else:
+        memory_id = memory.remember(content, memory_type=memory_type, importance=0.8)
+        print(f"✅ Remembered: {content[:50]}...")
+
+
+def _recall(query: str):
+    """Recall information from memory"""
+    from core.memory import get_memory
+    
+    memory = get_memory()
+    profile = memory.profile
+    
+    print("🧠 What I know about you:")
+    print()
+    print(f"  Environment:")
+    print(f"    • OS: {profile.os} ({profile.distro})")
+    print(f"    • WM: {profile.wm}")
+    print(f"    • Shell: {profile.shell}")
+    print(f"    • Editor: {profile.editor}")
+    print(f"    • Terminal: {profile.terminal}")
+    print()
+    print(f"  Preferences:")
+    print(f"    • Response style: {profile.response_length}")
+    print(f"    • Tone: {profile.tone}")
+    print(f"    • Prefers action over explanation: {not profile.prefers_explanations}")
+    print()
+    
+    memories = memory.recall(query, limit=5)
+    if memories:
+        print(f"  Related memories ({len(memories)}):")
+        for m in memories:
+            print(f"    • [{m.memory_type}] {m.content[:60]}...")
+    else:
+        print("  No specific memories found for this query.")
+
+
+def _handle_silent_prompt(prompt: str, safety_mode: str):
+    """Handle prompt in silent mode"""
+    import io
+    from contextlib import redirect_stdout
+    from modes.cli_mode import CLIMode
+
+    cli = CLIMode()
+
+    captured = io.StringIO()
+    with redirect_stdout(captured):
+        try:
+            cli.handle_prompt(prompt)
+        except Exception:
+            pass
+
+    output = captured.getvalue()
+    output_lines = []
+    for line in output.split('\n'):
+        if line.strip() and '[thinking' not in line and '[searching' not in line and '[cached]' not in line:
+            if not line.startswith('\033[2m'):
+                output_lines.append(line)
+
+    for line in output_lines[:3]:
+        print(line)
 
 
 def show_help():
@@ -83,39 +270,35 @@ def show_help():
 🟣 Ryx AI - Local Agentic CLI
 
 USAGE:
-    ryx                      Start interactive session (recommended)
-    ryx "prompt"             Run single prompt and exit
-    ryx --tier fast "prompt" Run with specific model tier
-    ryx --help               Show this help
-    ryx --version            Show version
+    ryx                      Start interactive session
+    ryx "prompt"             Run any command in natural language
+    ryx -s "prompt"          Silent mode (max 3 lines output)
 
-TIERS:
-    fast         Quick responses (mistral:7b)
-    balanced     Default coding (qwen2.5-coder:14b)
-    powerful     Complex tasks (deepseek-coder-v2:16b)
-    ultra        Heavy reasoning (Qwen3-Coder:30B)
-    uncensored   Personal chat (gpt-oss:20b)
+EXAMPLES (AI interprets all commands naturally):
+    ryx "start ryxhub"                    # Start web interface
+    ryx "can you please start the hub"    # Same thing, natural language
+    ryx "fire up the dashboard"           # Same thing, different phrasing
+    ryx "strat ryxub"                     # Works even with typos!
+    ryx "stop the web interface"          # Stop services
+    ryx "open hyprland config"            # Open files
+    ryx "search for python tutorials"     # Web search
+    ryx "what time is it"                 # General questions
+    ryx "remember i prefer dark mode"     # Store preference
+    ryx "what do you know about me"       # Recall memories
+    ryx "fix your brain"                  # Self-heal cache
 
-SESSION COMMANDS:
+The AI understands:
+    • Typos and misspellings
+    • Natural language variations
+    • Implicit intent from context
+    • Service names (ryxhub, hub, dashboard, web ui, etc.)
+
+SESSION COMMANDS (inside interactive mode):
     /help        Show help
     /status      Show current status
     /tier <name> Switch model tier
     /models      List available models
     /quit        Exit session
-
-SAFETY MODES:
-    --strict     Confirm all risky operations
-    --loose      Auto-approve risky operations
-    (default)    Normal mode - auto-approve safe operations
-
-EXAMPLES:
-    ryx                              # Start interactive session
-    ryx "open hyprland config"       # Quick file operation
-    ryx "refactor the intent parser" # Coding task
-    ryx --tier fast "what time is it" # Quick query with fast model
-
-CONFIGURATION:
-    OLLAMA_BASE_URL    Ollama API URL (default: http://localhost:11434)
 
 For more info: https://github.com/ryx-ai
 """)

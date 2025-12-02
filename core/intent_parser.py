@@ -36,8 +36,21 @@ class IntentParser:
     SERVICE_STOP_KEYWORDS = ['stop', 'kill', 'shutdown', 'terminate', 'end']
     SERVICE_STATUS_KEYWORDS = ['status', 'check', 'is running']
 
-    # Known services
+    # Known services with fuzzy variants (typos, partial matches)
     KNOWN_SERVICES = ['ryxhub', 'hub', 'session', 'backend', 'frontend']
+    
+    # Fuzzy service name mappings (typos -> canonical)
+    SERVICE_ALIASES = {
+        # RyxHub variants
+        'ryxhub': 'ryxhub', 'ryx hub': 'ryxhub', 'ryxub': 'ryxhub', 'ryzhub': 'ryxhub',
+        'rxyhub': 'ryxhub', 'ryhub': 'ryxhub', 'ryxhb': 'ryxhub', 'ryxhu': 'ryxhub',
+        'ryx-hub': 'ryxhub', 'hub': 'ryxhub', 'the hub': 'ryxhub', 'webui': 'ryxhub',
+        'web ui': 'ryxhub', 'web interface': 'ryxhub', 'frontend': 'ryxhub',
+        'ui': 'ryxhub', 'dashboard': 'ryxhub', 'web': 'ryxhub',
+        # Session variants  
+        'session': 'session', 'interactive': 'session', 'cli': 'session',
+        'terminal': 'session', 'shell': 'session',
+    }
 
     # Non-action compound phrases containing action keywords (e.g., "open source" is not an action)
     # These phrases should be excluded from triggering action keyword detection.
@@ -387,6 +400,7 @@ class IntentParser:
     def _detect_service_intent(self, prompt_lower: str) -> Optional[dict]:
         """
         Detect if the prompt is a service management request.
+        Supports natural language like "can you please start ryxhub" or typos like "start ryxub"
 
         Args:
             prompt_lower: Lowercase prompt
@@ -394,26 +408,78 @@ class IntentParser:
         Returns:
             dict with 'action' and 'service' if detected, None otherwise
         """
-        # Check for service names in the prompt
+        # First try fuzzy matching on service aliases
         found_service = None
-        for service in self.KNOWN_SERVICES:
-            if service in prompt_lower:
-                found_service = service
+        for alias, canonical in self.SERVICE_ALIASES.items():
+            if alias in prompt_lower:
+                found_service = canonical
                 break
+        
+        # If no alias match, try fuzzy matching with Levenshtein-like check
+        if not found_service:
+            words = prompt_lower.split()
+            for word in words:
+                # Check if word is close to "ryxhub" (within 2 edit distance)
+                if self._is_similar(word, 'ryxhub', max_distance=2):
+                    found_service = 'ryxhub'
+                    break
+                elif self._is_similar(word, 'session', max_distance=2):
+                    found_service = 'session'
+                    break
 
         if not found_service:
             return None
 
-        # Check for start keywords
-        if any(kw in prompt_lower for kw in self.SERVICE_START_KEYWORDS):
+        # Check for start keywords (including natural phrasing)
+        start_patterns = self.SERVICE_START_KEYWORDS + ['can you start', 'please start', 'could you start', 
+                                                         'would you start', 'go ahead and start', 'fire up',
+                                                         'bring up', 'get going', 'initialize', 'init']
+        if any(kw in prompt_lower for kw in start_patterns):
             return {'action': 'service_start', 'service': found_service}
 
         # Check for stop keywords
-        if any(kw in prompt_lower for kw in self.SERVICE_STOP_KEYWORDS):
+        stop_patterns = self.SERVICE_STOP_KEYWORDS + ['can you stop', 'please stop', 'shut down',
+                                                       'close', 'bring down', 'take down']
+        if any(kw in prompt_lower for kw in stop_patterns):
             return {'action': 'service_stop', 'service': found_service}
 
         # Check for status keywords
-        if any(kw in prompt_lower for kw in self.SERVICE_STATUS_KEYWORDS):
+        status_patterns = self.SERVICE_STATUS_KEYWORDS + ['how is', 'what about', 'show status']
+        if any(kw in prompt_lower for kw in status_patterns):
             return {'action': 'service_status', 'service': found_service}
 
+        # If service is mentioned without clear action, assume start
+        # e.g., "ryxhub please" or "can you ryxhub"
+        if found_service:
+            return {'action': 'service_start', 'service': found_service}
+
         return None
+
+    def _is_similar(self, word1: str, word2: str, max_distance: int = 2) -> bool:
+        """
+        Check if two words are similar (simple edit distance check).
+        Returns True if edit distance <= max_distance.
+        """
+        if word1 == word2:
+            return True
+        if abs(len(word1) - len(word2)) > max_distance:
+            return False
+        
+        # Simple character-based similarity for short words
+        if len(word1) < 3 or len(word2) < 3:
+            return False
+            
+        # Count matching characters in order
+        matches = 0
+        j = 0
+        for c in word1:
+            while j < len(word2):
+                if word2[j] == c:
+                    matches += 1
+                    j += 1
+                    break
+                j += 1
+        
+        # If most characters match, consider similar
+        min_len = min(len(word1), len(word2))
+        return matches >= min_len - max_distance

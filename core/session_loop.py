@@ -16,6 +16,7 @@ from core.ollama_client import OllamaClient
 from core.tool_registry import ToolRegistry
 from core.ui import RyxUI, Color, Emoji
 from core.paths import get_project_root, get_data_dir
+from core.memory import get_memory, RyxMemory
 
 
 class SessionLoop:
@@ -29,6 +30,7 @@ class SessionLoop:
     - Tool orchestration
     - Purple-themed UI with emoji indicators
     - Graceful interrupts
+    - Advanced memory system (episodic + persistent + RAG)
     """
 
     def __init__(self, safety_mode: str = "normal"):
@@ -43,6 +45,9 @@ class SessionLoop:
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         self.classifier = IntentClassifier(ollama_client=self.ollama)
         self.tools = ToolRegistry(safety_mode=safety_mode)
+
+        # Advanced memory system
+        self.memory = get_memory()
 
         # Session state
         self.running = True
@@ -269,16 +274,34 @@ class SessionLoop:
         self.ui.assistant_message(response)
 
     def _handle_chat(self, user_input: str, intent: ClassifiedIntent):
-        """Handle general chat"""
+        """Handle general chat with memory-augmented context"""
         self.ui.thinking()
 
         model = self.router.get_model(self.current_tier, intent.intent_type.value)
+        
+        # Get memory-augmented context
+        memory_context = self.memory.get_context_for_query(user_input)
         context = self._build_context()
+        
+        # Build enhanced system prompt with memory
+        system_prompt = self._get_system_prompt(intent)
+        
+        # Add relevant memories to context
+        if memory_context["relevant_memories"]:
+            memory_str = "\n".join([
+                f"- {m['content']}" for m in memory_context["relevant_memories"]
+            ])
+            system_prompt += f"\n\nRelevant context from memory:\n{memory_str}"
+        
+        # Add user preferences
+        prefs = memory_context["user_preferences"]
+        if prefs.get("prefers_action"):
+            system_prompt += "\n\nIMPORTANT: User prefers you to DO things, not explain how. Take action directly."
 
         response = self.ollama.generate(
             prompt=user_input,
             model=model.name,
-            system=self._get_system_prompt(intent),
+            system=system_prompt,
             max_tokens=model.max_tokens,
             context=context
         )
@@ -295,6 +318,9 @@ class SessionLoop:
                 "role": "assistant",
                 "content": response.response
             })
+            
+            # Learn from this interaction
+            self.memory.learn_from_interaction(user_input, response.response, success=True)
 
     def _handle_file_ops(self, user_input: str, intent: ClassifiedIntent):
         """Handle file operations"""

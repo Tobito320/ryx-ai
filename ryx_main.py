@@ -8,6 +8,7 @@ Primary interaction: `ryx` starts an interactive session.
 import sys
 import os
 from pathlib import Path
+from typing import Dict
 
 # Auto-detect project root (resolve symlinks first, then get parent)
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -20,10 +21,10 @@ os.environ['RYX_PROJECT_ROOT'] = str(PROJECT_ROOT)
 
 
 def cli_main():
-    """Main CLI entry point"""
+    """Main CLI entry point - AI interprets all commands"""
     args = sys.argv[1:]
 
-    # Parse global options
+    # Parse global options only (these are the only "hardcoded" flags for CLI UX)
     safety_mode = "normal"
     silent_mode = False
     remaining_args = []
@@ -37,76 +38,101 @@ def cli_main():
             safety_mode = 'loose'
         elif arg == '--silent' or arg == '-s':
             silent_mode = True
-        elif arg == '--tier' and remaining_args:
-            # Handle --tier <name> separately
-            pass
+        elif arg in ['--help', '-h']:
+            show_help()
+            return
+        elif arg in ['--version', '-v']:
+            print("Ryx AI v2.0.0 - Production-grade local agentic CLI")
+            return
         else:
             remaining_args.append(arg)
 
-    # Main entry point logic
+    # No args = Start interactive session
     if not remaining_args:
-        # No args = Start interactive session (primary interaction)
         from core.session_loop import SessionLoop
         session = SessionLoop(safety_mode=safety_mode)
         session.run()
-
-    elif remaining_args[0] in ['--help', '-h']:
-        show_help()
-
-    elif remaining_args[0] in ['--version', '-v']:
-        print("Ryx AI v2.0.0 - Production-grade local agentic CLI")
-
-    elif remaining_args[0] == 'start':
-        # Service management: ryx start <service>
-        handle_service_start(remaining_args[1:])
-
-    elif remaining_args[0] == 'stop':
-        # Service management: ryx stop <service>
-        handle_service_stop(remaining_args[1:])
-
-    elif remaining_args[0] == 'status':
-        # Service status: ryx status [service]
-        handle_service_status(remaining_args[1:])
-
-    elif remaining_args[0].startswith("::"):
-        # Legacy command mode (kept for backward compatibility)
-        from modes.cli_mode import handle_command
-        handle_command(remaining_args[0], remaining_args[1:])
-
-    elif remaining_args[0].startswith('--tier'):
-        # Direct tier specification: ryx --tier fast "prompt"
-        if len(remaining_args) >= 3 and remaining_args[0] == '--tier':
-            tier = remaining_args[1]
-            prompt = " ".join(remaining_args[2:])
-            from core.session_loop import SessionLoop
-            session = SessionLoop(safety_mode=safety_mode)
-            session.current_tier = session.router.get_tier_by_name(tier)
-            session._process_input(prompt)
-        else:
-            print("Usage: ryx --tier <tier_name> \"prompt\"")
-
-    else:
-        # Direct prompt mode - run prompt and exit
-        prompt = " ".join(remaining_args)
-        if silent_mode:
-            # Silent execution mode - minimal output
-            handle_silent_prompt(prompt, safety_mode)
-        else:
-            from core.session_loop import SessionLoop
-            session = SessionLoop(safety_mode=safety_mode)
-            session._process_input(prompt)
-
-
-def handle_service_start(args: list):
-    """Handle service start command"""
-    if not args:
-        print("Usage: ryx start <service>")
-        print("Available services: RyxHub, session")
         return
 
-    service = args[0].lower()
+    # Everything else: Let AI interpret the prompt
+    prompt = " ".join(remaining_args)
+    
+    from core.ai_interpreter import interpret_command
+    
+    action = interpret_command(prompt)
+    
+    # Execute the AI-determined action
+    execute_action(action, safety_mode, silent_mode)
 
-    if service in ['ryxhub', 'hub']:
+
+def execute_action(action, safety_mode: str, silent_mode: bool):
+    """
+    Execute an AI-determined action.
+    
+    This is the ONLY place where actions are dispatched - 
+    all routing is done by AI, not hardcoded patterns.
+    """
+    from core.ai_interpreter import AIAction
+    
+    action_type = action.action_type
+    target = action.target
+    
+    if action_type == "start_service":
+        _start_service(target or "ryxhub")
+    
+    elif action_type == "stop_service":
+        _stop_service(target or "ryxhub")
+    
+    elif action_type == "service_status":
+        _service_status(target)
+    
+    elif action_type == "self_heal":
+        _run_self_healing(action.parameters.get("aggressive", False))
+    
+    elif action_type == "remember":
+        _remember(target, action.parameters)
+    
+    elif action_type == "recall":
+        _recall(target)
+    
+    elif action_type == "chat":
+        # General conversation - use session
+        if silent_mode:
+            handle_silent_prompt(action.original_prompt, safety_mode)
+        else:
+            from core.session_loop import SessionLoop
+            session = SessionLoop(safety_mode=safety_mode)
+            session._process_input(action.original_prompt)
+    
+    elif action_type in ["open_file", "find_file", "code_help", "search_web", "system_task"]:
+        # These all go through the session for full AI handling
+        from core.session_loop import SessionLoop
+        session = SessionLoop(safety_mode=safety_mode)
+        session._process_input(action.original_prompt)
+    
+    elif action_type == "run_command":
+        # Shell command execution (with safety)
+        if action.parameters.get("confirm", True):
+            confirm = input(f"Run command: {target}? [y/N] ")
+            if confirm.lower() != 'y':
+                print("Cancelled")
+                return
+        import subprocess
+        subprocess.run(target, shell=True)
+    
+    else:
+        # Unknown action type - fall back to chat
+        from core.session_loop import SessionLoop
+        session = SessionLoop(safety_mode=safety_mode)
+        session._process_input(action.original_prompt)
+
+
+def _start_service(service: str):
+    """Start a service (internal helper)"""
+    service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
+    
+    # Normalize service name (AI might say "ryxhub", "hub", "web interface", etc.)
+    if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
         from core.service_manager import ServiceManager
         manager = ServiceManager()
         result = manager.start_ryxhub()
@@ -117,27 +143,22 @@ def handle_service_start(args: list):
             print("✅ RyxHub is running")
         else:
             print(f"❌ Failed to start RyxHub: {result.get('error', 'Unknown error')}")
-
-    elif service == 'session':
+    
+    elif service in ["session", "interactive", "cli", "terminal"]:
         from core.session_loop import SessionLoop
         session = SessionLoop()
         session.run()
-
+    
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available services: RyxHub, session")
+        print("Available: ryxhub, session")
 
 
-def handle_service_stop(args: list):
-    """Handle service stop command"""
-    if not args:
-        print("Usage: ryx stop <service>")
-        print("Available services: RyxHub")
-        return
-
-    service = args[0].lower()
-
-    if service in ['ryxhub', 'hub']:
+def _stop_service(service: str):
+    """Stop a service (internal helper)"""
+    service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
+    
+    if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
         from core.service_manager import ServiceManager
         manager = ServiceManager()
         result = manager.stop_ryxhub()
@@ -147,33 +168,92 @@ def handle_service_stop(args: list):
             print(f"❌ Failed to stop RyxHub: {result.get('error', 'Unknown error')}")
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available services: RyxHub")
 
 
-def handle_service_status(args: list):
-    """Handle service status command"""
+def _service_status(service: str = None):
+    """Check service status (internal helper)"""
     from core.service_manager import ServiceManager
     manager = ServiceManager()
+    status = manager.get_status()
+    
+    print("🔍 Service Status:")
+    for svc, info in status.items():
+        state = "🟢 Running" if info.get('running') else "🔴 Stopped"
+        print(f"  {svc}: {state}")
+        if info.get('ports'):
+            for port_info in info['ports']:
+                print(f"    └─ {port_info}")
 
-    if not args:
-        # Show all services
-        status = manager.get_status()
-        print("🔍 Service Status:")
-        for service, info in status.items():
-            state = "🟢 Running" if info.get('running') else "🔴 Stopped"
-            print(f"  {service}: {state}")
-            if info.get('ports'):
-                for port_info in info['ports']:
-                    print(f"    └─ {port_info}")
+
+def _run_self_healing(aggressive: bool = False):
+    """Run AI-driven self-healing on knowledge/cache"""
+    print("🧠 Running self-healing...")
+    print()
+    
+    from core.self_healer import run_self_healing
+    result = run_self_healing(aggressive=aggressive)
+    
+    for detail in result.details:
+        print(detail)
+    
+    print()
+    print(result.summary)
+
+
+def _remember(content: str, parameters: Dict):
+    """Store something in long-term memory"""
+    from core.memory import get_memory
+    
+    memory = get_memory()
+    memory_type = parameters.get("type", "fact")
+    
+    # If it's a preference with key/value, update profile
+    if memory_type == "preference" and "key" in parameters:
+        memory.learn_preference(
+            parameters["key"], 
+            parameters.get("value", content),
+            source="explicit"
+        )
+        print(f"✅ Remembered preference: {parameters['key']} = {parameters.get('value', content)}")
     else:
-        service = args[0].lower()
-        status = manager.get_status()
-        if service in status:
-            info = status[service]
-            state = "🟢 Running" if info.get('running') else "🔴 Stopped"
-            print(f"{service}: {state}")
-        else:
-            print(f"❌ Unknown service: {service}")
+        # Store as general memory
+        memory_id = memory.remember(content, memory_type=memory_type, importance=0.8)
+        print(f"✅ Remembered: {content[:50]}...")
+
+
+def _recall(query: str):
+    """Recall information from memory"""
+    from core.memory import get_memory
+    
+    memory = get_memory()
+    
+    # Get user profile
+    profile = memory.profile
+    print("🧠 What I know about you:")
+    print()
+    
+    print(f"  Environment:")
+    print(f"    • OS: {profile.os} ({profile.distro})")
+    print(f"    • WM: {profile.wm}")
+    print(f"    • Shell: {profile.shell}")
+    print(f"    • Editor: {profile.editor}")
+    print(f"    • Terminal: {profile.terminal}")
+    print()
+    
+    print(f"  Preferences:")
+    print(f"    • Response style: {profile.response_length}")
+    print(f"    • Tone: {profile.tone}")
+    print(f"    • Prefers action over explanation: {not profile.prefers_explanations}")
+    print()
+    
+    # Get relevant memories
+    memories = memory.recall(query, limit=5)
+    if memories:
+        print(f"  Related memories ({len(memories)}):")
+        for m in memories:
+            print(f"    • [{m.memory_type}] {m.content[:60]}...")
+    else:
+        print("  No specific memories found for this query.")
 
 
 def handle_silent_prompt(prompt: str, safety_mode: str):
@@ -215,40 +295,31 @@ def show_help():
 
 USAGE:
     ryx                      Start interactive session
-    ryx "prompt"             Run single prompt and exit
+    ryx "prompt"             Run any command in natural language
     ryx -s "prompt"          Silent mode (max 3 lines output)
-    ryx start RyxHub         Start backend + frontend services
-    ryx stop RyxHub          Stop all services
-    ryx status               Show service status
-    ryx --tier fast "prompt" Run with specific model tier
-    ryx --help               Show this help
-    ryx --version            Show version
 
-SERVICE COMMANDS:
-    start RyxHub     Start FastAPI backend + React frontend
-    stop RyxHub      Stop all RyxHub services
-    start session    Start interactive session
-    status           Show all service status
+EXAMPLES (AI interprets all commands naturally):
+    ryx "start ryxhub"                    # Start web interface
+    ryx "can you please start the hub"    # Same thing, natural language
+    ryx "fire up the dashboard"           # Same thing, different phrasing
+    ryx "strat ryxub"                     # Works even with typos!
+    ryx "stop the web interface"          # Stop services
+    ryx "open hyprland config"            # Open files
+    ryx "search for python tutorials"     # Web search
+    ryx "what time is it"                 # General questions
 
-TIERS:
-    fast         Quick responses (mistral:7b)
-    balanced     Default coding (qwen2.5-coder:14b)
-    powerful     Complex tasks (deepseek-coder-v2:16b)
-    ultra        Heavy reasoning (Qwen3-Coder:30B)
-    uncensored   Personal chat (gpt-oss:20b)
+The AI understands:
+    • Typos and misspellings
+    • Natural language variations
+    • Implicit intent from context
+    • Service names (ryxhub, hub, dashboard, web ui, etc.)
 
-SESSION COMMANDS:
+SESSION COMMANDS (inside interactive mode):
     /help        Show help
     /status      Show current status
     /tier <name> Switch model tier
     /models      List available models
     /quit        Exit session
-
-EXAMPLES:
-    ryx "open hyprland config"       # Opens file directly
-    ryx start RyxHub                 # Start web interface
-    ryx -s "what time is it"         # Quick query, minimal output
-    ryx --tier fast "hello"          # Fast model response
 
 For more info: https://github.com/ryx-ai
 """)
