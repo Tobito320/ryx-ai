@@ -162,7 +162,10 @@ class SessionLoop:
     
     def _show_banner(self):
         mode = "PRECISION" if self.brain.precision_mode else "normal"
-        model = self.brain.models.get("default", self.brain.precision_mode)
+        # Use new router to get the default model
+        from core.model_router import select_model
+        model_config = select_model("hi")  # Get default chat model
+        model = model_config.name
         browsing = self.brain.browsing_enabled
         
         self.printer.print_banner(mode=mode, model=model, browsing=browsing)

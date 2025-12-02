@@ -1,0 +1,31 @@
+{
+  "query": "warum funktioniert rekursion und erkl\u00e4re schritt f\u00fcr schritt",
+  "results": [
+    {
+      "title": "Rekursion - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.wikipedia.org%2Fwiki%2FRekursion&rut=d8e8922dab85118e288dc10d9be3f77770bbaee66c2b19b3e2d1e58dcadf5245",
+      "content": "Rekursionist auch eine Probleml\u00f6sungsstrategie. Komplexe Sachverhalte k\u00f6nnen oft mit rekursiv formulierten Regeln sehr elegant erfasst werden. Das Grundprinzip ist dabei dann das Zur\u00fcckf\u00fchren einer allgemeinen Aufgabe auf eine einfachere Aufgabe derselben Klasse."
+    },
+    {
+      "title": "Algorithmus Lektion 7 (Rekursion) | by Shack | May, 2025 | Medium",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmedium.com%2F%40g0972222165%2Falgorithmus%2Dlektion%2D7%2Drekursion%2D0a388fac957b&rut=80be7444093ff32547cd5aea3372544c7f24257672e15da0095a6282d2418f4f",
+      "content": "Rekursionsregel (Rekursive Beziehung): Dies beschreibt die Beziehung zwischen dem gro\u00dfen Problemundeinem kleineren Teilproblem. Da sich die Funktion selbst aufruftundihre Eingabe dabei..."
+    },
+    {
+      "title": "Rekursion einfach erkl\u00e4rt mit Beispielen - YouTube",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DCoN53%2DVVTWk&rut=5d35616f9d05b5b23e73d458308ac839a14a82dabb3f0c0df446d248fe233cf6",
+      "content": "Rekursioneinfach erkl\u00e4rt mit Beispielen. Wir gehenSchrittf\u00fcrSchrittan einem Beispiel durch, was bei einerRekursiongenau passiert, sodass du genau nach..."
+    },
+    {
+      "title": "Rekursion: Definition, Formel und Funktion | StudySmarter",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.studysmarter.de%2Fschule%2Finformatik%2Falgorithmen%2Dund%2Ddatenstrukturen%2Frekursion%2F&rut=025a0b35c6f662899d9f05d511ab96ebae903b5c71730da9941e4683bf0bf3eb",
+      "content": "In der Informatik istRekursioneine zentrale KonzeptionundTechnik, die in allt\u00e4glichen Situationen wie auch komplexen Algorithmen zur Anwendung kommt. In diesem Artikel verschaffen wir uns einen detaillierten \u00dcberblick \u00fcberRekursion, ihre DefinitionundAnwendung."
+    },
+    {
+      "title": "Rekursion - Definition, Beispiele und Algorithmen | Mathivo",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmathivo.com%2FDE%2Fdiskrete%2Dmathematik%2Frekursion&rut=71fb09b1a761673928408647d470a8f061f142be7c785a59d06328dee3c42464",
+      "content": "Darstellung derRekursionin MathematikundInformatik. Mit Definition, Beispielenf\u00fcrrekursive MusterundAnwendungen in AlgorithmenundBeweisen."
+    }
+  ],
+  "timestamp": "2025-12-02T15:54:41.324826"
+}

@@ -93,7 +93,7 @@ MODELS: Dict[ModelRole, ModelConfig] = {
     ),
     
     ModelRole.EMBED: ModelConfig(
-        name="nomic-embed-text",
+        name="nomic-embed-text:latest",
         role=ModelRole.EMBED,
         vram_mb=500,
         max_tokens=8192,
@@ -307,6 +307,10 @@ class ModelRouter:
         """Refresh the list of available models"""
         self._available_models = None
         return self.available_models
+    
+    def get_ollama_url(self) -> str:
+        """Get Ollama base URL"""
+        return self.ollama_base_url
     
     def is_available(self, role: ModelRole) -> bool:
         """Check if the model for a role is available"""

@@ -885,7 +885,10 @@ ANFRAGE: {prompt}'''
     
     def _supervisor_understand(self, prompt: str) -> Plan:
         """Use LLM supervisor to understand complex requests"""
-        model = self.models.get("smart" if self.precision_mode else "balanced", self.precision_mode)
+        # Use new model router
+        from core.model_router import select_model
+        model_config = select_model(prompt)
+        model = model_config.name
         
         context = {
             "last_query": self.ctx.last_query or "none",
@@ -907,16 +910,24 @@ ANFRAGE: {prompt}'''
         if response.error:
             self.fail_count += 1
             if self.fail_count >= 2:
-                # Retry with bigger model
+                # Retry with fallback model
                 self.fail_count = 0
-                bigger = self.models.get("precision", True)
-                return self._supervisor_understand(prompt)
+                from core.model_router import get_router, ModelRole
+                fallback = get_router().get_model_by_role(ModelRole.FALLBACK)
+                response = self.ollama.generate(
+                    prompt=self.SUPERVISOR_PROMPT.format(**context),
+                    model=fallback.name,
+                    system="Du bist ein JSON-Parser. Antworte NUR mit validem JSON.",
+                    max_tokens=300,
+                    temperature=0.1
+                )
             
-            # Fallback: ask clarifying question
-            return Plan(
-                intent=Intent.UNCLEAR,
-                question="Was genau möchtest du tun?" if self.ctx.language == 'de' else "What would you like me to do?"
-            )
+            if response.error:
+                # Fallback: ask clarifying question
+                return Plan(
+                    intent=Intent.UNCLEAR,
+                    question="Was genau möchtest du tun?" if self.ctx.language == 'de' else "What would you like me to do?"
+                )
         
         return self._parse_supervisor_response(response.response, prompt)
     
@@ -1517,7 +1528,9 @@ Sprache: Deutsch"""
                 printer.substep("No results found, using knowledge")
         
         # Generate response with search context
-        model = self.models.get("balanced", self.precision_mode)
+        from core.model_router import select_model
+        model_config = select_model(query)
+        model = model_config.name
         printer.step("Thinking", f"[{model}]")
         
         system_prompt = """Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
