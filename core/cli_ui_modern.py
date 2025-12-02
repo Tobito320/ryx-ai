@@ -159,7 +159,7 @@ class ModernCLI:
         )
 
     def _create_layout(self):
-        """Create the split layout"""
+        """Create the split layout with boxed input area"""
 
         # Content area (scrollable, takes all remaining space)
         self.content_control = FormattedTextControl(
@@ -173,16 +173,6 @@ class ModernCLI:
             allow_scroll_beyond_bottom=False,
         )
 
-        # Status line (1 line exactly)
-        self.status_window = Window(
-            content=FormattedTextControl(
-                text=self._get_status_line,
-                focusable=False,
-            ),
-            height=Dimension.exact(1),
-            style="class:status-line",
-        )
-
         # Input area - minimal height, just 1 line
         from prompt_toolkit.layout.controls import BufferControl
         
@@ -193,7 +183,7 @@ class ModernCLI:
         
         self.input_window = Window(
             content=self.input_control,
-            height=Dimension.exact(1),  # Exactly 1 line
+            height=Dimension.exact(1),
             wrap_lines=False,
             style="class:input",
         )
@@ -201,45 +191,119 @@ class ModernCLI:
         # Prompt indicator (fixed width)
         self.prompt_window = Window(
             content=FormattedTextControl(
-                text=lambda: FormattedText([("class:prompt", "❯ ")]),
+                text=lambda: FormattedText([("class:prompt", "> ")]),
                 focusable=False,
             ),
             width=Dimension.exact(2),
             height=Dimension.exact(1),
         )
 
-        # Hints line (1 line exactly)
-        self.hints_window = Window(
+        # Status line content: path [branch] ... model
+        self.status_control = FormattedTextControl(
+            text=self._get_status_line,
+            focusable=False,
+        )
+
+        # Hints line content
+        self.hints_control = FormattedTextControl(
+            text=self._get_hints_line,
+            focusable=False,
+        )
+
+        # === Build the Box ===
+        # Top border with status: ┌─ ~/path [branch] ──────── model ─┐
+        top_border = Window(
             content=FormattedTextControl(
-                text=self._get_hints_line,
+                text=self._get_top_border,
                 focusable=False,
             ),
             height=Dimension.exact(1),
-            style="class:hints-line",
+            style="class:border",
         )
 
-        # Separator windows
-        sep1 = Window(height=Dimension.exact(1), char="─", style="class:separator")
-        sep2 = Window(height=Dimension.exact(1), char="─", style="class:separator")
-
-        # Input row: prompt + input field
+        # Input row with left/right borders: │ > input │
         input_row = VSplit([
+            Window(width=Dimension.exact(1), char="│", style="class:border"),
+            Window(width=Dimension.exact(1), char=" "),
             self.prompt_window,
             self.input_window,
+            Window(width=Dimension.exact(1), char=" "),
+            Window(width=Dimension.exact(1), char="│", style="class:border"),
         ])
 
-        # Build layout - content expands, bottom is fixed
+        # Bottom border with hints: └─ Enter Send · Ctrl+C Exit ─────┘
+        bottom_border = Window(
+            content=FormattedTextControl(
+                text=self._get_bottom_border,
+                focusable=False,
+            ),
+            height=Dimension.exact(1),
+            style="class:border",
+        )
+
+        # The complete input box
+        input_box = HSplit([
+            top_border,
+            input_row,
+            bottom_border,
+        ])
+
+        # Build layout - content expands, input box is fixed at bottom
         self.layout = Layout(
             HSplit([
                 self.content_window,      # Expands to fill space
-                sep1,                      # ─────────────
-                self.status_window,        # ~/path [branch] ... model
-                sep2,                      # ─────────────
-                input_row,                 # ❯ [input]
-                self.hints_window,         # Enter Send · Ctrl+C Exit
+                input_box,                # Fixed box at bottom
             ]),
             focused_element=self.input_window,
         )
+
+    def _get_top_border(self):
+        """Top border: ┌─ ~/path [branch] ──────────────── model ─┐"""
+        width = shutil.get_terminal_size().columns
+        
+        path = self.cwd.replace(os.path.expanduser("~"), "~")
+        left_text = f" {path}"
+        if self.current_branch:
+            left_text += f" [{self.current_branch}]"
+        
+        right_text = f"{self.current_model} "
+        
+        # Calculate padding
+        used = 2 + len(left_text) + len(right_text) + 2  # ┌─ ... ─┐
+        pad = width - used
+        
+        return FormattedText([
+            ("class:border", "┌─"),
+            ("class:path", left_text),
+            ("class:border", " " + "─" * max(1, pad) + " "),
+            ("class:model", right_text),
+            ("class:border", "─┐"),
+        ])
+
+    def _get_bottom_border(self):
+        """Bottom border: └─ Enter Send · Ctrl+C Exit ─────── N messages ─┘"""
+        width = shutil.get_terminal_size().columns
+        
+        left_text = " Enter Send · Ctrl+C Exit"
+        
+        right_text = ""
+        if self.msg_count > 0:
+            right_text = f"{self.msg_count} msgs"
+            if self.tok_s > 0:
+                right_text += f" · {self.tok_s:.0f}t/s"
+        right_text += " "
+        
+        # Calculate padding
+        used = 2 + len(left_text) + len(right_text) + 2  # └─ ... ─┘
+        pad = width - used
+        
+        return FormattedText([
+            ("class:border", "└─"),
+            ("class:muted", left_text),
+            ("class:border", " " + "─" * max(1, pad) + " "),
+            ("class:dim", right_text),
+            ("class:border", "─┘"),
+        ])
 
     def _create_keybindings(self):
         """Setup keyboard shortcuts"""
@@ -293,6 +357,9 @@ class ModernCLI:
 
             # Hints line - very subtle
             "hints-line": "#626880",
+
+            # Border for the input box
+            "border": "#626880",
 
             # Separators - visible but not too bright
             "separator": "#414559",
