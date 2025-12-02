@@ -1,0 +1,31 @@
+{
+  "query": "was ist rekursion",
+  "results": [
+    {
+      "title": "Rekursion - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.wikipedia.org%2Fwiki%2FRekursion&rut=d8e8922dab85118e288dc10d9be3f77770bbaee66c2b19b3e2d1e58dcadf5245",
+      "content": "Rekursive Regeln k\u00f6nnen in der Erstellung von Grafiken verwendet werden, dies ergibt die sogenannten Fraktale - \u00e4sthetisch ansprechende, nat\u00fcrlich aussehende Gebilde. Ein Beispielistder Pythagoras-Baum. Er entsteht nach folgender Regel (der dritte Schritt zeigt dieRekursion): Errichte auf einer gegebenen Grundlinie ein Quadrat."
+    },
+    {
+      "title": "Was bedeutet Rekursion? - bedeutung.info",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fbedeutung.info%2Fwas%2Dbedeutet%2Drekursion%2F&rut=2da96c2bdbc477dfee34776830a8ecd7ab1e8070d4ac87bd508842c703edc771",
+      "content": "DieRekursionerm\u00f6glicht eine elegante L\u00f6sung f\u00fcr komplexe Probleme wie das Durchlaufen von Baumen oder die Implementierung von Algorithmen wie Quicksort und Mergesort, die auf dem Teile-und-Herrsche-Prinzip basieren. Ein wesentlicher Unterschied zwischen Schleifen undRekursionistdie Lesbarkeit und die Einfachheit des Codes."
+    },
+    {
+      "title": "Rekursion: Definition, Formel und Funktion | StudySmarter",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.studysmarter.de%2Fschule%2Finformatik%2Falgorithmen%2Dund%2Ddatenstrukturen%2Frekursion%2F&rut=025a0b35c6f662899d9f05d511ab96ebae903b5c71730da9941e4683bf0bf3eb",
+      "content": "RekursionIn der InformatikistRekursioneine zentrale Konzeption und Technik, die in allt\u00e4glichen Situationen wie auch komplexen Algorithmen zur Anwendung kommt. In diesem Artikel verschaffen wir uns einen detaillierten \u00dcberblick \u00fcberRekursion, ihre Definition und Anwendung."
+    },
+    {
+      "title": "Rekursion - Erkl\u00e4rung und Beispiele | Lexikon",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fhome.jobriver.de%2Flexikon%2Frecursion%2F&rut=e4f9d98f2e8c2f9bf3d297abcc5a4892e769e81a019fcf204af2dfc64733a483",
+      "content": "WasistRekursion?Rekursionistein grundlegendes Konzept in der Informatik und der Mathematik, bei dem eine Funktion sich selbst aufruft, um ein Problem zu l\u00f6sen. Dieses Verfahren kann helfen, komplexe Probleme in kleinere, \u00fcberschaubare Teilprobleme zu zerlegen, die leichter zu analysieren oder zu l\u00f6sen sind."
+    },
+    {
+      "title": "Artikel | \u201eWas ist Rekursion?\" Rekursion erkl\u00e4rt - Perlgeek.de",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fperlgeek.de%2Fde%2Fartikel%2Frekursion&rut=b86a8bad25e9044a2a74e4dd91d302b81a819c5ff6d7a897eede9c31da9bffa3",
+      "content": "Rekursionistein Programmierkonzept, bei dem eine Funktion sich selbst aufruft, um ein Problem zu l\u00f6sen. Der Artikel zeigt Beispiele f\u00fcrRekursion, wie die Fakult\u00e4tsfunktion und das Spiel der T\u00fcrme von Hanoi, und erkl\u00e4rt, warumRekursionn\u00fctzlichist."
+    }
+  ],
+  "timestamp": "2025-12-02T16:27:27.837720"
+}

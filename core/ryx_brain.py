@@ -1065,10 +1065,10 @@ ANFRAGE: {prompt}'''
         EXPLORE → PLAN → APPLY → VERIFY
         """
         from core.phases import PhaseExecutor
-        from core.printer import get_printer
+        from core.rich_ui import get_ui
         
-        printer = get_printer()
-        executor = PhaseExecutor(brain=self, printer=printer)
+        ui = get_ui()
+        executor = PhaseExecutor(brain=self, ui=ui)
         
         # Start the task
         task = plan.target or self.ctx.last_query
@@ -1106,23 +1106,24 @@ ANFRAGE: {prompt}'''
     def _exec_explore_repo(self, plan: Plan) -> Tuple[bool, str]:
         """Explore the repository and show structure"""
         from core.repo_explorer import get_explorer
-        from core.printer import get_printer
+        from core.rich_ui import get_ui
         
-        printer = get_printer()
-        printer.step("Exploring repository")
+        ui = get_ui()
+        ui.phase_start("EXPLORE", "Scanning repository")
         
         # Get current directory or specified path
         path = plan.target or os.getcwd()
         explorer = get_explorer(path)
         
-        printer.substep("Scanning files...")
+        ui.task_start("Scanning files")
         repo_map = explorer.scan(force=True)
-        
-        printer.substep(f"Found {repo_map.file_count} files")
+        ui.task_done("Scanning files", f"Found {repo_map.file_count} files")
         
         # Build summary
         summary = explorer.get_summary()
         tree = explorer.get_tree(max_depth=2)
+        
+        ui.phase_done("EXPLORE", f"{repo_map.file_count} files indexed")
         
         return True, f"{summary}\n\nStructure:\n{tree}"
     
@@ -1531,10 +1532,10 @@ Sprache: Deutsch"""
     def _exec_chat(self, plan: Plan) -> Tuple[bool, str]:
         """
         Handle general chat - use web search for grounding when appropriate.
-        Shows chain of thought for transparency.
+        Shows chain of thought with Rich UI for transparency.
         """
-        from core.printer import get_printer
-        printer = get_printer()
+        from core.rich_ui import get_ui
+        ui = get_ui()
         
         if plan.target:
             return True, plan.target
@@ -1547,26 +1548,25 @@ Sprache: Deutsch"""
         search_results = []
         
         if should_search and self.browsing_enabled:
-            printer.step("Searching web", f"'{query[:30]}...'")
+            ui.task_start("Searching web", f"'{query[:40]}...'")
             
             # Search web first for grounding
             search_result = self.tools.web_search.search(query, num_results=5)
             if search_result.success and search_result.data:
                 search_results = search_result.data[:5]
-                printer.substep(f"Found {len(search_results)} results")
+                ui.task_done("Searching web", f"Found {len(search_results)} results")
                 
-                # Show top results briefly
-                for r in search_results[:3]:
-                    printer.search_result(r['title'][:60], r.get('content', '')[:80])
+                # Show top results
+                ui.show_search_results(search_results, limit=3)
                 
                 # Build context from search results
                 search_context = "\n\nSearch results to inform your answer:\n"
                 for r in search_results:
                     search_context += f"- {r['title']}: {r.get('content', '')[:300]}\n"
                 
-                printer.step("Synthesizing answer from search results")
+                ui.thinking_start("Synthesizing answer from search results")
             else:
-                printer.substep("No results found, using knowledge")
+                ui.task_done("Searching web", "No results found", success=False)
         
         # Generate response with search context - USE STREAMING
         from core.model_router import select_model
@@ -1580,8 +1580,8 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
         if search_context:
             system_prompt += search_context
         
-        # Stream the response token by token
-        printer.stream_start("", model)
+        # Stream the response token by token with Rich UI
+        ui.stream_start(model)
         full_response = ""
         
         try:
@@ -1592,15 +1592,15 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
                 max_tokens=800,
                 temperature=0.7
             ):
-                printer.stream_token(token)
+                ui.stream_token(token)
                 full_response += token
             
-            printer.stream_end()
+            ui.stream_end()
             # Return special marker so session_loop knows not to print again
             return True, "__STREAMED__"
             
         except Exception as e:
-            printer.stream_end()
+            ui.stream_end()
             return False, f"Fehler: {e}"
     
     def _should_search_first(self, query: str) -> bool:

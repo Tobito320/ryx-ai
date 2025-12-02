@@ -8,7 +8,7 @@ Features:
 - Multi-language (German/English)
 - NEVER says "Could you be more specific?"
 - Precision mode for learning tasks
-- Modern themed UI
+- Modern Claude CLI-style UI with Rich
 """
 
 import os
@@ -23,60 +23,55 @@ from core.paths import get_data_dir
 from core.ryx_brain import RyxBrain, Plan, Intent, get_brain
 from core.ollama_client import OllamaClient
 from core.model_router import ModelRouter
-from core.printer import get_printer, RyxPrinter, StepStatus
-from core.progress import Spinner
-
-
-class Color:
-    PURPLE = '\033[95m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BOLD = '\033[1m'
-    DIM = '\033[2m'
-    RESET = '\033[0m'
+from core.rich_ui import get_ui, RyxUI
 
 
 class SessionUI:
-    """Legacy UI wrapper - delegates to new printer"""
+    """Legacy UI wrapper - delegates to Rich UI"""
     
     def __init__(self):
-        self.printer = get_printer()
+        self.rich_ui = get_ui()
     
     @staticmethod
     def success(msg: str):
-        get_printer().success(msg)
+        get_ui().success(msg)
     
     @staticmethod
     def error(msg: str):
-        get_printer().error(msg)
+        get_ui().error(msg)
     
     @staticmethod
     def warning(msg: str):
-        get_printer().warning(msg)
+        get_ui().warning(msg)
     
     @staticmethod
     def info(msg: str):
-        get_printer().info(msg)
+        get_ui().info(msg)
     
     @staticmethod
     def assistant(msg: str):
-        get_printer().assistant(msg)
+        ui = get_ui()
+        ui.console.print(f"\n[ryx.primary bold]Ryx[/]: {msg}")
     
     @staticmethod
     def prompt() -> str:
-        return get_printer().prompt()
+        try:
+            return input("\n\033[95m>\033[0m ").strip()
+        except EOFError:
+            return "/quit"
+        except KeyboardInterrupt:
+            print()
+            return ""
 
 
 class SessionLoop:
     """
-    Main interactive session with modern UI.
+    Main interactive session with Claude CLI-style UI.
     """
     
     def __init__(self, safety_mode: str = "normal"):
         self.safety_mode = safety_mode
-        self.printer = get_printer()
+        self.rich_ui = get_ui()
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         self.brain = get_brain(self.ollama)
@@ -94,6 +89,9 @@ class SessionLoop:
             'searches': 0,
             'scrapes': 0
         }
+        
+        # Token stats for status bar
+        self.last_tok_s = 0.0
         
         self._setup_readline()
         self._setup_signals()
@@ -114,30 +112,30 @@ class SessionLoop:
     def _setup_signals(self):
         def handler(sig, frame):
             print()
-            self.ui.warning("Session unterbrochen (Ctrl+C)")
+            self.rich_ui.warning("Session unterbrochen (Ctrl+C)")
             self._save()
-            self.ui.info("Session gespeichert. 'ryx' zum Fortsetzen.")
+            self.rich_ui.info("Session gespeichert. 'ryx' zum Fortsetzen.")
             sys.exit(0)
         
         signal.signal(signal.SIGINT, handler)
     
     def run(self):
-        """Main loop"""
+        """Main loop with Claude CLI-style UI"""
         self._show_banner()
         self._health_check()
         self._restore()
         
         # Show hint on first run
-        self.printer.dim("Type naturally. /help for commands. @ for files.")
+        self.rich_ui.dim("Type naturally. /help for commands. @ for files.")
         
         while self.running:
             try:
                 # Get current model for display
                 from core.model_router import select_model
-                current_model = select_model("chat").name.split(':')[0]  # Just model name without tag
+                current_model = select_model("chat").name.split(':')[0]
                 
                 # Modern prompt with bottom hints
-                self.printer.print_bottom_hints(
+                self.rich_ui.print_bottom_hints(
                     left="Ctrl+c Exit · /help",
                     right=f"{current_model} · {len(self.history)} msgs"
                 )
@@ -150,11 +148,11 @@ class SessionLoop:
                 
             except KeyboardInterrupt:
                 print()
-                self.ui.warning("Session interrupted")
+                self.rich_ui.warning("Session interrupted")
                 self._save()
                 break
             except Exception as e:
-                self.ui.error(f"Error: {e}")
+                self.rich_ui.error(f"Error: {e}")
     
     def _health_check(self):
         """Check system health on startup"""
@@ -195,11 +193,13 @@ class SessionLoop:
         # Calculate context tokens (rough estimate from history)
         context_tokens = sum(len(h.get('content', '')) // 4 for h in self.history)
         
-        self.printer.print_status_bar(
+        # Use Rich UI for status bar
+        self.rich_ui.print_status_bar(
             cwd=os.getcwd(),
             branch=branch,
             model=model,
-            context_tokens=context_tokens
+            context_tokens=context_tokens,
+            msg_count=len(self.history)
         )
     
     def _process(self, user_input: str):

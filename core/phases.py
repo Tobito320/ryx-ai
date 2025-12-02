@@ -356,11 +356,17 @@ class PhaseExecutor:
     """
     Executes agent phases with proper state management.
     Uses LLM for planning and agent tools for execution.
+    Uses Rich UI for Claude CLI-style output.
     """
     
-    def __init__(self, brain, printer):
+    def __init__(self, brain, ui=None):
         self.brain = brain
-        self.printer = printer
+        # Support both old printer and new ui parameter
+        if ui is None:
+            from core.rich_ui import get_ui
+            self.ui = get_ui()
+        else:
+            self.ui = ui
         self.state = AgentState()
         self._tools = None
     
@@ -374,7 +380,7 @@ class PhaseExecutor:
     def start(self, task: str):
         """Start a new task"""
         self.state.start_task(task)
-        self.printer.step(f"Starting task", task[:60])
+        self.ui.task_start("Starting task", task[:60])
     
     def execute_phase(self) -> bool:
         """Execute the current phase and transition to next"""
@@ -397,7 +403,7 @@ class PhaseExecutor:
     
     def _execute_explore(self) -> bool:
         """Explore phase: understand the codebase"""
-        self.printer.stream_thinking("EXPLORE", "Scanning codebase...")
+        self.ui.phase_start("EXPLORE", "Scanning codebase...")
         
         # Try semantic search first if available, fall back to keyword
         try:
@@ -405,7 +411,7 @@ class PhaseExecutor:
             search = get_semantic_search()
             results = search.search(self.state.task, limit=15)
             self.state.relevant_files = [path for path, _ in results]
-            self.printer.stream_thinking_done("EXPLORE", f"Found {len(results)} files (semantic)")
+            self.ui.phase_done("EXPLORE", f"Found {len(results)} files (semantic)")
         except Exception:
             # Fallback to keyword search
             from core.repo_explorer import get_explorer
@@ -413,30 +419,30 @@ class PhaseExecutor:
             explorer.scan()
             relevant = explorer.find_relevant(self.state.task, limit=15)
             self.state.relevant_files = [f.path for f in relevant]
-            self.printer.stream_thinking_done("EXPLORE", f"Found {len(relevant)} files (keyword)")
+            self.ui.phase_done("EXPLORE", f"Found {len(relevant)} files (keyword)")
         
         # Show top files
         for path in self.state.relevant_files[:5]:
-            self.printer.substep(f"  {path}")
+            self.ui.substep(f"  {path}")
         
         # Read the most relevant files to build context
         self.state.context_files = []
         for path in self.state.relevant_files[:3]:
-            self.printer.stream_thinking("Reading", path[:40])
+            self.ui.task_start("Read", path[:40])
             result = self.tools.execute("read_file", path=path)
             if result.success:
                 self.state.context_files.append({
                     "path": path,
                     "content": result.output[:2000]  # Limit size
                 })
-                self.printer.stream_thinking_done("Read", path[:40])
+                self.ui.task_done("Read", path[:40])
         
         self.state.transition_to(Phase.PLAN)
         return True
     
     def _execute_plan(self) -> bool:
         """Plan phase: create execution plan using LLM"""
-        self.printer.stream_thinking("PLAN", "Creating action plan...")
+        self.ui.phase_start("PLAN", "Creating action plan...")
         
         # Build context for LLM
         file_contents = ""
@@ -458,7 +464,7 @@ class PhaseExecutor:
         
         # Call LLM if brain is available
         if self.brain and hasattr(self.brain, 'ollama'):
-            self.printer.stream_thinking("PLAN", f"Asking {model_name}...")
+            self.ui.phase_start("PLAN", f"Asking {model_name}...")
             
             response = self.brain.ollama.generate(
                 prompt=prompt,
@@ -473,20 +479,20 @@ class PhaseExecutor:
                 plan_data = self._parse_json(response.response)
                 if plan_data:
                     self._build_plan_from_json(plan_data)
-                    self.printer.stream_thinking_done("PLAN", f"{len(self.state.plan.steps)} steps")
+                    self.ui.phase_done("PLAN", f"{len(self.state.plan.steps)} steps")
                 else:
                     self._build_simple_plan()
-                    self.printer.stream_thinking_done("PLAN", "simple plan")
+                    self.ui.phase_done("PLAN", "simple plan")
             else:
                 self._build_simple_plan()
-                self.printer.stream_thinking_done("PLAN", "fallback", success=False)
+                self.ui.phase_done("PLAN", "fallback", success=False)
         else:
             self._build_simple_plan()
         
         # Show plan to user
         if self.state.plan:
             for step in self.state.plan.steps[:5]:
-                self.printer.substep(f"  {step.id}. {step.description[:50]}")
+                self.ui.substep(f"  {step.id}. {step.description[:50]}")
         
         # For now, auto-approve
         # TODO: Add user confirmation
@@ -554,7 +560,7 @@ class PhaseExecutor:
         
         step = self.state.plan.get_next_step()
         if step:
-            self.printer.stream_thinking("APPLY", f"Step {step.id}: {step.description[:30]}...")
+            self.ui.phase_start("APPLY", f"Step {step.id}: {step.description[:30]}...")
             
             # Determine if this step needs code generation
             action = step.action.lower() if hasattr(step, 'action') and step.action else 'create'
@@ -563,18 +569,18 @@ class PhaseExecutor:
                 # Generate code for this file
                 success = self._generate_code_for_step(step)
                 if success:
-                    self.printer.stream_thinking_done("APPLY", f"✓ {step.file_path}")
+                    self.ui.phase_done("APPLY", f"✓ {step.file_path}")
                     # Track created file
                     if hasattr(self.brain, 'ctx'):
                         if not hasattr(self.brain.ctx, 'created_files'):
                             self.brain.ctx.created_files = []
                         self.brain.ctx.created_files.append(step.file_path)
                 else:
-                    self.printer.stream_thinking_done("APPLY", f"→ {step.file_path}", success=False)
+                    self.ui.phase_done("APPLY", f"→ {step.file_path}", success=False)
             elif step.file_path:
-                self.printer.stream_thinking_done("APPLY", f"→ {step.file_path}")
+                self.ui.phase_done("APPLY", f"→ {step.file_path}")
             else:
-                self.printer.stream_thinking_done("APPLY", f"Step {step.id}")
+                self.ui.phase_done("APPLY", f"Step {step.id}")
             
             self.state.plan.mark_step_complete(step.id, "Completed")
         
@@ -615,7 +621,7 @@ Only output the code, no explanations.
 Use appropriate file format based on extension."""
 
         if self.brain and hasattr(self.brain, 'ollama'):
-            self.printer.stream_thinking("APPLY", f"Generating {step.file_path}...")
+            self.ui.phase_start("APPLY", f"Generating {step.file_path}...")
             
             response = self.brain.ollama.generate(
                 prompt=prompt,
@@ -667,35 +673,35 @@ Use appropriate file format based on extension."""
         router = get_router()
         model_config = router.get_model_by_role(ModelRole.REASON)
         
-        self.printer.stream_thinking("VERIFY", f"Using {model_config.name}...")
+        self.ui.phase_start("VERIFY", f"Using {model_config.name}...")
         
         # Check if any changes were made
         has_changes = bool(self.state.changes)
         
         if has_changes:
             # Run tests if available
-            self.printer.stream_thinking("VERIFY", "Running tests...")
+            self.ui.phase_start("VERIFY", "Running tests...")
             test_result = self.tools.execute("run_command", command="python -m pytest tests/ -q 2>/dev/null || true", timeout=30)
             if test_result.success:
                 self.state.test_output = test_result.output
                 if "failed" in test_result.output.lower():
-                    self.printer.stream_thinking_done("VERIFY", "Tests failed", success=False)
+                    self.ui.phase_done("VERIFY", "Tests failed", success=False)
                     self.state.verification_passed = False
                 else:
-                    self.printer.stream_thinking_done("VERIFY", "Tests passed")
+                    self.ui.phase_done("VERIFY", "Tests passed")
                     self.state.verification_passed = True
             else:
-                self.printer.stream_thinking_done("VERIFY", "No tests")
+                self.ui.phase_done("VERIFY", "No tests")
                 self.state.verification_passed = True  # No tests = pass
         else:
             # No changes, just analysis
-            self.printer.stream_thinking_done("VERIFY", "Analysis complete")
+            self.ui.phase_done("VERIFY", "Analysis complete")
             self.state.verification_passed = True
         
         if self.state.verification_passed:
             self.state.transition_to(Phase.COMPLETE)
         else:
-            self.printer.result("Verification failed", success=False)
+            self.ui.success("Verification failed", success=False)
             if self.state.can_retry():
                 self.state.transition_to(Phase.PLAN)
             else:
@@ -705,14 +711,14 @@ Use appropriate file format based on extension."""
     
     def _execute_complete(self) -> bool:
         """Complete phase: finish up"""
-        self.printer.result("Task completed successfully", success=True)
+        self.ui.success("Task completed successfully", success=True)
         self.state.transition_to(Phase.IDLE)
         return True
     
     def _handle_error(self) -> bool:
         """Handle error state"""
         error_msg = self.state.errors[-1] if self.state.errors else 'Unknown error'
-        self.printer.result(f"Task failed: {error_msg}", success=False)
+        self.ui.success(f"Task failed: {error_msg}", success=False)
         return False
     
     def run_to_completion(self) -> bool:
