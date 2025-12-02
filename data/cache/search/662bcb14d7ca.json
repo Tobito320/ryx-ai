@@ -1,0 +1,31 @@
+{
+  "query": "erkl\u00e4re mir was rekursion ist",
+  "results": [
+    {
+      "title": "Rekursion - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.wikipedia.org%2Fwiki%2FRekursion&rut=d8e8922dab85118e288dc10d9be3f77770bbaee66c2b19b3e2d1e58dcadf5245",
+      "content": "RekursionAlsRekursion(lateinisch recurrere \u201azur\u00fccklaufen') wird ein prinzipiell unendlicher Vorgang bezeichnet, der sich selbst als Teil enth\u00e4lt oder mithilfe von sich selbst definierbarist. [1]"
+    },
+    {
+      "title": "Artikel | \u201eWas ist Rekursion?\" Rekursion erkl\u00e4rt - Perlgeek.de",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fperlgeek.de%2Fde%2Fartikel%2Frekursion&rut=b86a8bad25e9044a2a74e4dd91d302b81a819c5ff6d7a897eede9c31da9bffa3",
+      "content": "Rekursionistein Programmierkonzept, bei der eine Funktion nur einen kleinen Teil der Arbeit macht und damit ein Problem ein bisschen verkleinter, und sich dann selbst aufruft um den Rest des Problems zu l\u00f6sen."
+    },
+    {
+      "title": "Rekursion einfach erkl\u00e4rt \u2b50 Synonyme \u2b50 Beispiele",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fkurz.wortbedeutung.info%2FRekursion%2F&rut=58e5020bab8878ec2e425244b6efdfe73d7b91f08f4381beb4e13e741f548359",
+      "content": "Rekursionbedeutet, dass sich etwas selbst wiederholt oder auf sich selbst Bezug nimmt. In der Mathematik und Informatik beschreibt es eine Definition oder Funktion, die sich selbst verwendet, um ein Problem zu l\u00f6sen."
+    },
+    {
+      "title": "Was ist Rekursion | m\u00f6glichst simpel erkl\u00e4rt? - Gutefrage",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.gutefrage.net%2Ffrage%2Fwas%2Dist%2Drekursion%2D%2Dmoeglichst%2Dsimpel%2Derklaert&rut=66e5d78220a6c1a0fa15eededc4d10cf5c6ea8a9c1f90d3263db3bd58b8e6fb2",
+      "content": "AlsRekursionbezeichnet man die Technik in Mathematik, Logik und Informatik, eine Funktion durch sich selbst zu definieren. Wenn man mehrere Funktionen durch wechselseitige Verwendung voneinander definiert, spricht man von wechselseitigerRekursion."
+    },
+    {
+      "title": "Rekursion: Definition, Formel und Funktion | StudySmarter",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.studysmarter.de%2Fschule%2Finformatik%2Falgorithmen%2Dund%2Ddatenstrukturen%2Frekursion%2F&rut=025a0b35c6f662899d9f05d511ab96ebae903b5c71730da9941e4683bf0bf3eb",
+      "content": "In der InformatikistRekursioneine zentrale Konzeption und Technik, die in allt\u00e4glichen Situationen wie auch komplexen Algorithmen zur Anwendung kommt. In diesem Artikel verschaffen wir uns einen detaillierten \u00dcberblick \u00fcberRekursion, ihre Definition und Anwendung."
+    }
+  ],
+  "timestamp": "2025-12-02T16:01:38.573380"
+}

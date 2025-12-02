@@ -71,7 +71,8 @@ def cli_main():
     plan = brain.understand(prompt)
     success, result = brain.execute(plan)
     
-    if result:
+    # Only print if not already streamed
+    if result and result != "__STREAMED__":
         print(result)
 
 

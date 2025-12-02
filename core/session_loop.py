@@ -192,15 +192,18 @@ class SessionLoop:
         # Show thinking indicator
         self.printer.thinking("Understanding request...")
         
+        # Show live thinking status
+        self.printer.stream_thinking("Analyzing", user_input[:30] + "...")
+        
         # Let brain understand
         plan = self.brain.understand(user_input)
         
         # Show what we understood
         intent_name = plan.intent.value.replace('_', ' ')
         if plan.target:
-            self.printer.step(f"Intent: {intent_name}", f"→ {plan.target[:50]}")
+            self.printer.stream_thinking_done(f"Intent: {intent_name}", f"→ {plan.target[:40]}")
         else:
-            self.printer.step(f"Intent: {intent_name}")
+            self.printer.stream_thinking_done(f"Intent: {intent_name}")
         
         # Execute
         success, result = self.brain.execute(plan)
@@ -216,8 +219,8 @@ class SessionLoop:
         elif plan.intent in [Intent.SCRAPE, Intent.SCRAPE_HTML]:
             self.stats['scrapes'] += 1
         
-        # Show result
-        if result:
+        # Show result (skip if already streamed)
+        if result and result != "__STREAMED__":
             if success:
                 if result.startswith('✅') or result.startswith('📊'):
                     print(f"\n{result}")
@@ -226,7 +229,9 @@ class SessionLoop:
             else:
                 self.ui.error(result)
         
-        self.history.append({'role': 'assistant', 'content': result, 'ts': datetime.now().isoformat()})
+        # Store actual result for history (not the marker)
+        history_result = result if result != "__STREAMED__" else "(streamed response)"
+        self.history.append({'role': 'assistant', 'content': history_result, 'ts': datetime.now().isoformat()})
     
     def _slash_command(self, cmd: str):
         """Handle slash commands"""

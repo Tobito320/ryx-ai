@@ -397,7 +397,7 @@ class PhaseExecutor:
     
     def _execute_explore(self) -> bool:
         """Explore phase: understand the codebase"""
-        self.printer.step("Phase: EXPLORE", "Understanding codebase...")
+        self.printer.stream_thinking("EXPLORE", "Scanning codebase...")
         
         # Try semantic search first if available, fall back to keyword
         try:
@@ -405,7 +405,7 @@ class PhaseExecutor:
             search = get_semantic_search()
             results = search.search(self.state.task, limit=15)
             self.state.relevant_files = [path for path, _ in results]
-            self.printer.substep(f"Found {len(results)} relevant files (semantic)")
+            self.printer.stream_thinking_done("EXPLORE", f"Found {len(results)} files (semantic)")
         except Exception:
             # Fallback to keyword search
             from core.repo_explorer import get_explorer
@@ -413,7 +413,7 @@ class PhaseExecutor:
             explorer.scan()
             relevant = explorer.find_relevant(self.state.task, limit=15)
             self.state.relevant_files = [f.path for f in relevant]
-            self.printer.substep(f"Found {len(relevant)} relevant files (keyword)")
+            self.printer.stream_thinking_done("EXPLORE", f"Found {len(relevant)} files (keyword)")
         
         # Show top files
         for path in self.state.relevant_files[:5]:
@@ -422,20 +422,21 @@ class PhaseExecutor:
         # Read the most relevant files to build context
         self.state.context_files = []
         for path in self.state.relevant_files[:3]:
+            self.printer.stream_thinking("Reading", path[:40])
             result = self.tools.execute("read_file", path=path)
             if result.success:
                 self.state.context_files.append({
                     "path": path,
                     "content": result.output[:2000]  # Limit size
                 })
-                self.printer.substep(f"Read: {path}")
+                self.printer.stream_thinking_done("Read", path[:40])
         
         self.state.transition_to(Phase.PLAN)
         return True
     
     def _execute_plan(self) -> bool:
         """Plan phase: create execution plan using LLM"""
-        self.printer.step("Phase: PLAN", "Creating action plan...")
+        self.printer.stream_thinking("PLAN", "Creating action plan...")
         
         # Build context for LLM
         file_contents = ""
@@ -457,7 +458,7 @@ class PhaseExecutor:
         
         # Call LLM if brain is available
         if self.brain and hasattr(self.brain, 'ollama'):
-            self.printer.substep(f"Asking {model_name} for plan...")
+            self.printer.stream_thinking("PLAN", f"Asking {model_name}...")
             
             response = self.brain.ollama.generate(
                 prompt=prompt,
@@ -472,16 +473,18 @@ class PhaseExecutor:
                 plan_data = self._parse_json(response.response)
                 if plan_data:
                     self._build_plan_from_json(plan_data)
+                    self.printer.stream_thinking_done("PLAN", f"{len(self.state.plan.steps)} steps")
                 else:
                     self._build_simple_plan()
+                    self.printer.stream_thinking_done("PLAN", "simple plan")
             else:
                 self._build_simple_plan()
+                self.printer.stream_thinking_done("PLAN", "fallback", success=False)
         else:
             self._build_simple_plan()
         
         # Show plan to user
         if self.state.plan:
-            self.printer.substep(f"Plan created with {len(self.state.plan.steps)} steps")
             for step in self.state.plan.steps[:5]:
                 self.printer.substep(f"  {step.id}. {step.description[:50]}")
         
@@ -545,21 +548,19 @@ class PhaseExecutor:
     
     def _execute_apply(self) -> bool:
         """Apply phase: execute changes using tools"""
-        self.printer.step("Phase: APPLY", "Executing changes...")
-        
         if not self.state.plan:
             self.state.add_error("No plan to execute")
             return False
         
         step = self.state.plan.get_next_step()
         if step:
-            self.printer.substep(f"Step {step.id}: {step.description}")
+            self.printer.stream_thinking("APPLY", f"Step {step.id}: {step.description[:30]}...")
             
             # Execute step based on action type
             if step.file_path:
-                # For now, just mark as analyzed
-                # Full implementation would generate diffs with LLM
-                self.printer.substep(f"  Target: {step.file_path}")
+                self.printer.stream_thinking_done("APPLY", f"→ {step.file_path}")
+            else:
+                self.printer.stream_thinking_done("APPLY", f"Step {step.id}")
             
             self.state.plan.mark_step_complete(step.id, "Analyzed")
         
@@ -580,30 +581,32 @@ class PhaseExecutor:
         router = get_router()
         model_config = router.get_model_by_role(ModelRole.REASON)
         
-        self.printer.step("Phase: VERIFY", f"Checking with {model_config.name}...")
+        self.printer.stream_thinking("VERIFY", f"Using {model_config.name}...")
         
         # Check if any changes were made
         has_changes = bool(self.state.changes)
         
         if has_changes:
             # Run tests if available
+            self.printer.stream_thinking("VERIFY", "Running tests...")
             test_result = self.tools.execute("run_command", command="python -m pytest tests/ -q 2>/dev/null || true", timeout=30)
             if test_result.success:
                 self.state.test_output = test_result.output
                 if "failed" in test_result.output.lower():
-                    self.printer.substep("Some tests failed")
+                    self.printer.stream_thinking_done("VERIFY", "Tests failed", success=False)
                     self.state.verification_passed = False
                 else:
-                    self.printer.substep("Tests passed")
+                    self.printer.stream_thinking_done("VERIFY", "Tests passed")
                     self.state.verification_passed = True
             else:
+                self.printer.stream_thinking_done("VERIFY", "No tests")
                 self.state.verification_passed = True  # No tests = pass
         else:
             # No changes, just analysis
+            self.printer.stream_thinking_done("VERIFY", "Analysis complete")
             self.state.verification_passed = True
         
         if self.state.verification_passed:
-            self.printer.result("Verification passed", success=True)
             self.state.transition_to(Phase.COMPLETE)
         else:
             self.printer.result("Verification failed", success=False)

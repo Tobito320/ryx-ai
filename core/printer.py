@@ -515,6 +515,44 @@ Browsing: {browsing_str}"""
         
         model_tag = f" {t.dim(f'[{model}]')}" if model else ""
         print(f"\n{t.primary('Ryx')}{model_tag}: {message}")
+    
+    # ─────────────────────────────────────────────────────────────
+    # Streaming Output
+    # ─────────────────────────────────────────────────────────────
+    
+    def stream_start(self, label: str = "Generating", model: str = ""):
+        """Start a streaming output block"""
+        t = self.theme
+        model_tag = f" [{model}]" if model else ""
+        sys.stdout.write(f"\n{t.primary('Ryx')}{t.dim(model_tag)}: ")
+        sys.stdout.flush()
+    
+    def stream_token(self, token: str):
+        """Print a single token in the stream"""
+        sys.stdout.write(token)
+        sys.stdout.flush()
+    
+    def stream_end(self):
+        """End streaming output"""
+        print()  # New line after stream
+    
+    def stream_thinking(self, phase: str, detail: str = ""):
+        """Show what the system is currently doing (live update)"""
+        t = self.theme
+        detail_str = f" {t.dim(detail)}" if detail else ""
+        # Use carriage return to update the same line
+        sys.stdout.write(f"\r{t.info('◐')} {phase}{detail_str}    ")
+        sys.stdout.flush()
+    
+    def stream_thinking_done(self, phase: str, detail: str = "", success: bool = True):
+        """Mark a thinking step as done"""
+        t = self.theme
+        icon = t.icons["success"] if success else t.icons["error"]
+        color = t.success if success else t.error
+        detail_str = f" {t.dim(detail)}" if detail else ""
+        # Clear line and print final status
+        sys.stdout.write(f"\r{color(icon)} {phase}{detail_str}    \n")
+        sys.stdout.flush()
 
 
 # Global printer instance

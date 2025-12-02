@@ -1527,11 +1527,10 @@ Sprache: Deutsch"""
             else:
                 printer.substep("No results found, using knowledge")
         
-        # Generate response with search context
+        # Generate response with search context - USE STREAMING
         from core.model_router import select_model
         model_config = select_model(query)
         model = model_config.name
-        printer.step("Thinking", f"[{model}]")
         
         system_prompt = """Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
 Antworte kurz und präzise. Wenn Suchergebnisse gegeben sind, nutze sie für deine Antwort.
@@ -1540,18 +1539,28 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
         if search_context:
             system_prompt += search_context
         
-        response = self.ollama.generate(
-            prompt=query,
-            model=model,
-            system=system_prompt,
-            max_tokens=800,
-            temperature=0.7
-        )
+        # Stream the response token by token
+        printer.stream_start("", model)
+        full_response = ""
         
-        if response.error:
-            return False, f"Fehler: {response.error}"
-        
-        return True, response.response
+        try:
+            for token in self.ollama.generate_stream(
+                prompt=query,
+                model=model,
+                system=system_prompt,
+                max_tokens=800,
+                temperature=0.7
+            ):
+                printer.stream_token(token)
+                full_response += token
+            
+            printer.stream_end()
+            # Return special marker so session_loop knows not to print again
+            return True, "__STREAMED__"
+            
+        except Exception as e:
+            printer.stream_end()
+            return False, f"Fehler: {e}"
     
     def _should_search_first(self, query: str) -> bool:
         """Determine if we should search before answering"""
