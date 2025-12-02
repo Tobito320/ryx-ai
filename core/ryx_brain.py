@@ -603,20 +603,20 @@ ANFRAGE: {prompt}'''
         if 'model' in p and ('list' in p or 'show' in p or 'zeig' in p or '/m' in p):
             return Plan(intent=Intent.LIST_MODELS)
         
+        # File finding patterns (check BEFORE configs and websites!)
+        find_match = self._match_find_request(prompt)
+        if find_match:
+            return find_match
+        
         # Config file patterns - VERY flexible matching
         config_match = self._match_config_request(prompt)
         if config_match:
             return config_match
         
-        # Website patterns
+        # Website patterns (check LAST - most aggressive)
         website_match = self._match_website_request(prompt)
         if website_match:
             return website_match
-        
-        # File finding patterns
-        find_match = self._match_find_request(prompt)
-        if find_match:
-            return find_match
         
         return None
     

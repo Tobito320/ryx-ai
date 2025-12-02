@@ -45,9 +45,9 @@ def cli_main():
         else:
             remaining_args.append(arg)
 
-    # No args = Start interactive session (v4)
+    # No args = Start interactive session
     if not remaining_args:
-        from core.session_loop_v4 import SessionLoopV4
+        from core.session_loop import SessionLoopV4
         session = SessionLoopV4(safety_mode=safety_mode)
         session.run()
         return
@@ -55,13 +55,13 @@ def cli_main():
     # Everything else: Let brain understand and execute
     prompt = " ".join(remaining_args)
     
-    from core.ryx_brain_v4 import get_brain_v4
+    from core.ryx_brain import RyxBrainV4
     from core.ollama_client import OllamaClient
     from core.model_router import ModelRouter
     
     router = ModelRouter()
     ollama = OllamaClient(base_url=router.get_ollama_url())
-    brain = get_brain_v4(ollama)
+    brain = RyxBrainV4(ollama)
     
     plan = brain.understand(prompt)
     success, result = brain.execute(plan)

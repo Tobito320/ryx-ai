@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Optional
 
 from core.paths import get_data_dir
-from core.ryx_brain_v4 import RyxBrainV4, get_brain_v4, Plan, Intent
+from core.ryx_brain import RyxBrainV4, Plan, Intent, get_brain_v4
 from core.ollama_client import OllamaClient
 from core.model_router import ModelRouter
 

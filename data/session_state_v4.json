@@ -1,0 +1,25 @@
+{
+  "history": [
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T05:07:28.786333"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T05:07:28.786374"
+    }
+  ],
+  "stats": {
+    "prompts": 2,
+    "actions": 0,
+    "files": 0,
+    "urls": 0,
+    "searches": 0,
+    "scrapes": 0
+  },
+  "precision_mode": false,
+  "browsing_enabled": true,
+  "saved_at": "2025-12-02T05:07:28.786425"
+}
