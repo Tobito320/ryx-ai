@@ -186,15 +186,21 @@ class SessionLoop:
             self._shell_command(user_input[1:])
             return
         
-        # Let brain understand and act (with spinner for LLM calls)
-        spinner = Spinner("Thinking...")
-        spinner.start()
-        try:
-            plan = self.brain.understand(user_input)
-            spinner.update("Executing...")
-            success, result = self.brain.execute(plan)
-        finally:
-            spinner.stop()
+        # Show thinking indicator
+        self.printer.thinking("Understanding request...")
+        
+        # Let brain understand
+        plan = self.brain.understand(user_input)
+        
+        # Show what we understood
+        intent_name = plan.intent.value.replace('_', ' ')
+        if plan.target:
+            self.printer.step(f"Intent: {intent_name}", f"→ {plan.target[:50]}")
+        else:
+            self.printer.step(f"Intent: {intent_name}")
+        
+        # Execute
+        success, result = self.brain.execute(plan)
         
         # Track stats
         self.stats['actions'] += 1

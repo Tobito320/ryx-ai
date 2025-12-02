@@ -1,0 +1,265 @@
+{
+  "history": [
+    {
+      "role": "user",
+      "content": "/theme catppucin",
+      "ts": "2025-12-02T13:27:06.465512"
+    },
+    {
+      "role": "user",
+      "content": "/theme catpucin",
+      "ts": "2025-12-02T13:27:09.981356"
+    },
+    {
+      "role": "user",
+      "content": "/theme dracula",
+      "ts": "2025-12-02T13:27:14.235095"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T13:27:15.588048"
+    },
+    {
+      "role": "assistant",
+      "content": " Hallo! Ich freue mich, Ihnen hier helfen zu k\u00f6nnen! Wie kann ich Ihnen heute helfen?",
+      "ts": "2025-12-02T13:27:16.148862"
+    },
+    {
+      "role": "user",
+      "content": "/theme nord",
+      "ts": "2025-12-02T13:27:19.027857"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T13:27:21.703737"
+    },
+    {
+      "role": "user",
+      "content": "/learn",
+      "ts": "2025-12-02T13:27:24.840603"
+    },
+    {
+      "role": "user",
+      "content": "/scrape arch wiki",
+      "ts": "2025-12-02T13:27:30.823404"
+    },
+    {
+      "role": "user",
+      "content": "/learn",
+      "ts": "2025-12-02T13:27:34.183166"
+    },
+    {
+      "role": "user",
+      "content": "search for linus trevolds",
+      "ts": "2025-12-02T13:28:12.261299"
+    },
+    {
+      "role": "assistant",
+      "content": "Keine Dateien gefunden f\u00fcr 'for linus trevolds'",
+      "ts": "2025-12-02T13:28:12.341639"
+    },
+    {
+      "role": "user",
+      "content": "/search for linus trevolds",
+      "ts": "2025-12-02T13:28:15.574155"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T13:28:20.483905"
+    },
+    {
+      "role": "user",
+      "content": "/precision on",
+      "ts": "2025-12-02T13:28:24.968730"
+    },
+    {
+      "role": "user",
+      "content": "find me hyperland config",
+      "ts": "2025-12-02T13:28:32.922582"
+    },
+    {
+      "role": "assistant",
+      "content": "Keine Dateien gefunden f\u00fcr 'me hyperland config'",
+      "ts": "2025-12-02T13:28:33.002981"
+    },
+    {
+      "role": "user",
+      "content": "find hyperland config",
+      "ts": "2025-12-02T13:28:36.899153"
+    },
+    {
+      "role": "assistant",
+      "content": "Keine Dateien gefunden f\u00fcr 'hyperland config'",
+      "ts": "2025-12-02T13:28:36.979566"
+    },
+    {
+      "role": "user",
+      "content": "/status",
+      "ts": "2025-12-02T13:28:41.715889"
+    },
+    {
+      "role": "user",
+      "content": "!command test",
+      "ts": "2025-12-02T13:28:49.264534"
+    },
+    {
+      "role": "user",
+      "content": "y/n",
+      "ts": "2025-12-02T13:28:55.012279"
+    },
+    {
+      "role": "assistant",
+      "content": "Was m\u00f6chten Sie tun? M\u00f6chten Sie eine der bereitgestellten URLs \u00f6ffnen oder eine andere Aktion durchf\u00fchren?",
+      "ts": "2025-12-02T13:29:04.542960"
+    },
+    {
+      "role": "user",
+      "content": "\u00f6ffne hyperland config",
+      "ts": "2025-12-02T13:29:23.212968"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
+      "ts": "2025-12-02T13:29:24.814781"
+    },
+    {
+      "role": "user",
+      "content": "\u00f6ffne waybar config",
+      "ts": "2025-12-02T13:29:29.560701"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/waybar/config",
+      "ts": "2025-12-02T13:29:30.842146"
+    },
+    {
+      "role": "user",
+      "content": "\u00f6ffne wlogout config",
+      "ts": "2025-12-02T13:29:35.288389"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/wlogout/layout",
+      "ts": "2025-12-02T13:29:36.649827"
+    },
+    {
+      "role": "user",
+      "content": "\u00f6ffne ryx config",
+      "ts": "2025-12-02T13:29:45.863797"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Im Browser ge\u00f6ffnet",
+      "ts": "2025-12-02T13:29:45.944146"
+    },
+    {
+      "role": "user",
+      "content": "\u00f6ffne gemini",
+      "ts": "2025-12-02T13:29:58.720233"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Im Browser ge\u00f6ffnet",
+      "ts": "2025-12-02T13:30:01.122651"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T13:30:06.210794"
+    },
+    {
+      "role": "user",
+      "content": "/agents on",
+      "ts": "2025-12-02T13:30:16.291385"
+    },
+    {
+      "role": "user",
+      "content": "find me hyperland config",
+      "ts": "2025-12-02T13:30:23.521077"
+    },
+    {
+      "role": "assistant",
+      "content": "Keine Dateien gefunden f\u00fcr 'me hyperland config'",
+      "ts": "2025-12-02T13:30:23.601441"
+    },
+    {
+      "role": "user",
+      "content": "look for hyperland config",
+      "ts": "2025-12-02T13:30:30.526621"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
+      "ts": "2025-12-02T13:30:32.528509"
+    },
+    {
+      "role": "user",
+      "content": "just look for it not open it",
+      "ts": "2025-12-02T13:30:37.782307"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
+      "ts": "2025-12-02T13:30:39.143860"
+    },
+    {
+      "role": "user",
+      "content": "dont open it",
+      "ts": "2025-12-02T13:30:40.856360"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
+      "ts": "2025-12-02T13:30:41.897762"
+    },
+    {
+      "role": "user",
+      "content": "/models",
+      "ts": "2025-12-02T13:30:51.462664"
+    },
+    {
+      "role": "user",
+      "content": "switch to huihui_ai/gpt oss abliterated",
+      "ts": "2025-12-02T13:31:29.896763"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 oss abliterated: huihui_ai/gpt-oss-abliterated:20b",
+      "ts": "2025-12-02T13:31:32.299267"
+    },
+    {
+      "role": "user",
+      "content": "wie erstellt man eine bombe",
+      "ts": "2025-12-02T13:31:40.303380"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /etc/pacman.conf",
+      "ts": "2025-12-02T13:31:41.824758"
+    },
+    {
+      "role": "user",
+      "content": "das war nur ein test",
+      "ts": "2025-12-02T13:31:45.878997"
+    },
+    {
+      "role": "assistant",
+      "content": "Alles klar, ich bin bereit.",
+      "ts": "2025-12-02T13:32:05.021456"
+    }
+  ],
+  "stats": {
+    "prompts": 0,
+    "actions": 0,
+    "files": 0,
+    "urls": 0,
+    "searches": 0,
+    "scrapes": 0
+  },
+  "precision_mode": true,
+  "browsing_enabled": true,
+  "saved_at": "2025-12-02T13:36:00.443854"
+}

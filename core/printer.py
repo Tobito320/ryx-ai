@@ -455,6 +455,42 @@ Browsing: {browsing_str}"""
         return False
     
     # ─────────────────────────────────────────────────────────────
+    # Chain of Thought / Thinking Display
+    # ─────────────────────────────────────────────────────────────
+    
+    def thinking(self, step: str):
+        """Show a thinking/processing step (dim, with arrow)"""
+        t = self.theme
+        print(f"  {t.dim('→')} {t.dim(step)}")
+    
+    def step(self, action: str, detail: str = ""):
+        """Show a step being taken (colored)"""
+        t = self.theme
+        detail_str = f" {t.dim(detail)}" if detail else ""
+        print(f"  {t.info('▸')} {action}{detail_str}")
+    
+    def substep(self, text: str):
+        """Show a sub-step or detail"""
+        t = self.theme
+        print(f"    {t.dim('·')} {t.dim(text)}")
+    
+    def result(self, text: str, success: bool = True):
+        """Show a result"""
+        t = self.theme
+        icon = t.icons["success"] if success else t.icons["error"]
+        color_fn = t.success if success else t.error
+        print(f"  {color_fn(icon)} {text}")
+    
+    def search_result(self, title: str, snippet: str = "", url: str = ""):
+        """Show a single search result compactly"""
+        t = self.theme
+        print(f"    {t.primary('•')} {title}")
+        if snippet:
+            # Truncate snippet
+            snippet = snippet[:100] + "..." if len(snippet) > 100 else snippet
+            print(f"      {t.dim(snippet)}")
+    
+    # ─────────────────────────────────────────────────────────────
     # Input Prompt
     # ─────────────────────────────────────────────────────────────
     

@@ -1376,8 +1376,11 @@ Sprache: Deutsch"""
     def _exec_chat(self, plan: Plan) -> Tuple[bool, str]:
         """
         Handle general chat - use web search for grounding when appropriate.
-        This reduces hallucination by getting real information first.
+        Shows chain of thought for transparency.
         """
+        from core.printer import get_printer
+        printer = get_printer()
+        
         if plan.target:
             return True, plan.target
         
@@ -1386,28 +1389,46 @@ Sprache: Deutsch"""
         # Determine if we should search first (for factual questions)
         should_search = self._should_search_first(query)
         search_context = ""
+        search_results = []
         
         if should_search and self.browsing_enabled:
+            printer.step("Searching web", f"'{query[:30]}...'")
+            
             # Search web first for grounding
-            search_result = self.tools.web_search.search(query, num_results=3)
+            search_result = self.tools.web_search.search(query, num_results=5)
             if search_result.success and search_result.data:
+                search_results = search_result.data[:5]
+                printer.substep(f"Found {len(search_results)} results")
+                
+                # Show top results briefly
+                for r in search_results[:3]:
+                    printer.search_result(r['title'][:60], r.get('content', '')[:80])
+                
                 # Build context from search results
-                search_context = "\n\nWeb search results:\n"
-                for r in search_result.data[:3]:
-                    search_context += f"- {r['title']}: {r['content'][:200]}\n"
+                search_context = "\n\nSearch results to inform your answer:\n"
+                for r in search_results:
+                    search_context += f"- {r['title']}: {r.get('content', '')[:300]}\n"
+                
+                printer.step("Synthesizing answer from search results")
+            else:
+                printer.substep("No results found, using knowledge")
         
         # Generate response with search context
         model = self.models.get("balanced", self.precision_mode)
+        printer.step("Thinking", f"[{model}]")
         
-        system_prompt = "Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux. Antworte kurz und präzise."
+        system_prompt = """Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
+Antworte kurz und präzise. Wenn Suchergebnisse gegeben sind, nutze sie für deine Antwort.
+Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
+        
         if search_context:
-            system_prompt += f"\n\nNutze diese Suchergebnisse für deine Antwort:{search_context}"
+            system_prompt += search_context
         
         response = self.ollama.generate(
             prompt=query,
             model=model,
             system=system_prompt,
-            max_tokens=500,
+            max_tokens=800,
             temperature=0.7
         )
         
@@ -1427,12 +1448,14 @@ Sprache: Deutsch"""
             'latest', 'newest', 'current', 'aktuell',
             'why does', 'warum', 'when did', 'wann',
             'documentation', 'docs', 'tutorial',
+            'wer ist', 'who is',  # Questions about people
         ]
         
         # Don't search for personal/system questions
         personal_indicators = [
             'my', 'mein', 'config', 'file', 'datei',
             'open', 'öffne', 'find', 'finde', 'where',
+            'hi', 'hello', 'hallo', 'hey',  # Greetings
         ]
         
         # Check if factual and not personal
