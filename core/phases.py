@@ -421,21 +421,19 @@ class PhaseExecutor:
             self.state.relevant_files = [f.path for f in relevant]
             self.ui.phase_done("EXPLORE", f"Found {len(relevant)} files (keyword)")
         
-        # Show top files
-        for path in self.state.relevant_files[:5]:
-            self.ui.substep(f"  {path}")
+        # Show top files (reduced noise)
+        if self.state.relevant_files[:3]:
+            self.ui.substep(f"Top files: {', '.join([f.split('/')[-1] for f in self.state.relevant_files[:3]])}")
         
-        # Read the most relevant files to build context
+        # Read the most relevant files to build context (silently)
         self.state.context_files = []
         for path in self.state.relevant_files[:3]:
-            self.ui.task_start("Read", path[:40])
             result = self.tools.execute("read_file", path=path)
             if result.success:
                 self.state.context_files.append({
                     "path": path,
                     "content": result.output[:2000]  # Limit size
                 })
-                self.ui.task_done("Read", path[:40])
         
         self.state.transition_to(Phase.PLAN)
         return True
@@ -489,10 +487,9 @@ class PhaseExecutor:
         else:
             self._build_simple_plan()
         
-        # Show plan to user
-        if self.state.plan:
-            for step in self.state.plan.steps[:5]:
-                self.ui.substep(f"  {step.id}. {step.description[:50]}")
+        # Show plan summary to user (reduced noise)
+        if self.state.plan and self.state.plan.steps:
+            self.ui.substep(f"Plan: {len(self.state.plan.steps)} steps")
         
         # For now, auto-approve
         # TODO: Add user confirmation
@@ -523,13 +520,58 @@ class PhaseExecutor:
         self.state.plan.risks = data.get('risks', [])
     
     def _build_simple_plan(self):
-        """Build a simple plan when LLM fails"""
+        """Build a simple plan when LLM fails - tries to infer file name from task"""
+        import re
+        
         self.state.plan = ExecutionPlan(task=self.state.task)
-        self.state.plan.files_to_modify = self.state.relevant_files[:3]
-        self.state.plan.add_step(
-            f"Analyze and modify code for: {self.state.task[:50]}",
-            action="analyze"
-        )
+        
+        task = self.state.task.lower()
+        
+        # Try to extract filename from task
+        # e.g. "create login.py" -> "login.py"
+        file_match = re.search(r'(\w+\.(?:py|js|ts|go|rs|java|c|cpp|h|sh|yaml|json|md))', task)
+        
+        if file_match:
+            filename = file_match.group(1)
+            self.state.plan.files_to_create = [filename]
+            self.state.plan.add_step(
+                description=f"Create {filename} with requested functionality",
+                file_path=filename,
+                action="create"
+            )
+        else:
+            # Try to infer from keywords
+            if any(word in task for word in ['login', 'auth', 'authentication']):
+                self.state.plan.files_to_create = ['auth.py']
+                self.state.plan.add_step(
+                    description="Create authentication module",
+                    file_path="auth.py",
+                    action="create"
+                )
+            elif any(word in task for word in ['test', 'testing']):
+                self.state.plan.files_to_create = ['test_module.py']
+                self.state.plan.add_step(
+                    description="Create test module",
+                    file_path="test_module.py",
+                    action="create"
+                )
+            elif any(word in task for word in ['api', 'endpoint', 'rest']):
+                self.state.plan.files_to_create = ['api.py']
+                self.state.plan.add_step(
+                    description="Create API module",
+                    file_path="api.py",
+                    action="create"
+                )
+            else:
+                # Generic fallback - use 'module.py'
+                name = re.sub(r'[^a-z0-9]+', '_', task.split()[0] if task else 'module')[:20]
+                filename = f"{name}.py"
+                self.state.plan.files_to_create = [filename]
+                self.state.plan.add_step(
+                    description=f"Create {filename} for: {self.state.task[:50]}",
+                    file_path=filename,
+                    action="create"
+                )
     
     def _parse_json(self, text: str) -> Optional[dict]:
         """Try to parse JSON from LLM response"""
@@ -553,7 +595,7 @@ class PhaseExecutor:
         return None
     
     def _execute_apply(self) -> bool:
-        """Apply phase: execute changes using tools - ACTUALLY CREATE CODE"""
+        """Apply phase: execute changes - ACTUALLY WRITE FILES"""
         if not self.state.plan:
             self.state.add_error("No plan to execute")
             return False
@@ -562,25 +604,44 @@ class PhaseExecutor:
         if step:
             self.ui.phase_start("APPLY", f"Step {step.id}: {step.description[:30]}...")
             
-            # Determine if this step needs code generation
-            action = step.action.lower() if hasattr(step, 'action') and step.action else 'create'
+            # Determine action type
+            action = (step.action.lower() if hasattr(step, 'action') and step.action else 'create').lower()
+            desc_lower = step.description.lower() if step.description else ''
             
-            if step.file_path and action in ['create', 'write', 'generate', 'implement']:
-                # Generate code for this file
-                success = self._generate_code_for_step(step)
-                if success:
-                    self.ui.phase_done("APPLY", f"✓ {step.file_path}")
-                    # Track created file
-                    if hasattr(self.brain, 'ctx'):
-                        if not hasattr(self.brain.ctx, 'created_files'):
-                            self.brain.ctx.created_files = []
-                        self.brain.ctx.created_files.append(step.file_path)
+            # Check if this step should create/modify code
+            should_generate = (
+                step.file_path or 
+                action in ['create', 'write', 'generate', 'implement', 'add', 'modify'] or
+                any(word in desc_lower for word in ['create', 'implement', 'add', 'write', 'generate', 'build'])
+            )
+            
+            if should_generate:
+                # If no file_path specified, try to infer from description
+                file_path = step.file_path
+                if not file_path:
+                    # Try to extract file path from description
+                    import re
+                    match = re.search(r'(\w+\.(?:py|js|ts|go|rs|java|c|cpp|h|sh|yaml|json|md))', step.description)
+                    if match:
+                        file_path = match.group(1)
+                        step.file_path = file_path
+                
+                if file_path:
+                    success = self._generate_code_for_step(step)
+                    if success:
+                        self.ui.phase_done("APPLY", f"✓ Created {step.file_path}")
+                        # Track created file in brain context
+                        if hasattr(self.brain, 'ctx'):
+                            if not hasattr(self.brain.ctx, 'created_files'):
+                                self.brain.ctx.created_files = []
+                            self.brain.ctx.created_files.append(step.file_path)
+                    else:
+                        self.ui.phase_done("APPLY", f"✗ Failed {step.file_path}", success=False)
                 else:
-                    self.ui.phase_done("APPLY", f"→ {step.file_path}", success=False)
-            elif step.file_path:
-                self.ui.phase_done("APPLY", f"→ {step.file_path}")
+                    # No file path - just mark as analyzed
+                    self.ui.phase_done("APPLY", f"○ {step.description[:40]}")
             else:
-                self.ui.phase_done("APPLY", f"Step {step.id}")
+                self.ui.phase_done("APPLY", f"○ Step {step.id} analyzed")
             
             self.state.plan.mark_step_complete(step.id, "Completed")
         
@@ -595,7 +656,7 @@ class PhaseExecutor:
         return True
     
     def _generate_code_for_step(self, step) -> bool:
-        """Actually generate code for a step using LLM"""
+        """Actually generate code for a step using LLM and write to disk"""
         from core.model_router import get_router, ModelRole
         import os
         
@@ -608,25 +669,44 @@ class PhaseExecutor:
         if self.state.context_files:
             context = "Existing code context:\n"
             for cf in self.state.context_files[:2]:
-                context += f"\n--- {cf['path']} ---\n{cf['content'][:1000]}\n"
+                context += f"\n--- {cf['path']} ---\n{cf['content'][:800]}\n"
+        
+        # Detect language from file extension
+        ext = os.path.splitext(step.file_path)[1] if step.file_path else '.py'
+        lang_hints = {
+            '.py': 'Python 3',
+            '.js': 'JavaScript (ES6+)',
+            '.ts': 'TypeScript',
+            '.go': 'Go',
+            '.rs': 'Rust',
+            '.java': 'Java',
+            '.sh': 'Bash',
+        }
+        lang = lang_hints.get(ext, 'appropriate language')
         
         prompt = f"""Task: {self.state.task}
 Step: {step.description}
 Target file: {step.file_path}
+Language: {lang}
 
 {context}
 
-Generate the complete code for {step.file_path}.
-Only output the code, no explanations.
-Use appropriate file format based on extension."""
+Generate COMPLETE, WORKING code for {step.file_path}.
+Requirements:
+- Include all necessary imports
+- Add docstrings/comments for complex logic
+- Follow {lang} best practices
+- Make it production-ready
+
+Output ONLY the code. No explanations, no markdown fences."""
 
         if self.brain and hasattr(self.brain, 'ollama'):
-            self.ui.phase_start("APPLY", f"Generating {step.file_path}...")
+            self.ui.step_start(f"Generating {step.file_path}")
             
             response = self.brain.ollama.generate(
                 prompt=prompt,
                 model=model_name,
-                system="You are a code generator. Output only valid code. No markdown, no explanations.",
+                system=f"You are a senior {lang} developer. Output only valid, complete code. No markdown, no explanations.",
                 max_tokens=2000,
                 temperature=0.3
             )
@@ -636,7 +716,16 @@ Use appropriate file format based on extension."""
                 code = response.response.strip()
                 if code.startswith('```'):
                     lines = code.split('\n')
-                    code = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+                    # Remove first line (```python) and last line (```)
+                    if lines[-1].strip() == '```':
+                        code = '\n'.join(lines[1:-1])
+                    else:
+                        code = '\n'.join(lines[1:])
+                
+                # Validate we got actual code
+                if len(code) < 10:
+                    self.state.add_error(f"Generated code too short for {step.file_path}")
+                    return False
                 
                 # Create the file
                 try:
@@ -645,23 +734,42 @@ Use appropriate file format based on extension."""
                     if not os.path.isabs(file_path):
                         file_path = os.path.join(os.getcwd(), file_path)
                     
-                    # Create directory if needed
-                    os.makedirs(os.path.dirname(file_path) if os.path.dirname(file_path) else '.', exist_ok=True)
+                    # Create checkpoint BEFORE writing (if file exists)
+                    try:
+                        from core.checkpoints import get_checkpoint_manager
+                        cp_mgr = get_checkpoint_manager()
+                        if os.path.exists(file_path):
+                            cp_mgr.start_checkpoint(
+                                name=f"Modify {os.path.basename(file_path)}",
+                                task_context=self.state.task
+                            )
+                            cp_mgr.track_file(file_path)
+                            cp_mgr.commit_checkpoint()
+                    except Exception:
+                        pass  # Checkpoint is optional
                     
+                    # Create directory if needed
+                    dir_path = os.path.dirname(file_path)
+                    if dir_path:
+                        os.makedirs(dir_path, exist_ok=True)
+                    
+                    # Write the file
                     with open(file_path, 'w') as f:
                         f.write(code)
                     
                     # Track the change
-                    from core.phases import Change
-                    self.state.changes.append(Change(
+                    self.state.add_change(
                         file_path=file_path,
-                        action="create",
-                        diff=f"+++ {file_path}\n{code[:500]}..."
-                    ))
+                        action="created",
+                        diff=f"Created {file_path} ({len(code)} chars)"
+                    )
                     
+                    self.ui.step_done(f"Created {os.path.basename(file_path)}", f"{len(code.split(chr(10)))} lines")
                     return True
+                    
                 except Exception as e:
                     self.state.add_error(f"Failed to write {file_path}: {e}")
+                    self.ui.step_fail(f"Write {step.file_path}", str(e))
                     return False
         
         return False

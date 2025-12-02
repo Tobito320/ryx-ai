@@ -1,0 +1,31 @@
+{
+  "query": "what is rekursion",
+  "results": [
+    {
+      "title": "Introduction to Recursion - GeeksforGeeks",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.geeksforgeeks.org%2Fdsa%2Fintroduction%2Dto%2Drecursion%2D2%2F&rut=987194026f3c5ab52c27a5d63f634a1ade293fd375990fdcee43da4d57a01ddd",
+      "content": "Your All-in-One Learning Portal: GeeksforGeeks is a comprehensive educational platform that empowers learners across domains-spanning computer science and programming, school education, upskilling, commerce, software tools, competitive exams, and more."
+    },
+    {
+      "title": "Recursion - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FRecursion&rut=b3247cd8df2062b7ddce75844827ca91193ad479b1088bce9598466c93e95a10",
+      "content": "Recursion is the process a procedure goes through when one of the steps of the procedure involves invoking the procedure itself. A procedure that goes through recursion is said to be 'recursive'. [3] To understand recursion, one must recognize the distinction between a procedure and the running of a procedure."
+    },
+    {
+      "title": "What is Recursion? - W3Schools",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.w3schools.com%2Fprogramming%2Fprog_recursion.php&rut=4396bd1ebb4becf4f92fc9927828b6fc43f16a45476a4c3e2b772e76effb4f3b",
+      "content": "WhatisRecursion? Recursion is when a function calls itself to solve a smaller version of the problem. This continues until the problem becomes small enough that it can be solved directly. That smallest case is called the base case."
+    },
+    {
+      "title": "How Does Recursion Work? Explained with Code Examples",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.freecodecamp.org%2Fnews%2Fwhat%2Dis%2Drecursion%2F&rut=88fad36e34e1dfca35726f931e4029726f3abbf8e1851bf73cf272065395ac89",
+      "content": "In this article, you will learn about recursion and how it works. You need a good understanding of how functions work before learning recursion. I have used Python code for examples in this article because of its simple syntax, but the concept of rec..."
+    },
+    {
+      "title": "RECURSION Definition & Meaning - Merriam-Webster",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.merriam%2Dwebster.com%2Fdictionary%2Frecursion&rut=5634518272909309f32457f1d46098922f302c08374524ed3ede255f836fccf6",
+      "content": "The meaning of RECURSION is return.So far, there's no convincing evidence that other animals can use recursion in a sophisticated way. Steve Nadis, Quanta Magazine, 31 Oct. 2025 On top of that, researchers also discovered that crows understand recursion \u2014the ability to embed one structure inside another, like Russian dolls\u2014a skill once believed to be uniquely human. Lucy Notarantonio ..."
+    }
+  ],
+  "timestamp": "2025-12-02T16:43:39.145716"
+}

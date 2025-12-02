@@ -1,0 +1,56 @@
+{
+  "query": "https://example.com",
+  "results": [
+    {
+      "title": "Example Domain",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.example.com%2F&rut=8097074076186fd32e1792e0c48180051756c58ef87b72b118424798b128dc74",
+      "content": "Example Domain This domain is for use in documentation examples without needing permission. Avoid use in operations. Learn more"
+    },
+    {
+      "title": "example.com - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FExample.com&rut=3090da13aed74830ae53a8029539f8fc2467d54ec0c335405ad290da2f1bcb8a",
+      "content": "The domain namesexample.com, example.net, example.org, and example.edu are second-level domain names in the Domain Name System of the Internet. They are reserved by the Internet Assigned Numbers Authority (IANA) at the direction of the Internet (IETF) as special-use domain names for documentation purposes."
+    },
+    {
+      "title": "Login - Examples",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.examples.com%2Flogin&rut=8f34418f261f72afdfa7451f5316cf598aeb84516d40b2f701dac4595c78d17f",
+      "content": "Explore Examples.com for comprehensive guides, lessons & interactive resources in subjects like English, Maths, Science and more - perfect for teachers & students!"
+    },
+    {
+      "title": "login/ - Exmple.com",
+      "url": "https://duckduckgo.com/l/?uddg=http%3A%2F%2Fexmple.com%2Flogin%2F&rut=15c12338a2a899d0d79f314a9ac9301b2ece38ce1a82b54becec9b719f30ebfb",
+      "content": "Example Website - login/ This is an example website that can be used to demonstrate links without really linking to any real site. The domainsexample.com, example.net and example.org are reserved and cannot be followed through a link, while this misspelled domain exmple.com work as intended when linked to. You searched for the URL login/ on exmple.com and this is an example page generated to ..."
+    },
+    {
+      "title": "Example domains and names - Google Developers",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fdevelopers.google.com%2Fstyle%2Fexamples&rut=27dd15e7174348b0b2c315773593504ff7a8f3c709ebc0e50cdf8abfcac2271d",
+      "content": "Example domain names When you need a generic domain name in an example, useexample.com, example.org, or example.net. These domains are reserved by the Internet Assigned Numbers Authority for use in documentation. Alternatively, you can use any of the following domain names, which Google owns specifically for use in documentation: altostrat.com"
+    },
+    {
+      "title": "WWW.example.com or HTTP://example.com - which one is futureproof?",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwebmasters.stackexchange.com%2Fquestions%2F6107%2Fwww%2Dexample%2Dcom%2Dor%2Dhttp%2Dexample%2Dcom%2Dwhich%2Done%2Dis%2Dfutureproof&rut=20c205a47fc2a44ee3639c6bf420aa64fee60157dc0f16c27733c924456d05e1",
+      "content": "Another reason that I have everything redirect to www.example.com is due to cookies. For example, the cookies on www.example.com will be completely separate from static.example.com but any cookie set onexample.comwill be sent with theHTTPrequest to sub1.example.com, sub2.example.com, etc. Although this is just my preference."
+    },
+    {
+      "title": "ssl - how to redirect from \"https://www.example.com\" to be \"https ...",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fserverfault.com%2Fquestions%2F510578%2Fhow%2Dto%2Dredirect%2Dfrom%2Dhttps%2Dwww%2Dexample%2Dcom%2Dto%2Dbe%2Dhttps%2Dexample%2Dcom&rut=347fcaa2e3f587d0d54abf1d3c9e57e457d7d9561dd1201b9fa2680942927137",
+      "content": "When a client connects tohttps://www.example.com, it will start with the SSL negotiation, and the user will get a warning that the SSL certificate does not match. Any redirect that you create will happen only after the SSL negotiation, so they will still be getting the SSL certificate warning."
+    },
+    {
+      "title": "Example.com | Websites Wiki | Fandom",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwebsite.fandom.com%2Fwiki%2FExample.com&rut=e1f1874831bae28cd19c420b85ed2593fbd1e4dbecdeda7bcce7eb3f922feb9b",
+      "content": "Example.com(or Example.org) is a website that is designed for use in illustrative examples in documents. The website only has one page, which is index.html, which can be hidden in the address. It was created by IANA, also known as Internet Assigned Numbers Authority on August 14th, 1995.[1] It has been described in RFC 2606 and RFC 6761, and the website is maintained for documentation ..."
+    },
+    {
+      "title": "Typo traps: analyzing traffic to exmaple.com (or is it example.com?)",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fblog.cloudflare.com%2Ftypo%2Dtraps%2Danalyzing%2Dtraffic%2Dto%2Dexmaple%2Dcom%2Dor%2Dis%2Dit%2Dexample%2Dcom%2F&rut=93d96b4a7b0af8d57ff2f58e5d1f0e3c5432bd238a4dfab48fbde908c67141be",
+      "content": "Cloudflare has owned exmaple.com for a few years now, but don't confuse it withexample.com!example.comis a reserved domain name set by the Internet Assigned Numbers Authority (IANA), under the direction of the Internet Engineering Task Force (IETF)."
+    },
+    {
+      "title": "If example.com is a legit website, does that mean 123.example.com is ...",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.reddit.com%2Fr%2FScams%2Fcomments%2F1686a8o%2Fif_examplecom_is_a_legit_website_does_that_mean%2F&rut=f5fa07241709a496126563c9c41cf9d3fa470fb9975c0083fc216083c30bbe9b",
+      "content": "It's extremely important to know that dots can only exist in domain names as a way to separate different levels, and no other character can be used as a separator. So 123-example.com is not owned by whoever ownsexample.com; it's a completely different domain."
+    }
+  ],
+  "timestamp": "2025-12-02T17:25:45.933895"
+}

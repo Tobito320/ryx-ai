@@ -2,10 +2,7 @@
 """
 Ryx AI - Main Entry Point
 
-Copilot-style local AI assistant.
-- No hardcoded commands
-- AI understands everything
-- Asks when unclear, acts when clear
+Copilot CLI-style local AI assistant.
 """
 import sys
 import os
@@ -19,12 +16,11 @@ os.environ['RYX_PROJECT_ROOT'] = str(PROJECT_ROOT)
 
 
 def cli_main():
-    """Main CLI entry point - AI interprets all commands"""
+    """Main CLI entry point"""
     args = sys.argv[1:]
 
     # Parse global options
     safety_mode = "normal"
-    silent_mode = False
     remaining_args = []
 
     for arg in args:
@@ -34,13 +30,11 @@ def cli_main():
             safety_mode = 'strict'
         elif arg == '--loose':
             safety_mode = 'loose'
-        elif arg == '--silent' or arg == '-s':
-            silent_mode = True
         elif arg in ['--help', '-h']:
             show_help()
             return
         elif arg in ['--version', '-v']:
-            print("Ryx AI 1.0.0 - Local AI assistant")
+            print("Ryx AI 1.0.0")
             return
         else:
             remaining_args.append(arg)
@@ -55,23 +49,21 @@ def cli_main():
     # Everything else: Let brain understand and execute
     prompt = " ".join(remaining_args).strip()
     
-    # Empty or whitespace-only prompt
     if not prompt:
-        print("How can I help you? Try: ryx --help")
+        print("Usage: ryx [prompt] or ryx --help")
         return
     
-    from core.ryx_brain import RyxBrain
+    from core.ryx_brain import get_brain
     from core.ollama_client import OllamaClient
     from core.model_router import ModelRouter
     
     router = ModelRouter()
     ollama = OllamaClient(base_url=router.get_ollama_url())
-    brain = RyxBrain(ollama)
+    brain = get_brain(ollama)
     
     plan = brain.understand(prompt)
     success, result = brain.execute(plan)
     
-    # Only print if not already streamed
     if result and result != "__STREAMED__":
         print(result)
 
@@ -300,52 +292,31 @@ def handle_silent_prompt(prompt: str, safety_mode: str):
 
 
 def show_help():
-    """Show help message"""
+    """Show help - Copilot CLI style"""
     print("""
-🟣 Ryx AI - Local AI Assistant
+Ryx AI - Local AI Assistant
 
 USAGE:
-    ryx                      Start interactive session
-    ryx "prompt"             Run command in natural language
-    ryx -s "prompt"          Silent mode (minimal output)
+    ryx                    Start interactive session
+    ryx "prompt"           Execute prompt directly
+
+SHORTCUTS:
+    @                      Include file contents
+    !                      Run shell command
+    Ctrl+c                 Cancel/Exit
+
+COMMANDS:
+    /help                  Show help
+    /clear                 Clear conversation
+    /model                 Show/change model
+    /status                Show statistics
+    /quit                  Exit session
 
 EXAMPLES:
-    ryx "youtube"                         # Open website
-    ryx "hyprland config"                 # Open config file
-    ryx "hyprland config new terminal"    # Open in new terminal
-    ryx "where is .zshrc"                 # Show file path
-    ryx "find great wave"                 # Search for file
-    ryx "search for IPv6"                 # Web search
-    ryx "scrape arch wiki"                # Scrape webpage
-    ryx "set zen as default browser"      # Save preference
-
-FEATURES:
-    • Natural language understanding
-    • Context-aware conversations
-    • German and English support
-    • Web browsing and scraping
-    • File operations with safety controls
-    • Intelligent model routing
-    • Themed UI (dracula/nord/catppuccin)
-
-SESSION COMMANDS (/):
-    /help        Show help
-    /models      List available models
-    /tools       List available tools
-    /tool        Toggle tool on/off
-    /theme       Change UI theme
-    /themes      List themes
-    /precision   Toggle precision mode
-    /browsing    Toggle web browsing
-    /scrape      Scrape webpage
-    /search      Web search
-    /status      Show statistics
-    /quit        Exit session
-
-SPECIAL SYNTAX:
-    @file        Include file contents
-    !command     Run shell command
-    y/n          Quick confirmation
+    ryx                          Interactive session
+    ryx "open hyprland config"   Open config file
+    ryx "search recursion"       Web search
+    ryx "create login.py"        Generate code
 """)
 
 

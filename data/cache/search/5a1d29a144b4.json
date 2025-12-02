@@ -1,0 +1,31 @@
+{
+  "query": "was ist self learning LLLM",
+  "results": [
+    {
+      "title": "Large language model - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FLarge_language_model&rut=4eef4832eba32ae7bcbbda5b6e2c5fabfff0093d1c2da4d440e9dc4f27ae4fa3",
+      "content": "A large language model (LLM) is a language model trained withself-supervised machinelearningon a vast amount of text, designed for natural language processing tasks, especially language generation. [1][2] The largest and most capable LLMs are generative pre-trained transformers (GPTs) and provide the core capabilities of modern chatbots."
+    },
+    {
+      "title": "Into the Unknown: Self-Learning Large Language Models",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Farxiv.org%2Fabs%2F2402.09147&rut=06920bbbf362b3dec8e607116dad654a6ba7255647fee926b367dd9595aec4e9",
+      "content": "We address the main problem ofself-learningLLM: the question of what to learn. We propose aself-learningLLM framework that enables an LLM to independently learn previously unknown knowledge throughself-assessment of their own hallucinations. We introduce a concept called Point in the Unknown (PiU) to identify atomic knowledge unknown to a model, along with four methods for automatic PiUs ..."
+    },
+    {
+      "title": "Teaching large language models how to absorb new knowledge",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fnews.mit.edu%2F2025%2Fteaching%2Dlarge%2Dlanguage%2Dmodels%2Dto%2Dabsorb%2Dnew%2Dknowledge%2D1112&rut=3965e719137670d72e87117423604560b6b0b02d99286dcebecd032b9b45b0af",
+      "content": "Humans know how to learn new information, but large language models can't do this in the same way. Once a fully trained LLM has been deployed, its \"brain\" is static and can't permanently adapt itself to new knowledge."
+    },
+    {
+      "title": "Self-Learning LLM Agents: A Fractal Approach to Domain-Specific ...",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2F2389.ai%2Fposts%2Fself%2Dlearning%2Dllms%2F&rut=839ef461fbe1f8b79a4b2fa845465985b34a8e5e2891fe77bca6ada881e518d2",
+      "content": "Exploring how agents can autonomously build and evolve their own domain expertise\u2014scaling from generic LLMs toself-learning, specialized assistants."
+    },
+    {
+      "title": "The Role of Self-Supervised Learning in LLM Development",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.goml.io%2Fblog%2Fthe%2Drole%2Dof%2Dself%2Dsupervised%2Dlearning%2Din%2Dllm%2Ddevelopment&rut=1fed37896f481496ddd06d6fab648e0fb405182420c00db524fb408d6848bc81",
+      "content": "In this blog, we will explore the principles ofself-supervisedlearning, its applications in LLM development, and its impact on the future of natural language processing (NLP). UnderstandingSelf-SupervisedLearningSelf-supervisedlearningis a form of unsupervisedlearningwhere the system generates supervisory signals from the data itself."
+    }
+  ],
+  "timestamp": "2025-12-02T17:04:52.543920"
+}

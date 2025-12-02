@@ -1,24 +1,61 @@
 # Ryx AI - Development TODO
 
+**Last Updated**: 2025-12-02
+**See also**: `HANDOFF.md` for detailed session notes
+
+---
+
+## 🔴 CRITICAL BUGS (Fix First!)
+
+### 1. UI Not Working Correctly
+- [x] **Footer appears before prompt** - Fixed: Removed footer call from loop
+- [x] **Header printed twice** - Fixed: Cleaned up welcome() call
+- [x] **Too much visual noise** - Fixed: Reduced substeps, show summaries instead
+- [x] **Status bar position** - Top bar shows path/branch/model correctly
+
+**Files**: `core/cli_ui.py`, `core/session_loop.py` (lines 121-145)
+
+### 2. Code Tasks Don't Create Files
+- [x] `PhaseExecutor.run_to_completion()` executes APPLY phase correctly
+- [x] `_generate_code_for_step()` actually writes files to disk
+- [x] Created files tracked in brain.ctx.created_files
+
+**Files**: `core/ryx_brain.py` (line 1103-1145), `core/phases.py` (line 600-778)
+
+### 3. Context Reference Bug
+- [x] "öffne das mal" now works - removed "mal" from triggers
+- [x] German filler words filtered out
+- [x] "open that" references last created file correctly
+
+**Files**: `core/ryx_brain.py` `_handle_context_reference()` (line 710-752)
+
+### 4. Precision Mode Wrong Model
+- [x] Model selection happens at correct position
+- [x] Precision mode check is before other model selection logic
+
+**Files**: `core/ryx_brain.py` `_exec_chat()` (line 1658-1666)
+
+---
+
 ## ✅ COMPLETED
 
 ### Core Systems
 - [x] Checkpoint system with undo/rollback (`core/checkpoints.py`)
-- [x] Rich CLI UI with Claude Code-style design (`core/cli_ui.py`)
+- [x] Rich CLI UI with Claude Code-style design (`core/cli_ui.py`) **← CREATED but not integrated**
 - [x] Model router with intelligent model selection (`core/model_router.py`)
 - [x] Session loop with slash commands (`core/session_loop.py`)
 - [x] Web search tool (SearXNG + DuckDuckGo fallback)
 - [x] Scrape tool for webpage content
 - [x] **Follow-up context handling** (shorter/kürzer/mehr etc.)
 
-### UI Features
-- [x] Token streaming with tok/s display
-- [x] Thinking indicators (spinner while processing)
-- [x] Phase visualization (⏳ → ✅)
-- [x] Claude CLI-style header with path/branch/model
-- [x] Footer with hints and stats
-- [x] Git-style diff display
-- [x] **Minimal, clean output** - less visual noise
+### UI Features (Created, Not Working)
+- [x] Token streaming with tok/s display **← Works**
+- [x] Thinking indicators (spinner while processing) **← Works**
+- [ ] Phase visualization (⏳ → ✅) **← Created but phases don't execute**
+- [ ] Claude CLI-style header with path/branch/model **← Wrong position**
+- [ ] Footer with hints and stats **← Wrong position**
+- [x] Git-style diff display **← Created**
+- [ ] **Minimal, clean output** **← Still too noisy**
 - [x] **Compact search results with real domains**
 - [x] **Step indicators** (⏳ Loading... → ✓ Loaded)
 
@@ -27,7 +64,7 @@
 - [x] /rollback - Rollback to specific checkpoint
 - [x] /checkpoints - List checkpoints
 - [x] /help, /status, /models, /tools, /themes
-- [x] /precision on/off - Use reasoning models
+- [x] /precision on/off - Use reasoning models **← Command works, model doesn't change**
 
 ---
 

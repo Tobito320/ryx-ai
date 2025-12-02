@@ -545,14 +545,15 @@ ANFRAGE: {prompt}'''
             if cached:
                 return cached
         
+        # IMPORTANT: Check for code tasks BEFORE knowledge resolution
+        # This ensures "create file.py" goes to CODE_TASK, not OPEN_FILE
+        if self._is_code_task(prompt):
+            return Plan(intent=Intent.CODE_TASK, target=prompt)
+        
         # Try knowledge-based resolution
         plan = self._resolve_from_knowledge(prompt)
         if plan:
             return plan
-        
-        # Check if this is a coding task that needs the phase system
-        if self._is_code_task(prompt):
-            return Plan(intent=Intent.CODE_TASK, target=prompt)
         
         # Check if this is clearly a chat question (not an action)
         if self._is_chat_question(prompt):
@@ -565,15 +566,23 @@ ANFRAGE: {prompt}'''
         """Check if this is a coding task that needs EXPLORE→PLAN→APPLY→VERIFY"""
         p = prompt.lower()
         
+        # Direct file creation patterns (high priority)
+        import re
+        file_create_pattern = r'create\s+\w+\.(py|js|ts|go|rs|java|sh|yaml|json|md)'
+        if re.search(file_create_pattern, p):
+            return True
+        
         # Coding task indicators - actions that modify code
         code_indicators = [
             'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
             'fix ', 'bug ', 'error in', 'refactor ', 'change the ', 'change code',
-            'update the ', 'modify the ', 'edit the code', 'write a ',
+            'update the ', 'modify the ', 'edit the code', 'write a ', 'write code',
             'füge hinzu', 'erstelle', 'implementiere', 'baue',
             'fixe', 'fehler', 'ändere den', 'aktualisiere',
             'new function', 'new class', 'new method', 'new component',
             'new feature', 'new test', 'new style',
+            'create function', 'create class', 'create module',
+            'make a function', 'make a class', 'make a script',
         ]
         
         # Context words that indicate coding
@@ -702,9 +711,9 @@ ANFRAGE: {prompt}'''
         """Handle 'open it', 'edit that', 'öffne das mal', etc."""
         p = prompt.lower()
         
-        # References to open/edit something
+        # References to open/edit something (exclude German filler words)
         refs_open = ['open it', 'edit it', 'open that', 'öffne es', 'öffne das', 'bearbeite es', 
-                     'öffne das mal', 'open the', 'zeig mal', 'show that']
+                     'open the', 'show that']
         refs_show = ['show it', 'zeig es', 'zeig das']
         
         # Check if this references recently created/worked files
@@ -805,9 +814,12 @@ ANFRAGE: {prompt}'''
         # Extract potential config name
         words = p.replace('config', '').replace('configuration', '').replace('conf', '').split()
         
-        # Filter out action words
+        # Filter out action words and German filler words
         skip = {'open', 'edit', 'show', 'öffne', 'zeig', 'bearbeite', 'in', 'new', 'same', 'terminal', 
-                'neues', 'neuem', 'selben', 'diesem', 'the', 'my', 'mein', 'meine', 'look', 'at', 'for'}
+                'neues', 'neuem', 'selben', 'diesem', 'the', 'my', 'mein', 'meine', 'look', 'at', 'for',
+                # German filler words that shouldn't be interpreted as config names
+                'mal', 'doch', 'halt', 'bitte', 'jetzt', 'gleich', 'dann', 'noch', 'auch', 'nur',
+                'einfach', 'schnell', 'kurz', 'eben', 'gerade', 'einmal', 'nochmal', 'erstmal'}
         
         config_name = None
         for word in words:
@@ -1106,7 +1118,10 @@ ANFRAGE: {prompt}'''
         EXPLORE → PLAN → APPLY → VERIFY
         """
         from core.phases import PhaseExecutor
-        from core.rich_ui import get_ui
+        try:
+            from core.cli_ui import get_ui
+        except ImportError:
+            from core.rich_ui import get_ui
         
         ui = get_ui()
         executor = PhaseExecutor(brain=self, ui=ui)
@@ -1640,7 +1655,7 @@ Sprache: Deutsch"""
             else:
                 ui.step_done("Search", "no results")
         
-        # Select model based on precision mode
+        # Select model based on precision mode BEFORE other checks
         from core.model_router import get_router, ModelRole
         if self.precision_mode:
             model = get_router().get_model_by_role(ModelRole.REASON).name
