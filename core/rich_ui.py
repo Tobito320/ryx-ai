@@ -1,25 +1,22 @@
 """
-Ryx AI - Claude CLI Style Rich UI
+Ryx AI - Claude CLI Style UI
 
-Production-ready CLI module using Rich that mimics Claude Code / Copilot CLI:
-- Step-by-step task visualization
-- Git-style diff boxes
-- Live status bar
-- Workflow phase indicators
-- Token streaming with stats
+Ultra-clean interface like Claude Code / Copilot CLI.
+ZERO noise - only what matters.
 
-Public API:
-- ui.task_start(name) / ui.task_done(name, details)
-- ui.show_diff(file, old, new)
-- ui.phase(name, status)
-- ui.stream_token(token)
-- ui.status_bar(model, msgs, tok_s, branch, changes)
+Design Philosophy:
+- Spinner while thinking (no verbose steps)
+- Clean streamed answer
+- Stats AFTER answer (tokens, speed)
+- Fixed footer at bottom with hints
+- NO "Intent: X" noise
 """
 
 import sys
 import os
 import time
-from typing import Optional, List, Dict, Any, Tuple
+import shutil
+from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from contextlib import contextmanager
@@ -32,52 +29,44 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.syntax import Syntax
 from rich.rule import Rule
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
-from rich.columns import Columns
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.style import Style
 from rich.theme import Theme as RichTheme
-from rich.markup import escape
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Theme Configuration (Catppuccin Mocha inspired)
+# Theme - Catppuccin Mocha (darker, cleaner)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 RYX_THEME = RichTheme({
-    "ryx.success": "green",
-    "ryx.error": "red",
-    "ryx.warning": "yellow",
-    "ryx.info": "cyan",
-    "ryx.dim": "dim",
-    "ryx.primary": "magenta",
-    "ryx.secondary": "blue",
-    "ryx.muted": "#6c7086",
-    "ryx.border": "#45475a",
-    "ryx.diff.add": "green",
-    "ryx.diff.remove": "red",
-    "ryx.diff.context": "dim",
-    "ryx.model": "cyan",
-    "ryx.phase": "magenta bold",
-    "ryx.step": "cyan",
+    # Core colors
+    "ok": "#a6e3a1",       # Green - success
+    "err": "#f38ba8",      # Red - errors  
+    "warn": "#f9e2af",     # Yellow - warnings
+    "info": "#89b4fa",     # Blue - info
+    "dim": "#585b70",      # Darker muted
+    "muted": "#6c7086",    # Muted text
+    "accent": "#cba6f7",   # Purple - brand
+    "text": "#cdd6f4",     # Main text
+    
+    # Semantic
+    "step": "#89dceb",     # Cyan - current step
+    "model": "#f5c2e7",    # Pink - model name
+    "path": "#fab387",     # Peach - file paths
+    "branch": "#94e2d5",   # Teal - git branch
+    "speed": "#a6e3a1",    # Green - tok/s
+    
+    # Diff colors
+    "diff.add": "#a6e3a1",
+    "diff.del": "#f38ba8",
+    "diff.hdr": "#89b4fa",
+    "diff.line": "#6c7086",
+    
+    # Structure  
+    "border": "#313244",   # Darker border
+    "header": "#cdd6f4 bold",
+    "footer": "#45475a",
 })
-
-
-class PhaseStatus(Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    ERROR = "error"
-    SKIPPED = "skipped"
-
-
-@dataclass
-class TaskState:
-    """State of a running task"""
-    name: str
-    status: PhaseStatus = PhaseStatus.PENDING
-    details: str = ""
-    start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
 
 
 @dataclass
@@ -90,602 +79,517 @@ class StreamState:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# RyxUI - Main UI Class
+# RyxUI - Clean Claude-style Interface
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class RyxUI:
     """
-    Claude CLI-style Rich UI for Ryx.
+    Ultra-clean Claude CLI-style UI.
     
-    Features:
-    - Live task updates with spinners
-    - Git-style diff display
-    - Token streaming with stats
-    - Workflow phase indicators
-    - Bottom status bar
+    Design: ZERO noise, only what matters.
+    - Spinner while thinking (no verbose steps)
+    - Clean streamed answer
+    - Stats after answer
     """
     
     def __init__(self):
         self.console = Console(theme=RYX_THEME, highlight=False)
-        self.tasks: Dict[str, TaskState] = {}
         self.stream: Optional[StreamState] = None
-        self.current_phase: str = ""
-        self._live: Optional[Live] = None
+        self._spinner = None
+        self._live = None
         
-    # ─────────────────────────────────────────────────────────────────────────
-    # Status Bar (Top)
-    # ─────────────────────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Header - One line at startup
+    # ═══════════════════════════════════════════════════════════════════════════
     
-    def print_status_bar(
-        self,
-        cwd: Optional[str] = None,
-        branch: str = "",
-        model: str = "",
-        context_tokens: int = 0,
-        msg_count: int = 0
-    ):
+    def header(self, model: str = "", branch: str = "", cwd: str = ""):
         """
-        Print top status bar like Claude CLI.
-        
-        Example:
-        ~/ryx-ai[⎇ main]                                    qwen2.5-coder:14b
-        ─────────────────────────────────────────────────────────────────────
+        ~/project [⎇ main]                                      qwen2.5-coder:14b
+        ──────────────────────────────────────────────────────────────────────────
         """
         cwd = cwd or os.getcwd()
-        cwd_short = cwd.replace(os.path.expanduser("~"), "~")
+        path = cwd.replace(os.path.expanduser("~"), "~")
         
-        # Build left side
+        left = Text()
+        left.append(path, style="header")
         if branch:
-            left = Text()
-            left.append(cwd_short)
-            left.append("[", style="dim")
-            left.append("⎇ ", style="ryx.info")
-            left.append(branch, style="ryx.info")
+            left.append(" [", style="dim")
+            left.append("⎇ ", style="branch")
+            left.append(branch, style="branch")
             left.append("]", style="dim")
-        else:
-            left = Text(cwd_short)
         
-        # Build right side
-        right_parts = []
-        if model:
-            right_parts.append(model)
-        if context_tokens > 0:
-            right_parts.append(f"{context_tokens} ctx")
-        if msg_count > 0:
-            right_parts.append(f"{msg_count} msgs")
+        right = Text(model, style="model") if model else Text()
         
-        right = Text(" · ".join(right_parts), style="dim")
+        w = self.console.width
+        pad = w - len(left.plain) - len(right.plain) - 1
         
-        # Calculate spacing for alignment
-        width = self.console.width
-        padding = width - len(left.plain) - len(right.plain) - 2
-        
-        # Print
         self.console.print()
-        self.console.print(left + Text(" " * max(1, padding)) + right)
-        self.console.print(Rule(style="ryx.border"))
+        self.console.print(left + Text(" " * max(1, pad)) + right)
+        self.console.print(Rule(style="border"))
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Bottom Hints
-    # ─────────────────────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Thinking Spinner - Clean single indicator
+    # ═══════════════════════════════════════════════════════════════════════════
     
-    def print_bottom_hints(
-        self,
-        left: str = "Ctrl+c Exit · /help",
-        right: str = ""
-    ):
-        """Print bottom hints bar"""
-        width = self.console.width
-        padding = width - len(left) - len(right) - 2
-        
-        hint_text = Text()
-        hint_text.append(left, style="dim")
-        hint_text.append(" " * max(1, padding))
-        hint_text.append(right, style="dim")
-        
-        self.console.print(hint_text)
+    def thinking(self, text: str = "Thinking"):
+        """Start thinking spinner: ⠋ Thinking..."""
+        self._stop_spinner()
+        spinner = Spinner("dots", text=f" {text}...", style="dim")
+        self._live = Live(spinner, console=self.console, refresh_per_second=10, transient=True)
+        self._live.start()
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Task Visualization (Step by Step)
-    # ─────────────────────────────────────────────────────────────────────────
+    def thinking_update(self, text: str):
+        """Update spinner text"""
+        if self._live:
+            spinner = Spinner("dots", text=f" {text}...", style="dim")
+            self._live.update(spinner)
     
-    def task_start(self, name: str, details: str = "") -> str:
-        """
-        Start a task with spinner.
-        
-        Example: ⏳ Read core/session_loop.py...
-        
-        Returns task_id for later reference.
-        """
-        task_id = f"task_{len(self.tasks)}"
-        self.tasks[task_id] = TaskState(name=name, status=PhaseStatus.RUNNING, details=details)
-        
-        # Print with spinner
-        spinner = "⏳"
-        text = Text()
-        text.append(f"{spinner} ", style="ryx.info")
-        text.append(name, style="ryx.step")
-        if details:
-            text.append(f" {details}", style="dim")
-        text.append("…")
-        
-        self.console.print(text)
-        return task_id
-    
-    def task_done(
-        self,
-        task_id_or_name: str,
-        details: str = "",
-        success: bool = True
-    ):
-        """
-        Mark task as done.
-        
-        Example: 
-        ✅ Read core/session_loop.py
-        └─ 40 lines read successfully
-        """
-        icon = "✅" if success else "❌"
-        style = "ryx.success" if success else "ryx.error"
-        
-        # Find task
-        task = None
-        for tid, t in self.tasks.items():
-            if tid == task_id_or_name or t.name == task_id_or_name:
-                task = t
-                break
-        
-        name = task.name if task else task_id_or_name
-        
-        # Print completion
-        text = Text()
-        text.append(f"{icon} ", style=style)
-        text.append(name, style="ryx.step")
-        self.console.print(text)
-        
-        # Print details if provided
-        if details:
-            detail_text = Text()
-            detail_text.append("└─ ", style="dim")
-            detail_text.append(details, style="dim")
-            self.console.print(detail_text)
-        
-        # Update task state
-        if task:
-            task.status = PhaseStatus.SUCCESS if success else PhaseStatus.ERROR
-            task.details = details
-            task.end_time = time.time()
-    
-    def task_update(self, name: str, details: str):
-        """Update a running task's details"""
-        text = Text()
-        text.append("   └─ ", style="dim")
-        text.append(details, style="dim")
-        self.console.print(text)
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Diff Display (Git/GitHub style)
-    # ─────────────────────────────────────────────────────────────────────────
-    
-    def show_diff(
-        self,
-        filename: str,
-        old_lines: List[str],
-        new_lines: List[str],
-        context_lines: int = 3
-    ):
-        """
-        Show a git-style diff box.
-        
-        Example:
-        ┌─ agents/supervisor.py (modified) ────────────────────────
-        │ 42  -   def old(): 
-        │ 42  +   def new():  
-        └──────────────────────────────────────────────────────────
-        """
-        import difflib
-        
-        diff = list(difflib.unified_diff(
-            old_lines, new_lines,
-            fromfile=f"a/{filename}",
-            tofile=f"b/{filename}",
-            lineterm=""
-        ))
-        
-        if not diff:
-            return  # No changes
-        
-        # Build diff text
-        diff_text = Text()
-        
-        line_num = 0
-        for line in diff[2:]:  # Skip header lines
-            if line.startswith("@@"):
-                # Parse line numbers
-                try:
-                    parts = line.split(" ")
-                    line_num = int(parts[2].split(",")[0].replace("+", ""))
-                except:
-                    pass
-                diff_text.append(f"│ {line}\n", style="ryx.info")
-            elif line.startswith("-"):
-                diff_text.append(f"│ {line_num:4d}  ", style="dim")
-                diff_text.append(f"{line}\n", style="ryx.diff.remove")
-            elif line.startswith("+"):
-                diff_text.append(f"│ {line_num:4d}  ", style="dim")
-                diff_text.append(f"{line}\n", style="ryx.diff.add")
-                line_num += 1
-            else:
-                diff_text.append(f"│ {line_num:4d}  ", style="dim")
-                diff_text.append(f" {line}\n", style="ryx.diff.context")
-                line_num += 1
-        
-        # Print as panel
-        header = f"┌─ {filename} (modified) " + "─" * max(1, 50 - len(filename))
-        footer = "└" + "─" * 58
-        
-        self.console.print(Text(header, style="ryx.border"))
-        self.console.print(diff_text)
-        self.console.print(Text(footer, style="ryx.border"))
-    
-    def show_file_preview(self, filename: str, content: str, language: str = "python"):
-        """Show a file content preview with syntax highlighting"""
-        syntax = Syntax(
-            content,
-            language,
-            theme="monokai",
-            line_numbers=True,
-            word_wrap=True
-        )
-        
-        panel = Panel(
-            syntax,
-            title=f"[ryx.step]{filename}[/]",
-            border_style="ryx.border",
-            padding=(0, 1)
-        )
-        self.console.print(panel)
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Workflow Phases
-    # ─────────────────────────────────────────────────────────────────────────
-    
-    def phase_start(self, name: str, description: str = ""):
-        """
-        Start a workflow phase.
-        
-        Example: ⏳ EXPLORE: Scanning repository...
-        """
-        self.current_phase = name
-        
-        text = Text()
-        text.append("⏳ ", style="ryx.info")
-        text.append(name.upper(), style="ryx.phase")
-        if description:
-            text.append(f" {description}", style="dim")
-        text.append("…")
-        
-        self.console.print(text)
-    
-    def phase_done(self, name: str, result: str = "", success: bool = True):
-        """
-        Complete a workflow phase.
-        
-        Example: ✅ EXPLORE: Found 42 files
-        """
-        icon = "✅" if success else "❌"
-        style = "ryx.success" if success else "ryx.error"
-        
-        text = Text()
-        text.append(f"{icon} ", style=style)
-        text.append(name.upper(), style="ryx.phase")
+    def thinking_done(self, result: str = ""):
+        """Stop spinner, optionally show brief result"""
+        self._stop_spinner()
         if result:
-            text.append(f" {result}", style="dim")
-        
-        self.console.print(text)
+            self.console.print(Text(f"  ✓ {result}", style="dim"))
     
-    def phase_step(self, step_num: int, description: str, status: str = "pending"):
-        """
-        Show a step within a phase.
-        
-        Example:
-            1. Identify authentication method
-        """
-        if status == "done":
-            icon = "✓"
-            style = "ryx.success"
-        elif status == "running":
-            icon = "▸"
-            style = "ryx.info"
-        elif status == "error":
-            icon = "✗"
-            style = "ryx.error"
-        else:
-            icon = "○"
-            style = "dim"
-        
-        text = Text()
-        text.append(f"    {icon} ", style=style)
-        text.append(f"{step_num}. {description}", style="dim" if status == "pending" else "")
-        
-        self.console.print(text)
+    def _stop_spinner(self):
+        if self._live:
+            self._live.stop()
+            self._live = None
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Token Streaming with Stats
-    # ─────────────────────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Actions - Brief one-liners
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def action(self, text: str):
+        """Show action being taken: ▸ Searching web..."""
+        self._stop_spinner()
+        self.console.print(Text(f"  ▸ {text}", style="step"))
+    
+    def action_done(self, text: str, detail: str = ""):
+        """Action completed: ✓ Found 5 results"""
+        line = Text()
+        line.append("  ✓ ", style="ok")
+        line.append(text, style="text")
+        if detail:
+            line.append(f" ({detail})", style="dim")
+        self.console.print(line)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Footer - Before prompt input
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def footer(self, model: str = "", msgs: int = 0, precision: bool = False):
+        """
+        ───────────────────────────────────────────────────────────────────────
+        Ctrl+c Exit · /help                                 🎯 qwen2.5 · 12 msgs
+        """
+        self.console.print(Rule(style="border"))
+        
+        left = "Ctrl+c · /help"
+        parts = []
+        if precision:
+            parts.append("🎯")
+        if model:
+            parts.append(model.split(':')[0])
+        if msgs > 0:
+            parts.append(f"{msgs}")
+        right = " · ".join(parts)
+        
+        w = self.console.width
+        pad = w - len(left) - len(right) - 1
+        
+        out = Text()
+        out.append(left, style="dim")
+        out.append(" " * max(1, pad))
+        out.append(right, style="dim")
+        self.console.print(out)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Steps - Compact One-Line Display
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def step(self, text: str, icon: str = "→", style: str = "step"):
+        """Single step indicator: → Understanding..."""
+        self.console.print(Text(f"  {icon} {text}", style=style))
+    
+    def step_done(self, text: str, result: str = ""):
+        """Completed step: ✓ Analyzed intent"""
+        line = Text()
+        line.append("  ✓ ", style="ok")
+        line.append(text)
+        if result:
+            line.append(f" → {result}", style="dim")
+        self.console.print(line)
+    
+    def step_fail(self, text: str, error: str = ""):
+        """Failed step: ✗ Failed to parse"""
+        line = Text()
+        line.append("  ✗ ", style="err")
+        line.append(text)
+        if error:
+            line.append(f" ({error})", style="dim")
+        self.console.print(line)
+    
+    def substep(self, text: str):
+        """Indented substep:   · fetched 5 results"""
+        self.console.print(Text(f"    · {text}", style="dim"))
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Phases - Workflow Steps
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def phase(self, name: str, status: str = "run", detail: str = ""):
+        """
+        Workflow phase indicator.
+        
+        status: "run" | "ok" | "err" | "skip"
+        
+        ⏳ EXPLORE scanning...
+        ✓ EXPLORE found 42 files
+        """
+        icons = {"run": "⏳", "ok": "✓", "err": "✗", "skip": "○"}
+        styles = {"run": "step", "ok": "ok", "err": "err", "skip": "dim"}
+        
+        line = Text()
+        line.append(f"{icons.get(status, '○')} ", style=styles.get(status, "dim"))
+        line.append(name.upper(), style="accent bold")
+        if detail:
+            line.append(f" {detail}", style="dim")
+        
+        self.console.print(line)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Token Streaming - Clean Output
+    # ═══════════════════════════════════════════════════════════════════════════
     
     def stream_start(self, model: str = ""):
-        """Start streaming output"""
+        """Start response stream"""
         self.stream = StreamState(model=model)
         
-        # Print model header
-        text = Text()
-        text.append("\nRyx", style="ryx.primary bold")
-        if model:
-            text.append(f" [{model}]", style="dim")
-        text.append(": ")
-        
-        self.console.print(text, end="")
+        # Minimal header
+        header = Text()
+        header.append("\n")
+        self.console.print(header, end="")
     
     def stream_token(self, token: str):
-        """Print a single token"""
+        """Stream a single token"""
         if self.stream:
             self.stream.tokens += 1
             self.stream.buffer += token
-        
-        # Print without newline
         sys.stdout.write(token)
         sys.stdout.flush()
     
-    def stream_end(self):
-        """End streaming and show stats"""
+    def stream_end(self) -> tuple:
+        """End stream, return (tokens, tok/s, seconds)"""
         if not self.stream:
             print()
-            return
+            return (0, 0, 0)
         
-        elapsed = time.time() - self.stream.start_time
+        elapsed = max(0.01, time.time() - self.stream.start_time)
         tokens = self.stream.tokens
+        tps = tokens / elapsed
         
         print()  # End line
         
-        if elapsed > 0.1 and tokens > 0:
-            tps = tokens / elapsed
-            
-            stats = Text()
-            stats.append(f"  {tokens} tokens", style="dim")
-            stats.append(" · ", style="dim")
-            stats.append(f"{tps:.1f} tok/s", style="ryx.info")
-            stats.append(" · ", style="dim")
-            stats.append(f"{elapsed:.1f}s", style="dim")
-            
-            self.console.print(stats)
+        # Compact stats line
+        stats = Text()
+        stats.append(f"  {tokens} tok", style="dim")
+        stats.append(" · ", style="dim")
+        stats.append(f"{tps:.0f} tok/s", style="info")
+        stats.append(" · ", style="dim")
+        stats.append(f"{elapsed:.1f}s", style="dim")
+        self.console.print(stats)
         
+        result = (tokens, tps, elapsed)
         self.stream = None
+        return result
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Error Display
-    # ─────────────────────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Diff Display - Git Style
+    # ═══════════════════════════════════════════════════════════════════════════
     
-    def show_error(
-        self,
-        file: str,
-        error: str,
-        line: Optional[int] = None,
-        suggestion: Optional[str] = None
-    ):
+    def diff(self, filename: str, old: List[str], new: List[str]):
         """
-        Show an error with optional suggestion.
+        Show git-style diff.
         
-        Example:
-        ❌ tests/test.py
-        └─ ERROR: AssertionError line 45
-        Suggestion: Bedingung anpassen? [y/n/show-code]
+        ┌─ file.py ──────────────
+        │ 10  - old line
+        │ 10  + new line
+        └────────────────────────
         """
-        # Error line
-        error_text = Text()
-        error_text.append("❌ ", style="ryx.error")
-        error_text.append(file, style="ryx.step")
-        self.console.print(error_text)
+        import difflib
         
-        # Details
-        detail = Text()
-        detail.append("└─ ", style="dim")
-        detail.append("ERROR: ", style="ryx.error")
-        detail.append(error)
-        if line:
-            detail.append(f" line {line}", style="dim")
-        self.console.print(detail)
-        
-        # Suggestion
-        if suggestion:
-            sugg_text = Text()
-            sugg_text.append("Suggestion: ", style="ryx.warning")
-            sugg_text.append(suggestion)
-            sugg_text.append(" [y/n/show-code]", style="dim")
-            self.console.print(sugg_text)
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Status Messages
-    # ─────────────────────────────────────────────────────────────────────────
-    
-    def success(self, message: str):
-        """Print success message"""
-        self.console.print(Text(f"✅ {message}", style="ryx.success"))
-    
-    def error(self, message: str):
-        """Print error message"""
-        self.console.print(Text(f"❌ {message}", style="ryx.error"))
-    
-    def warning(self, message: str):
-        """Print warning message"""
-        self.console.print(Text(f"⚠️  {message}", style="ryx.warning"))
-    
-    def info(self, message: str):
-        """Print info message"""
-        self.console.print(Text(f"ℹ️  {message}", style="ryx.info"))
-    
-    def dim(self, message: str):
-        """Print dimmed message"""
-        self.console.print(Text(message, style="dim"))
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Search Results
-    # ─────────────────────────────────────────────────────────────────────────
-    
-    def show_search_results(self, results: List[Dict[str, str]], limit: int = 5):
-        """
-        Show search results in a clean format.
-        
-        Example:
-        📎 Found 5 results:
-            • Title here
-              snippet preview...
-        """
-        if not results:
-            self.dim("No results found")
+        d = list(difflib.unified_diff(old, new, lineterm=""))
+        if len(d) < 3:
             return
         
-        self.console.print(Text(f"📎 Found {len(results)} results:", style="ryx.info"))
+        # Header
+        title = f"┌─ {filename} " + "─" * max(1, 40 - len(filename))
+        self.console.print(Text(title, style="border"))
         
-        for i, r in enumerate(results[:limit]):
-            title = r.get('title', 'Untitled')[:60]
-            snippet = r.get('content', r.get('snippet', ''))[:100]
+        # Diff lines
+        ln = 0
+        for line in d[2:]:
+            if line.startswith("@@"):
+                try:
+                    ln = int(line.split(" ")[2].split(",")[0].replace("+", ""))
+                except:
+                    pass
+                continue
             
-            result_text = Text()
-            result_text.append(f"    • ", style="ryx.primary")
-            result_text.append(title)
-            self.console.print(result_text)
+            row = Text()
+            row.append("│ ", style="border")
+            row.append(f"{ln:3d}  ", style="dim")
             
-            if snippet:
-                self.console.print(Text(f"      {snippet}...", style="dim"))
+            if line.startswith("-"):
+                row.append(line, style="diff.del")
+            elif line.startswith("+"):
+                row.append(line, style="diff.add")
+                ln += 1
+            else:
+                row.append(line, style="diff.ctx")
+                ln += 1
+            
+            self.console.print(row)
+        
+        # Footer
+        self.console.print(Text("└" + "─" * 45, style="border"))
     
-    # ─────────────────────────────────────────────────────────────────────────
-    # Live Progress Context
-    # ─────────────────────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Messages - Simple Status
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def ok(self, msg: str):
+        """✓ Success message"""
+        self.console.print(Text(f"✓ {msg}", style="ok"))
+    
+    def err(self, msg: str):
+        """✗ Error message"""
+        self.console.print(Text(f"✗ {msg}", style="err"))
+    
+    def warn(self, msg: str):
+        """⚠ Warning message"""
+        self.console.print(Text(f"⚠ {msg}", style="warn"))
+    
+    def info(self, msg: str):
+        """ℹ Info message"""
+        self.console.print(Text(f"ℹ {msg}", style="info"))
+    
+    def muted(self, msg: str):
+        """Dimmed text"""
+        self.console.print(Text(msg, style="dim"))
+    
+    # Legacy compatibility
+    def success(self, msg: str): self.ok(msg)
+    def error(self, msg: str): self.err(msg)
+    def warning(self, msg: str): self.warn(msg)
+    def dim(self, msg: str): self.muted(msg)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Search Results - Compact
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def search_results(self, results: List[Dict], limit: int = 3):
+        """
+        Show search results compactly.
+        
+        Found 5 results:
+          • Result title here
+        """
+        if not results:
+            self.muted("No results")
+            return
+        
+        self.console.print(Text(f"  Found {len(results)} results:", style="dim"))
+        
+        for r in results[:limit]:
+            title = r.get('title', 'Untitled')[:55]
+            line = Text()
+            line.append("    • ", style="accent")
+            line.append(title)
+            self.console.print(line)
+    
+    # Legacy
+    def show_search_results(self, results: List[Dict], limit: int = 5):
+        self.search_results(results, limit)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Thinking Steps - Chain of Thought
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def thinking(self, step: str):
+        """Show thinking step: → Analyzing..."""
+        self.step(step, "→", "step")
+    
+    def thought(self, step: str, result: str = ""):
+        """Completed thought: ● Intent: chat"""
+        line = Text()
+        line.append("  ● ", style="ok")
+        line.append(step)
+        if result:
+            line.append(f" → {result}", style="dim")
+        self.console.print(line)
+    
+    # Legacy compatibility
+    def thinking_start(self, step: str): self.thinking(step)
+    def thinking_done(self, step: str, result: str = ""): self.thought(step, result)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Task/Action Visualization
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def action_start(self, name: str):
+        """Start an action with spinner effect: ⏳ Reading file..."""
+        self.console.print(Text(f"⏳ {name}…", style="step"))
+    
+    def action_done(self, name: str, detail: str = ""):
+        """Complete an action: ✓ Read file (42 lines)"""
+        line = Text()
+        line.append("✓ ", style="ok")
+        line.append(name)
+        if detail:
+            line.append(f" ({detail})", style="dim")
+        self.console.print(line)
+    
+    def action_fail(self, name: str, error: str = ""):
+        """Failed action: ✗ Read file (not found)"""
+        line = Text()
+        line.append("✗ ", style="err")
+        line.append(name)
+        if error:
+            line.append(f" ({error})", style="dim")
+        self.console.print(line)
+    
+    # Legacy
+    def task_start(self, name: str, details: str = "") -> str:
+        self.action_start(name)
+        return name
+    
+    def task_done(self, name: str, details: str = "", success: bool = True):
+        if success:
+            self.action_done(name, details)
+        else:
+            self.action_fail(name, details)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Code Display
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def code(self, content: str, language: str = "python", title: str = ""):
+        """Show code with syntax highlighting"""
+        syntax = Syntax(content, language, theme="monokai", line_numbers=True)
+        if title:
+            panel = Panel(syntax, title=f"[path]{title}[/]", border_style="border", padding=(0, 1))
+            self.console.print(panel)
+        else:
+            self.console.print(syntax)
+    
+    # Legacy
+    def show_file_preview(self, filename: str, content: str, language: str = "python"):
+        self.code(content, language, filename)
+    
+    def show_diff(self, filename: str, old: List[str], new: List[str], context_lines: int = 3):
+        self.diff(filename, old, new)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Error with Context
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def error_detail(self, file: str, error: str, line: int = None, suggestion: str = None):
+        """
+        Show error with details.
+        
+        ✗ tests/test.py
+          ERROR: AssertionError (line 45)
+          Fix: Check condition
+        """
+        self.console.print(Text(f"✗ {file}", style="err"))
+        
+        detail = f"  ERROR: {error}"
+        if line:
+            detail += f" (line {line})"
+        self.console.print(Text(detail, style="dim"))
+        
+        if suggestion:
+            self.console.print(Text(f"  Fix: {suggestion}", style="warn"))
+    
+    # Legacy
+    def show_error(self, file: str, error: str, line: int = None, suggestion: str = None):
+        self.error_detail(file, error, line, suggestion)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Legacy Compatibility Layer
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def print_status_bar(self, **kwargs):
+        """Legacy: print header"""
+        self.header(
+            model=kwargs.get('model', ''),
+            branch=kwargs.get('branch', ''),
+            cwd=kwargs.get('cwd', '')
+        )
+    
+    def print_bottom_hints(self, left: str = "", right: str = ""):
+        """Legacy: print footer"""
+        # Extract model info from right
+        model = ""
+        msgs = 0
+        if right:
+            parts = right.split(" · ")
+            for p in parts:
+                if "msgs" in p:
+                    try:
+                        msgs = int(p.split()[0])
+                    except:
+                        pass
+                elif not any(x in p for x in ["msgs", "Exit", "help"]):
+                    model = p
+        self.footer(model=model, msgs=msgs)
+    
+    def phase_start(self, name: str, description: str = ""):
+        self.phase(name, "run", description)
+    
+    def phase_done(self, name: str, result: str = "", success: bool = True):
+        self.phase(name, "ok" if success else "err", result)
+    
+    def phase_step(self, step_num: int, description: str, status: str = "pending"):
+        icons = {"done": "✓", "running": "▸", "error": "✗", "pending": "○"}
+        styles = {"done": "ok", "running": "step", "error": "err", "pending": "dim"}
+        line = Text()
+        line.append(f"    {icons.get(status, '○')} ", style=styles.get(status, "dim"))
+        line.append(f"{step_num}. {description}")
+        self.console.print(line)
+    
+    def print_final_status(self, **kwargs):
+        """Legacy: final status"""
+        pass  # Now handled inline
+    
+    def task_update(self, name: str, details: str):
+        self.substep(details)
     
     @contextmanager
     def live_progress(self, description: str = "Processing"):
-        """
-        Context manager for live progress display.
-        
-        Usage:
-            with ui.live_progress("Analyzing") as progress:
-                progress.update("Step 1")
-                # do work
-                progress.update("Step 2")
-        """
+        """Context manager for live progress"""
         with Progress(
             SpinnerColumn(),
-            TextColumn("[ryx.step]{task.description}"),
+            TextColumn("[step]{task.description}"),
             console=self.console,
             transient=True
         ) as progress:
             task = progress.add_task(description, total=None)
-            
-            class ProgressUpdater:
+            class Updater:
                 def update(self, desc: str):
                     progress.update(task, description=desc)
-            
-            yield ProgressUpdater()
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Thinking/Chain of Thought Display
-    # ─────────────────────────────────────────────────────────────────────────
-    
-    def thinking_start(self, step: str):
-        """Show a thinking step starting (with animation)"""
-        text = Text()
-        text.append("  → ", style="ryx.info")
-        text.append(step, style="dim")
-        text.append("…")
-        self.console.print(text)
-    
-    def thinking_done(self, step: str, result: str = ""):
-        """Complete a thinking step"""
-        text = Text()
-        text.append("  ● ", style="ryx.success")
-        text.append(step)
-        if result:
-            text.append(f" {result}", style="dim")
-        self.console.print(text)
-    
-    def substep(self, detail: str):
-        """Show a substep/detail"""
-        text = Text()
-        text.append("    · ", style="dim")
-        text.append(detail, style="dim")
-        self.console.print(text)
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Animated Status Updates
-    # ─────────────────────────────────────────────────────────────────────────
+            yield Updater()
     
     def animate_action(self, action: str, callback, *args, **kwargs):
-        """
-        Run an action with animated spinner.
-        
-        Usage:
-            result = ui.animate_action("Searching", search_func, query)
-        """
+        """Run action with spinner"""
         with Progress(
             SpinnerColumn(),
-            TextColumn(f"[ryx.step]{action}…"),
+            TextColumn(f"[step]{action}…"),
             console=self.console,
             transient=True
-        ) as progress:
-            task = progress.add_task("", total=None)
-            result = callback(*args, **kwargs)
-        
-        return result
-    
-    # ─────────────────────────────────────────────────────────────────────────
-    # Final Status Bar (Bottom)
-    # ─────────────────────────────────────────────────────────────────────────
-    
-    def print_final_status(
-        self,
-        model: str = "",
-        msg_count: int = 0,
-        tok_s: float = 0,
-        branch: str = "",
-        changes: int = 0
-    ):
-        """
-        Print final status bar at bottom.
-        
-        Example:
-        Model: qwen2.5 · 5 msgs · 1.2k tok/s | Git: main · 3 changes
-        """
-        parts = []
-        
-        if model:
-            parts.append(f"Model: {model}")
-        if msg_count > 0:
-            parts.append(f"{msg_count} msgs")
-        if tok_s > 0:
-            if tok_s > 1000:
-                parts.append(f"{tok_s/1000:.1f}k tok/s")
-            else:
-                parts.append(f"{tok_s:.1f} tok/s")
-        
-        left = " · ".join(parts)
-        
-        right_parts = []
-        if branch:
-            right_parts.append(f"Git: {branch}")
-        if changes > 0:
-            right_parts.append(f"{changes} changes")
-        
-        right = " · ".join(right_parts)
-        
-        # Combine
-        if right:
-            status = f"{left} | {right}"
-        else:
-            status = left
-        
-        self.console.print(Rule(style="ryx.border"))
-        self.console.print(Text(status, style="dim"))
+        ):
+            return callback(*args, **kwargs)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

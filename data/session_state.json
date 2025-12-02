@@ -1,0 +1,97 @@
+{
+  "history": [
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T17:19:16.339198"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T17:19:16.340752"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T17:20:24.820934"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed response)",
+      "ts": "2025-12-02T17:20:27.242364"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T17:20:27.242760"
+    },
+    {
+      "role": "user",
+      "content": "was ist rekursion",
+      "ts": "2025-12-02T17:20:33.743769"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed response)",
+      "ts": "2025-12-02T17:20:36.572569"
+    },
+    {
+      "role": "user",
+      "content": "k\u00fcrzer",
+      "ts": "2025-12-02T17:20:36.573042"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed response)",
+      "ts": "2025-12-02T17:20:37.147924"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T17:20:37.148405"
+    },
+    {
+      "role": "user",
+      "content": "wer ist linus torvalds",
+      "ts": "2025-12-02T17:21:17.052729"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed response)",
+      "ts": "2025-12-02T17:21:21.006788"
+    },
+    {
+      "role": "user",
+      "content": "k\u00fcrzer",
+      "ts": "2025-12-02T17:21:21.007195"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed response)",
+      "ts": "2025-12-02T17:21:21.245241"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T17:21:21.245647"
+    }
+  ],
+  "stats": {
+    "prompts": 3,
+    "actions": 2,
+    "files": 0,
+    "urls": 0,
+    "searches": 0,
+    "scrapes": 0
+  },
+  "precision_mode": false,
+  "browsing_enabled": true,
+  "context": {
+    "last_path": "",
+    "last_result": "__STREAMED__",
+    "last_intent": "chat",
+    "created_files": [],
+    "last_task_files": []
+  },
+  "saved_at": "2025-12-02T17:21:21.245731"
+}

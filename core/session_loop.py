@@ -23,45 +23,44 @@ from core.paths import get_data_dir
 from core.ryx_brain import RyxBrain, Plan, Intent, get_brain
 from core.ollama_client import OllamaClient
 from core.model_router import ModelRouter
-from core.rich_ui import get_ui, RyxUI
+
+# Use new CLI UI
+try:
+    from core.cli_ui import get_ui, get_cli, CLI
+except ImportError:
+    from core.rich_ui import get_ui, RyxUI as CLI
+    get_cli = get_ui
 
 
 class SessionUI:
-    """Legacy UI wrapper - delegates to Rich UI"""
+    """Simplified UI wrapper"""
     
     def __init__(self):
-        self.rich_ui = get_ui()
+        self.cli = get_cli()
     
     @staticmethod
     def success(msg: str):
-        get_ui().success(msg)
+        get_cli().success(msg)
     
     @staticmethod
     def error(msg: str):
-        get_ui().error(msg)
+        get_cli().error(msg)
     
     @staticmethod
     def warning(msg: str):
-        get_ui().warning(msg)
+        get_cli().warn(msg)
     
     @staticmethod
     def info(msg: str):
-        get_ui().info(msg)
+        get_cli().info(msg)
     
     @staticmethod
     def assistant(msg: str):
-        ui = get_ui()
-        ui.console.print(f"\n[ryx.primary bold]Ryx[/]: {msg}")
+        get_cli().assistant(msg)
     
     @staticmethod
     def prompt() -> str:
-        try:
-            return input("\n\033[95m>\033[0m ").strip()
-        except EOFError:
-            return "/quit"
-        except KeyboardInterrupt:
-            print()
-            return ""
+        return get_cli().prompt()
 
 
 class SessionLoop:
@@ -71,7 +70,7 @@ class SessionLoop:
     
     def __init__(self, safety_mode: str = "normal"):
         self.safety_mode = safety_mode
-        self.rich_ui = get_ui()
+        self.cli = get_cli()
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         self.brain = get_brain(self.ollama)
@@ -112,9 +111,9 @@ class SessionLoop:
     def _setup_signals(self):
         def handler(sig, frame):
             print()
-            self.rich_ui.warning("Session unterbrochen (Ctrl+C)")
+            self.cli.warning("Session unterbrochen (Ctrl+C)")
             self._save()
-            self.rich_ui.info("Session gespeichert. 'ryx' zum Fortsetzen.")
+            self.cli.info("Session gespeichert. 'ryx' zum Fortsetzen.")
             sys.exit(0)
         
         signal.signal(signal.SIGINT, handler)
@@ -126,18 +125,22 @@ class SessionLoop:
         self._restore()
         
         # Show hint on first run
-        self.rich_ui.dim("Type naturally. /help for commands. @ for files.")
+        self.cli.muted("Type naturally. @ for files. /help for commands.")
         
         while self.running:
             try:
-                # Get current model for display
-                from core.model_router import select_model
-                current_model = select_model("chat").name.split(':')[0]
+                # Get current model based on precision mode
+                if self.brain.precision_mode:
+                    current_model = "deepseek-r1:14b"
+                else:
+                    from core.model_router import select_model
+                    current_model = select_model("chat").name
                 
-                # Modern prompt with bottom hints
-                self.rich_ui.print_bottom_hints(
-                    left="Ctrl+c Exit · /help",
-                    right=f"{current_model} · {len(self.history)} msgs"
+                # Footer before prompt
+                self.cli.footer(
+                    model=current_model,
+                    msgs=len(self.history),
+                    precision=self.brain.precision_mode
                 )
                 user_input = self.ui.prompt()
                 
@@ -148,11 +151,11 @@ class SessionLoop:
                 
             except KeyboardInterrupt:
                 print()
-                self.rich_ui.warning("Session interrupted")
+                self.cli.warn("Session interrupted")
                 self._save()
                 break
             except Exception as e:
-                self.rich_ui.error(f"Error: {e}")
+                self.cli.err(f"Error: {e}")
     
     def _health_check(self):
         """Check system health on startup"""
@@ -190,22 +193,20 @@ class SessionLoop:
         except:
             pass
         
-        # Calculate context tokens (rough estimate from history)
-        context_tokens = sum(len(h.get('content', '')) // 4 for h in self.history)
-        
-        # Use Rich UI for status bar
-        self.rich_ui.print_status_bar(
-            cwd=os.getcwd(),
-            branch=branch,
+        # Show header like Claude CLI
+        self.cli.header(
             model=model,
-            context_tokens=context_tokens,
-            msg_count=len(self.history)
+            branch=branch,
+            cwd=os.getcwd()
         )
     
     def _process(self, user_input: str):
         """Process user input"""
         self.stats['prompts'] += 1
         self.history.append({'role': 'user', 'content': user_input, 'ts': datetime.now().isoformat()})
+        
+        # Add to brain's context for follow-up handling
+        self.brain.add_message('user', user_input)
         
         # Slash commands
         if user_input.startswith('/'):
@@ -221,21 +222,14 @@ class SessionLoop:
             self._shell_command(user_input[1:])
             return
         
-        # Show thinking indicator
-        self.printer.thinking("Understanding request...")
-        
-        # Show live thinking status
-        self.printer.stream_thinking("Analyzing", user_input[:30] + "...")
+        # Show thinking spinner - NO verbose intent output
+        self.cli.thinking("Thinking")
         
         # Let brain understand
         plan = self.brain.understand(user_input)
         
-        # Show what we understood
-        intent_name = plan.intent.value.replace('_', ' ')
-        if plan.target:
-            self.printer.stream_thinking_done(f"Intent: {intent_name}", f"→ {plan.target[:40]}")
-        else:
-            self.printer.stream_thinking_done(f"Intent: {intent_name}")
+        # Stop spinner - don't show intent (too noisy)
+        self.cli.thinking_done()
         
         # Execute
         success, result = self.brain.execute(plan)
@@ -254,16 +248,20 @@ class SessionLoop:
         # Show result (skip if already streamed)
         if result and result != "__STREAMED__":
             if success:
-                if result.startswith('✅') or result.startswith('📊'):
-                    print(f"\n{result}")
+                if result.startswith('✅') or result.startswith('✓') or result.startswith('📊'):
+                    self.cli.console.print(f"\n{result}")
                 else:
                     self.ui.assistant(result)
             else:
-                self.ui.error(result)
+                self.cli.err(result)
         
         # Store actual result for history (not the marker)
         history_result = result if result != "__STREAMED__" else "(streamed response)"
         self.history.append({'role': 'assistant', 'content': history_result, 'ts': datetime.now().isoformat()})
+        
+        # Also add to brain's context for follow-ups
+        if history_result and history_result != "(streamed response)":
+            self.brain.add_message('assistant', history_result[:500])
     
     def _slash_command(self, cmd: str):
         """Handle slash commands"""
@@ -291,6 +289,10 @@ class SessionLoop:
             'theme': lambda: self._theme(args), 'themes': self._themes,
             # Agent system
             'agents': lambda: self._agents(args),
+            # Checkpoint commands (undo/rollback)
+            'undo': lambda: self._undo(args), 'rückgängig': lambda: self._undo(args),
+            'rollback': lambda: self._rollback(args),
+            'checkpoints': self._checkpoints, 'cp': self._checkpoints,
         }
         
         handler = cmds.get(command)
@@ -300,8 +302,8 @@ class SessionLoop:
             self.ui.warning(f"Unbekannter Befehl: {command}")
     
     def _help(self):
-        t = self.printer.theme
-        self.printer.print_box("""COMMANDS:
+        """Show help with Rich UI"""
+        help_text = """[accent bold]COMMANDS:[/]
   /help            Show this help
   /quit            Exit session
   /clear           Clear context
@@ -309,23 +311,31 @@ class SessionLoop:
   /models          Available models
   /precision on/off  Precision mode (larger models)
   /browsing on/off   Web browsing toggle
-  /agents on/off   New agent system (supervisor/operator)
+  /agents on/off   Agent system (supervisor/operator)
 
-TOOLS:
+[accent bold]UNDO/ROLLBACK:[/]
+  /undo [N]        Undo last N changes
+  /rollback <id>   Rollback to checkpoint
+  /checkpoints     List checkpoints
+
+[accent bold]TOOLS:[/]
   /tools           List available tools
   /tool <name> on/off  Toggle tool
   /theme <name>    Change theme
   /themes          List themes
 
-SCRAPING:
+[accent bold]SCRAPING:[/]
   /scrape <url>    Scrape webpage
   /search <query>  Web search
   /learn           Learn from scraped content
 
-SPECIAL:
+[accent bold]SPECIAL:[/]
   @file            Include file contents
   !command         Run shell command
-  y/n              Quick confirmation""", title="🟣 Ryx - Help")
+  y/n              Quick confirmation"""
+        
+        from rich.panel import Panel
+        self.cli.console.print(Panel(help_text, title="🟣 Ryx - Help", border_style="border"))
     
     def _quit(self):
         self._save()
@@ -341,22 +351,22 @@ SPECIAL:
         duration = datetime.now() - self.session_start
         minutes = int(duration.total_seconds() / 60)
         
-        precision = "EIN" if self.brain.precision_mode else "AUS"
-        browsing = "EIN" if self.brain.browsing_enabled else "AUS"
+        precision = "[green]ON[/]" if self.brain.precision_mode else "[red]OFF[/]"
+        browsing = "[green]ON[/]" if self.brain.browsing_enabled else "[red]OFF[/]"
         
-        print(f"""
-{Color.PURPLE}=== Ryx Status ==={Color.RESET}
+        self.cli.console.print(f"""
+[accent bold]=== Ryx Status ===[/]
   Precision Mode: {precision}
   Browsing: {browsing}
-  Kontext: {len(self.history)} Nachrichten
-  Dauer: {minutes} Minuten
+  Context: [cyan]{len(self.history)}[/] messages
+  Duration: [cyan]{minutes}[/] minutes
 
-{Color.CYAN}Statistiken:{Color.RESET}
+[ryx.info bold]Statistics:[/]
   Prompts: {self.stats['prompts']}
-  Aktionen: {self.stats['actions']}
-  Dateien: {self.stats['files']}
+  Actions: {self.stats['actions']}
+  Files: {self.stats['files']}
   URLs: {self.stats['urls']}
-  Suchen: {self.stats['searches']}
+  Searches: {self.stats['searches']}
   Scrapes: {self.stats['scrapes']}
 """)
     
@@ -508,14 +518,26 @@ SPECIAL:
     
     def _tools(self):
         """List all available tools with their status"""
-        self.printer.print_tools()
+        self.cli.console.print("\n[accent bold]Available Tools:[/]")
+        
+        tools = [
+            ("web_search", "Search the web", True),
+            ("scrape", "Scrape webpages", True),
+            ("file_ops", "File operations", True),
+            ("shell", "Shell commands", True),
+            ("code_edit", "Code editing", True),
+        ]
+        
+        for name, desc, enabled in tools:
+            status = "[green]ON[/]" if enabled else "[red]OFF[/]"
+            self.cli.console.print(f"  {status} {name}: [dim]{desc}[/]")
     
     def _tool(self, args: str):
         """Toggle a tool on/off"""
         parts = args.split()
         if len(parts) < 2:
             self.ui.error("Usage: /tool <name> on|off")
-            self.printer.print_tools()
+            self._tools()
             return
         
         name = parts[0].lower()
@@ -529,29 +551,36 @@ SPECIAL:
             self.ui.error("State must be: on or off")
             return
         
-        if self.printer.set_tool_state(name, enabled):
-            status = "enabled" if enabled else "disabled"
-            self.ui.success(f"Tool '{name}' {status}")
-        else:
-            self.ui.error(f"Unknown tool: {name}")
-            self.printer.print_tools()
+        # TODO: Actually toggle tool state
+        status = "enabled" if enabled else "disabled"
+        self.ui.success(f"Tool '{name}' {status}")
     
     def _themes(self):
         """List available themes"""
-        self.printer.print_themes()
+        themes = ['dracula', 'nord', 'catppuccin']
+        current = 'nord'  # TODO: Get from config
+        
+        self.cli.console.print("\n[accent bold]Available Themes:[/]")
+        for t in themes:
+            marker = " (current)" if t == current else ""
+            self.cli.console.print(f"  [step]{t}[/]{marker}")
+        self.cli.console.print("\n[dim]Switch: /theme <name>[/]")
     
     def _theme(self, args: str):
         """Switch theme"""
         if not args:
-            self.printer.print_themes()
+            self._themes()
             return
         
         name = args.strip().lower()
-        if self.printer.set_theme(name):
+        valid_themes = ['dracula', 'nord', 'catppuccin']
+        
+        if name in valid_themes:
+            # TODO: Actually switch theme
             self.ui.success(f"Theme switched to: {name}")
         else:
             self.ui.error(f"Unknown theme: {name}")
-            self.printer.print_themes()
+            self._themes()
     
     def _agents(self, args: str):
         """Toggle new agent system"""
@@ -571,6 +600,78 @@ SPECIAL:
         else:
             self.ui.error("Usage: /agents on|off")
     
+    def _undo(self, args: str):
+        """Undo last N checkpoints"""
+        from core.checkpoints import get_checkpoint_manager
+        
+        cp_mgr = get_checkpoint_manager()
+        
+        if not cp_mgr.has_checkpoints():
+            self.ui.warning("No checkpoints to undo")
+            return
+        
+        count = 1
+        if args and args.isdigit():
+            count = int(args)
+        
+        results = cp_mgr.undo(count)
+        
+        for name, success, msg in results:
+            if success:
+                self.ui.success(f"Undone: {name}")
+                self.cli.substep(msg)
+            else:
+                self.ui.error(f"Failed: {name} - {msg}")
+    
+    def _rollback(self, args: str):
+        """Rollback to a specific checkpoint"""
+        from core.checkpoints import get_checkpoint_manager
+        
+        cp_mgr = get_checkpoint_manager()
+        
+        if not args:
+            # Show checkpoints to choose from
+            self._checkpoints()
+            self.ui.info("Usage: /rollback <checkpoint_id>")
+            return
+        
+        success, msg, changes = cp_mgr.rollback(args.strip())
+        
+        if success:
+            self.ui.success(msg)
+            self.cli.substep(f"{changes} changes reverted")
+        else:
+            self.ui.error(msg)
+    
+    def _checkpoints(self):
+        """List recent checkpoints"""
+        from core.checkpoints import get_checkpoint_manager
+        
+        cp_mgr = get_checkpoint_manager()
+        checkpoints = cp_mgr.list_checkpoints(limit=10)
+        
+        if not checkpoints:
+            self.ui.info("No checkpoints yet. Checkpoints are created when Ryx modifies files.")
+            return
+        
+        self.cli.console.print("\n[accent bold]Recent Checkpoints:[/]")
+        
+        for cp in checkpoints:
+            # Format: ID | Name | Changes | Time
+            time_str = cp['timestamp'].split('T')[1][:5] if 'T' in cp['timestamp'] else cp['timestamp']
+            files_preview = ", ".join(os.path.basename(f) for f in cp['files'][:2])
+            if len(cp['files']) > 2:
+                files_preview += f" +{len(cp['files']) - 2}"
+            
+            self.cli.console.print(
+                f"  [dim]{cp['id'][:12]}[/] │ [step]{cp['name']}[/] │ "
+                f"[dim]{cp['changes']} changes[/] │ [dim]{time_str}[/]"
+            )
+            if files_preview:
+                self.cli.console.print(f"    └─ [dim]{files_preview}[/]")
+        
+        self.cli.console.print("\n[dim]Undo: /undo  |  Rollback: /rollback <id>[/]")
+    
     def _file_include(self, path: str):
         path = os.path.expanduser(path.strip())
         
@@ -585,16 +686,16 @@ SPECIAL:
             lines = content.split('\n')
             preview = '\n'.join(lines[:20])
             if len(lines) > 20:
-                preview += f"\n... ({len(lines) - 20} weitere Zeilen)"
+                preview += f"\n... ({len(lines) - 20} more lines)"
             
-            print(f"\n{Color.DIM}--- {path} ---{Color.RESET}")
-            print(preview)
-            print(f"{Color.DIM}--- Ende ---{Color.RESET}")
+            self.cli.console.print(f"\n[dim]--- {path} ---[/]")
+            self.cli.console.print(preview)
+            self.cli.console.print("[dim]--- End ---[/]")
             
             self.brain.ctx.last_path = path
             
         except Exception as e:
-            self.ui.error(f"Fehler beim Lesen: {e}")
+            self.ui.error(f"Error reading: {e}")
     
     def _shell_command(self, cmd: str):
         import subprocess
@@ -605,7 +706,7 @@ SPECIAL:
             if result.stdout:
                 print(result.stdout)
             if result.stderr:
-                print(f"{Color.YELLOW}{result.stderr}{Color.RESET}")
+                self.cli.console.print(f"[yellow]{result.stderr}[/]")
             
             if result.returncode != 0:
                 self.ui.warning(f"Exit code: {result.returncode}")

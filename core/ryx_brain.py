@@ -488,9 +488,19 @@ ANFRAGE: {prompt}'''
         self.browsing_enabled = True
         self.fail_count = 0
         
+        # Conversation history for context (keeps last 10 messages)
+        self._recent_messages: List[Dict[str, str]] = []
+        
         # New agent system (can be toggled)
         self.use_new_agents = False
         self._executor = None
+    
+    def add_message(self, role: str, content: str):
+        """Add a message to recent history for context"""
+        self._recent_messages.append({'role': role, 'content': content})
+        # Keep only last 10 messages
+        if len(self._recent_messages) > 10:
+            self._recent_messages = self._recent_messages[-10:]
     
     def enable_new_agents(self, enabled: bool = True):
         """Enable/disable the new supervisor/operator agent system"""
@@ -519,6 +529,10 @@ ANFRAGE: {prompt}'''
         # Handle y/n/number responses
         if self._is_quick_response(prompt):
             return self._handle_quick_response(prompt)
+        
+        # Handle follow-up modifiers ("shorter", "kürzer", "more detail")
+        if self._is_followup_modifier(prompt):
+            return Plan(intent=Intent.CHAT, options={"followup": True})
         
         # Handle context references ("open it", "edit that")
         plan = self._handle_context_reference(prompt)
@@ -608,6 +622,33 @@ ANFRAGE: {prompt}'''
         is_action = any(a in p for a in action_words)
         
         return is_question and not is_action
+    
+    def _is_followup_modifier(self, prompt: str) -> bool:
+        """Check if this is a follow-up modifier like 'shorter', 'kürzer', 'more detail'"""
+        p = prompt.lower().strip()
+        
+        # Single word or short phrase modifiers
+        modifiers = [
+            # Shorter
+            'shorter', 'shorter please', 'kürzer', 'kurz', 'kurzer', 'kurzfassung',
+            'brief', 'briefly', 'summarize', 'summary', 'zusammenfassung',
+            'tldr', 'tl;dr',
+            # Longer/more detail
+            'longer', 'more', 'more detail', 'more details', 'elaborate',
+            'explain more', 'länger', 'mehr', 'mehr detail', 'ausführlicher',
+            'expand', 'go on', 'continue',
+            # Simpler
+            'simpler', 'simple', 'easy', 'einfacher', 'einfach',
+            'eli5', 'like im 5', 'for beginners', 'für anfänger',
+            # Different format
+            'as list', 'as bullet points', 'als liste', 'in steps', 'step by step',
+            # Language switch
+            'in english', 'in german', 'auf deutsch', 'auf englisch',
+            # Repeat/rephrase
+            'again', 'repeat', 'rephrase', 'nochmal', 'anders',
+        ]
+        
+        return p in modifiers or any(p.startswith(m + ' ') or p == m for m in modifiers)
     
     def _is_quick_response(self, prompt: str) -> bool:
         """Check if this is a y/n/number response"""
@@ -1106,7 +1147,10 @@ ANFRAGE: {prompt}'''
     def _exec_explore_repo(self, plan: Plan) -> Tuple[bool, str]:
         """Explore the repository and show structure"""
         from core.repo_explorer import get_explorer
-        from core.rich_ui import get_ui
+        try:
+            from core.cli_ui import get_ui
+        except ImportError:
+            from core.rich_ui import get_ui
         
         ui = get_ui()
         ui.phase_start("EXPLORE", "Scanning repository")
@@ -1533,54 +1577,106 @@ Sprache: Deutsch"""
         """
         Handle general chat - use web search for grounding when appropriate.
         Shows chain of thought with Rich UI for transparency.
+        
+        IMPORTANT: Uses conversation context to maintain coherence.
+        Follow-up requests like "shorter" / "kürzer" use previous response.
         """
-        from core.rich_ui import get_ui
+        try:
+            from core.cli_ui import get_ui
+        except ImportError:
+            from core.rich_ui import get_ui
         ui = get_ui()
         
-        if plan.target:
+        # Only return target directly for explicit cancel messages
+        if plan.target and plan.target.startswith(("Abgebrochen", "Cancelled", "Nichts")):
             return True, plan.target
         
         query = self.ctx.last_query
         
+        # ══════════════════════════════════════════════════════════════════════
+        # FOLLOW-UP DETECTION: Check if this is a modifier to previous response
+        # ══════════════════════════════════════════════════════════════════════
+        is_followup = plan.options.get("followup", False) or self._is_followup_modifier(query)
+        
+        # Build conversation context from recent history
+        conversation_context = ""
+        last_assistant_msg = ""
+        if hasattr(self, '_recent_messages') and self._recent_messages:
+            # Get last 6 messages for context
+            for msg in self._recent_messages[-6:]:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')[:800]
+                if content and content != "__STREAMED__":
+                    conversation_context += f"{role}: {content}\n"
+                    if role == 'assistant':
+                        last_assistant_msg = content
+        
+        # For follow-ups, we MUST have context
+        if is_followup and not last_assistant_msg:
+            return True, "I don't have a previous response to modify. What would you like to know?" if self.ctx.language == 'en' else "Ich habe keine vorherige Antwort zum Anpassen. Was möchtest du wissen?"
+        
         # Determine if we should search first (for factual questions)
-        should_search = self._should_search_first(query)
+        # DON'T search for follow-ups!
+        should_search = self._should_search_first(query) and not is_followup
         search_context = ""
         search_results = []
         
         if should_search and self.browsing_enabled:
-            ui.task_start("Searching web", f"'{query[:40]}...'")
+            ui.step_start(f"Searching '{query[:35]}...'")
             
             # Search web first for grounding
             search_result = self.tools.web_search.search(query, num_results=5)
             if search_result.success and search_result.data:
                 search_results = search_result.data[:5]
-                ui.task_done("Searching web", f"Found {len(search_results)} results")
+                ui.step_done("Search", f"{len(search_results)} results")
                 
                 # Show top results
-                ui.show_search_results(search_results, limit=3)
+                ui.search_results(search_results, query=query, limit=3)
                 
                 # Build context from search results
                 search_context = "\n\nSearch results to inform your answer:\n"
                 for r in search_results:
                     search_context += f"- {r['title']}: {r.get('content', '')[:300]}\n"
-                
-                ui.thinking_start("Synthesizing answer from search results")
             else:
-                ui.task_done("Searching web", "No results found", success=False)
+                ui.step_done("Search", "no results")
         
-        # Generate response with search context - USE STREAMING
-        from core.model_router import select_model
-        model_config = select_model(query)
-        model = model_config.name
+        # Select model based on precision mode
+        from core.model_router import get_router, ModelRole
+        if self.precision_mode:
+            model = get_router().get_model_by_role(ModelRole.REASON).name
+        else:
+            from core.model_router import select_model
+            model_config = select_model(query)
+            model = model_config.name
         
-        system_prompt = """Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
+        # Build system prompt with follow-up awareness
+        if is_followup:
+            system_prompt = f"""Du bist Ryx, ein hilfreicher AI-Assistent.
+
+Der User hat eine Folgeanfrage zu deiner letzten Antwort gestellt.
+DEINE LETZTE ANTWORT WAR:
+{last_assistant_msg}
+
+USER FRAGT JETZT: "{query}"
+
+Passe deine Antwort entsprechend an:
+- "kürzer/shorter" → Fasse die Kernpunkte in 1-2 Sätzen zusammen
+- "mehr/more" → Gib mehr Details zu deiner Antwort
+- "anders/different" → Erkläre es auf andere Weise
+
+Antworte DIREKT auf das Thema deiner letzten Antwort!"""
+        else:
+            system_prompt = """Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
 Antworte kurz und präzise. Wenn Suchergebnisse gegeben sind, nutze sie für deine Antwort.
 Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
+            
+            if conversation_context:
+                system_prompt += f"\n\nBisheriges Gespräch:\n{conversation_context}"
+            
+            if search_context:
+                system_prompt += search_context
         
-        if search_context:
-            system_prompt += search_context
-        
-        # Stream the response token by token with Rich UI
+        # Stream the response token by token
         ui.stream_start(model)
         full_response = ""
         
@@ -1596,6 +1692,11 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
                 full_response += token
             
             ui.stream_end()
+            
+            # IMPORTANT: Store the actual response in context for follow-ups!
+            if full_response.strip():
+                self.add_message('assistant', full_response.strip())
+            
             # Return special marker so session_loop knows not to print again
             return True, "__STREAMED__"
             
