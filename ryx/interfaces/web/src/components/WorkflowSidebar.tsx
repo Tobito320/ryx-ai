@@ -209,31 +209,22 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
               </span>
             </button>
 
-            {/* Workflow Items */}
+            {/* Workflow Items - N8N Node Style */}
             {expandedCategories.has(category) && (
-              <div className="ml-4 mt-1 space-y-1">
+              <div className="ml-2 mt-1 space-y-1">
                 {categoryWorkflows.map((workflow) => (
                   <button
                     key={workflow.name}
                     onClick={() => onWorkflowClick(workflow)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-ryx transition-all duration-150 group ${
-                      selectedWorkflow === workflow.name
-                        ? 'bg-ryx-accent/20 border border-ryx-accent text-ryx-foreground'
-                        : 'hover:bg-ryx-current-line text-ryx-foreground border border-transparent'
+                    className={`workflow-node w-full ${
+                      selectedWorkflow === workflow.name ? 'active' : ''
                     }`}
+                    tabIndex={0}
                   >
-                    <span className="text-lg">{workflow.icon}</span>
-                    <div className="text-left flex-1">
-                      <div className="text-sm font-medium font-mono">{workflow.name}</div>
-                      <div className="text-xs text-ryx-text-muted truncate">
-                        {workflow.description}
-                      </div>
-                    </div>
-                    {/* Shortcut badge */}
+                    <div className="node-icon">{workflow.icon}</div>
+                    <span className="node-label">{workflow.name}</span>
                     {workflow.shortcut && (
-                      <span className="text-[10px] bg-ryx-current-line text-ryx-text-muted px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition-opacity">
-                        {workflow.shortcut}
-                      </span>
+                      <span className="node-shortcut">{workflow.shortcut}</span>
                     )}
                   </button>
                 ))}
@@ -248,7 +239,7 @@ export const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({
         <div className="p-3 border-t border-ryx-border">
           <button
             onClick={onNewWorkflow}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-ryx-success/20 text-ryx-success rounded-ryx hover:bg-ryx-success/30 transition-colors font-mono font-medium"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--accent-dim)] text-[var(--accent)] rounded-lg hover:bg-[var(--accent)]/20 transition-colors font-medium text-sm"
           >
             <span>+</span>
             <span>New Workflow</span>

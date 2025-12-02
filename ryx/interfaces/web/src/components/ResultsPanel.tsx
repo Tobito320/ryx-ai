@@ -1,21 +1,10 @@
 /**
  * @file ryx/interfaces/web/src/components/ResultsPanel.tsx
- * @description Clean results panel for displaying workflow output.
- * 
- * Features:
- * - Clean, minimal output (no chat bubbles)
- * - Structured data display
- * - Copy button per result
- * - Icon per result type (link, file, code, etc.)
- * - Rich text support (bold, code, links)
- * - Dracula/Hyprland theme styling
+ * @description N8N-style results panel with card-based output display.
  */
 
 import React, { useState, useCallback } from 'react';
 
-/**
- * Result item interface
- */
 export interface ResultItem {
   id: string;
   type: 'text' | 'list' | 'code' | 'link' | 'file' | 'error';
@@ -26,37 +15,24 @@ export interface ResultItem {
   timestamp?: Date;
 }
 
-/**
- * Props for the ResultsPanel component
- */
 export interface ResultsPanelProps {
-  /** Array of result items */
   results: ResultItem[];
-  /** Whether results are loading */
   loading?: boolean;
-  /** Title for the results panel */
   title?: string;
-  /** Callback when a result is clicked */
   onResultClick?: (result: ResultItem) => void;
-  /** Callback to clear results */
   onClear?: () => void;
-  /** Custom class name */
   className?: string;
 }
 
-// Result type icons
-const RESULT_ICONS: Record<ResultItem['type'], string> = {
-  text: '📝',
-  list: '📋',
-  code: '💻',
-  link: '🔗',
-  file: '📄',
-  error: '⚠️',
+const TYPE_LABELS: Record<ResultItem['type'], string> = {
+  text: 'TEXT',
+  list: 'LIST',
+  code: 'CODE',
+  link: 'LINK',
+  file: 'FILE',
+  error: 'ERROR',
 };
 
-/**
- * CopyButton - A button to copy content to clipboard
- */
 const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   const [copied, setCopied] = useState(false);
 
@@ -74,18 +50,15 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   return (
     <button
       onClick={handleCopy}
-      className="p-1.5 text-xs bg-ryx-current-line text-ryx-text-muted hover:text-ryx-foreground rounded transition-colors"
-      title={copied ? 'Copied!' : 'Copy to clipboard'}
-      aria-label={copied ? 'Copied!' : 'Copy to clipboard'}
+      className="text-[10px] px-2 py-1 rounded"
+      style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+      title={copied ? 'Copied!' : 'Copy'}
     >
-      {copied ? '✓' : '📋'}
+      {copied ? '✓' : 'Copy'}
     </button>
   );
 };
 
-/**
- * ResultsPanel - A clean panel for displaying workflow results
- */
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   results,
   loading = false,
@@ -94,90 +67,54 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   onClear,
   className = '',
 }) => {
-  const renderResult = (result: ResultItem) => {
+  const renderContent = (result: ResultItem) => {
     switch (result.type) {
-      case 'text':
-        return (
-          <div className="text-ryx-foreground text-sm leading-relaxed whitespace-pre-wrap font-mono">
-            {result.content}
-          </div>
-        );
-
+      case 'code':
+        return <code>{result.content}</code>;
       case 'list':
         return (
-          <ul className="space-y-1.5">
+          <ul style={{ margin: 0, paddingLeft: '16px' }}>
             {result.content.split('\n').filter(Boolean).map((item, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-sm text-ryx-foreground font-mono">
-                <span className="text-ryx-accent flex-shrink-0">•</span>
-                <span>{item}</span>
-              </li>
+              <li key={idx} style={{ marginBottom: '4px' }}>{item}</li>
             ))}
           </ul>
         );
-
-      case 'code':
-        return (
-          <pre className="bg-ryx-bg rounded-ryx p-3 overflow-x-auto text-sm font-mono">
-            <code className="text-ryx-foreground">{result.content}</code>
-          </pre>
-        );
-
       case 'link':
         return (
           <a
             href={result.url || result.content}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-ryx-cyan hover:text-ryx-purple underline text-sm font-mono inline-flex items-center gap-2"
+            style={{ color: 'var(--status-running)', textDecoration: 'underline' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <span>🔗</span>
-            <span className="truncate">{result.title || result.content}</span>
+            {result.title || result.content}
           </a>
         );
-
-      case 'file':
-        return (
-          <div className="flex items-center gap-2 text-ryx-foreground text-sm font-mono">
-            <span>📄</span>
-            <span className="truncate">{result.content}</span>
-          </div>
-        );
-
       case 'error':
-        return (
-          <div className="flex items-start gap-2 text-ryx-error text-sm font-mono">
-            <span className="flex-shrink-0">❌</span>
-            <span>{result.content}</span>
-          </div>
-        );
-
+        return <span style={{ color: 'var(--status-error)' }}>{result.content}</span>;
       default:
-        return (
-          <div className="text-ryx-foreground text-sm font-mono">{result.content}</div>
-        );
+        return <span>{result.content}</span>;
     }
   };
 
   return (
     <div
-      className={`flex flex-col h-full bg-ryx-bg rounded-ryx-lg border border-ryx-border ${className}`}
+      className={`flex flex-col h-full ${className}`}
+      style={{ background: 'var(--bg-elevated)' }}
       data-testid="results-panel"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-ryx-border">
-        <h3 className="text-ryx-foreground font-semibold font-mono flex items-center gap-2">
-          <span className="text-ryx-success">📋</span>
-          {title}
-        </h3>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-ryx-text-muted font-mono">
-            {results.length} result{results.length !== 1 ? 's' : ''}
+      <div className="panel-header">
+        <h2>{title}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            {results.length} items
           </span>
           {onClear && results.length > 0 && (
             <button
               onClick={onClear}
-              className="text-xs text-ryx-error hover:text-ryx-error/80 transition-colors font-mono"
+              style={{ fontSize: '11px', color: 'var(--status-error)' }}
             >
               Clear
             </button>
@@ -185,66 +122,49 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         </div>
       </div>
 
-      {/* Results List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 ryx-scrollbar">
+      {/* Results */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex items-center gap-3 text-ryx-cyan font-mono">
-              <span className="animate-spin">⏳</span>
-              <span>Processing...</span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <span style={{ color: 'var(--status-running)' }}>Processing...</span>
           </div>
         ) : results.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <span className="text-4xl mb-4">📋</span>
-            <p className="text-ryx-text-muted font-mono text-sm">No results to display</p>
-            <p className="text-ryx-text-muted font-mono text-xs mt-1 opacity-70">
-              Results will appear here after execution
-            </p>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            height: '100%',
+            color: 'var(--text-muted)'
+          }}>
+            <span style={{ fontSize: '24px', marginBottom: '8px', opacity: 0.5 }}>📋</span>
+            <span style={{ fontSize: '12px' }}>No results yet</span>
           </div>
         ) : (
           results.map((result) => (
             <div
               key={result.id}
-              className={`p-3 rounded-ryx bg-ryx-current-line transition-colors ${
-                onResultClick ? 'cursor-pointer hover:bg-ryx-bg-hover' : ''
-              }`}
+              className="result-card"
               onClick={() => onResultClick?.(result)}
-              data-testid={`result-${result.id}`}
+              style={{ cursor: onResultClick ? 'pointer' : 'default' }}
             >
-              {/* Result Header */}
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">{RESULT_ICONS[result.type]}</span>
-                  {result.title && (
-                    <h4 className="text-ryx-accent font-medium text-sm font-mono">
-                      {result.title}
-                    </h4>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {result.metadata?.latency_ms && (
-                    <span className="text-xs bg-ryx-bg text-ryx-cyan px-2 py-0.5 rounded-full font-mono">
-                      {result.metadata.latency_ms}ms
-                    </span>
-                  )}
-                  <CopyButton content={result.content} />
-                </div>
+              {/* Type Label */}
+              <div className="result-type" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>{TYPE_LABELS[result.type]}</span>
+                <CopyButton content={result.content} />
               </div>
-
-              {/* Result Content */}
-              {renderResult(result)}
-
-              {/* Result Footer */}
-              {result.timestamp && (
-                <div className="mt-2 text-[10px] text-ryx-text-muted font-mono">
-                  {result.timestamp.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
+              
+              {/* Title if present */}
+              {result.title && (
+                <div style={{ fontWeight: 500, marginBottom: '6px', color: 'var(--text-primary)' }}>
+                  {result.title}
                 </div>
               )}
+              
+              {/* Content */}
+              <div className="result-content">
+                {renderContent(result)}
+              </div>
             </div>
           ))
         )}

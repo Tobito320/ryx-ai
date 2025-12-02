@@ -742,6 +742,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 # =============================================================================
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check() -> dict:
     """Health check endpoint."""
     return {"status": "healthy", "version": "2.0.0"}
