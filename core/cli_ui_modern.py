@@ -161,7 +161,7 @@ class ModernCLI:
     def _create_layout(self):
         """Create the split layout"""
 
-        # Content area (scrollable)
+        # Content area (scrollable, takes all remaining space)
         self.content_control = FormattedTextControl(
             text=self._get_formatted_content,
             focusable=False,
@@ -173,7 +173,7 @@ class ModernCLI:
             allow_scroll_beyond_bottom=False,
         )
 
-        # Status line
+        # Status line (1 line exactly)
         self.status_window = Window(
             content=FormattedTextControl(
                 text=self._get_status_line,
@@ -183,7 +183,7 @@ class ModernCLI:
             style="class:status-line",
         )
 
-        # Input area - use Window with BufferControl for more control
+        # Input area - minimal height, just 1 line
         from prompt_toolkit.layout.controls import BufferControl
         
         self.input_control = BufferControl(
@@ -193,20 +193,22 @@ class ModernCLI:
         
         self.input_window = Window(
             content=self.input_control,
-            height=Dimension(min=1, max=10, preferred=1),
-            wrap_lines=True,
+            height=Dimension.exact(1),  # Exactly 1 line
+            wrap_lines=False,
+            style="class:input",
         )
 
-        # Prompt indicator (fixed)
+        # Prompt indicator (fixed width)
         self.prompt_window = Window(
             content=FormattedTextControl(
                 text=lambda: FormattedText([("class:prompt", "❯ ")]),
                 focusable=False,
             ),
-            width=Dimension.exact(3),
+            width=Dimension.exact(2),
+            height=Dimension.exact(1),
         )
 
-        # Hints line
+        # Hints line (1 line exactly)
         self.hints_window = Window(
             content=FormattedTextControl(
                 text=self._get_hints_line,
@@ -216,15 +218,25 @@ class ModernCLI:
             style="class:hints-line",
         )
 
-        # Build layout
+        # Separator windows
+        sep1 = Window(height=Dimension.exact(1), char="─", style="class:separator")
+        sep2 = Window(height=Dimension.exact(1), char="─", style="class:separator")
+
+        # Input row: prompt + input field
+        input_row = VSplit([
+            self.prompt_window,
+            self.input_window,
+        ])
+
+        # Build layout - content expands, bottom is fixed
         self.layout = Layout(
             HSplit([
-                self.content_window,
-                Window(height=1, char="─", style="class:separator"),
-                self.status_window,
-                Window(height=1, char="─", style="class:separator"),
-                VSplit([self.prompt_window, self.input_window]),
-                self.hints_window,
+                self.content_window,      # Expands to fill space
+                sep1,                      # ─────────────
+                self.status_window,        # ~/path [branch] ... model
+                sep2,                      # ─────────────
+                input_row,                 # ❯ [input]
+                self.hints_window,         # Enter Send · Ctrl+C Exit
             ]),
             focused_element=self.input_window,
         )
@@ -255,35 +267,35 @@ class ModernCLI:
             self.app.invalidate()
 
     def _create_style(self):
-        """Catppuccin Mocha theme"""
+        """Catppuccin Mocha theme - optimized for visibility"""
         return PTStyle.from_dict({
-            # Content
+            # Content area
             "text": "#c6d0f5",
             "success": "#a6d189",
             "error": "#e78284",
             "warning": "#e5c890",
             "info": "#8caaee",
-            "muted": "#6c6f85",
-            "dim": "#51576d",
+            "muted": "#737994",
+            "dim": "#626880",
             "step": "#81c8be",
             "reply": "#a6d189",
             "user": "#ca9ee6",
 
-            # Status line
-            "status-line": "bg:#303446 #c6d0f5",
-            "path": "#ef9f76",
+            # Status line - subtle dark background
+            "status-line": "bg:#232634 #c6d0f5",
+            "path": "#ef9f76 bold",
             "branch": "#99d1db",
-            "model": "#f4b8e4",
+            "model": "#f4b8e4 bold",
 
-            # Input
+            # Input area
             "prompt": "#ca9ee6 bold",
             "input": "#c6d0f5",
 
-            # Hints
-            "hints-line": "bg:#232634 #6c6f85",
+            # Hints line - very subtle
+            "hints-line": "#626880",
 
-            # Structure
-            "separator": "#626880",
+            # Separators - visible but not too bright
+            "separator": "#414559",
 
             # Completion menu
             "completion-menu": "bg:#303446 #c6d0f5",
