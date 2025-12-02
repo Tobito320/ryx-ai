@@ -23,13 +23,12 @@ from core.ryx_brain import RyxBrain, Plan, Intent, get_brain
 from core.ollama_client import OllamaClient
 from core.model_router import ModelRouter
 
-# Use new CLI UI (try modern first, fall back to legacy)
+# Use legacy CLI UI
 try:
-    from core.cli_ui import get_ui, get_cli, get_modern_cli, CLI
+    from core.cli_ui import get_ui, get_cli, CLI
 except ImportError:
     from core.rich_ui import get_ui, RyxUI as CLI
     get_cli = get_ui
-    get_modern_cli = get_ui
 
 
 class SessionLoop:
@@ -39,8 +38,7 @@ class SessionLoop:
     
     def __init__(self, safety_mode: str = "normal"):
         self.safety_mode = safety_mode
-        # Try modern CLI with fixed input box, fall back to legacy
-        self.cli = get_modern_cli(cwd=os.getcwd()) or get_cli()
+        self.cli = get_cli()
         self.router = ModelRouter()
         self.ollama = OllamaClient(base_url=self.router.get_ollama_url())
         self.brain = get_brain(self.ollama)
@@ -160,17 +158,11 @@ class SessionLoop:
             return
         
         # Understand the input
-        if hasattr(self.cli, 'show_thinking'):
-            self.cli.show_thinking()
-        
-        plan = self.brain.understand(user_input)
+        with self.cli.spinner():
+            plan = self.brain.understand(user_input)
         
         # Execute
         success, result = self.brain.execute(plan)
-        
-        # Clear thinking indicator
-        if hasattr(self.cli, 'clear_thinking'):
-            self.cli.clear_thinking()
         
         # Track stats
         self.stats['actions'] += 1
@@ -186,27 +178,12 @@ class SessionLoop:
         # Show result (skip if streamed)
         if result and result != "__STREAMED__":
             if success:
-                # Use print_reply for ModernCLI
-                if hasattr(self.cli, 'print_reply'):
-                    if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
-                        self.cli.add_content(result, "step")
-                        print(result)
-                    else:
-                        self.cli.print_reply(result)
+                if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
+                    self.cli.console.print(f"\n{result}")
                 else:
-                    # Legacy CLI
-                    if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
-                        self.cli.console.print(f"\n{result}")
-                    else:
-                        self.cli.assistant(result)
+                    self.cli.assistant(result)
             else:
-                if hasattr(self.cli, 'add_content'):
-                    error_c = "\033[38;2;231;130;132m"
-                    reset = "\033[0m"
-                    print(f"{error_c}✗ {result}{reset}")
-                    self.cli.add_content(f"✗ {result}", "error")
-                else:
-                    self.cli.error(result)
+                self.cli.error(result)
         
         # Store for history
         history_result = result if result != "__STREAMED__" else "(streamed)"

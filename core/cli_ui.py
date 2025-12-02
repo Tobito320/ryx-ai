@@ -754,41 +754,19 @@ class RyxUI(CLI):
 
 _cli = None
 
-# Try modern full-screen UI first
-_use_modern_ui = True
+# Disable modern UI - use legacy RyxUI
+_use_modern_ui = False
 
 
 def get_modern_cli(cwd: str = None):
-    """Get ModernCLI (full-screen with fixed input box)"""
-    global _cli
-    if _cli is None and _use_modern_ui:
-        try:
-            from core.cli_ui_modern import create_modern_cli
-            _cli = create_modern_cli(cwd=cwd)
-            if _cli:
-                return _cli
-        except ImportError:
-            pass
-        except Exception as e:
-            import sys
-            print(f"Warning: ModernCLI failed: {e}", file=sys.stderr)
-    return _cli
+    """Get ModernCLI - disabled, returns None"""
+    return None
 
 
 def get_cli():
-    """Get CLI instance - tries modern first, falls back to RyxUI"""
+    """Get CLI instance - uses legacy RyxUI"""
     global _cli
     if _cli is None:
-        # Try modern UI first
-        if _use_modern_ui:
-            try:
-                from core.cli_ui_modern import create_modern_cli
-                _cli = create_modern_cli()
-                if _cli:
-                    return _cli
-            except:
-                pass
-        # Fall back to legacy
         _cli = RyxUI()
     return _cli
 
