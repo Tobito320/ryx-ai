@@ -1,0 +1,4057 @@
+{
+  "root": "/home/tobi/ryx-ai",
+  "files": {
+    "requirements.txt": {
+      "path": "requirements.txt",
+      "name": "requirements.txt",
+      "extension": ".txt",
+      "size": 541,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-01T04:36:20.221987"
+    },
+    "ryx": {
+      "path": "ryx",
+      "name": "ryx",
+      "extension": "",
+      "size": 304,
+      "file_type": "other",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:22:50.155764"
+    },
+    "install.sh": {
+      "path": "install.sh",
+      "name": "install.sh",
+      "extension": ".sh",
+      "size": 5424,
+      "file_type": "code",
+      "tags": [
+        "shell"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-28T10:52:14.439830"
+    },
+    "pyproject.toml": {
+      "path": "pyproject.toml",
+      "name": "pyproject.toml",
+      "extension": ".toml",
+      "size": 1200,
+      "file_type": "build",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T05:42:51.881024"
+    },
+    "install_models.sh": {
+      "path": "install_models.sh",
+      "name": "install_models.sh",
+      "extension": ".sh",
+      "size": 1933,
+      "file_type": "code",
+      "tags": [
+        "shell",
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-27T17:48:28.180009"
+    },
+    "README.md": {
+      "path": "README.md",
+      "name": "README.md",
+      "extension": ".md",
+      "size": 5144,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T05:44:33.416019"
+    },
+    "TODO_ARCHITECTURE.md": {
+      "path": "TODO_ARCHITECTURE.md",
+      "name": "TODO_ARCHITECTURE.md",
+      "extension": ".md",
+      "size": 10880,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:45:13.001829"
+    },
+    "STRUCTURE.md": {
+      "path": "STRUCTURE.md",
+      "name": "STRUCTURE.md",
+      "extension": ".md",
+      "size": 3967,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T04:57:50.611157"
+    },
+    "ryx_main.py": {
+      "path": "ryx_main.py",
+      "name": "ryx_main.py",
+      "extension": ".py",
+      "size": 11238,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-12-02T13:14:25.161920"
+    },
+    "dev/tests/test_ryx_core.py": {
+      "path": "dev/tests/test_ryx_core.py",
+      "name": "test_ryx_core.py",
+      "extension": ".py",
+      "size": 15359,
+      "file_type": "test",
+      "tags": [
+        "core",
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "dev/tests/test_basic_functionality.py": {
+      "path": "dev/tests/test_basic_functionality.py",
+      "name": "test_basic_functionality.py",
+      "extension": ".py",
+      "size": 5952,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-28T10:52:14.440644"
+    },
+    "dev/tests/test_rag_manager.py": {
+      "path": "dev/tests/test_rag_manager.py",
+      "name": "test_rag_manager.py",
+      "extension": ".py",
+      "size": 6131,
+      "file_type": "test",
+      "tags": [
+        "util",
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915866"
+    },
+    "dev/tests/test_v2_integration.py": {
+      "path": "dev/tests/test_v2_integration.py",
+      "name": "test_v2_integration.py",
+      "extension": ".py",
+      "size": 7493,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-27T17:47:28.192008"
+    },
+    "dev/tests/test_new_components.py": {
+      "path": "dev/tests/test_new_components.py",
+      "name": "test_new_components.py",
+      "extension": ".py",
+      "size": 10907,
+      "file_type": "test",
+      "tags": [
+        "ui",
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T23:44:01.199833"
+    },
+    "dev/tests/test_llm_router.py": {
+      "path": "dev/tests/test_llm_router.py",
+      "name": "test_llm_router.py",
+      "extension": ".py",
+      "size": 4370,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "api",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915775"
+    },
+    "dev/tests/test_imports.py": {
+      "path": "dev/tests/test_imports.py",
+      "name": "test_imports.py",
+      "extension": ".py",
+      "size": 2811,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-27T17:47:28.192008"
+    },
+    "dev/tests/test_v2_components.py": {
+      "path": "dev/tests/test_v2_components.py",
+      "name": "test_v2_components.py",
+      "extension": ".py",
+      "size": 9529,
+      "file_type": "test",
+      "tags": [
+        "ui",
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:28:39.834943"
+    },
+    "dev/tests/test_intent_parser_fix.py": {
+      "path": "dev/tests/test_intent_parser_fix.py",
+      "name": "test_intent_parser_fix.py",
+      "extension": ".py",
+      "size": 4685,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T03:21:03.438716"
+    },
+    "dev/tests/test_tool_executor.py": {
+      "path": "dev/tests/test_tool_executor.py",
+      "name": "test_tool_executor.py",
+      "extension": ".py",
+      "size": 7449,
+      "file_type": "test",
+      "tags": [
+        "util",
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915913"
+    },
+    "dev/tests/test_v2_architecture.py": {
+      "path": "dev/tests/test_v2_architecture.py",
+      "name": "test_v2_architecture.py",
+      "extension": ".py",
+      "size": 12589,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T00:36:41.575809"
+    },
+    "dev/tests/test_intent_parser_comprehensive.py": {
+      "path": "dev/tests/test_intent_parser_comprehensive.py",
+      "name": "test_intent_parser_comprehensive.py",
+      "extension": ".py",
+      "size": 10842,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T00:17:13.866936"
+    },
+    "dev/tests/test_permission_manager.py": {
+      "path": "dev/tests/test_permission_manager.py",
+      "name": "test_permission_manager.py",
+      "extension": ".py",
+      "size": 5432,
+      "file_type": "test",
+      "tags": [
+        "util",
+        "security",
+        "test",
+        "auth",
+        "python"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915821"
+    },
+    "dev/tests/test_workflow_orchestrator.py": {
+      "path": "dev/tests/test_workflow_orchestrator.py",
+      "name": "test_workflow_orchestrator.py",
+      "extension": ".py",
+      "size": 4524,
+      "file_type": "test",
+      "tags": [
+        "python",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915975"
+    },
+    "dev/handoffs/RYX_HANDOFF_COMPLETE.md": {
+      "path": "dev/handoffs/RYX_HANDOFF_COMPLETE.md",
+      "name": "RYX_HANDOFF_COMPLETE.md",
+      "extension": ".md",
+      "size": 16674,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T04:49:53.438181"
+    },
+    "dev/experiments/ryx_brain_v2.py": {
+      "path": "dev/experiments/ryx_brain_v2.py",
+      "name": "ryx_brain_v2.py",
+      "extension": ".py",
+      "size": 58051,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Brain Core v2\nComplete rewrite with Copilot-style intelligence.\n\nDesign Goals:\n1. TRUE AI understanding - NO hardcoded patterns anywhere\n2. Conversational flow - understands context, follow-u",
+      "last_modified": "2025-12-02T03:37:46.404394"
+    },
+    "dev/experiments/session_loop_v1.py": {
+      "path": "dev/experiments/session_loop_v1.py",
+      "name": "session_loop_v1.py",
+      "extension": ".py",
+      "size": 22157,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "python"
+      ],
+      "summary": "Ryx AI - Session Loop\nMain interactive session for the Ryx AI CLI\n\nThis is the main entry point - uses ryx_brain_v2 for intelligent processing.",
+      "last_modified": "2025-12-02T03:35:21.995401"
+    },
+    "dev/experiments/ai_engine_v1.py": {
+      "path": "dev/experiments/ai_engine_v1.py",
+      "name": "ai_engine_v1.py",
+      "extension": ".py",
+      "size": 11161,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI V2 - Unified AI Engine\nOrchestrates all components for intelligent, self-healing, personalized assistance",
+      "last_modified": "2025-11-28T11:15:10.661245"
+    },
+    "dev/experiments/session_loop_v2.py": {
+      "path": "dev/experiments/session_loop_v2.py",
+      "name": "session_loop_v2.py",
+      "extension": ".py",
+      "size": 19569,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "python"
+      ],
+      "summary": "Ryx AI - Session Loop v2\nCopilot-style interactive session with intelligent understanding.\nNow using RyxBrainV2 for true AI understanding.",
+      "last_modified": "2025-12-02T03:32:42.239409"
+    },
+    "dev/experiments/model_router_v2.py": {
+      "path": "dev/experiments/model_router_v2.py",
+      "name": "model_router_v2.py",
+      "extension": ".py",
+      "size": 14037,
+      "file_type": "code",
+      "tags": [
+        "database",
+        "python",
+        "api"
+      ],
+      "summary": "Ryx AI - Model Router\nIntelligent model selection based on tiers and intent",
+      "last_modified": "2025-11-30T00:36:41.575809"
+    },
+    "dev/experiments/ryx_brain_v1.py": {
+      "path": "dev/experiments/ryx_brain_v1.py",
+      "name": "ryx_brain_v1.py",
+      "extension": ".py",
+      "size": 38859,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Brain Core\nThe intelligent heart of Ryx. Copilot-style architecture.\n\nKey principles:\n1. AI understands prompts - NO hardcoded patterns\n2. Knowledge-backed responses - NO hallucinations\n3. As",
+      "last_modified": "2025-12-02T03:11:04.494473"
+    },
+    "dev/experiments/session_loop_v3.py": {
+      "path": "dev/experiments/session_loop_v3.py",
+      "name": "session_loop_v3.py",
+      "extension": ".py",
+      "size": 21718,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "python"
+      ],
+      "summary": "Ryx AI - Session Loop V3: Copilot-Style Interactive Session\n\nFeatures:\n- True conversational flow with context\n- Quick y/n responses\n- Slash commands for power users\n- Multi-language (German/English)\n",
+      "last_modified": "2025-12-02T04:11:39.647294"
+    },
+    "dev/experiments/ryx_brain_v3.py": {
+      "path": "dev/experiments/ryx_brain_v3.py",
+      "name": "ryx_brain_v3.py",
+      "extension": ".py",
+      "size": 51698,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Brain V3: Copilot-Style Intelligence\n\nCore principles:\n1. AI understands intent - NO hardcoded patterns\n2. Asks clarifying questions - NEVER assumes\n3. Chains multiple actions from single pro",
+      "last_modified": "2025-12-02T04:18:40.184273"
+    },
+    "dev/test_results/pip_freeze.txt": {
+      "path": "dev/test_results/pip_freeze.txt",
+      "name": "pip_freeze.txt",
+      "extension": ".txt",
+      "size": 527,
+      "file_type": "doc",
+      "tags": [
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T03:21:59.994711"
+    },
+    "dev/test_results/RYX_TEST_INDEX.md": {
+      "path": "dev/test_results/RYX_TEST_INDEX.md",
+      "name": "RYX_TEST_INDEX.md",
+      "extension": ".md",
+      "size": 4641,
+      "file_type": "test",
+      "tags": [
+        "core",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T01:17:08.659527"
+    },
+    "dev/test_results/main_sha.txt": {
+      "path": "dev/test_results/main_sha.txt",
+      "name": "main_sha.txt",
+      "extension": ".txt",
+      "size": 8,
+      "file_type": "doc",
+      "tags": [
+        "core",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T03:21:59.994711"
+    },
+    "dev/test_results/RYX_TEST_ACTION_SUMMARY.md": {
+      "path": "dev/test_results/RYX_TEST_ACTION_SUMMARY.md",
+      "name": "RYX_TEST_ACTION_SUMMARY.md",
+      "extension": ".md",
+      "size": 4296,
+      "file_type": "test",
+      "tags": [
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T01:16:21.634691"
+    },
+    "dev/test_results/build_report.json": {
+      "path": "dev/test_results/build_report.json",
+      "name": "build_report.json",
+      "extension": ".json",
+      "size": 2227,
+      "file_type": "config",
+      "tags": [
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915275"
+    },
+    "dev/test_results/RYX_STRESS_TEST_REPORT.md": {
+      "path": "dev/test_results/RYX_STRESS_TEST_REPORT.md",
+      "name": "RYX_STRESS_TEST_REPORT.md",
+      "extension": ".md",
+      "size": 12074,
+      "file_type": "test",
+      "tags": [
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T01:15:34.690694"
+    },
+    "dev/test_results/report_pytest.xml": {
+      "path": "dev/test_results/report_pytest.xml",
+      "name": "report_pytest.xml",
+      "extension": ".xml",
+      "size": 16383,
+      "file_type": "test",
+      "tags": [
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T03:21:59.994711"
+    },
+    "ryx_pkg/__init__.py": {
+      "path": "ryx_pkg/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 71,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Local AI Assistant Core Package.",
+      "last_modified": "2025-12-01T00:03:27.915231"
+    },
+    "ryx_pkg/interfaces/__init__.py": {
+      "path": "ryx_pkg/interfaces/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 34,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Interface Modules.",
+      "last_modified": "2025-11-30T23:27:40.834953"
+    },
+    "ryx_pkg/interfaces/web/package-lock.json": {
+      "path": "ryx_pkg/interfaces/web/package-lock.json",
+      "name": "package-lock.json",
+      "extension": ".json",
+      "size": 744619,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T00:28:27.217953"
+    },
+    "ryx_pkg/interfaces/web/validate-ui.sh": {
+      "path": "ryx_pkg/interfaces/web/validate-ui.sh",
+      "name": "validate-ui.sh",
+      "extension": ".sh",
+      "size": 7445,
+      "file_type": "code",
+      "tags": [
+        "shell"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T00:33:53.432937"
+    },
+    "ryx_pkg/interfaces/web/tailwind.config.js": {
+      "path": "ryx_pkg/interfaces/web/tailwind.config.js",
+      "name": "tailwind.config.js",
+      "extension": ".js",
+      "size": 3376,
+      "file_type": "code",
+      "tags": [
+        "config",
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T00:14:00.664996"
+    },
+    "ryx_pkg/interfaces/web/package.json": {
+      "path": "ryx_pkg/interfaces/web/package.json",
+      "name": "package.json",
+      "extension": ".json",
+      "size": 1077,
+      "file_type": "build",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T00:28:27.005953"
+    },
+    "ryx_pkg/interfaces/web/playwright.config.ts": {
+      "path": "ryx_pkg/interfaces/web/playwright.config.ts",
+      "name": "playwright.config.ts",
+      "extension": ".ts",
+      "size": 638,
+      "file_type": "code",
+      "tags": [
+        "config",
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T00:33:02.722940"
+    },
+    "ryx_pkg/interfaces/web/README.md": {
+      "path": "ryx_pkg/interfaces/web/README.md",
+      "name": "README.md",
+      "extension": ".md",
+      "size": 628,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-01T03:21:03.437716"
+    },
+    "ryx_pkg/interfaces/web/tsconfig.json": {
+      "path": "ryx_pkg/interfaces/web/tsconfig.json",
+      "name": "tsconfig.json",
+      "extension": ".json",
+      "size": 535,
+      "file_type": "config",
+      "tags": [
+        "config"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/__init__.py": {
+      "path": "ryx_pkg/interfaces/web/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 37,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Web Interface Module.",
+      "last_modified": "2025-11-30T23:27:40.835057"
+    },
+    "ryx_pkg/interfaces/web/postcss.config.js": {
+      "path": "ryx_pkg/interfaces/web/postcss.config.js",
+      "name": "postcss.config.js",
+      "extension": ".js",
+      "size": 82,
+      "file_type": "code",
+      "tags": [
+        "config",
+        "javascript",
+        "theme",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/e2e/ui-validation.spec.ts": {
+      "path": "ryx_pkg/interfaces/web/e2e/ui-validation.spec.ts",
+      "name": "ui-validation.spec.ts",
+      "extension": ".ts",
+      "size": 7598,
+      "file_type": "test",
+      "tags": [
+        "javascript",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T00:41:24.478915"
+    },
+    "ryx_pkg/interfaces/web/src/reportWebVitals.ts": {
+      "path": "ryx_pkg/interfaces/web/src/reportWebVitals.ts",
+      "name": "reportWebVitals.ts",
+      "extension": ".ts",
+      "size": 424,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/setupTests.ts": {
+      "path": "ryx_pkg/interfaces/web/src/setupTests.ts",
+      "name": "setupTests.ts",
+      "extension": ".ts",
+      "size": 241,
+      "file_type": "test",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/App.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/App.tsx",
+      "name": "App.tsx",
+      "extension": ".tsx",
+      "size": 13040,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "core"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T04:36:29.905339"
+    },
+    "ryx_pkg/interfaces/web/src/index.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/index.tsx",
+      "name": "index.tsx",
+      "extension": ".tsx",
+      "size": 2589,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "core"
+      ],
+      "summary": "Setup global error handlers before rendering",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/index.css": {
+      "path": "ryx_pkg/interfaces/web/src/index.css",
+      "name": "index.css",
+      "extension": ".css",
+      "size": 7936,
+      "file_type": "config",
+      "tags": [
+        "theme",
+        "ui",
+        "core"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T01:46:09.157724"
+    },
+    "ryx_pkg/interfaces/web/src/react-app-env.d.ts": {
+      "path": "ryx_pkg/interfaces/web/src/react-app-env.d.ts",
+      "name": "react-app-env.d.ts",
+      "extension": ".ts",
+      "size": 40,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "core"
+      ],
+      "summary": "/ <reference types=\"react-scripts\" />",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/setupProxy.js": {
+      "path": "ryx_pkg/interfaces/web/src/setupProxy.js",
+      "name": "setupProxy.js",
+      "extension": ".js",
+      "size": 1186,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "* Proxy configuration for React development server\n * Only proxies /api/* requests to backend\n * Static assets are served by React dev server (not proxied)",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/styles/dracula.css": {
+      "path": "ryx_pkg/interfaces/web/src/styles/dracula.css",
+      "name": "dracula.css",
+      "extension": ".css",
+      "size": 6916,
+      "file_type": "config",
+      "tags": [
+        "theme",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T00:14:00.664996"
+    },
+    "ryx_pkg/interfaces/web/src/services/api.ts": {
+      "path": "ryx_pkg/interfaces/web/src/services/api.ts",
+      "name": "api.ts",
+      "extension": ".ts",
+      "size": 10050,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "util",
+        "api"
+      ],
+      "summary": "* API Service with robust error handling\n * Handles network errors, timeouts, and connection issues gracefully",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/__tests__/ToolResults.test.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/__tests__/ToolResults.test.tsx",
+      "name": "ToolResults.test.tsx",
+      "extension": ".tsx",
+      "size": 10224,
+      "file_type": "test",
+      "tags": [
+        "javascript",
+        "util",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/__tests__/ExecutionMonitor.test.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/__tests__/ExecutionMonitor.test.tsx",
+      "name": "ExecutionMonitor.test.tsx",
+      "extension": ".tsx",
+      "size": 7067,
+      "file_type": "test",
+      "tags": [
+        "javascript",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T01:04:55.045910"
+    },
+    "ryx_pkg/interfaces/web/src/__tests__/WorkflowCanvas.test.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/__tests__/WorkflowCanvas.test.tsx",
+      "name": "WorkflowCanvas.test.tsx",
+      "extension": ".tsx",
+      "size": 5978,
+      "file_type": "test",
+      "tags": [
+        "javascript",
+        "test"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useChat.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useChat.ts",
+      "name": "useChat.ts",
+      "extension": ".ts",
+      "size": 7165,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useConnectionStatus.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useConnectionStatus.ts",
+      "name": "useConnectionStatus.ts",
+      "extension": ".ts",
+      "size": 1866,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useRAGFiles.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useRAGFiles.ts",
+      "name": "useRAGFiles.ts",
+      "extension": ".ts",
+      "size": 1929,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useMessageHistory.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useMessageHistory.ts",
+      "name": "useMessageHistory.ts",
+      "extension": ".ts",
+      "size": 2238,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useConnectionToast.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useConnectionToast.ts",
+      "name": "useConnectionToast.ts",
+      "extension": ".ts",
+      "size": 1787,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useModelLoader.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useModelLoader.ts",
+      "name": "useModelLoader.ts",
+      "extension": ".ts",
+      "size": 1259,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useMessageQueue.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useMessageQueue.ts",
+      "name": "useMessageQueue.ts",
+      "extension": ".ts",
+      "size": 5186,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useModels.ts.backup": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useModels.ts.backup",
+      "name": "useModels.ts.backup",
+      "extension": ".backup",
+      "size": 2462,
+      "file_type": "other",
+      "tags": [
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useSessions.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useSessions.ts",
+      "name": "useSessions.ts",
+      "extension": ".ts",
+      "size": 4353,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "javascript"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useWorkflowWebsocket.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useWorkflowWebsocket.ts",
+      "name": "useWorkflowWebsocket.ts",
+      "extension": ".ts",
+      "size": 9667,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "realtime",
+        "network"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/hooks/useWorkflowWebsocket.ts\n * @description WebSocket hook for workflow execution streaming.\n * \n * Encapsulates WebSocket connection to ws://localhost:8000/api/workfl",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/hooks/useModels.ts": {
+      "path": "ryx_pkg/interfaces/web/src/hooks/useModels.ts",
+      "name": "useModels.ts",
+      "extension": ".ts",
+      "size": 1720,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/types/index.ts": {
+      "path": "ryx_pkg/interfaces/web/src/types/index.ts",
+      "name": "index.ts",
+      "extension": ".ts",
+      "size": 2247,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "core"
+      ],
+      "summary": "* Centralized type definitions",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/utils/errorHandler.ts": {
+      "path": "ryx_pkg/interfaces/web/src/utils/errorHandler.ts",
+      "name": "errorHandler.ts",
+      "extension": ".ts",
+      "size": 1904,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "util",
+        "api"
+      ],
+      "summary": "* Global error handler utilities\n * Provides robust error handling for API responses and network errors",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/utils/storage.ts": {
+      "path": "ryx_pkg/interfaces/web/src/utils/storage.ts",
+      "name": "storage.ts",
+      "extension": ".ts",
+      "size": 4384,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "util"
+      ],
+      "summary": "* Utility functions for localStorage operations with error handling",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/utils/keyboard.ts": {
+      "path": "ryx_pkg/interfaces/web/src/utils/keyboard.ts",
+      "name": "keyboard.ts",
+      "extension": ".ts",
+      "size": 1190,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "util"
+      ],
+      "summary": "* Keyboard shortcut utilities",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/utils/globalErrorHandler.ts": {
+      "path": "ryx_pkg/interfaces/web/src/utils/globalErrorHandler.ts",
+      "name": "globalErrorHandler.ts",
+      "extension": ".ts",
+      "size": 4097,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "util",
+        "api"
+      ],
+      "summary": "* Global error handler for unhandled errors and promise rejections\n * Ensures the app never crashes, even when backend is completely down",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/contexts/SearchContext.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/contexts/SearchContext.tsx",
+      "name": "SearchContext.tsx",
+      "extension": ".tsx",
+      "size": 4541,
+      "file_type": "code",
+      "tags": [
+        "javascript"
+      ],
+      "summary": "Default search providers",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/ConnectionStatus.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ConnectionStatus.tsx",
+      "name": "ConnectionStatus.tsx",
+      "extension": ".tsx",
+      "size": 3278,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "Re-export type for backward compatibility (export as ConnectionStatusType to avoid naming conflict)",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/N8NLayout.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/N8NLayout.tsx",
+      "name": "N8NLayout.tsx",
+      "extension": ".tsx",
+      "size": 13656,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/N8NLayout.tsx\n * @description N8N-style workflow layout for RyxHub.\n * \n * Layout Structure (3-Panel Grid):\n * \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+      "last_modified": "2025-12-02T00:14:00.663996"
+    },
+    "ryx_pkg/interfaces/web/src/components/WorkflowCanvas.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/WorkflowCanvas.tsx",
+      "name": "WorkflowCanvas.tsx",
+      "extension": ".tsx",
+      "size": 11717,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/WorkflowCanvas.tsx\n * @description React Flow workflow visualization canvas component.\n * \n * Features:\n * - Renders 8 workflow step nodes with React Flow\n * ",
+      "last_modified": "2025-12-01T04:36:29.906338"
+    },
+    "ryx_pkg/interfaces/web/src/components/SearchProviderSelector.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/SearchProviderSelector.tsx",
+      "name": "SearchProviderSelector.tsx",
+      "extension": ".tsx",
+      "size": 2350,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/MessageBubble.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/MessageBubble.tsx",
+      "name": "MessageBubble.tsx",
+      "extension": ".tsx",
+      "size": 2274,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/RAGSection.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/RAGSection.tsx",
+      "name": "RAGSection.tsx",
+      "extension": ".tsx",
+      "size": 1757,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/ResultsPanel.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ResultsPanel.tsx",
+      "name": "ResultsPanel.tsx",
+      "extension": ".tsx",
+      "size": 5243,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/ResultsPanel.tsx\n * @description N8N-style results panel with card-based output display.",
+      "last_modified": "2025-12-02T01:50:08.003712"
+    },
+    "ryx_pkg/interfaces/web/src/components/LiveExecution.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/LiveExecution.tsx",
+      "name": "LiveExecution.tsx",
+      "extension": ".tsx",
+      "size": 4573,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/LiveExecution.tsx\n * @description N8N-style execution timeline panel.",
+      "last_modified": "2025-12-02T01:48:56.786716"
+    },
+    "ryx_pkg/interfaces/web/src/components/ExecutionMonitor.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ExecutionMonitor.tsx",
+      "name": "ExecutionMonitor.tsx",
+      "extension": ".tsx",
+      "size": 9682,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/ExecutionMonitor.tsx\n * @description Live scrolling list of workflow execution events.\n * \n * Features:\n * - Displays WorkflowEvent items with step, node name",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/components/GlobalErrorHandler.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/GlobalErrorHandler.tsx",
+      "name": "GlobalErrorHandler.tsx",
+      "extension": ".tsx",
+      "size": 940,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui",
+        "api"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/SettingsModal.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/SettingsModal.tsx",
+      "name": "SettingsModal.tsx",
+      "extension": ".tsx",
+      "size": 9760,
+      "file_type": "code",
+      "tags": [
+        "config",
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/SettingsModal.tsx\n * @description Settings modal for RyxHub configuration.\n * \n * Features:\n * - Theme toggle (Dracula/Gruvbox)\n * - Model tier selector (fast",
+      "last_modified": "2025-12-02T00:14:00.664996"
+    },
+    "ryx_pkg/interfaces/web/src/components/WorkflowSidebar.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/WorkflowSidebar.tsx",
+      "name": "WorkflowSidebar.tsx",
+      "extension": ".tsx",
+      "size": 9050,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "realtime",
+        "ui",
+        "network"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/WorkflowSidebar.tsx\n * @description N8N-style workflow sidebar with collapsible workflow templates.\n * \n * Features:\n * - Collapsible workflow categories\n * -",
+      "last_modified": "2025-12-02T01:46:34.512722"
+    },
+    "ryx_pkg/interfaces/web/src/components/Toast.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/Toast.tsx",
+      "name": "Toast.tsx",
+      "extension": ".tsx",
+      "size": 5007,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "Re-export types for backward compatibility",
+      "last_modified": "2025-12-02T00:14:00.664996"
+    },
+    "ryx_pkg/interfaces/web/src/components/ToolResults.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ToolResults.tsx",
+      "name": "ToolResults.tsx",
+      "extension": ".tsx",
+      "size": 16412,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "util",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/ToolResults.tsx\n * @description Component for displaying tool execution results with streaming updates.\n * \n * Features:\n * - Renders results for tools: searc",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/components/ChatPanel.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ChatPanel.tsx",
+      "name": "ChatPanel.tsx",
+      "extension": ".tsx",
+      "size": 5952,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/ChatPanel.tsx\n * @description Hidden chat panel that can be toggled with Ctrl+K.\n * \n * Features:\n * - Minimal chat UI\n * - Toggle with Ctrl+K or \"\ud83d\udcac Chat\" but",
+      "last_modified": "2025-12-02T00:14:00.663996"
+    },
+    "ryx_pkg/interfaces/web/src/components/Header.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/Header.tsx",
+      "name": "Header.tsx",
+      "extension": ".tsx",
+      "size": 2640,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/Header.tsx\n * @description RyxHub header component with logo, settings, and user profile.\n * \n * Features:\n * - RyxHub logo with purple accent\n * - Settings b",
+      "last_modified": "2025-12-02T00:14:00.663996"
+    },
+    "ryx_pkg/interfaces/web/src/components/ChatHeader.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ChatHeader.tsx",
+      "name": "ChatHeader.tsx",
+      "extension": ".tsx",
+      "size": 1287,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/Sidebar.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/Sidebar.tsx",
+      "name": "Sidebar.tsx",
+      "extension": ".tsx",
+      "size": 6114,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/BackendStatusBanner.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/BackendStatusBanner.tsx",
+      "name": "BackendStatusBanner.tsx",
+      "extension": ".tsx",
+      "size": 702,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/WorkflowDashboard.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/WorkflowDashboard.tsx",
+      "name": "WorkflowDashboard.tsx",
+      "extension": ".tsx",
+      "size": 4524,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.835163"
+    },
+    "ryx_pkg/interfaces/web/src/components/ErrorBoundary.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ErrorBoundary.tsx",
+      "name": "ErrorBoundary.tsx",
+      "extension": ".tsx",
+      "size": 2866,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/SearchToggle.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/SearchToggle.tsx",
+      "name": "SearchToggle.tsx",
+      "extension": ".tsx",
+      "size": 854,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/ChatInput.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ChatInput.tsx",
+      "name": "ChatInput.tsx",
+      "extension": ".tsx",
+      "size": 2820,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/SearchResults.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/SearchResults.tsx",
+      "name": "SearchResults.tsx",
+      "extension": ".tsx",
+      "size": 1470,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/WorkflowNode.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/WorkflowNode.tsx",
+      "name": "WorkflowNode.tsx",
+      "extension": ".tsx",
+      "size": 7878,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/WorkflowNode.tsx\n * @description Custom React Flow node component for workflow visualization.\n * \n * Presents node UI with:\n * - Title and icon based on node ",
+      "last_modified": "2025-12-01T01:04:55.047428"
+    },
+    "ryx_pkg/interfaces/web/src/components/Step.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/Step.tsx",
+      "name": "Step.tsx",
+      "extension": ".tsx",
+      "size": 1668,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "* @file ryx/interfaces/web/src/components/Step.tsx\n * @description N8N-style workflow step card for the execution timeline.",
+      "last_modified": "2025-12-02T01:47:02.972721"
+    },
+    "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatHeader.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatHeader.tsx",
+      "name": "EnhancedChatHeader.tsx",
+      "extension": ".tsx",
+      "size": 3281,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/chat/MessageMetrics.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/chat/MessageMetrics.tsx",
+      "name": "MessageMetrics.tsx",
+      "extension": ".tsx",
+      "size": 1611,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/chat/EnhancedMessageBubble.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/chat/EnhancedMessageBubble.tsx",
+      "name": "EnhancedMessageBubble.tsx",
+      "extension": ".tsx",
+      "size": 3672,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatInput.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatInput.tsx",
+      "name": "EnhancedChatInput.tsx",
+      "extension": ".tsx",
+      "size": 3928,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/sidebar/ModelsSection.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/sidebar/ModelsSection.tsx",
+      "name": "ModelsSection.tsx",
+      "extension": ".tsx",
+      "size": 3321,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "database",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedRAGSection.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedRAGSection.tsx",
+      "name": "EnhancedRAGSection.tsx",
+      "extension": ".tsx",
+      "size": 3767,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedSidebar.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedSidebar.tsx",
+      "name": "EnhancedSidebar.tsx",
+      "extension": ".tsx",
+      "size": 9178,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/sidebar/RAGFileList.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/sidebar/RAGFileList.tsx",
+      "name": "RAGFileList.tsx",
+      "extension": ".tsx",
+      "size": 1870,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/sidebar/SessionItem.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/sidebar/SessionItem.tsx",
+      "name": "SessionItem.tsx",
+      "extension": ".tsx",
+      "size": 3032,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/ui/Dropdown.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ui/Dropdown.tsx",
+      "name": "Dropdown.tsx",
+      "extension": ".tsx",
+      "size": 2162,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/src/components/ui/Avatar.tsx": {
+      "path": "ryx_pkg/interfaces/web/src/components/ui/Avatar.tsx",
+      "name": "Avatar.tsx",
+      "extension": ".tsx",
+      "size": 973,
+      "file_type": "code",
+      "tags": [
+        "javascript",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/backend/main.py": {
+      "path": "ryx_pkg/interfaces/web/backend/main.py",
+      "name": "main.py",
+      "extension": ".py",
+      "size": 22766,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - FastAPI Backend\nREST and WebSocket API for the Ryx AI web interface",
+      "last_modified": "2025-12-02T01:44:55.920727"
+    },
+    "ryx_pkg/interfaces/web/backend/__init__.py": {
+      "path": "ryx_pkg/interfaces/web/backend/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 40,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - FastAPI Backend Package.",
+      "last_modified": "2025-11-30T23:27:40.835057"
+    },
+    "ryx_pkg/interfaces/web/public/robots.txt": {
+      "path": "ryx_pkg/interfaces/web/public/robots.txt",
+      "name": "robots.txt",
+      "extension": ".txt",
+      "size": 67,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/public/logo512.png": {
+      "path": "ryx_pkg/interfaces/web/public/logo512.png",
+      "name": "logo512.png",
+      "extension": ".png",
+      "size": 9664,
+      "file_type": "asset",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/public/manifest.json": {
+      "path": "ryx_pkg/interfaces/web/public/manifest.json",
+      "name": "manifest.json",
+      "extension": ".json",
+      "size": 492,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/public/favicon.ico": {
+      "path": "ryx_pkg/interfaces/web/public/favicon.ico",
+      "name": "favicon.ico",
+      "extension": ".ico",
+      "size": 3870,
+      "file_type": "asset",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/public/logo192.png": {
+      "path": "ryx_pkg/interfaces/web/public/logo192.png",
+      "name": "logo192.png",
+      "extension": ".png",
+      "size": 5347,
+      "file_type": "asset",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/web/public/index.html": {
+      "path": "ryx_pkg/interfaces/web/public/index.html",
+      "name": "index.html",
+      "extension": ".html",
+      "size": 1721,
+      "file_type": "doc",
+      "tags": [
+        "core"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T21:18:22"
+    },
+    "ryx_pkg/interfaces/cli/main.py": {
+      "path": "ryx_pkg/interfaces/cli/main.py",
+      "name": "main.py",
+      "extension": ".py",
+      "size": 15752,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Command Line Interface\nTyper-based CLI for natural language system commands",
+      "last_modified": "2025-12-01T15:15:24.354917"
+    },
+    "ryx_pkg/interfaces/cli/__init__.py": {
+      "path": "ryx_pkg/interfaces/cli/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 37,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI CLI Interface Package",
+      "last_modified": "2025-11-30T23:27:40.834953"
+    },
+    "ryx_pkg/core/permission_manager.py": {
+      "path": "ryx_pkg/core/permission_manager.py",
+      "name": "permission_manager.py",
+      "extension": ".py",
+      "size": 8702,
+      "file_type": "code",
+      "tags": [
+        "util",
+        "security",
+        "auth",
+        "python",
+        "core"
+      ],
+      "summary": "Ryx AI - Permission Manager\nHandles permission checking for system operations.",
+      "last_modified": "2025-12-01T00:03:27.915454"
+    },
+    "ryx_pkg/core/tool_executor.py": {
+      "path": "ryx_pkg/core/tool_executor.py",
+      "name": "tool_executor.py",
+      "extension": ".py",
+      "size": 23005,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Tool Executor\nExecutes tools with permission checking and result tracking.",
+      "last_modified": "2025-12-01T15:15:24.353917"
+    },
+    "ryx_pkg/core/llm_router.py": {
+      "path": "ryx_pkg/core/llm_router.py",
+      "name": "llm_router.py",
+      "extension": ".py",
+      "size": 7277,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python",
+        "api"
+      ],
+      "summary": "Ryx AI - LLM Router\nRoutes queries to appropriate LLM models based on intent detection.",
+      "last_modified": "2025-12-01T00:03:27.915401"
+    },
+    "ryx_pkg/core/workflow_orchestrator.py": {
+      "path": "ryx_pkg/core/workflow_orchestrator.py",
+      "name": "workflow_orchestrator.py",
+      "extension": ".py",
+      "size": 19041,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Workflow Executor\nStreaming workflow execution with 8-step pipeline",
+      "last_modified": "2025-12-01T15:15:24.353917"
+    },
+    "ryx_pkg/core/__init__.py": {
+      "path": "ryx_pkg/core/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 1435,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI Core Module\n\nCore components for the Ryx AI workflow execution pipeline.",
+      "last_modified": "2025-12-01T00:03:27.915346"
+    },
+    "ryx_pkg/core/rag_manager.py": {
+      "path": "ryx_pkg/core/rag_manager.py",
+      "name": "rag_manager.py",
+      "extension": ".py",
+      "size": 10521,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - RAG Manager\nManages user profiles, document indexing, and context retrieval.",
+      "last_modified": "2025-12-01T00:03:27.915514"
+    },
+    "docker/cleanup.sh": {
+      "path": "docker/cleanup.sh",
+      "name": "cleanup.sh",
+      "extension": ".sh",
+      "size": 4760,
+      "file_type": "code",
+      "tags": [
+        "shell"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-28T10:26:17.760619"
+    },
+    "data/theme_prefs.json": {
+      "path": "data/theme_prefs.json",
+      "name": "theme_prefs.json",
+      "extension": ".json",
+      "size": 21,
+      "file_type": "config",
+      "tags": [
+        "theme",
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T13:27:19.028090"
+    },
+    "data/session_state_v4.json": {
+      "path": "data/session_state_v4.json",
+      "name": "session_state_v4.json",
+      "extension": ".json",
+      "size": 3283,
+      "file_type": "config",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T06:10:50.986810"
+    },
+    "data/smart_cache.db": {
+      "path": "data/smart_cache.db",
+      "name": "smart_cache.db",
+      "extension": ".db",
+      "size": 40960,
+      "file_type": "data",
+      "tags": [
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T13:48:09.637820"
+    },
+    "data/session_state.json": {
+      "path": "data/session_state.json",
+      "name": "session_state.json",
+      "extension": ".json",
+      "size": 16838,
+      "file_type": "config",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T13:48:17.043659"
+    },
+    "data/cache/search/d636680e5ad2.json": {
+      "path": "data/cache/search/d636680e5ad2.json",
+      "name": "d636680e5ad2.json",
+      "extension": ".json",
+      "size": 1616,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:39:12.859128"
+    },
+    "data/cache/search/5c9dde19e724.json": {
+      "path": "data/cache/search/5c9dde19e724.json",
+      "name": "5c9dde19e724.json",
+      "extension": ".json",
+      "size": 5943,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:28:16.615445"
+    },
+    "data/cache/search/2de6801335f2.json": {
+      "path": "data/cache/search/2de6801335f2.json",
+      "name": "2de6801335f2.json",
+      "extension": ".json",
+      "size": 2747,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:44:44.655370"
+    },
+    "data/cache/search/a10cdb000491.json": {
+      "path": "data/cache/search/a10cdb000491.json",
+      "name": "a10cdb000491.json",
+      "extension": ".json",
+      "size": 5705,
+      "file_type": "config",
+      "tags": [
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T13:47:28.733349"
+    },
+    "data/cache/search/3fae57dc2119.json": {
+      "path": "data/cache/search/3fae57dc2119.json",
+      "name": "3fae57dc2119.json",
+      "extension": ".json",
+      "size": 5895,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:47:59.979806"
+    },
+    "data/cache/search/ba9bf05693b9.json": {
+      "path": "data/cache/search/ba9bf05693b9.json",
+      "name": "ba9bf05693b9.json",
+      "extension": ".json",
+      "size": 4065,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:20:30.690902"
+    },
+    "data/cache/search/a4d224f23477.json": {
+      "path": "data/cache/search/a4d224f23477.json",
+      "name": "a4d224f23477.json",
+      "extension": ".json",
+      "size": 4830,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:36:23.042336"
+    },
+    "data/cache/search/91866ab1c853.json": {
+      "path": "data/cache/search/91866ab1c853.json",
+      "name": "91866ab1c853.json",
+      "extension": ".json",
+      "size": 2712,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:42:00.537838"
+    },
+    "data/cache/search/e8162cb3b44d.json": {
+      "path": "data/cache/search/e8162cb3b44d.json",
+      "name": "e8162cb3b44d.json",
+      "extension": ".json",
+      "size": 4815,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:48:09.635526"
+    },
+    "data/cache/search/27dc8ecada3a.json": {
+      "path": "data/cache/search/27dc8ecada3a.json",
+      "name": "27dc8ecada3a.json",
+      "extension": ".json",
+      "size": 4941,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:26:23.964687"
+    },
+    "data/cache/search/c9fcfe75fb0f.json": {
+      "path": "data/cache/search/c9fcfe75fb0f.json",
+      "name": "c9fcfe75fb0f.json",
+      "extension": ".json",
+      "size": 1669,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:19:41.321227"
+    },
+    "data/cache/search/2af95ea70daf.json": {
+      "path": "data/cache/search/2af95ea70daf.json",
+      "name": "2af95ea70daf.json",
+      "extension": ".json",
+      "size": 3350,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:40:06.941717"
+    },
+    "data/scrape/ArchWiki_summary.md": {
+      "path": "data/scrape/ArchWiki_summary.md",
+      "name": "ArchWiki_summary.md",
+      "extension": ".md",
+      "size": 994,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:27:52.427286"
+    },
+    "data/scrape/wiki.archlinux.org.json": {
+      "path": "data/scrape/wiki.archlinux.org.json",
+      "name": "wiki.archlinux.org.json",
+      "extension": ".json",
+      "size": 1829,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T13:27:31.058526"
+    },
+    "data/scrape/documentation/Example Domain_c984d06a.txt": {
+      "path": "data/scrape/documentation/Example Domain_c984d06a.txt",
+      "name": "Example Domain_c984d06a.txt",
+      "extension": ".txt",
+      "size": 2548,
+      "file_type": "doc",
+      "tags": [
+        "core"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T02:10:22.392286"
+    },
+    "data/scrape/raw/https___wiki.archlinux.org_.json": {
+      "path": "data/scrape/raw/https___wiki.archlinux.org_.json",
+      "name": "https___wiki.archlinux.org_.json",
+      "extension": ".json",
+      "size": 348,
+      "file_type": "config",
+      "tags": [
+        "network"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T02:40:56.416637"
+    },
+    "data/scrape/raw/https___wiki.archlinux.org_title_Hyprland.json": {
+      "path": "data/scrape/raw/https___wiki.archlinux.org_title_Hyprland.json",
+      "name": "https___wiki.archlinux.org_title_Hyprland.json",
+      "extension": ".json",
+      "size": 11457,
+      "file_type": "config",
+      "tags": [
+        "network"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T02:35:29.869309"
+    },
+    "data/scrape/raw/https___wiki.archlinux.org_index.php_Special_Search_search_scrape_archwiki.json": {
+      "path": "data/scrape/raw/https___wiki.archlinux.org_index.php_Special_Search_search_scrape_archwiki.json",
+      "name": "https___wiki.archlinux.org_index.php_Special_Search_search_scrape_archwiki.json",
+      "extension": ".json",
+      "size": 328,
+      "file_type": "test",
+      "tags": [
+        "core",
+        "network"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T04:31:16.251027"
+    },
+    "data/scrape/raw/wiki.archlinux.org.json": {
+      "path": "data/scrape/raw/wiki.archlinux.org.json",
+      "name": "wiki.archlinux.org.json",
+      "extension": ".json",
+      "size": 1829,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T04:15:32.986666"
+    },
+    "data/scrape/raw/https___cuno-berufskolleg.de_.json": {
+      "path": "data/scrape/raw/https___cuno-berufskolleg.de_.json",
+      "name": "https___cuno-berufskolleg.de_.json",
+      "extension": ".json",
+      "size": 547,
+      "file_type": "config",
+      "tags": [
+        "network"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T02:44:20.938323"
+    },
+    "data/scrape/summaries/hyprland_summary.md": {
+      "path": "data/scrape/summaries/hyprland_summary.md",
+      "name": "hyprland_summary.md",
+      "extension": ".md",
+      "size": 961,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T02:35:40.088071"
+    },
+    "data/scrape/summaries/cuno1_\u2013_wilkommen_an_der_cuno1_summary.md": {
+      "path": "data/scrape/summaries/cuno1_\u2013_wilkommen_an_der_cuno1_summary.md",
+      "name": "cuno1_\u2013_wilkommen_an_der_cuno1_summary.md",
+      "extension": ".md",
+      "size": 328,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T02:44:29.471268"
+    },
+    "data/knowledge/file_system.json": {
+      "path": "data/knowledge/file_system.json",
+      "name": "file_system.json",
+      "extension": ".json",
+      "size": 2995,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T02:05:41.003666"
+    },
+    "data/knowledge/websites.json": {
+      "path": "data/knowledge/websites.json",
+      "name": "websites.json",
+      "extension": ".json",
+      "size": 1954,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T04:16:15.704280"
+    },
+    "data/knowledge/cache.json": {
+      "path": "data/knowledge/cache.json",
+      "name": "cache.json",
+      "extension": ".json",
+      "size": 1185,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T02:44:29.471119"
+    },
+    "data/knowledge/arch_linux.json": {
+      "path": "data/knowledge/arch_linux.json",
+      "name": "arch_linux.json",
+      "extension": ".json",
+      "size": 4815,
+      "file_type": "config",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T04:37:45.357217"
+    },
+    "data/notes/______etc_passwd.md": {
+      "path": "data/notes/______etc_passwd.md",
+      "name": "______etc_passwd.md",
+      "extension": ".md",
+      "size": 48,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T00:20:08.367860"
+    },
+    "data/exports/session_20251202_023929.md": {
+      "path": "data/exports/session_20251202_023929.md",
+      "name": "session_20251202_023929.md",
+      "extension": ".md",
+      "size": 1042,
+      "file_type": "doc",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T02:42:12.902827"
+    },
+    "data/exports/session_20251202_042952.md": {
+      "path": "data/exports/session_20251202_042952.md",
+      "name": "session_20251202_042952.md",
+      "extension": ".md",
+      "size": 2461,
+      "file_type": "doc",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T04:35:20.895824"
+    },
+    "data/rag/arch-wiki/Hyprland - ArchWiki_1a44c97b.txt": {
+      "path": "data/rag/arch-wiki/Hyprland - ArchWiki_1a44c97b.txt",
+      "name": "Hyprland - ArchWiki_1a44c97b.txt",
+      "extension": ".txt",
+      "size": 8397,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T00:40:46.259862"
+    },
+    "data/rag/arch-wiki/Waybar - ArchWiki_c3679b19.txt": {
+      "path": "data/rag/arch-wiki/Waybar - ArchWiki_c3679b19.txt",
+      "name": "Waybar - ArchWiki_c3679b19.txt",
+      "extension": ".txt",
+      "size": 5239,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T00:51:12.317796"
+    },
+    "data/rag/arch-wiki/Neovim - ArchWiki_ff56a90f.txt": {
+      "path": "data/rag/arch-wiki/Neovim - ArchWiki_ff56a90f.txt",
+      "name": "Neovim - ArchWiki_ff56a90f.txt",
+      "extension": ".txt",
+      "size": 8400,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T00:51:20.791378"
+    },
+    "data/rag/arch-wiki/kitty - ArchWiki_d3e9d07e.txt": {
+      "path": "data/rag/arch-wiki/kitty - ArchWiki_d3e9d07e.txt",
+      "name": "kitty - ArchWiki_d3e9d07e.txt",
+      "extension": ".txt",
+      "size": 8392,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T00:51:25.760063"
+    },
+    "data/history/session_history": {
+      "path": "data/history/session_history",
+      "name": "session_history",
+      "extension": "",
+      "size": 0,
+      "file_type": "other",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T04:15:04.993134"
+    },
+    "data/history/session_v4": {
+      "path": "data/history/session_v4",
+      "name": "session_v4",
+      "extension": "",
+      "size": 0,
+      "file_type": "other",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T06:10:50.986810"
+    },
+    "data/history/session": {
+      "path": "data/history/session",
+      "name": "session",
+      "extension": "",
+      "size": 1052,
+      "file_type": "other",
+      "tags": [
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T13:48:17.043820"
+    },
+    "tools/council.py": {
+      "path": "tools/council.py",
+      "name": "council.py",
+      "extension": ".py",
+      "size": 6415,
+      "file_type": "code",
+      "tags": [
+        "util",
+        "python"
+      ],
+      "summary": "Extract Council class from ryx_tools.py",
+      "last_modified": "2025-11-27T17:47:28.193007"
+    },
+    "tools/browser.py": {
+      "path": "tools/browser.py",
+      "name": "browser.py",
+      "extension": ".py",
+      "size": 2524,
+      "file_type": "code",
+      "tags": [
+        "util",
+        "python",
+        "realtime",
+        "network"
+      ],
+      "summary": "Extract WebBrowser class from ryx_tools.py",
+      "last_modified": "2025-11-29T01:02:19.185895"
+    },
+    "tools/cache_validator.py": {
+      "path": "tools/cache_validator.py",
+      "name": "cache_validator.py",
+      "extension": ".py",
+      "size": 14916,
+      "file_type": "code",
+      "tags": [
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Cache Validation and Health Check System\nAutomatically checks, validates, and corrects the RAG knowledge cache",
+      "last_modified": "2025-11-29T00:06:09.036932"
+    },
+    "tools/rag_ingest.py": {
+      "path": "tools/rag_ingest.py",
+      "name": "rag_ingest.py",
+      "extension": ".py",
+      "size": 7605,
+      "file_type": "code",
+      "tags": [
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - RAG Ingestion System\nProcesses scraped documentation into RAG knowledge base",
+      "last_modified": "2025-11-29T00:39:09.816916"
+    },
+    "tools/scraper.py": {
+      "path": "tools/scraper.py",
+      "name": "scraper.py",
+      "extension": ".py",
+      "size": 8545,
+      "file_type": "code",
+      "tags": [
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Web Scraper\nLegal web scraping for learning and research",
+      "last_modified": "2025-11-29T00:40:38.888915"
+    },
+    "tools/__init__.py": {
+      "path": "tools/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 0,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-26T23:52:24.398280"
+    },
+    "ryx_core/router.py": {
+      "path": "ryx_core/router.py",
+      "name": "router.py",
+      "extension": ".py",
+      "size": 13725,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python",
+        "api"
+      ],
+      "summary": "RYX Core - Intelligent Model Router\n\nProvides intelligent model selection based on:\n- Task complexity\n- Required capabilities\n- Available resources\n- Performance history",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "ryx_core/workflow.py": {
+      "path": "ryx_core/workflow.py",
+      "name": "workflow.py",
+      "extension": ".py",
+      "size": 17476,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "RYX Core - Workflow Engine\n\nProvides workflow execution engine for N8N-style workflows:\n- Node-based execution\n- Event streaming for live UI updates\n- Error handling and recovery",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "ryx_core/api.py": {
+      "path": "ryx_core/api.py",
+      "name": "api.py",
+      "extension": ".py",
+      "size": 15104,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python",
+        "api"
+      ],
+      "summary": "RYX AI API - FastAPI Backend with WebSocket Streaming\n\nProvides:\n- REST API for model management and queries\n- WebSocket streaming for real-time workflow updates\n- N8N-style workflow execution trackin",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "ryx_core/interfaces.py": {
+      "path": "ryx_core/interfaces.py",
+      "name": "interfaces.py",
+      "extension": ".py",
+      "size": 10564,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "RYX Core - Abstract Interfaces\n\nProvides base classes for extensible components:\n- BaseModel: Abstract model interface\n- BaseTool: Abstract tool interface\n- BaseWorkflow: Workflow with nodes and edges",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "ryx_core/cli.py": {
+      "path": "ryx_core/cli.py",
+      "name": "cli.py",
+      "extension": ".py",
+      "size": 13028,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "RYX AI CLI - Modern Command Line Interface\n\nBuilt with Typer for a beautiful, intuitive CLI experience.",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "ryx_core/permissions.py": {
+      "path": "ryx_core/permissions.py",
+      "name": "permissions.py",
+      "extension": ".py",
+      "size": 6200,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "core",
+        "security",
+        "python"
+      ],
+      "summary": "RYX Core - Permission Decorators and Context\n\nProvides Level 1-2-3 permission system with decorators:\n- Level 1 (SAFE): Read-only operations, auto-approved\n- Level 2 (MODIFY): Write operations, may re",
+      "last_modified": "2025-11-30T22:18:10.685723"
+    },
+    "ryx_core/__init__.py": {
+      "path": "ryx_core/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 1369,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "RYX Core - Core Abstraction Layer\n\nProvides clean abstractions for:\n- Permission decorators (Level 1-2-3)\n- Model routing interfaces\n- Workflow orchestration\n- Tool registration\n- FastAPI backend with",
+      "last_modified": "2025-11-30T22:18:10.685403"
+    },
+    "modes/cli_mode.py": {
+      "path": "modes/cli_mode.py",
+      "name": "cli_mode.py",
+      "extension": ".py",
+      "size": 27179,
+      "file_type": "code",
+      "tags": [
+        "python"
+      ],
+      "summary": "Ryx AI - CLI Mode\nUltra-fast one-shot command execution",
+      "last_modified": "2025-12-02T05:43:54.168661"
+    },
+    "modes/session_mode.py": {
+      "path": "modes/session_mode.py",
+      "name": "session_mode.py",
+      "extension": ".py",
+      "size": 25467,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "python"
+      ],
+      "summary": "Ryx AI - Session Mode\nInteractive Gemini CLI-like experience with graceful interrupts and state persistence",
+      "last_modified": "2025-12-02T05:43:54.168798"
+    },
+    "modes/__init__.py": {
+      "path": "modes/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 0,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T05:43:54.168514"
+    },
+    "scripts/performance_benchmark.py": {
+      "path": "scripts/performance_benchmark.py",
+      "name": "performance_benchmark.py",
+      "extension": ".py",
+      "size": 13929,
+      "file_type": "code",
+      "tags": [
+        "ui",
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-11-28T10:52:14.440517"
+    },
+    "scripts/code_quality_check.py": {
+      "path": "scripts/code_quality_check.py",
+      "name": "code_quality_check.py",
+      "extension": ".py",
+      "size": 6342,
+      "file_type": "code",
+      "tags": [
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-11-28T10:52:14.440297"
+    },
+    "scripts/optimize_databases.py": {
+      "path": "scripts/optimize_databases.py",
+      "name": "optimize_databases.py",
+      "extension": ".py",
+      "size": 5098,
+      "file_type": "code",
+      "tags": [
+        "database",
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-11-28T10:52:14.440454"
+    },
+    "scripts/system_diagnostics.py": {
+      "path": "scripts/system_diagnostics.py",
+      "name": "system_diagnostics.py",
+      "extension": ".py",
+      "size": 6354,
+      "file_type": "code",
+      "tags": [
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-11-28T10:52:14.440579"
+    },
+    "scripts/backup_restore.py": {
+      "path": "scripts/backup_restore.py",
+      "name": "backup_restore.py",
+      "extension": ".py",
+      "size": 10914,
+      "file_type": "code",
+      "tags": [
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-11-28T10:52:14.440224"
+    },
+    "scripts/ryx-preload.sh": {
+      "path": "scripts/ryx-preload.sh",
+      "name": "ryx-preload.sh",
+      "extension": ".sh",
+      "size": 324,
+      "file_type": "code",
+      "tags": [
+        "shell"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T04:26:53.029249"
+    },
+    "scripts/ryx-modal": {
+      "path": "scripts/ryx-modal",
+      "name": "ryx-modal",
+      "extension": "",
+      "size": 3559,
+      "file_type": "other",
+      "tags": [
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915726"
+    },
+    "scripts/database_maintenance.py": {
+      "path": "scripts/database_maintenance.py",
+      "name": "database_maintenance.py",
+      "extension": ".py",
+      "size": 9299,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "database",
+        "python"
+      ],
+      "summary": "!/usr/bin/env python3",
+      "last_modified": "2025-11-28T10:52:14.440397"
+    },
+    "scripts/local_verify.sh": {
+      "path": "scripts/local_verify.sh",
+      "name": "local_verify.sh",
+      "extension": ".sh",
+      "size": 8223,
+      "file_type": "code",
+      "tags": [
+        "shell"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-02T00:19:56.362979"
+    },
+    "docs/CONVENTIONS.md": {
+      "path": "docs/CONVENTIONS.md",
+      "name": "CONVENTIONS.md",
+      "extension": ".md",
+      "size": 0,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T18:46:31.475844"
+    },
+    "docs/EVALUATION.md": {
+      "path": "docs/EVALUATION.md",
+      "name": "EVALUATION.md",
+      "extension": ".md",
+      "size": 5781,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T05:57:18.740982"
+    },
+    "docs/AGENT_ARCHITECTURE.md": {
+      "path": "docs/AGENT_ARCHITECTURE.md",
+      "name": "AGENT_ARCHITECTURE.md",
+      "extension": ".md",
+      "size": 19228,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T05:58:41.338978"
+    },
+    "docs/IMPROVEMENTS.md": {
+      "path": "docs/IMPROVEMENTS.md",
+      "name": "IMPROVEMENTS.md",
+      "extension": ".md",
+      "size": 6904,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-02T05:53:00.132994"
+    },
+    "docs/roadmap/RYX_ROADMAP.md": {
+      "path": "docs/roadmap/RYX_ROADMAP.md",
+      "name": "RYX_ROADMAP.md",
+      "extension": ".md",
+      "size": 12174,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T15:57:22.380811"
+    },
+    "docs/roadmap/tasks/task-3.2-execution-monitor.md": {
+      "path": "docs/roadmap/tasks/task-3.2-execution-monitor.md",
+      "name": "task-3.2-execution-monitor.md",
+      "extension": ".md",
+      "size": 10762,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-2.6-rag-manager.md": {
+      "path": "docs/roadmap/tasks/task-2.6-rag-manager.md",
+      "name": "task-2.6-rag-manager.md",
+      "extension": ".md",
+      "size": 15644,
+      "file_type": "doc",
+      "tags": [
+        "util"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-2.2-permission-manager.md": {
+      "path": "docs/roadmap/tasks/task-2.2-permission-manager.md",
+      "name": "task-2.2-permission-manager.md",
+      "extension": ".md",
+      "size": 14918,
+      "file_type": "doc",
+      "tags": [
+        "auth",
+        "util",
+        "security"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-1.2-react-components-scaffold.md": {
+      "path": "docs/roadmap/tasks/task-1.2-react-components-scaffold.md",
+      "name": "task-1.2-react-components-scaffold.md",
+      "extension": ".md",
+      "size": 5157,
+      "file_type": "doc",
+      "tags": [
+        "ui"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-1.1-workflow-executor-scaffold.md": {
+      "path": "docs/roadmap/tasks/task-1.1-workflow-executor-scaffold.md",
+      "name": "task-1.1-workflow-executor-scaffold.md",
+      "extension": ".md",
+      "size": 7813,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833576"
+    },
+    "docs/roadmap/tasks/task-3.4-websocket-integration.md": {
+      "path": "docs/roadmap/tasks/task-3.4-websocket-integration.md",
+      "name": "task-3.4-websocket-integration.md",
+      "extension": ".md",
+      "size": 18043,
+      "file_type": "doc",
+      "tags": [
+        "realtime",
+        "network"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-3.1-react-flow-visualization.md": {
+      "path": "docs/roadmap/tasks/task-3.1-react-flow-visualization.md",
+      "name": "task-3.1-react-flow-visualization.md",
+      "extension": ".md",
+      "size": 10826,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-2.1-llm-router.md": {
+      "path": "docs/roadmap/tasks/task-2.1-llm-router.md",
+      "name": "task-2.1-llm-router.md",
+      "extension": ".md",
+      "size": 12041,
+      "file_type": "doc",
+      "tags": [
+        "api"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-3.5-hyprland-keybind.md": {
+      "path": "docs/roadmap/tasks/task-3.5-hyprland-keybind.md",
+      "name": "task-3.5-hyprland-keybind.md",
+      "extension": ".md",
+      "size": 7893,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-2.5-workflow-executor.md": {
+      "path": "docs/roadmap/tasks/task-2.5-workflow-executor.md",
+      "name": "task-2.5-workflow-executor.md",
+      "extension": ".md",
+      "size": 24109,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-1.3-fastapi-endpoints.md": {
+      "path": "docs/roadmap/tasks/task-1.3-fastapi-endpoints.md",
+      "name": "task-1.3-fastapi-endpoints.md",
+      "extension": ".md",
+      "size": 8309,
+      "file_type": "doc",
+      "tags": [
+        "api"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-3.3-tool-results-panel.md": {
+      "path": "docs/roadmap/tasks/task-3.3-tool-results-panel.md",
+      "name": "task-3.3-tool-results-panel.md",
+      "extension": ".md",
+      "size": 12996,
+      "file_type": "doc",
+      "tags": [
+        "util"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-1.4-typer-cli-structure.md": {
+      "path": "docs/roadmap/tasks/task-1.4-typer-cli-structure.md",
+      "name": "task-1.4-typer-cli-structure.md",
+      "extension": ".md",
+      "size": 8749,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-2.4-tool-executor-part2.md": {
+      "path": "docs/roadmap/tasks/task-2.4-tool-executor-part2.md",
+      "name": "task-2.4-tool-executor-part2.md",
+      "extension": ".md",
+      "size": 16422,
+      "file_type": "doc",
+      "tags": [
+        "util"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/roadmap/tasks/task-2.3-tool-executor-part1.md": {
+      "path": "docs/roadmap/tasks/task-2.3-tool-executor-part1.md",
+      "name": "task-2.3-tool-executor-part1.md",
+      "extension": ".md",
+      "size": 14431,
+      "file_type": "doc",
+      "tags": [
+        "util"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833806"
+    },
+    "docs/setup/SETUP.md": {
+      "path": "docs/setup/SETUP.md",
+      "name": "SETUP.md",
+      "extension": ".md",
+      "size": 9171,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-26T23:47:01.122098"
+    },
+    "docs/setup/HYPRLAND_SETUP.md": {
+      "path": "docs/setup/HYPRLAND_SETUP.md",
+      "name": "HYPRLAND_SETUP.md",
+      "extension": ".md",
+      "size": 2579,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-12-01T00:03:27.915157"
+    },
+    "docs/setup/QUICKSTART.md": {
+      "path": "docs/setup/QUICKSTART.md",
+      "name": "QUICKSTART.md",
+      "extension": ".md",
+      "size": 3503,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T15:57:22.379811"
+    },
+    "docs/reference/AGENT_QUICK_REF.md": {
+      "path": "docs/reference/AGENT_QUICK_REF.md",
+      "name": "AGENT_QUICK_REF.md",
+      "extension": ".md",
+      "size": 7429,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833576"
+    },
+    "docs/reference/QUICK_REFERENCE.md": {
+      "path": "docs/reference/QUICK_REFERENCE.md",
+      "name": "QUICK_REFERENCE.md",
+      "extension": ".md",
+      "size": 7431,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T15:57:22.379811"
+    },
+    "docs/reference/EXECUTION_PLAN.md": {
+      "path": "docs/reference/EXECUTION_PLAN.md",
+      "name": "EXECUTION_PLAN.md",
+      "extension": ".md",
+      "size": 6154,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T23:27:40.833576"
+    },
+    "docs/reference/QUICK_REF.md": {
+      "path": "docs/reference/QUICK_REF.md",
+      "name": "QUICK_REF.md",
+      "extension": ".md",
+      "size": 6776,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-27T00:23:45.882696"
+    },
+    "docs/architecture/STRUCTURE.txt": {
+      "path": "docs/architecture/STRUCTURE.txt",
+      "name": "STRUCTURE.txt",
+      "extension": ".txt",
+      "size": 4722,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-27T00:23:45.883536"
+    },
+    "docs/architecture/ARCHITECTURE.md": {
+      "path": "docs/architecture/ARCHITECTURE.md",
+      "name": "ARCHITECTURE.md",
+      "extension": ".md",
+      "size": 19712,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-29T23:44:01.198528"
+    },
+    "docs/architecture/ARCHITECTURE_V2.md": {
+      "path": "docs/architecture/ARCHITECTURE_V2.md",
+      "name": "ARCHITECTURE_V2.md",
+      "extension": ".md",
+      "size": 11142,
+      "file_type": "doc",
+      "tags": [],
+      "summary": "",
+      "last_modified": "2025-11-30T00:36:41.575809"
+    },
+    "core/theme.py": {
+      "path": "core/theme.py",
+      "name": "theme.py",
+      "extension": ".py",
+      "size": 8506,
+      "file_type": "code",
+      "tags": [
+        "theme",
+        "ui",
+        "python",
+        "core"
+      ],
+      "summary": "Ryx AI - Theme System\nModern, minimal terminal UI with Dracula-inspired colors\n\nThemes:\n- dracula: Dark purple/pink aesthetic (default)\n- nord: Cool blue-gray tones  \n- catppuccin: Soft pastel colors",
+      "last_modified": "2025-12-02T05:43:54.168110"
+    },
+    "core/service_manager.py": {
+      "path": "core/service_manager.py",
+      "name": "service_manager.py",
+      "extension": ".py",
+      "size": 8466,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Service Manager\n\nManages RyxHub services (FastAPI backend, React frontend, WebSocket).",
+      "last_modified": "2025-12-02T05:43:54.167594"
+    },
+    "core/performance_profiler.py": {
+      "path": "core/performance_profiler.py",
+      "name": "performance_profiler.py",
+      "extension": ".py",
+      "size": 6646,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "ui",
+        "python"
+      ],
+      "summary": "Ryx AI - Performance Profiler\nProvides performance profiling and bottleneck detection",
+      "last_modified": "2025-12-02T05:43:54.166258"
+    },
+    "core/repo_explorer.py": {
+      "path": "core/repo_explorer.py",
+      "name": "repo_explorer.py",
+      "extension": ".py",
+      "size": 18387,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Repository Explorer\n\nScans and indexes codebases to provide context for the AI.\nInspired by Aider's repomap system.\n\nKey features:\n- Recursive directory scanning\n- File type classification\n- ",
+      "last_modified": "2025-12-02T13:46:21.214826"
+    },
+    "core/paths.py": {
+      "path": "core/paths.py",
+      "name": "paths.py",
+      "extension": ".py",
+      "size": 2279,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Path Management\nAuto-detects project root and provides consistent paths across all modules",
+      "last_modified": "2025-12-02T05:43:54.166185"
+    },
+    "core/intent_parser.py": {
+      "path": "core/intent_parser.py",
+      "name": "intent_parser.py",
+      "extension": ".py",
+      "size": 19619,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Intent Parser\nParses user prompts to determine intended action before querying AI",
+      "last_modified": "2025-12-02T05:43:54.165242"
+    },
+    "core/ai_engine.py": {
+      "path": "core/ai_engine.py",
+      "name": "ai_engine.py",
+      "extension": ".py",
+      "size": 17243,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Enhanced AI Engine\nJARVIS-grade unified AI engine with <2s latency target, intelligent model routing,\nand automatic failover.\n\nCore Philosophy:\n- Sub-2s latency for all operations (or fail gr",
+      "last_modified": "2025-12-02T05:43:54.164378"
+    },
+    "core/self_healer.py": {
+      "path": "core/self_healer.py",
+      "name": "self_healer.py",
+      "extension": ".py",
+      "size": 10974,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Self Healing System\n\nAI-driven cache cleanup and knowledge maintenance.\nUses a powerful model to analyze cached data and remove useless entries\nthat might make smaller models dumber.\n\nNO hard",
+      "last_modified": "2025-12-02T05:43:54.167390"
+    },
+    "core/cleanup_manager.py": {
+      "path": "core/cleanup_manager.py",
+      "name": "cleanup_manager.py",
+      "extension": ".py",
+      "size": 15617,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Cleanup Manager\nHandles cache optimization, cleanup, and automatic maintenance",
+      "last_modified": "2025-12-02T05:43:54.164607"
+    },
+    "core/rag_system.py": {
+      "path": "core/rag_system.py",
+      "name": "rag_system.py",
+      "extension": ".py",
+      "size": 22704,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - RAG (Retrieval Augmented Generation) System\nProvides zero-latency responses through intelligent caching",
+      "last_modified": "2025-12-02T05:43:54.166560"
+    },
+    "core/logging_config.py": {
+      "path": "core/logging_config.py",
+      "name": "logging_config.py",
+      "extension": ".py",
+      "size": 2828,
+      "file_type": "code",
+      "tags": [
+        "config",
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Logging Configuration\nProvides comprehensive logging setup with rotation and formatting",
+      "last_modified": "2025-12-02T05:43:54.165367"
+    },
+    "core/ai_interpreter.py": {
+      "path": "core/ai_interpreter.py",
+      "name": "ai_interpreter.py",
+      "extension": ".py",
+      "size": 9506,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - AI Command Interpreter\n\nUses LLM to understand user intent and return structured actions.\nNO hardcoded patterns, keywords, or regex. Pure AI understanding.",
+      "last_modified": "2025-12-02T05:43:54.164500"
+    },
+    "core/memory.py": {
+      "path": "core/memory.py",
+      "name": "memory.py",
+      "extension": ".py",
+      "size": 19313,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Advanced Memory System\n\nImplements modern AI memory patterns:\n1. Episodic Memory - Short-term session context\n2. Persistent Memory - Long-term user knowledge\n3. Semantic Memory - Vector embed",
+      "last_modified": "2025-12-02T05:43:54.165438"
+    },
+    "core/intelligent_agent.py": {
+      "path": "core/intelligent_agent.py",
+      "name": "intelligent_agent.py",
+      "extension": ".py",
+      "size": 20361,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Intelligent Agent Core\n\nThis is the brain of Ryx. It uses AI to understand prompts and execute actions.\nNO hardcoded patterns. Pure semantic understanding backed by knowledge.\n\nPrinciples:\n1.",
+      "last_modified": "2025-12-02T05:43:54.164988"
+    },
+    "core/ryx_engine.py": {
+      "path": "core/ryx_engine.py",
+      "name": "ryx_engine.py",
+      "extension": ".py",
+      "size": 44473,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI Engine - Copilot CLI Style Architecture\n===============================================\n\nCore principles:\n1. Knowledge-first: Use cached/known data before LLM\n2. No hallucination: Admit when un",
+      "last_modified": "2025-12-02T05:43:54.167062"
+    },
+    "core/meta_learner.py": {
+      "path": "core/meta_learner.py",
+      "name": "meta_learner.py",
+      "extension": ".py",
+      "size": 21395,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Meta Learner\nLearns user preferences, patterns, and behaviors to provide personalized assistance",
+      "last_modified": "2025-12-02T05:43:54.165563"
+    },
+    "core/ryx_session.py": {
+      "path": "core/ryx_session.py",
+      "name": "ryx_session.py",
+      "extension": ".py",
+      "size": 21310,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "core",
+        "python"
+      ],
+      "summary": "Ryx Session - Copilot CLI Style Interactive Mode\n================================================\n\nSlash commands (only in session mode):\n/help       - Show help\n/clear      - Clear conversation\n/usag",
+      "last_modified": "2025-12-02T05:43:54.167260"
+    },
+    "core/self_improve.py": {
+      "path": "core/self_improve.py",
+      "name": "self_improve.py",
+      "extension": ".py",
+      "size": 14645,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Self-Improvement System\nAllows Ryx to analyze itself and suggest improvements",
+      "last_modified": "2025-12-02T05:43:54.167487"
+    },
+    "core/error_handler.py": {
+      "path": "core/error_handler.py",
+      "name": "error_handler.py",
+      "extension": ".py",
+      "size": 6591,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python",
+        "api"
+      ],
+      "summary": "Ryx AI - Comprehensive Error Handler\nProvides robust error handling and recovery mechanisms",
+      "last_modified": "2025-12-02T05:43:54.164721"
+    },
+    "core/intent_classifier.py": {
+      "path": "core/intent_classifier.py",
+      "name": "intent_classifier.py",
+      "extension": ".py",
+      "size": 17115,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - LLM-based Intent Classifier\nProduction-grade intent classification using minimal rules + LLM fallback",
+      "last_modified": "2025-12-02T05:43:54.165116"
+    },
+    "core/workflow_orchestrator.py": {
+      "path": "core/workflow_orchestrator.py",
+      "name": "workflow_orchestrator.py",
+      "extension": ".py",
+      "size": 17169,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Workflow Orchestrator\nManages multi-step agentic workflows with plan/execute/validate",
+      "last_modified": "2025-12-02T05:43:54.168514"
+    },
+    "core/ui.py": {
+      "path": "core/ui.py",
+      "name": "ui.py",
+      "extension": ".py",
+      "size": 12424,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - UI Module\nPurple-themed terminal UI with emoji status indicators",
+      "last_modified": "2025-12-02T05:43:54.168410"
+    },
+    "core/ryx_agent.py": {
+      "path": "core/ryx_agent.py",
+      "name": "ryx_agent.py",
+      "extension": ".py",
+      "size": 26924,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Core Agent\nThe central brain that powers all Ryx interfaces (CLI, future TUI, speech, etc.)\n\nArchitecture:\n- RyxAgent is the core logic, completely UI-agnostic\n- It handles: intent \u2192 plan \u2192 t",
+      "last_modified": "2025-12-02T05:43:54.166701"
+    },
+    "core/progress.py": {
+      "path": "core/progress.py",
+      "name": "progress.py",
+      "extension": ".py",
+      "size": 5352,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Progress Indicators\n\nProvides spinners, progress bars, and status updates for long operations.",
+      "last_modified": "2025-12-02T06:02:09.446967"
+    },
+    "core/tool_registry.py": {
+      "path": "core/tool_registry.py",
+      "name": "tool_registry.py",
+      "extension": ".py",
+      "size": 47586,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Tool Registry\nUnified tool interface for filesystem, web, shell, and RAG operations\n\nPrivacy-first design:\n- Web search goes through self-hosted SearxNG (configurable)\n- HTML parsing with Bea",
+      "last_modified": "2025-12-02T05:43:54.168209"
+    },
+    "core/model_orchestrator.py": {
+      "path": "core/model_orchestrator.py",
+      "name": "model_orchestrator.py",
+      "extension": ".py",
+      "size": 30137,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "database",
+        "python"
+      ],
+      "summary": "Ryx AI - Model Orchestrator\nIntelligent model selection, lazy loading, and dynamic resource management",
+      "last_modified": "2025-12-02T05:43:54.165811"
+    },
+    "core/ollama_client.py": {
+      "path": "core/ollama_client.py",
+      "name": "ollama_client.py",
+      "extension": ".py",
+      "size": 13057,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python",
+        "network"
+      ],
+      "summary": "Ryx AI - Ollama Client\nProduction-grade Ollama client with streaming support and error handling",
+      "last_modified": "2025-12-02T05:43:54.166070"
+    },
+    "core/task_manager.py": {
+      "path": "core/task_manager.py",
+      "name": "task_manager.py",
+      "extension": ".py",
+      "size": 15481,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Task Manager\nState persistence and graceful interrupt handling for complex tasks",
+      "last_modified": "2025-12-02T05:43:54.168001"
+    },
+    "core/permissions.py": {
+      "path": "core/permissions.py",
+      "name": "permissions.py",
+      "extension": ".py",
+      "size": 10515,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "core",
+        "security",
+        "python"
+      ],
+      "summary": "Ryx AI - Permission Manager & Command Executor\nSafely executes commands with 3-level permission system",
+      "last_modified": "2025-12-02T05:43:54.166339"
+    },
+    "core/health_monitor.py": {
+      "path": "core/health_monitor.py",
+      "name": "health_monitor.py",
+      "extension": ".py",
+      "size": 26695,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Health Monitor\nContinuous system monitoring with automatic healing capabilities",
+      "last_modified": "2025-12-02T05:43:54.164836"
+    },
+    "core/__init__.py": {
+      "path": "core/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 2467,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Core Module\n\nJARVIS-grade personal assistant core components.",
+      "last_modified": "2025-12-02T05:43:54.164255"
+    },
+    "core/printer.py": {
+      "path": "core/printer.py",
+      "name": "printer.py",
+      "extension": ".py",
+      "size": 19709,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Modern Terminal Printing Layer\n\nProvides styled output matching modern CLI aesthetics:\n- Rounded step blocks with borders\n- Status badges (green dot for success, red for error)\n- Grouped comm",
+      "last_modified": "2025-12-02T13:38:47.037848"
+    },
+    "core/startup_optimizer.py": {
+      "path": "core/startup_optimizer.py",
+      "name": "startup_optimizer.py",
+      "extension": ".py",
+      "size": 15088,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Startup Optimizer\nBenchmarks and optimizes startup time",
+      "last_modified": "2025-12-02T05:43:54.167805"
+    },
+    "core/session_loop.py": {
+      "path": "core/session_loop.py",
+      "name": "session_loop.py",
+      "extension": ".py",
+      "size": 20439,
+      "file_type": "code",
+      "tags": [
+        "auth",
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Session Loop: Interactive Session\n\nFeatures:\n- True conversational flow with context\n- Quick y/n responses (instant, no LLM)\n- Slash commands for power users\n- Multi-language (German/English)",
+      "last_modified": "2025-12-02T13:39:55.747845"
+    },
+    "core/phases.py": {
+      "path": "core/phases.py",
+      "name": "phases.py",
+      "extension": ".py",
+      "size": 15411,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Agent Phases\n\nImplements a state machine for agent execution phases.\nInspired by Claude Code's explore \u2192 plan \u2192 apply \u2192 verify workflow.\n\nEach phase has:\n- Specific purpose\n- Dedicated prompt",
+      "last_modified": "2025-12-02T13:47:17.376823"
+    },
+    "core/model_router.py": {
+      "path": "core/model_router.py",
+      "name": "model_router.py",
+      "extension": ".py",
+      "size": 13275,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "database",
+        "python",
+        "api"
+      ],
+      "summary": "Ryx AI - Model Router\nProduction-grade model routing with tier-based configuration and Ollama/Docker support",
+      "last_modified": "2025-12-02T05:43:54.165965"
+    },
+    "core/ryx_brain.py": {
+      "path": "core/ryx_brain.py",
+      "name": "ryx_brain.py",
+      "extension": ".py",
+      "size": 60750,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Brain\n\nCore intelligence for Ryx AI assistant.\nLike Copilot CLI / Claude CLI - uses tools to get things done.\n\nKey principles:\n- NEVER say \"Could you be more specific?\" - ASK a specific quest",
+      "last_modified": "2025-12-02T13:39:41.141845"
+    },
+    "core/tools.py": {
+      "path": "core/tools.py",
+      "name": "tools.py",
+      "extension": ".py",
+      "size": 22081,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Tools Module\n\nPowerful tools like Copilot CLI / Claude CLI:\n- Shell execution with safety\n- File operations (view, edit, create)\n- Search (grep, glob, find)\n- Web search for grounding (reduce",
+      "last_modified": "2025-12-02T13:17:26.022911"
+    },
+    "core/system_status.py": {
+      "path": "core/system_status.py",
+      "name": "system_status.py",
+      "extension": ".py",
+      "size": 8202,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Comprehensive System Status\nProvides detailed system information and diagnostics",
+      "last_modified": "2025-12-02T05:43:54.167913"
+    },
+    "core/metrics_collector.py": {
+      "path": "core/metrics_collector.py",
+      "name": "metrics_collector.py",
+      "extension": ".py",
+      "size": 17153,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Metrics Collector\nCollects and reports performance metrics",
+      "last_modified": "2025-12-02T05:43:54.165695"
+    },
+    "core/agent_tools.py": {
+      "path": "core/agent_tools.py",
+      "name": "agent_tools.py",
+      "extension": ".py",
+      "size": 20561,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "util",
+        "python"
+      ],
+      "summary": "Ryx AI - Agent Tools\n\nStructured tools for controlled code editing.\nLLM can only use these tools - no free-form file writing.\n\nInspired by Claude Code & Aider's tool-based approach.",
+      "last_modified": "2025-12-02T13:48:20.537820"
+    },
+    "core/agents/supervisor.py": {
+      "path": "core/agents/supervisor.py",
+      "name": "supervisor.py",
+      "extension": ".py",
+      "size": 9335,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Supervisor Agent\n\nThe strategic planner that:\n1. Understands user intent deeply\n2. Creates execution plans\n3. Delegates to operators\n4. Handles failures and recovery",
+      "last_modified": "2025-12-02T06:08:06.975950"
+    },
+    "core/agents/base.py": {
+      "path": "core/agents/base.py",
+      "name": "base.py",
+      "extension": ".py",
+      "size": 8073,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Base Agent\n\nAbstract base class for all agents (supervisor and operators).",
+      "last_modified": "2025-12-02T06:07:29.732951"
+    },
+    "core/agents/operator.py": {
+      "path": "core/agents/operator.py",
+      "name": "operator.py",
+      "extension": ".py",
+      "size": 10893,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Operator Agent\n\nThe executor that:\n1. Receives plans from supervisor\n2. Executes steps using tools\n3. Handles retries and fallbacks\n4. Reports status back",
+      "last_modified": "2025-12-02T06:10:19.661943"
+    },
+    "core/agents/__init__.py": {
+      "path": "core/agents/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 477,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Agents Module",
+      "last_modified": "2025-12-02T06:08:46.236948"
+    },
+    "core/execution/executor.py": {
+      "path": "core/execution/executor.py",
+      "name": "executor.py",
+      "extension": ".py",
+      "size": 10105,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Task Executor\n\nThe main orchestrator that:\n1. Routes tasks through complexity gate\n2. Manages supervisor/operator interaction\n3. Handles the full task lifecycle",
+      "last_modified": "2025-12-02T06:09:21.271946"
+    },
+    "core/execution/__init__.py": {
+      "path": "core/execution/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 139,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Execution Module",
+      "last_modified": "2025-12-02T06:09:27.239946"
+    },
+    "core/planning/complexity.py": {
+      "path": "core/planning/complexity.py",
+      "name": "complexity.py",
+      "extension": ".py",
+      "size": 6007,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Complexity Gate\n\nRule-based complexity classification to decide whether supervisor planning is needed.\nNo LLM calls - uses pattern matching for speed.",
+      "last_modified": "2025-12-02T06:06:54.567953"
+    },
+    "core/planning/schemas.py": {
+      "path": "core/planning/schemas.py",
+      "name": "schemas.py",
+      "extension": ".py",
+      "size": 7113,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "database",
+        "python"
+      ],
+      "summary": "Ryx AI - Planning Schemas\n\nData structures for task planning and execution.",
+      "last_modified": "2025-12-02T06:06:27.161955"
+    },
+    "core/planning/__init__.py": {
+      "path": "core/planning/__init__.py",
+      "name": "__init__.py",
+      "extension": ".py",
+      "size": 480,
+      "file_type": "code",
+      "tags": [
+        "core",
+        "python"
+      ],
+      "summary": "Ryx AI - Planning Module",
+      "last_modified": "2025-12-02T06:07:01.795953"
+    },
+    "configs/model_routing.json": {
+      "path": "configs/model_routing.json",
+      "name": "model_routing.json",
+      "extension": ".json",
+      "size": 1492,
+      "file_type": "config",
+      "tags": [
+        "config",
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T16:10:40.213330"
+    },
+    "configs/safety.json": {
+      "path": "configs/safety.json",
+      "name": "safety.json",
+      "extension": ".json",
+      "size": 1444,
+      "file_type": "config",
+      "tags": [
+        "config"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T23:44:01.198002"
+    },
+    "configs/model_tiers.json": {
+      "path": "configs/model_tiers.json",
+      "name": "model_tiers.json",
+      "extension": ".json",
+      "size": 2159,
+      "file_type": "config",
+      "tags": [
+        "config",
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-30T00:36:41.575809"
+    },
+    "configs/settings.json": {
+      "path": "configs/settings.json",
+      "name": "settings.json",
+      "extension": ".json",
+      "size": 464,
+      "file_type": "config",
+      "tags": [
+        "config"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-27T00:24:34.735968"
+    },
+    "configs/commands.json": {
+      "path": "configs/commands.json",
+      "name": "commands.json",
+      "extension": ".json",
+      "size": 1441,
+      "file_type": "config",
+      "tags": [
+        "config"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-27T00:24:34.671968"
+    },
+    "configs/permissions.json": {
+      "path": "configs/permissions.json",
+      "name": "permissions.json",
+      "extension": ".json",
+      "size": 1180,
+      "file_type": "config",
+      "tags": [
+        "config",
+        "security",
+        "auth"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T00:06:09.036195"
+    },
+    "configs/ryx_config.json": {
+      "path": "configs/ryx_config.json",
+      "name": "ryx_config.json",
+      "extension": ".json",
+      "size": 2867,
+      "file_type": "config",
+      "tags": [
+        "config"
+      ],
+      "summary": "",
+      "last_modified": "2025-12-01T04:36:22.148926"
+    },
+    "configs/models.json": {
+      "path": "configs/models.json",
+      "name": "models.json",
+      "extension": ".json",
+      "size": 1942,
+      "file_type": "config",
+      "tags": [
+        "config",
+        "database"
+      ],
+      "summary": "",
+      "last_modified": "2025-11-29T23:44:01.197939"
+    }
+  },
+  "tags_index": {
+    "shell": [
+      "install.sh",
+      "install_models.sh",
+      "ryx_pkg/interfaces/web/validate-ui.sh",
+      "docker/cleanup.sh",
+      "scripts/ryx-preload.sh",
+      "scripts/local_verify.sh"
+    ],
+    "database": [
+      "install_models.sh",
+      "dev/experiments/model_router_v2.py",
+      "ryx_pkg/interfaces/web/src/hooks/useModelLoader.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useModels.ts.backup",
+      "ryx_pkg/interfaces/web/src/hooks/useModels.ts",
+      "ryx_pkg/interfaces/web/src/components/sidebar/ModelsSection.tsx",
+      "data/smart_cache.db",
+      "data/cache/search/a10cdb000491.json",
+      "scripts/optimize_databases.py",
+      "scripts/database_maintenance.py",
+      "core/model_orchestrator.py",
+      "core/model_router.py",
+      "core/planning/schemas.py",
+      "configs/model_routing.json",
+      "configs/model_tiers.json",
+      "configs/models.json"
+    ],
+    "core": [
+      "ryx_main.py",
+      "dev/tests/test_ryx_core.py",
+      "dev/experiments/ryx_brain_v2.py",
+      "dev/experiments/ai_engine_v1.py",
+      "dev/experiments/ryx_brain_v1.py",
+      "dev/experiments/ryx_brain_v3.py",
+      "dev/test_results/RYX_TEST_INDEX.md",
+      "dev/test_results/main_sha.txt",
+      "ryx_pkg/__init__.py",
+      "ryx_pkg/interfaces/__init__.py",
+      "ryx_pkg/interfaces/web/__init__.py",
+      "ryx_pkg/interfaces/web/src/App.tsx",
+      "ryx_pkg/interfaces/web/src/index.tsx",
+      "ryx_pkg/interfaces/web/src/index.css",
+      "ryx_pkg/interfaces/web/src/react-app-env.d.ts",
+      "ryx_pkg/interfaces/web/src/types/index.ts",
+      "ryx_pkg/interfaces/web/backend/main.py",
+      "ryx_pkg/interfaces/web/backend/__init__.py",
+      "ryx_pkg/interfaces/web/public/index.html",
+      "ryx_pkg/interfaces/cli/main.py",
+      "ryx_pkg/interfaces/cli/__init__.py",
+      "ryx_pkg/core/permission_manager.py",
+      "ryx_pkg/core/tool_executor.py",
+      "ryx_pkg/core/llm_router.py",
+      "ryx_pkg/core/workflow_orchestrator.py",
+      "ryx_pkg/core/__init__.py",
+      "ryx_pkg/core/rag_manager.py",
+      "data/scrape/documentation/Example Domain_c984d06a.txt",
+      "data/scrape/raw/https___wiki.archlinux.org_index.php_Special_Search_search_scrape_archwiki.json",
+      "tools/__init__.py",
+      "ryx_core/router.py",
+      "ryx_core/workflow.py",
+      "ryx_core/api.py",
+      "ryx_core/interfaces.py",
+      "ryx_core/cli.py",
+      "ryx_core/permissions.py",
+      "ryx_core/__init__.py",
+      "modes/__init__.py",
+      "scripts/database_maintenance.py",
+      "core/theme.py",
+      "core/service_manager.py",
+      "core/performance_profiler.py",
+      "core/repo_explorer.py",
+      "core/paths.py",
+      "core/intent_parser.py",
+      "core/ai_engine.py",
+      "core/self_healer.py",
+      "core/cleanup_manager.py",
+      "core/rag_system.py",
+      "core/logging_config.py",
+      "core/ai_interpreter.py",
+      "core/memory.py",
+      "core/intelligent_agent.py",
+      "core/ryx_engine.py",
+      "core/meta_learner.py",
+      "core/ryx_session.py",
+      "core/self_improve.py",
+      "core/error_handler.py",
+      "core/intent_classifier.py",
+      "core/workflow_orchestrator.py",
+      "core/ui.py",
+      "core/ryx_agent.py",
+      "core/progress.py",
+      "core/tool_registry.py",
+      "core/model_orchestrator.py",
+      "core/ollama_client.py",
+      "core/task_manager.py",
+      "core/permissions.py",
+      "core/health_monitor.py",
+      "core/__init__.py",
+      "core/printer.py",
+      "core/startup_optimizer.py",
+      "core/session_loop.py",
+      "core/phases.py",
+      "core/model_router.py",
+      "core/ryx_brain.py",
+      "core/tools.py",
+      "core/system_status.py",
+      "core/metrics_collector.py",
+      "core/agent_tools.py",
+      "core/agents/supervisor.py",
+      "core/agents/base.py",
+      "core/agents/operator.py",
+      "core/agents/__init__.py",
+      "core/execution/executor.py",
+      "core/execution/__init__.py",
+      "core/planning/complexity.py",
+      "core/planning/schemas.py",
+      "core/planning/__init__.py"
+    ],
+    "python": [
+      "ryx_main.py",
+      "dev/tests/test_ryx_core.py",
+      "dev/tests/test_basic_functionality.py",
+      "dev/tests/test_rag_manager.py",
+      "dev/tests/test_v2_integration.py",
+      "dev/tests/test_new_components.py",
+      "dev/tests/test_llm_router.py",
+      "dev/tests/test_imports.py",
+      "dev/tests/test_v2_components.py",
+      "dev/tests/test_intent_parser_fix.py",
+      "dev/tests/test_tool_executor.py",
+      "dev/tests/test_v2_architecture.py",
+      "dev/tests/test_intent_parser_comprehensive.py",
+      "dev/tests/test_permission_manager.py",
+      "dev/tests/test_workflow_orchestrator.py",
+      "dev/experiments/ryx_brain_v2.py",
+      "dev/experiments/session_loop_v1.py",
+      "dev/experiments/ai_engine_v1.py",
+      "dev/experiments/session_loop_v2.py",
+      "dev/experiments/model_router_v2.py",
+      "dev/experiments/ryx_brain_v1.py",
+      "dev/experiments/session_loop_v3.py",
+      "dev/experiments/ryx_brain_v3.py",
+      "ryx_pkg/__init__.py",
+      "ryx_pkg/interfaces/__init__.py",
+      "ryx_pkg/interfaces/web/__init__.py",
+      "ryx_pkg/interfaces/web/backend/main.py",
+      "ryx_pkg/interfaces/web/backend/__init__.py",
+      "ryx_pkg/interfaces/cli/main.py",
+      "ryx_pkg/interfaces/cli/__init__.py",
+      "ryx_pkg/core/permission_manager.py",
+      "ryx_pkg/core/tool_executor.py",
+      "ryx_pkg/core/llm_router.py",
+      "ryx_pkg/core/workflow_orchestrator.py",
+      "ryx_pkg/core/__init__.py",
+      "ryx_pkg/core/rag_manager.py",
+      "tools/council.py",
+      "tools/browser.py",
+      "tools/cache_validator.py",
+      "tools/rag_ingest.py",
+      "tools/scraper.py",
+      "tools/__init__.py",
+      "ryx_core/router.py",
+      "ryx_core/workflow.py",
+      "ryx_core/api.py",
+      "ryx_core/interfaces.py",
+      "ryx_core/cli.py",
+      "ryx_core/permissions.py",
+      "ryx_core/__init__.py",
+      "modes/cli_mode.py",
+      "modes/session_mode.py",
+      "modes/__init__.py",
+      "scripts/performance_benchmark.py",
+      "scripts/code_quality_check.py",
+      "scripts/optimize_databases.py",
+      "scripts/system_diagnostics.py",
+      "scripts/backup_restore.py",
+      "scripts/database_maintenance.py",
+      "core/theme.py",
+      "core/service_manager.py",
+      "core/performance_profiler.py",
+      "core/repo_explorer.py",
+      "core/paths.py",
+      "core/intent_parser.py",
+      "core/ai_engine.py",
+      "core/self_healer.py",
+      "core/cleanup_manager.py",
+      "core/rag_system.py",
+      "core/logging_config.py",
+      "core/ai_interpreter.py",
+      "core/memory.py",
+      "core/intelligent_agent.py",
+      "core/ryx_engine.py",
+      "core/meta_learner.py",
+      "core/ryx_session.py",
+      "core/self_improve.py",
+      "core/error_handler.py",
+      "core/intent_classifier.py",
+      "core/workflow_orchestrator.py",
+      "core/ui.py",
+      "core/ryx_agent.py",
+      "core/progress.py",
+      "core/tool_registry.py",
+      "core/model_orchestrator.py",
+      "core/ollama_client.py",
+      "core/task_manager.py",
+      "core/permissions.py",
+      "core/health_monitor.py",
+      "core/__init__.py",
+      "core/printer.py",
+      "core/startup_optimizer.py",
+      "core/session_loop.py",
+      "core/phases.py",
+      "core/model_router.py",
+      "core/ryx_brain.py",
+      "core/tools.py",
+      "core/system_status.py",
+      "core/metrics_collector.py",
+      "core/agent_tools.py",
+      "core/agents/supervisor.py",
+      "core/agents/base.py",
+      "core/agents/operator.py",
+      "core/agents/__init__.py",
+      "core/execution/executor.py",
+      "core/execution/__init__.py",
+      "core/planning/complexity.py",
+      "core/planning/schemas.py",
+      "core/planning/__init__.py"
+    ],
+    "test": [
+      "dev/tests/test_ryx_core.py",
+      "dev/tests/test_basic_functionality.py",
+      "dev/tests/test_rag_manager.py",
+      "dev/tests/test_v2_integration.py",
+      "dev/tests/test_new_components.py",
+      "dev/tests/test_llm_router.py",
+      "dev/tests/test_imports.py",
+      "dev/tests/test_v2_components.py",
+      "dev/tests/test_intent_parser_fix.py",
+      "dev/tests/test_tool_executor.py",
+      "dev/tests/test_v2_architecture.py",
+      "dev/tests/test_intent_parser_comprehensive.py",
+      "dev/tests/test_permission_manager.py",
+      "dev/tests/test_workflow_orchestrator.py",
+      "dev/test_results/pip_freeze.txt",
+      "dev/test_results/RYX_TEST_INDEX.md",
+      "dev/test_results/main_sha.txt",
+      "dev/test_results/RYX_TEST_ACTION_SUMMARY.md",
+      "dev/test_results/build_report.json",
+      "dev/test_results/RYX_STRESS_TEST_REPORT.md",
+      "dev/test_results/report_pytest.xml",
+      "ryx_pkg/interfaces/web/e2e/ui-validation.spec.ts",
+      "ryx_pkg/interfaces/web/src/__tests__/ToolResults.test.tsx",
+      "ryx_pkg/interfaces/web/src/__tests__/ExecutionMonitor.test.tsx",
+      "ryx_pkg/interfaces/web/src/__tests__/WorkflowCanvas.test.tsx"
+    ],
+    "util": [
+      "dev/tests/test_rag_manager.py",
+      "dev/tests/test_tool_executor.py",
+      "dev/tests/test_permission_manager.py",
+      "ryx_pkg/interfaces/web/src/services/api.ts",
+      "ryx_pkg/interfaces/web/src/__tests__/ToolResults.test.tsx",
+      "ryx_pkg/interfaces/web/src/utils/errorHandler.ts",
+      "ryx_pkg/interfaces/web/src/utils/storage.ts",
+      "ryx_pkg/interfaces/web/src/utils/keyboard.ts",
+      "ryx_pkg/interfaces/web/src/utils/globalErrorHandler.ts",
+      "ryx_pkg/interfaces/web/src/components/ToolResults.tsx",
+      "ryx_pkg/core/permission_manager.py",
+      "ryx_pkg/core/tool_executor.py",
+      "ryx_pkg/core/rag_manager.py",
+      "tools/council.py",
+      "tools/browser.py",
+      "tools/cache_validator.py",
+      "tools/rag_ingest.py",
+      "tools/scraper.py",
+      "tools/__init__.py",
+      "docs/roadmap/tasks/task-2.6-rag-manager.md",
+      "docs/roadmap/tasks/task-2.2-permission-manager.md",
+      "docs/roadmap/tasks/task-3.3-tool-results-panel.md",
+      "docs/roadmap/tasks/task-2.4-tool-executor-part2.md",
+      "docs/roadmap/tasks/task-2.3-tool-executor-part1.md",
+      "core/service_manager.py",
+      "core/cleanup_manager.py",
+      "core/tool_registry.py",
+      "core/task_manager.py",
+      "core/tools.py",
+      "core/agent_tools.py"
+    ],
+    "ui": [
+      "dev/tests/test_new_components.py",
+      "dev/tests/test_v2_components.py",
+      "ryx_pkg/interfaces/web/postcss.config.js",
+      "ryx_pkg/interfaces/web/src/index.css",
+      "ryx_pkg/interfaces/web/src/styles/dracula.css",
+      "ryx_pkg/interfaces/web/src/components/ConnectionStatus.tsx",
+      "ryx_pkg/interfaces/web/src/components/N8NLayout.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowCanvas.tsx",
+      "ryx_pkg/interfaces/web/src/components/SearchProviderSelector.tsx",
+      "ryx_pkg/interfaces/web/src/components/MessageBubble.tsx",
+      "ryx_pkg/interfaces/web/src/components/RAGSection.tsx",
+      "ryx_pkg/interfaces/web/src/components/ResultsPanel.tsx",
+      "ryx_pkg/interfaces/web/src/components/LiveExecution.tsx",
+      "ryx_pkg/interfaces/web/src/components/ExecutionMonitor.tsx",
+      "ryx_pkg/interfaces/web/src/components/GlobalErrorHandler.tsx",
+      "ryx_pkg/interfaces/web/src/components/SettingsModal.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowSidebar.tsx",
+      "ryx_pkg/interfaces/web/src/components/Toast.tsx",
+      "ryx_pkg/interfaces/web/src/components/ToolResults.tsx",
+      "ryx_pkg/interfaces/web/src/components/ChatPanel.tsx",
+      "ryx_pkg/interfaces/web/src/components/Header.tsx",
+      "ryx_pkg/interfaces/web/src/components/ChatHeader.tsx",
+      "ryx_pkg/interfaces/web/src/components/Sidebar.tsx",
+      "ryx_pkg/interfaces/web/src/components/BackendStatusBanner.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowDashboard.tsx",
+      "ryx_pkg/interfaces/web/src/components/ErrorBoundary.tsx",
+      "ryx_pkg/interfaces/web/src/components/SearchToggle.tsx",
+      "ryx_pkg/interfaces/web/src/components/ChatInput.tsx",
+      "ryx_pkg/interfaces/web/src/components/SearchResults.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowNode.tsx",
+      "ryx_pkg/interfaces/web/src/components/Step.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatHeader.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/MessageMetrics.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/EnhancedMessageBubble.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatInput.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/ModelsSection.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedRAGSection.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedSidebar.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/RAGFileList.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/SessionItem.tsx",
+      "ryx_pkg/interfaces/web/src/components/ui/Dropdown.tsx",
+      "ryx_pkg/interfaces/web/src/components/ui/Avatar.tsx",
+      "data/theme_prefs.json",
+      "scripts/performance_benchmark.py",
+      "scripts/ryx-modal",
+      "docs/roadmap/tasks/task-1.2-react-components-scaffold.md",
+      "core/theme.py",
+      "core/performance_profiler.py"
+    ],
+    "api": [
+      "dev/tests/test_llm_router.py",
+      "dev/experiments/model_router_v2.py",
+      "ryx_pkg/interfaces/web/src/services/api.ts",
+      "ryx_pkg/interfaces/web/src/utils/errorHandler.ts",
+      "ryx_pkg/interfaces/web/src/utils/globalErrorHandler.ts",
+      "ryx_pkg/interfaces/web/src/components/GlobalErrorHandler.tsx",
+      "ryx_pkg/core/llm_router.py",
+      "ryx_core/router.py",
+      "ryx_core/api.py",
+      "docs/roadmap/tasks/task-2.1-llm-router.md",
+      "docs/roadmap/tasks/task-1.3-fastapi-endpoints.md",
+      "core/error_handler.py",
+      "core/model_router.py"
+    ],
+    "security": [
+      "dev/tests/test_permission_manager.py",
+      "ryx_pkg/core/permission_manager.py",
+      "ryx_core/permissions.py",
+      "docs/roadmap/tasks/task-2.2-permission-manager.md",
+      "core/permissions.py",
+      "configs/permissions.json"
+    ],
+    "auth": [
+      "dev/tests/test_permission_manager.py",
+      "dev/experiments/session_loop_v1.py",
+      "dev/experiments/session_loop_v2.py",
+      "dev/experiments/session_loop_v3.py",
+      "ryx_pkg/interfaces/web/src/hooks/useSessions.ts",
+      "ryx_pkg/interfaces/web/src/components/sidebar/SessionItem.tsx",
+      "ryx_pkg/core/permission_manager.py",
+      "data/session_state_v4.json",
+      "data/session_state.json",
+      "data/exports/session_20251202_023929.md",
+      "data/exports/session_20251202_042952.md",
+      "data/history/session_history",
+      "data/history/session_v4",
+      "data/history/session",
+      "ryx_core/permissions.py",
+      "modes/session_mode.py",
+      "docs/roadmap/tasks/task-2.2-permission-manager.md",
+      "core/ryx_session.py",
+      "core/permissions.py",
+      "core/session_loop.py",
+      "configs/permissions.json"
+    ],
+    "config": [
+      "ryx_pkg/interfaces/web/tailwind.config.js",
+      "ryx_pkg/interfaces/web/playwright.config.ts",
+      "ryx_pkg/interfaces/web/tsconfig.json",
+      "ryx_pkg/interfaces/web/postcss.config.js",
+      "ryx_pkg/interfaces/web/src/components/SettingsModal.tsx",
+      "core/logging_config.py",
+      "configs/model_routing.json",
+      "configs/safety.json",
+      "configs/model_tiers.json",
+      "configs/settings.json",
+      "configs/commands.json",
+      "configs/permissions.json",
+      "configs/ryx_config.json",
+      "configs/models.json"
+    ],
+    "javascript": [
+      "ryx_pkg/interfaces/web/tailwind.config.js",
+      "ryx_pkg/interfaces/web/playwright.config.ts",
+      "ryx_pkg/interfaces/web/postcss.config.js",
+      "ryx_pkg/interfaces/web/e2e/ui-validation.spec.ts",
+      "ryx_pkg/interfaces/web/src/reportWebVitals.ts",
+      "ryx_pkg/interfaces/web/src/setupTests.ts",
+      "ryx_pkg/interfaces/web/src/App.tsx",
+      "ryx_pkg/interfaces/web/src/index.tsx",
+      "ryx_pkg/interfaces/web/src/react-app-env.d.ts",
+      "ryx_pkg/interfaces/web/src/setupProxy.js",
+      "ryx_pkg/interfaces/web/src/services/api.ts",
+      "ryx_pkg/interfaces/web/src/__tests__/ToolResults.test.tsx",
+      "ryx_pkg/interfaces/web/src/__tests__/ExecutionMonitor.test.tsx",
+      "ryx_pkg/interfaces/web/src/__tests__/WorkflowCanvas.test.tsx",
+      "ryx_pkg/interfaces/web/src/hooks/useChat.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useConnectionStatus.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useRAGFiles.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useMessageHistory.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useConnectionToast.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useModelLoader.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useMessageQueue.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useSessions.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useWorkflowWebsocket.ts",
+      "ryx_pkg/interfaces/web/src/hooks/useModels.ts",
+      "ryx_pkg/interfaces/web/src/types/index.ts",
+      "ryx_pkg/interfaces/web/src/utils/errorHandler.ts",
+      "ryx_pkg/interfaces/web/src/utils/storage.ts",
+      "ryx_pkg/interfaces/web/src/utils/keyboard.ts",
+      "ryx_pkg/interfaces/web/src/utils/globalErrorHandler.ts",
+      "ryx_pkg/interfaces/web/src/contexts/SearchContext.tsx",
+      "ryx_pkg/interfaces/web/src/components/ConnectionStatus.tsx",
+      "ryx_pkg/interfaces/web/src/components/N8NLayout.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowCanvas.tsx",
+      "ryx_pkg/interfaces/web/src/components/SearchProviderSelector.tsx",
+      "ryx_pkg/interfaces/web/src/components/MessageBubble.tsx",
+      "ryx_pkg/interfaces/web/src/components/RAGSection.tsx",
+      "ryx_pkg/interfaces/web/src/components/ResultsPanel.tsx",
+      "ryx_pkg/interfaces/web/src/components/LiveExecution.tsx",
+      "ryx_pkg/interfaces/web/src/components/ExecutionMonitor.tsx",
+      "ryx_pkg/interfaces/web/src/components/GlobalErrorHandler.tsx",
+      "ryx_pkg/interfaces/web/src/components/SettingsModal.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowSidebar.tsx",
+      "ryx_pkg/interfaces/web/src/components/Toast.tsx",
+      "ryx_pkg/interfaces/web/src/components/ToolResults.tsx",
+      "ryx_pkg/interfaces/web/src/components/ChatPanel.tsx",
+      "ryx_pkg/interfaces/web/src/components/Header.tsx",
+      "ryx_pkg/interfaces/web/src/components/ChatHeader.tsx",
+      "ryx_pkg/interfaces/web/src/components/Sidebar.tsx",
+      "ryx_pkg/interfaces/web/src/components/BackendStatusBanner.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowDashboard.tsx",
+      "ryx_pkg/interfaces/web/src/components/ErrorBoundary.tsx",
+      "ryx_pkg/interfaces/web/src/components/SearchToggle.tsx",
+      "ryx_pkg/interfaces/web/src/components/ChatInput.tsx",
+      "ryx_pkg/interfaces/web/src/components/SearchResults.tsx",
+      "ryx_pkg/interfaces/web/src/components/WorkflowNode.tsx",
+      "ryx_pkg/interfaces/web/src/components/Step.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatHeader.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/MessageMetrics.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/EnhancedMessageBubble.tsx",
+      "ryx_pkg/interfaces/web/src/components/chat/EnhancedChatInput.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/ModelsSection.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedRAGSection.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/EnhancedSidebar.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/RAGFileList.tsx",
+      "ryx_pkg/interfaces/web/src/components/sidebar/SessionItem.tsx",
+      "ryx_pkg/interfaces/web/src/components/ui/Dropdown.tsx",
+      "ryx_pkg/interfaces/web/src/components/ui/Avatar.tsx"
+    ],
+    "theme": [
+      "ryx_pkg/interfaces/web/postcss.config.js",
+      "ryx_pkg/interfaces/web/src/index.css",
+      "ryx_pkg/interfaces/web/src/styles/dracula.css",
+      "data/theme_prefs.json",
+      "core/theme.py"
+    ],
+    "realtime": [
+      "ryx_pkg/interfaces/web/src/hooks/useWorkflowWebsocket.ts",
+      "ryx_pkg/interfaces/web/src/components/WorkflowSidebar.tsx",
+      "tools/browser.py",
+      "docs/roadmap/tasks/task-3.4-websocket-integration.md"
+    ],
+    "network": [
+      "ryx_pkg/interfaces/web/src/hooks/useWorkflowWebsocket.ts",
+      "ryx_pkg/interfaces/web/src/components/WorkflowSidebar.tsx",
+      "data/scrape/raw/https___wiki.archlinux.org_.json",
+      "data/scrape/raw/https___wiki.archlinux.org_title_Hyprland.json",
+      "data/scrape/raw/https___wiki.archlinux.org_index.php_Special_Search_search_scrape_archwiki.json",
+      "data/scrape/raw/https___cuno-berufskolleg.de_.json",
+      "tools/browser.py",
+      "docs/roadmap/tasks/task-3.4-websocket-integration.md",
+      "core/ollama_client.py"
+    ]
+  },
+  "created_at": "2025-12-02T13:48:30.100731",
+  "file_count": 287
+}
