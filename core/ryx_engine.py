@@ -103,6 +103,22 @@ class KnowledgeBase:
         """Get config file path by name"""
         name_lower = name.lower().strip()
         
+        # Fix common typos FIRST
+        typo_fixes = {
+            "hyperland": "hyprland",
+            "hyperion": "hyprland",
+            "hyprlan": "hyprland",
+            "hyprlnd": "hyprland",
+            "kitti": "kitty",
+            "neovim": "nvim",
+            "vim": "nvim",
+            "wayba": "waybar",
+            "alacrit": "alacritty",
+        }
+        for typo, correct in typo_fixes.items():
+            if typo in name_lower:
+                name_lower = name_lower.replace(typo, correct)
+        
         # Common aliases
         aliases = {
             "hyprland": ["hyprland", "hypr", "hyprland config", "hyprland.conf"],
@@ -558,6 +574,30 @@ CURRENT INFO:
                 source="cache"
             )
         
+        # ─────────────────────────────────────────────────────────
+        # Pattern: Date/Time queries - CHECK EARLY (before "what is")
+        # ─────────────────────────────────────────────────────────
+        
+        info = self.kb.get_system_info()
+        
+        if any(x in input_lower for x in ["what time", "current time", "time is it"]):
+            return Action(
+                type=ActionType.ANSWER,
+                response=f"It's {info['time']}",
+                source="system"
+            )
+        
+        if any(x in input_lower for x in ["what date", "today's date", "date today", "what day", "the date", "current date", "what is today"]):
+            return Action(
+                type=ActionType.ANSWER,
+                response=f"Today is {info['date']}",
+                source="system"
+            )
+        
+        # ─────────────────────────────────────────────────────────
+        # Pattern: Open website/file
+        # ─────────────────────────────────────────────────────────
+        
         # "open X" pattern
         if input_lower.startswith("open "):
             target = input_lower[5:].strip()
@@ -680,26 +720,6 @@ CURRENT INFO:
                     target=url,
                     source="inferred"
                 )
-        
-        # ─────────────────────────────────────────────────────────
-        # Pattern: System info queries (instant answers)
-        # ─────────────────────────────────────────────────────────
-        
-        info = self.kb.get_system_info()
-        
-        if any(x in input_lower for x in ["what time", "current time", "time is it"]):
-            return Action(
-                type=ActionType.ANSWER,
-                response=f"It's {info['time']}",
-                source="system"
-            )
-        
-        if any(x in input_lower for x in ["what date", "today's date", "date today", "what day", "the date", "current date", "what is today"]):
-            return Action(
-                type=ActionType.ANSWER,
-                response=f"Today is {info['date']}",
-                source="system"
-            )
         
         # ─────────────────────────────────────────────────────────
         # Pattern: Cached answer
