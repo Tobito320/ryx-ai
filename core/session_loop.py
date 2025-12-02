@@ -162,8 +162,16 @@ class SessionLoop:
         # Understand the input (no box needed - it's fast)
         plan = self.brain.understand(user_input)
         
+        # Update status if modern CLI
+        if hasattr(self.cli, 'update_status'):
+            self.cli.update_status("Executing...")
+        
         # Execute
         success, result = self.brain.execute(plan)
+        
+        # Clear the processing box
+        if hasattr(self.cli, 'finish_processing'):
+            self.cli.finish_processing()
         
         # Track stats
         self.stats['actions'] += 1

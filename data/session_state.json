@@ -2,36 +2,6 @@
   "history": [
     {
       "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T18:36:43.238056"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T18:36:46.122249"
-    },
-    {
-      "role": "user",
-      "content": "wie gehts",
-      "ts": "2025-12-02T18:36:47.973790"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T18:36:49.343923"
-    },
-    {
-      "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T19:56:55.641208"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T19:56:58.072325"
-    },
-    {
-      "role": "user",
       "content": "wie gehts",
       "ts": "2025-12-02T19:56:59.621008"
     },
@@ -194,11 +164,96 @@
       "role": "user",
       "content": "/quit",
       "ts": "2025-12-02T21:28:11.249561"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "ts": "2025-12-02T21:28:13.528618"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:13.865428"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:28:15.068628"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:15.254561"
+    },
+    {
+      "role": "user",
+      "content": "wie gehts",
+      "ts": "2025-12-02T21:28:17.390849"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:18.416432"
+    },
+    {
+      "role": "user",
+      "content": "das problem",
+      "ts": "2025-12-02T21:28:21.329427"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:22.028692"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:28:39.877970"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:40.046317"
+    },
+    {
+      "role": "user",
+      "content": "wer war nikolas",
+      "ts": "2025-12-02T21:28:45.136239"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:45.737416"
+    },
+    {
+      "role": "user",
+      "content": "wer war niko",
+      "ts": "2025-12-02T21:28:50.185824"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:28:50.659416"
+    },
+    {
+      "role": "user",
+      "content": "was ist rekursion",
+      "ts": "2025-12-02T21:28:59.017647"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:29:01.627464"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T21:35:17.880611"
     }
   ],
   "stats": {
-    "prompts": 5,
-    "actions": 4,
+    "prompts": 9,
+    "actions": 8,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -212,5 +267,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-02T21:28:11.249644"
+  "saved_at": "2025-12-02T21:35:17.880696"
 }
