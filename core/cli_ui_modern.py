@@ -486,113 +486,82 @@ class ModernCLI:
             self.tok_s = tok_s
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Main Prompt
+    # Main Prompt - Simple mode (no full-screen, just draw box before input)
     # ═══════════════════════════════════════════════════════════════════════════
 
     def prompt(self) -> str:
-        """Run UI and get input"""
+        """Get user input with a simple box drawn before"""
+        import sys
+        
         try:
-            # Recreate the app each time to show updated content
-            self._create_layout()
-            self.app = Application(
-                layout=self.layout,
-                key_bindings=self.kb,
-                style=self._create_style(),
-                full_screen=True,
-                mouse_support=True,
-            )
+            width = shutil.get_terminal_size().columns
             
-            result = self.app.run()
-
-            if result == "__EXIT__" or result is None:
+            # Colors
+            border = "\033[38;2;98;104;128m"
+            path_c = "\033[38;2;239;159;118m"
+            model_c = "\033[38;2;244;184;228m"
+            prompt_c = "\033[38;2;202;158;230m"
+            muted = "\033[38;2;115;121;148m"
+            reset = "\033[0m"
+            
+            # Build top border
+            path = self.cwd.replace(os.path.expanduser("~"), "~")
+            left_text = f" {path}"
+            if self.current_branch:
+                left_text += f" [{self.current_branch}]"
+            right_text = f"{self.current_model} "
+            pad = width - 4 - len(left_text) - len(right_text)
+            
+            # Print box top
+            print(f"{border}┌─{reset}{path_c}{left_text}{reset}{border} {'─' * max(1, pad)} {reset}{model_c}{right_text}{reset}{border}─┐{reset}")
+            
+            # Get input inside box
+            sys.stdout.write(f"{border}│{reset} {prompt_c}>{reset} ")
+            sys.stdout.flush()
+            
+            user_input = input().strip()
+            
+            # Print box bottom
+            left_hint = " Enter Send · Ctrl+C Exit"
+            right_hint = f"{self.msg_count} msgs "
+            pad2 = width - 4 - len(left_hint) - len(right_hint)
+            print(f"{border}└─{reset}{muted}{left_hint}{reset}{border} {'─' * max(1, pad2)} {reset}{muted}{right_hint}{reset}{border}─┘{reset}")
+            
+            if not user_input:
+                return ""
+            
+            if user_input.lower() in ['/quit', '/exit', '/q']:
                 return "/quit"
-
+            
             self.msg_count += 1
-            # Add user message to content
-            self.add_content(f"> {result}", "user")
+            self.add_content(f"> {user_input}", "user")
             
-            # After exiting full-screen, redraw the box statically
-            # This keeps the UI visible while LLM processes
-            self._redraw_static()
-            
-            return result.strip()
+            return user_input
 
         except KeyboardInterrupt:
+            print()
             return "/quit"
         except EOFError:
             return "/quit"
 
-    def _redraw_static(self):
-        """Redraw the entire UI statically (not full-screen) after prompt"""
-        import sys
-        width = shutil.get_terminal_size().columns
-        
-        # Colors
-        border = "\033[38;2;98;104;128m"
-        path_c = "\033[38;2;239;159;118m"
-        model_c = "\033[38;2;244;184;228m"
-        muted = "\033[38;2;115;121;148m"
+    def show_thinking(self):
+        """Show thinking indicator"""
         step_c = "\033[38;2;129;200;190m"
+        reset = "\033[0m"
+        print(f"{step_c}● Thinking...{reset}")
+
+    def clear_thinking(self):
+        """Clear thinking line"""
+        import sys
+        sys.stdout.write("\033[1A\033[K")
+        sys.stdout.flush()
+
+    def print_reply(self, text: str):
+        """Print AI reply"""
         reply_c = "\033[38;2;166;209;137m"
-        user_c = "\033[38;2;202;158;230m"
         reset = "\033[0m"
-        
-        # Print recent content (last 10 lines)
-        style_colors = {
-            'success': reply_c, 'error': '\033[38;2;231;130;132m',
-            'warning': '\033[38;2;229;200;144m', 'info': '\033[38;2;140;170;238m',
-            'muted': muted, 'step': step_c, 'reply': reply_c, 'user': user_c,
-            'text': '\033[38;2;198;208;245m',
-        }
-        
-        for line in self.content_lines[-10:]:
-            color = style_colors.get(line.style, '')
-            print(f"{color}{line.text}{reset}")
-        
-        # Build top border
-        path = self.cwd.replace(os.path.expanduser("~"), "~")
-        left_text = f" {path}"
-        if self.current_branch:
-            left_text += f" [{self.current_branch}]"
-        right_text = f"{self.current_model} "
-        pad = width - 4 - len(left_text) - len(right_text)
-        
-        print(f"{border}┌─{reset}{path_c}{left_text}{reset}{border} {'─' * max(1, pad)} {reset}{model_c}{right_text}{reset}{border}─┐{reset}")
-        
-        # Status line - show "Processing..."
-        status = "● Processing..."
-        status_pad = width - len(status) - 4
-        print(f"{border}│{reset} {step_c}{status}{reset}{' ' * max(0, status_pad)}{border}│{reset}")
-        
-        # Bottom border
-        left_hint = " Ctrl+C Cancel"
-        right_hint = f"{self.msg_count} msgs "
-        pad2 = width - 4 - len(left_hint) - len(right_hint)
-        print(f"{border}└─{reset}{muted}{left_hint}{reset}{border} {'─' * max(1, pad2)} {reset}{muted}{right_hint}{reset}{border}─┘{reset}")
-        
-        sys.stdout.flush()
-
-    def update_status(self, status: str):
-        """Update the status line in the static box"""
-        import sys
-        width = shutil.get_terminal_size().columns
-        
-        border = "\033[38;2;98;104;128m"
-        step_c = "\033[38;2;129;200;190m"
-        reset = "\033[0m"
-        
-        # Move up 2 lines (to status line), clear line and rewrite, then move back down
-        status_text = f"● {status}"
-        status_pad = width - len(status_text) - 4
-        sys.stdout.write(f"\033[2A\r\033[K{border}│{reset} {step_c}{status_text}{reset}{' ' * max(0, status_pad)}{border}│{reset}\033[2B\r")
-        sys.stdout.flush()
-
-    def finish_processing(self):
-        """Clear the processing box after LLM is done"""
-        import sys
-        # Move up 3 lines and clear them
-        sys.stdout.write("\033[3A\033[J")
-        sys.stdout.flush()
+        print(f"{reply_c}{text}{reset}")
+        self.add_content(text, "reply")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Legacy Compatibility

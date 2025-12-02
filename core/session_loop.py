@@ -159,19 +159,18 @@ class SessionLoop:
             self._shell_command(user_input[1:])
             return
         
-        # Understand the input (no box needed - it's fast)
-        plan = self.brain.understand(user_input)
+        # Understand the input
+        if hasattr(self.cli, 'show_thinking'):
+            self.cli.show_thinking()
         
-        # Update status if modern CLI
-        if hasattr(self.cli, 'update_status'):
-            self.cli.update_status("Executing...")
+        plan = self.brain.understand(user_input)
         
         # Execute
         success, result = self.brain.execute(plan)
         
-        # Clear the processing box
-        if hasattr(self.cli, 'finish_processing'):
-            self.cli.finish_processing()
+        # Clear thinking indicator
+        if hasattr(self.cli, 'clear_thinking'):
+            self.cli.clear_thinking()
         
         # Track stats
         self.stats['actions'] += 1
@@ -187,12 +186,13 @@ class SessionLoop:
         # Show result (skip if streamed)
         if result and result != "__STREAMED__":
             if success:
-                # For ModernCLI, just add to content (will show on next prompt)
-                if hasattr(self.cli, 'add_content'):
+                # Use print_reply for ModernCLI
+                if hasattr(self.cli, 'print_reply'):
                     if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
                         self.cli.add_content(result, "step")
+                        print(result)
                     else:
-                        self.cli.add_content(result, "reply")
+                        self.cli.print_reply(result)
                 else:
                     # Legacy CLI
                     if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
@@ -201,6 +201,9 @@ class SessionLoop:
                         self.cli.assistant(result)
             else:
                 if hasattr(self.cli, 'add_content'):
+                    error_c = "\033[38;2;231;130;132m"
+                    reset = "\033[0m"
+                    print(f"{error_c}✗ {result}{reset}")
                     self.cli.add_content(f"✗ {result}", "error")
                 else:
                     self.cli.error(result)

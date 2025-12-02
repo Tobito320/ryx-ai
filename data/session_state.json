@@ -2,211 +2,6 @@
   "history": [
     {
       "role": "user",
-      "content": "wie gehts",
-      "ts": "2025-12-02T19:56:59.621008"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T19:57:00.703886"
-    },
-    {
-      "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T20:20:02.087474"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T20:20:04.528082"
-    },
-    {
-      "role": "user",
-      "content": "claude",
-      "ts": "2025-12-02T20:23:12.575338"
-    },
-    {
-      "role": "assistant",
-      "content": "\u2705 Im Browser ge\u00f6ffnet",
-      "ts": "2025-12-02T20:23:12.579318"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T20:35:57.841123"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T20:36:00.256489"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T20:36:00.257193"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T20:36:00.808291"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T20:36:02.078934"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T20:36:02.357045"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T20:36:03.764822"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T20:36:04.188880"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T21:13:21.928436"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:13:24.553845"
-    },
-    {
-      "role": "user",
-      "content": "was hei\u00dft dass",
-      "ts": "2025-12-02T21:13:31.041775"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:13:31.399778"
-    },
-    {
-      "role": "user",
-      "content": "welches modell ist das",
-      "ts": "2025-12-02T21:13:41.127745"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:13:44.209660"
-    },
-    {
-      "role": "user",
-      "content": "/quit",
-      "ts": "2025-12-02T21:18:27.248442"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T21:18:33.552566"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:18:36.200194"
-    },
-    {
-      "role": "user",
-      "content": "/quit",
-      "ts": "2025-12-02T21:21:26.470089"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T21:21:28.956968"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:21:29.265275"
-    },
-    {
-      "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T21:25:07.099916"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:25:07.286884"
-    },
-    {
-      "role": "user",
-      "content": "wie gehts",
-      "ts": "2025-12-02T21:25:09.552130"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:25:11.003382"
-    },
-    {
-      "role": "user",
-      "content": "wer war hier",
-      "ts": "2025-12-02T21:25:14.369061"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:25:14.773831"
-    },
-    {
-      "role": "user",
-      "content": "/quit",
-      "ts": "2025-12-02T21:28:11.249561"
-    },
-    {
-      "role": "user",
-      "content": "test",
-      "ts": "2025-12-02T21:28:13.528618"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:13.865428"
-    },
-    {
-      "role": "user",
-      "content": "hi",
-      "ts": "2025-12-02T21:28:15.068628"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:15.254561"
-    },
-    {
-      "role": "user",
-      "content": "wie gehts",
-      "ts": "2025-12-02T21:28:17.390849"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:18.416432"
-    },
-    {
-      "role": "user",
-      "content": "das problem",
-      "ts": "2025-12-02T21:28:21.329427"
-    },
-    {
-      "role": "assistant",
-      "content": "(streamed)",
-      "ts": "2025-12-02T21:28:22.028692"
-    },
-    {
-      "role": "user",
       "content": "hi",
       "ts": "2025-12-02T21:28:39.877970"
     },
@@ -249,11 +44,216 @@
       "role": "user",
       "content": "/quit",
       "ts": "2025-12-02T21:35:17.880611"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:35:19.972070"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:35:22.406476"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T21:37:50.404771"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:37:53.314278"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:37:53.466537"
+    },
+    {
+      "role": "user",
+      "content": "rekursion",
+      "ts": "2025-12-02T21:37:57.471011"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:38:01.486718"
+    },
+    {
+      "role": "user",
+      "content": "olaf scholtz",
+      "ts": "2025-12-02T21:38:15.742892"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:38:17.933485"
+    },
+    {
+      "role": "user",
+      "content": "wer",
+      "ts": "2025-12-02T21:38:47.312479"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:38:47.732849"
+    },
+    {
+      "role": "user",
+      "content": "ist",
+      "ts": "2025-12-02T21:38:48.608979"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:38:49.597278"
+    },
+    {
+      "role": "user",
+      "content": "olaf",
+      "ts": "2025-12-02T21:38:50.553241"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:38:50.981126"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:40:06.736123"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:40:06.900078"
+    },
+    {
+      "role": "user",
+      "content": "wer",
+      "ts": "2025-12-02T21:40:08.484776"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:40:08.635742"
+    },
+    {
+      "role": "user",
+      "content": "bist du",
+      "ts": "2025-12-02T21:40:13.625168"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:40:14.091101"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:40:36.207485"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:40:36.370387"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T21:40:40.209643"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:40:41.999865"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:40:42.155772"
+    },
+    {
+      "role": "user",
+      "content": "rekursion auf advanced level",
+      "ts": "2025-12-02T21:40:50.869309"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:40:54.802599"
+    },
+    {
+      "role": "user",
+      "content": "rekursion auf nivo",
+      "ts": "2025-12-02T21:41:15.356322"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:41:16.835962"
+    },
+    {
+      "role": "user",
+      "content": "wer ist olaf",
+      "ts": "2025-12-02T21:41:19.367012"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:41:21.336940"
+    },
+    {
+      "role": "user",
+      "content": "/helpo",
+      "ts": "2025-12-02T21:42:26.391832"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-02T21:42:27.622047"
+    },
+    {
+      "role": "user",
+      "content": "help",
+      "ts": "2025-12-02T21:42:30.953188"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:42:31.475482"
+    },
+    {
+      "role": "user",
+      "content": "help",
+      "ts": "2025-12-02T21:42:36.017824"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:42:36.728613"
+    },
+    {
+      "role": "user",
+      "content": "wer",
+      "ts": "2025-12-02T21:42:38.825564"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:42:39.125629"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T21:42:56.864073"
     }
   ],
   "stats": {
-    "prompts": 9,
-    "actions": 8,
+    "prompts": 10,
+    "actions": 7,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -267,5 +267,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-02T21:35:17.880696"
+  "saved_at": "2025-12-02T21:42:56.864166"
 }
