@@ -94,6 +94,8 @@ class SessionLoop:
                     continue
                 
                 self._process(user_input.strip())
+                # Single footer (bottom hints) after handling input
+                self.cli.footer(msgs=len(self.history))
                 
             except KeyboardInterrupt:
                 print()

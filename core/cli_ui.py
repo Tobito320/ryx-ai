@@ -47,40 +47,34 @@ from rich.align import Align
 # ═══════════════════════════════════════════════════════════════════════════════
 
 THEME = RichTheme({
-    # Core
-    "success": "#a6e3a1",      # Green - success, replies
-    "error": "#f38ba8",        # Red - errors
-    "warning": "#f9e2af",      # Yellow - warnings, confirmations
-    "info": "#89b4fa",         # Blue - info
-    "muted": "#6c7086",        # Muted text
-    "dim": "#45475a",          # Very dim
-    "accent": "#cba6f7",       # Purple - user prompts, brand
-    "text": "#cdd6f4",         # Main text
+    # Core (Catppuccin-inspired, refined)
+    "success": "#a6d189",      # Softer green
+    "error": "#e78284",        # Softer red
+    "warning": "#e5c890",      # Warm yellow
+    "info": "#8caaee",         # Blue
+    "muted": "#6c6f85",        # Muted text
+    "dim": "#51576d",          # Very dim
+    "accent": "#ca9ee6",       # Purple - user prompts
+    "text": "#c6d0f5",         # Main text
     
     # Semantic
-    "step": "#89dceb",         # Cyan - steps/progress
-    "confirm": "#f9e2af",      # Yellow - confirmation requests
-    "reply": "#a6e3a1",        # Green - AI replies
-    "user": "#cba6f7",         # Purple - user input
-    "model": "#f5c2e7",        # Pink - model names
-    "path": "#fab387",         # Peach - file paths
-    "branch": "#94e2d5",       # Teal - git branch
+    "step": "#81c8be",         # Teal - steps/progress
+    "confirm": "#e5c890",      # Yellow - confirmation
+    "reply": "#a6d189",        # Green - AI replies
+    "user": "#ca9ee6",         # Purple - user input
+    "model": "#f4b8e4",        # Pink - model names
+    "path": "#ef9f76",         # Peach - file paths
+    "branch": "#99d1db",       # Teal - git branch
     
     # Diff colors
-    "diff.add": "#a6e3a1",
-    "diff.del": "#f38ba8",
-    "diff.hdr": "#89b4fa",
-    "diff.line": "#6c7086",
-    
-    # Phase colors
-    "phase.explore": "#89b4fa",
-    "phase.plan": "#f9e2af",
-    "phase.apply": "#cba6f7",
-    "phase.verify": "#a6e3a1",
+    "diff.add": "#a6d189",
+    "diff.del": "#e78284",
+    "diff.hdr": "#8caaee",
+    "diff.line": "#737994",
     
     # Structure  
-    "border": "#585b70",
-    "bar": "#313244",
+    "border": "#626880",       # Border lines
+    "bar": "#303446",          # Bars fill
 })
 
 
@@ -222,11 +216,12 @@ class CLI:
     
     def prompt(self) -> str:
         """
-        Get user input with purple prompt indicator.
+        Get user input rendered inside box: left border + prompt symbol.
         """
         try:
-            # Purple > prompt
-            user_input = input("\033[38;2;203;166;247m❯\033[0m ").strip()
+            left = "\033[0m" + "│ "
+            prompt_sym = "\033[38;2;203;166;247m❯\033[0m "
+            user_input = input(f"{left}{prompt_sym}").strip()
             self.msg_count += 1
             return user_input
         except EOFError:
