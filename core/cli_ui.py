@@ -98,16 +98,15 @@ class ResponseStats:
 
 class CLI:
     """
-    Copilot CLI style with bottom status bar.
+    Claude Code CLI style - minimal, clean.
     
     Layout:
-    ┌─────────────────────────────────────────────────────────────────────┐
-    │ ~/path [branch]                                              model │
-    ├─────────────────────────────────────────────────────────────────────┤
-    │ > prompt                                                           │
-    ├─────────────────────────────────────────────────────────────────────┤
-    │ Ctrl+c Exit · Ctrl+r Recent                            N messages  │
-    └─────────────────────────────────────────────────────────────────────┘
+    [scrollable content area - responses, steps, etc.]
+    
+    ~                                                          model-name (1x)
+    ────────────────────────────────────────────────────────────────────────────
+    > Enter @ to mention files or / for commands
+    Ctrl+c Exit · Ctrl+r Expand recent                    Remaining: X messages
     """
     
     def __init__(self):
@@ -126,102 +125,59 @@ class CLI:
         self.current_model = ""
         self.current_branch = ""
         self.current_path = ""
+        self._welcome_shown = False
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # Status Bar - Top line (path + branch | model)
+    # Input Area - Fixed at bottom (Claude Code style)
     # ═══════════════════════════════════════════════════════════════════════════
     
-    def _top_bar(self, model: str = "", branch: str = "", cwd: str = "") -> Text:
-        """Build top status bar content"""
-        cwd = cwd or self.current_path or os.getcwd()
-        path = cwd.replace(os.path.expanduser("~"), "~")
-        branch = branch or self.current_branch
-        model = model or self.current_model
+    def _draw_input_area(self):
+        """
+        Draw the input area: model line, separator, hint line.
+        Called before each prompt.
+        """
+        # Line 1: ~ on left, model on right
+        model_display = self.current_model.split(":")[0] if self.current_model else "ryx"
+        left = Text("~", style="dim")
+        right = Text(f"{model_display}", style="model")
         
-        # Left: path + branch
-        left = Text()
-        left.append(path, style="path")
-        if branch:
-            left.append(" [", style="dim")
-            left.append(branch, style="branch")
-            left.append("]", style="dim")
+        pad = self.width - 1 - len(right.plain) - 2
+        self.console.print(left + Text(" " * max(1, pad)) + right)
         
-        # Right: model
-        right = Text()
-        if model:
-            short = model.split(":")[0].split("/")[-1]
-            right.append(short, style="model")
-        
-        # Pad between left and right
-        pad = self.width - len(left.plain) - len(right.plain) - 4
-        return left + Text(" " * max(1, pad)) + right
+        # Line 2: Separator line
+        self.console.print("─" * self.width, style="border")
     
-    def _bottom_bar(self) -> Text:
-        """Build bottom status bar content"""
+    def _draw_hints(self):
+        """
+        Draw hints line after response.
+        """
         # Left: shortcuts
         left = Text()
         left.append("Ctrl+c", style="muted")
         left.append(" Exit · ", style="dim")
         left.append("Ctrl+r", style="muted")
-        left.append(" Recent", style="dim")
+        left.append(" Expand recent", style="dim")
         
-        # Right: message count + tok/s
+        # Right: message count
         right = Text()
         if self.msg_count > 0:
             right.append(f"{self.msg_count} messages", style="muted")
-        if self.last_tok_s > 0:
-            if self.msg_count > 0:
-                right.append(" · ", style="dim")
-            right.append(f"{self.last_tok_s:.0f} tok/s", style="muted")
         
-        pad = self.width - len(left.plain) - len(right.plain) - 4
-        return left + Text(" " * max(1, pad)) + right
-    
-    def draw_frame(self, model: str = "", branch: str = "", cwd: str = ""):
-        """
-        Draw the complete frame with status bars.
-        Called once at start and when refreshing.
-        """
-        # Store for later use
-        if model:
-            self.current_model = model
-        if branch:
-            self.current_branch = branch
-        if cwd:
-            self.current_path = cwd
-        
-        # Top border + content
-        self.console.print("┌" + "─" * (self.width - 2) + "┐", style="border")
-        
-        top_content = self._top_bar(model, branch, cwd)
-        self.console.print(Text("│ ", style="border") + top_content + Text(" │", style="border"))
-        
-        # Middle separator
-        self.console.print("├" + "─" * (self.width - 2) + "┤", style="border")
-    
-    def draw_bottom(self):
-        """Draw bottom bar after content"""
-        # Bottom separator
-        self.console.print("├" + "─" * (self.width - 2) + "┤", style="border")
-        
-        bottom_content = self._bottom_bar()
-        self.console.print(Text("│ ", style="border") + bottom_content + Text(" │", style="border"))
-        
-        # Bottom border
-        self.console.print("└" + "─" * (self.width - 2) + "┘", style="border")
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Prompt - Inside the frame
-    # ═══════════════════════════════════════════════════════════════════════════
+        pad = self.width - len(left.plain) - len(right.plain)
+        self.console.print(left + Text(" " * max(1, pad)) + right)
     
     def prompt(self) -> str:
         """
-        Get user input rendered inside box: left border + prompt symbol.
+        Claude Code style prompt:
+        > [cursor blinks here]
         """
+        # Draw input area before prompt
+        self._draw_input_area()
+        
         try:
-            left = "\033[0m" + "│ "
-            prompt_sym = "\033[38;2;203;166;247m❯\033[0m "
-            user_input = input(f"{left}{prompt_sym}").strip()
+            # Simple prompt: > with purple color
+            prompt_str = "\033[38;2;202;158;230m>\033[0m "
+            user_input = input(prompt_str).strip()
             self.msg_count += 1
             return user_input
         except EOFError:
@@ -231,13 +187,29 @@ class CLI:
             return ""
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # Welcome - Initial frame draw
+    # Welcome - Just show once at start
     # ═══════════════════════════════════════════════════════════════════════════
     
     def welcome(self, model: str = "", branch: str = "", cwd: str = ""):
-        """Draw initial frame once"""
-        self.draw_frame(model, branch, cwd)
-        self.console.print()  # Blank line after frame
+        """Show welcome message once"""
+        if model:
+            self.current_model = model
+        if branch:
+            self.current_branch = branch
+        if cwd:
+            self.current_path = cwd
+        
+        if not self._welcome_shown:
+            # Simple welcome - just path and branch
+            path = (cwd or os.getcwd()).replace(os.path.expanduser("~"), "~")
+            welcome_text = Text()
+            welcome_text.append(path, style="path")
+            if branch:
+                welcome_text.append(" ", style="dim")
+                welcome_text.append(f"({branch})", style="branch")
+            self.console.print(welcome_text)
+            self.console.print()
+            self._welcome_shown = True
     
     def header(self, model: str = "", branch: str = "", cwd: str = ""):
         """Alias for welcome"""
@@ -245,12 +217,13 @@ class CLI:
     
     def footer(self, model: str = "", msgs: int = 0, precision: bool = False,
                tok_s: float = 0.0, extra: str = ""):
-        """Update state and draw bottom bar"""
+        """Draw hints line (called after response)"""
         if msgs > 0:
             self.msg_count = msgs
         if tok_s > 0:
             self.last_tok_s = tok_s
-        self.draw_bottom()
+        self._draw_hints()
+        self.console.print()  # Blank line before next prompt
     
     # ═══════════════════════════════════════════════════════════════════════════
     # Spinner - Minimal thinking indicator (cyan)

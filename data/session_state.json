@@ -19,13 +19,53 @@
       "role": "assistant",
       "content": "(streamed)",
       "ts": "2025-12-02T18:36:49.343923"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T19:56:55.641208"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T19:56:58.072325"
+    },
+    {
+      "role": "user",
+      "content": "wie gehts",
+      "ts": "2025-12-02T19:56:59.621008"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T19:57:00.703886"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T20:20:02.087474"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T20:20:04.528082"
+    },
+    {
+      "role": "user",
+      "content": "claude",
+      "ts": "2025-12-02T20:23:12.575338"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Im Browser ge\u00f6ffnet",
+      "ts": "2025-12-02T20:23:12.579318"
     }
   ],
   "stats": {
-    "prompts": 0,
-    "actions": 0,
+    "prompts": 2,
+    "actions": 2,
     "files": 0,
-    "urls": 0,
+    "urls": 1,
     "searches": 0,
     "scrapes": 0
   },
@@ -33,9 +73,9 @@
   "browsing_enabled": true,
   "context": {
     "last_path": "",
-    "last_result": "__STREAMED__",
-    "last_intent": "chat",
+    "last_result": "\u2705 Im Browser ge\u00f6ffnet",
+    "last_intent": "open_url",
     "created_files": []
   },
-  "saved_at": "2025-12-02T20:14:42.654098"
+  "saved_at": "2025-12-02T20:23:14.134410"
 }
