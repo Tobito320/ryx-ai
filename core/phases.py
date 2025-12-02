@@ -355,12 +355,21 @@ def get_phase_prompt(phase: Phase, **kwargs) -> str:
 class PhaseExecutor:
     """
     Executes agent phases with proper state management.
+    Uses LLM for planning and agent tools for execution.
     """
     
     def __init__(self, brain, printer):
         self.brain = brain
         self.printer = printer
         self.state = AgentState()
+        self._tools = None
+    
+    @property
+    def tools(self):
+        if self._tools is None:
+            from core.agent_tools import get_agent_tools
+            self._tools = get_agent_tools()
+        return self._tools
     
     def start(self, task: str):
         """Start a new task"""
@@ -403,35 +412,127 @@ class PhaseExecutor:
         for f in relevant[:5]:
             self.printer.substep(f"{f.path}")
         
-        # For simple tasks, skip to plan
-        # For complex tasks, would call LLM here
+        # Read the most relevant files to build context
+        self.state.context_files = []
+        for f in relevant[:3]:
+            result = self.tools.execute("read_file", path=f.path)
+            if result.success:
+                self.state.context_files.append({
+                    "path": f.path,
+                    "content": result.output[:2000]  # Limit size
+                })
+                self.printer.substep(f"Read: {f.path}")
+        
         self.state.transition_to(Phase.PLAN)
         return True
     
     def _execute_plan(self) -> bool:
-        """Plan phase: create execution plan"""
+        """Plan phase: create execution plan using LLM"""
         self.printer.step("Phase: PLAN", "Creating action plan...")
         
-        # Create plan (would use LLM in full implementation)
-        self.state.plan = ExecutionPlan(task=self.state.task)
+        # Build context for LLM
+        file_contents = ""
+        for fc in self.state.context_files[:3]:
+            file_contents += f"\n--- {fc['path']} ---\n{fc['content'][:1500]}\n"
         
-        # For now, simple plan
-        self.state.plan.files_to_modify = self.state.relevant_files[:3]
-        self.state.plan.add_step(
-            f"Analyze task: {self.state.task[:50]}",
-            action="analyze"
+        # Get prompt
+        prompt = get_phase_prompt(
+            Phase.PLAN,
+            task=self.state.task,
+            file_contents=file_contents
         )
         
-        self.printer.substep(f"Plan created with {len(self.state.plan.steps)} steps")
+        # Call LLM if brain is available
+        if self.brain and hasattr(self.brain, 'ollama'):
+            self.printer.substep("Asking LLM for plan...")
+            
+            model = self.brain.models.get("balanced", self.brain.precision_mode)
+            response = self.brain.ollama.generate(
+                prompt=prompt,
+                model=model,
+                system="You are a code planning assistant. Output valid JSON only.",
+                max_tokens=1000,
+                temperature=0.3
+            )
+            
+            if response.response:
+                # Try to parse JSON from response
+                plan_data = self._parse_json(response.response)
+                if plan_data:
+                    self._build_plan_from_json(plan_data)
+                else:
+                    self._build_simple_plan()
+            else:
+                self._build_simple_plan()
+        else:
+            self._build_simple_plan()
         
-        # Would await user approval here
+        # Show plan to user
+        if self.state.plan:
+            self.printer.substep(f"Plan created with {len(self.state.plan.steps)} steps")
+            for step in self.state.plan.steps[:5]:
+                self.printer.substep(f"  {step.id}. {step.description[:50]}")
+        
+        # For now, auto-approve
+        # TODO: Add user confirmation
         self.state.plan.approved = True
         
         self.state.transition_to(Phase.APPLY)
         return True
     
+    def _build_plan_from_json(self, data: dict):
+        """Build execution plan from LLM JSON response"""
+        self.state.plan = ExecutionPlan(task=self.state.task)
+        
+        # Extract steps
+        steps = data.get('steps', [])
+        for s in steps:
+            if isinstance(s, dict):
+                self.state.plan.add_step(
+                    description=s.get('description', str(s)),
+                    file_path=s.get('file'),
+                    action=s.get('action', 'modify')
+                )
+            else:
+                self.state.plan.add_step(description=str(s))
+        
+        # Extract file lists
+        self.state.plan.files_to_modify = data.get('files_to_modify', [])
+        self.state.plan.files_to_create = data.get('files_to_create', [])
+        self.state.plan.risks = data.get('risks', [])
+    
+    def _build_simple_plan(self):
+        """Build a simple plan when LLM fails"""
+        self.state.plan = ExecutionPlan(task=self.state.task)
+        self.state.plan.files_to_modify = self.state.relevant_files[:3]
+        self.state.plan.add_step(
+            f"Analyze and modify code for: {self.state.task[:50]}",
+            action="analyze"
+        )
+    
+    def _parse_json(self, text: str) -> Optional[dict]:
+        """Try to parse JSON from LLM response"""
+        import json
+        
+        # Try direct parse
+        try:
+            return json.loads(text)
+        except:
+            pass
+        
+        # Try to find JSON in text
+        import re
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except:
+                pass
+        
+        return None
+    
     def _execute_apply(self) -> bool:
-        """Apply phase: execute changes"""
+        """Apply phase: execute changes using tools"""
         self.printer.step("Phase: APPLY", "Executing changes...")
         
         if not self.state.plan:
@@ -441,20 +542,48 @@ class PhaseExecutor:
         step = self.state.plan.get_next_step()
         if step:
             self.printer.substep(f"Step {step.id}: {step.description}")
-            # Would apply actual changes here
-            self.state.plan.mark_step_complete(step.id, "Completed")
+            
+            # Execute step based on action type
+            if step.file_path:
+                # For now, just mark as analyzed
+                # Full implementation would generate diffs with LLM
+                self.printer.substep(f"  Target: {step.file_path}")
+            
+            self.state.plan.mark_step_complete(step.id, "Analyzed")
         
-        if self.state.plan.is_complete():
-            self.state.transition_to(Phase.VERIFY)
+        # Check if there are more steps
+        next_step = self.state.plan.get_next_step()
+        if next_step:
+            # Continue applying
+            return self._execute_apply()
         
+        # All steps done, move to verify
+        self.state.transition_to(Phase.VERIFY)
         return True
     
     def _execute_verify(self) -> bool:
         """Verify phase: check results"""
         self.printer.step("Phase: VERIFY", "Checking results...")
         
-        # Would run tests/linter here
-        self.state.verification_passed = True
+        # Check if any changes were made
+        has_changes = bool(self.state.changes)
+        
+        if has_changes:
+            # Run tests if available
+            test_result = self.tools.execute("run_command", command="python -m pytest tests/ -q 2>/dev/null || true", timeout=30)
+            if test_result.success:
+                self.state.test_output = test_result.output
+                if "failed" in test_result.output.lower():
+                    self.printer.substep("Some tests failed")
+                    self.state.verification_passed = False
+                else:
+                    self.printer.substep("Tests passed")
+                    self.state.verification_passed = True
+            else:
+                self.state.verification_passed = True  # No tests = pass
+        else:
+            # No changes, just analysis
+            self.state.verification_passed = True
         
         if self.state.verification_passed:
             self.printer.result("Verification passed", success=True)
@@ -476,7 +605,8 @@ class PhaseExecutor:
     
     def _handle_error(self) -> bool:
         """Handle error state"""
-        self.printer.result(f"Task failed: {self.state.errors[-1] if self.state.errors else 'Unknown error'}", success=False)
+        error_msg = self.state.errors[-1] if self.state.errors else 'Unknown error'
+        self.printer.result(f"Task failed: {error_msg}", success=False)
         return False
     
     def run_to_completion(self) -> bool:

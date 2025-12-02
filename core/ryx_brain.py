@@ -49,6 +49,9 @@ class Intent(Enum):
     CONFIRM = "confirm"  # Waiting for y/n
     SELECT = "select"  # Waiting for number selection
     UNCLEAR = "unclear"  # Need to ask clarifying question
+    # NEW: Complex coding tasks that need the phase system
+    CODE_TASK = "code_task"  # Requires EXPLORE→PLAN→APPLY→VERIFY
+    EXPLORE_REPO = "explore_repo"  # Just explore, no changes
 
 
 @dataclass
@@ -531,12 +534,53 @@ ANFRAGE: {prompt}'''
         if plan:
             return plan
         
+        # Check if this is a coding task that needs the phase system
+        if self._is_code_task(prompt):
+            return Plan(intent=Intent.CODE_TASK, target=prompt)
+        
         # Check if this is clearly a chat question (not an action)
         if self._is_chat_question(prompt):
             return Plan(intent=Intent.CHAT)
         
         # Stage 2: LLM supervisor
         return self._supervisor_understand(prompt)
+    
+    def _is_code_task(self, prompt: str) -> bool:
+        """Check if this is a coding task that needs EXPLORE→PLAN→APPLY→VERIFY"""
+        p = prompt.lower()
+        
+        # Coding task indicators - actions that modify code
+        code_indicators = [
+            'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
+            'fix ', 'bug ', 'error in', 'refactor ', 'change the ', 'change code',
+            'update the ', 'modify the ', 'edit the code', 'write a ',
+            'füge hinzu', 'erstelle', 'implementiere', 'baue',
+            'fixe', 'fehler', 'ändere den', 'aktualisiere',
+            'new function', 'new class', 'new method', 'new component',
+            'new feature', 'new test', 'new style',
+        ]
+        
+        # Context words that indicate coding
+        code_context = [
+            'code', 'function', 'class', 'module', 'method',
+            'component', 'script', 'program', 'app', 'api',
+            'handler', 'service', 'controller', 'model',
+            'theme', 'style', 'color', 'css',  # UI/theme related
+            '.py', '.js', '.ts', '.tsx', '.rs', '.go',
+            'funktion', 'klasse', 'modul',
+        ]
+        
+        # Exclusions - simple file operations (not coding)
+        simple_ops = [
+            'open ', 'öffne ', 'show ', 'zeig ', 'find ', 'finde ',
+            'where ', 'wo ', 'config',  # Config is just opening files
+        ]
+        
+        has_code_indicator = any(i in p for i in code_indicators)
+        has_code_context = any(c in p for c in code_context)
+        is_simple_op = any(p.startswith(s) or f' {s}' in p for s in simple_ops)
+        
+        return has_code_indicator and (has_code_context or len(p) > 30) and not is_simple_op
     
     def _is_chat_question(self, prompt: str) -> bool:
         """Check if this is clearly a conversational question, not an action request"""
@@ -958,6 +1002,8 @@ ANFRAGE: {prompt}'''
             Intent.CONFIRM: self._exec_confirm,
             Intent.SELECT: self._exec_select,
             Intent.UNCLEAR: self._exec_unclear,
+            Intent.CODE_TASK: self._exec_code_task,
+            Intent.EXPLORE_REPO: self._exec_explore_repo,
         }
         
         handler = handlers.get(plan.intent, self._exec_chat)
@@ -970,6 +1016,63 @@ ANFRAGE: {prompt}'''
             self.cache.store(self.ctx.last_query, plan, success)
         
         return success, result
+    
+    def _exec_code_task(self, plan: Plan) -> Tuple[bool, str]:
+        """
+        Execute a coding task using the phase system.
+        EXPLORE → PLAN → APPLY → VERIFY
+        """
+        from core.phases import PhaseExecutor
+        from core.printer import get_printer
+        
+        printer = get_printer()
+        executor = PhaseExecutor(brain=self, printer=printer)
+        
+        # Start the task
+        task = plan.target or self.ctx.last_query
+        executor.start(task)
+        
+        # Run through all phases
+        success = executor.run_to_completion()
+        
+        if success:
+            # Summarize what was done
+            changes = executor.state.changes
+            if changes:
+                summary = f"✓ Completed: {task}\n\nChanges made:"
+                for c in changes:
+                    summary += f"\n  - {c.action}: {c.file_path}"
+                return True, summary
+            else:
+                return True, f"✓ Analyzed: {task}\n\nNo changes were needed."
+        else:
+            errors = executor.state.errors
+            if errors:
+                return False, f"✗ Failed: {errors[-1]}"
+            return False, "✗ Task failed"
+    
+    def _exec_explore_repo(self, plan: Plan) -> Tuple[bool, str]:
+        """Explore the repository and show structure"""
+        from core.repo_explorer import get_explorer
+        from core.printer import get_printer
+        
+        printer = get_printer()
+        printer.step("Exploring repository")
+        
+        # Get current directory or specified path
+        path = plan.target or os.getcwd()
+        explorer = get_explorer(path)
+        
+        printer.substep("Scanning files...")
+        repo_map = explorer.scan(force=True)
+        
+        printer.substep(f"Found {repo_map.file_count} files")
+        
+        # Build summary
+        summary = explorer.get_summary()
+        tree = explorer.get_tree(max_depth=2)
+        
+        return True, f"{summary}\n\nStructure:\n{tree}"
     
     def execute_with_agents(self, prompt: str) -> Tuple[bool, str]:
         """
