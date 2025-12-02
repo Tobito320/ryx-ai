@@ -149,11 +149,56 @@
       "role": "user",
       "content": "/quit",
       "ts": "2025-12-02T21:21:26.470089"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "ts": "2025-12-02T21:21:28.956968"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:21:29.265275"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-02T21:25:07.099916"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:25:07.286884"
+    },
+    {
+      "role": "user",
+      "content": "wie gehts",
+      "ts": "2025-12-02T21:25:09.552130"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:25:11.003382"
+    },
+    {
+      "role": "user",
+      "content": "wer war hier",
+      "ts": "2025-12-02T21:25:14.369061"
+    },
+    {
+      "role": "assistant",
+      "content": "(streamed)",
+      "ts": "2025-12-02T21:25:14.773831"
+    },
+    {
+      "role": "user",
+      "content": "/quit",
+      "ts": "2025-12-02T21:28:11.249561"
     }
   ],
   "stats": {
-    "prompts": 2,
-    "actions": 1,
+    "prompts": 5,
+    "actions": 4,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -167,5 +212,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-02T21:21:26.470194"
+  "saved_at": "2025-12-02T21:28:11.249644"
 }

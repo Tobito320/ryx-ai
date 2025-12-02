@@ -518,69 +518,6 @@ class ModernCLI:
         except EOFError:
             return "/quit"
 
-    def show_processing_box(self, status: str = "Thinking..."):
-        """Show static box while processing (outside full-screen mode)"""
-        import sys
-        width = shutil.get_terminal_size().columns
-        
-        # Build top border
-        path = self.cwd.replace(os.path.expanduser("~"), "~")
-        left_text = f" {path}"
-        if self.current_branch:
-            left_text += f" [{self.current_branch}]"
-        right_text = f"{self.current_model} "
-        pad = width - 4 - len(left_text) - len(right_text)
-        
-        # Colors
-        border = "\033[38;2;98;104;128m"
-        path_c = "\033[38;2;239;159;118m"
-        model_c = "\033[38;2;244;184;228m"
-        step_c = "\033[38;2;129;200;190m"
-        muted = "\033[38;2;115;121;148m"
-        reset = "\033[0m"
-        
-        # Print box with status
-        print(f"{border}┌─{reset}{path_c}{left_text}{reset}{border} {'─' * max(1, pad)} {reset}{model_c}{right_text}{reset}{border}─┐{reset}")
-        
-        # Status line inside box
-        status_line = f" {step_c}● {status}{reset}"
-        status_pad = width - len(f" ● {status}") - 2
-        print(f"{border}│{reset}{status_line}{' ' * max(0, status_pad)}{border}│{reset}")
-        
-        # Bottom border
-        left_hint = " Ctrl+C Cancel"
-        right_hint = f"{self.msg_count} msgs "
-        pad2 = width - 4 - len(left_hint) - len(right_hint)
-        print(f"{border}└─{reset}{muted}{left_hint}{reset}{border} {'─' * max(1, pad2)} {reset}{muted}{right_hint}{reset}{border}─┘{reset}")
-        
-        sys.stdout.flush()
-
-    def clear_processing_box(self):
-        """Clear the processing box (move cursor up and clear lines)"""
-        import sys
-        # Move up 3 lines and clear them
-        sys.stdout.write("\033[3A\033[J")
-        sys.stdout.flush()
-
-    def print_response(self, text: str, style: str = "reply"):
-        """Print response text with color (outside full-screen mode)"""
-        colors = {
-            'success': '\033[38;2;166;209;137m',
-            'error': '\033[38;2;231;130;132m', 
-            'warning': '\033[38;2;229;200;144m',
-            'info': '\033[38;2;140;170;238m',
-            'muted': '\033[38;2;115;121;148m',
-            'step': '\033[38;2;129;200;190m',
-            'reply': '\033[38;2;166;209;137m',
-            'user': '\033[38;2;202;158;230m',
-        }
-        color = colors.get(style, '')
-        reset = '\033[0m'
-        print(f"{color}{text}{reset}")
-        
-        # Also add to content for next prompt display
-        self.add_content(text, style)
-
     # ═══════════════════════════════════════════════════════════════════════════
     # Legacy Compatibility
     # ═══════════════════════════════════════════════════════════════════════════

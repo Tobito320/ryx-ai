@@ -159,23 +159,11 @@ class SessionLoop:
             self._shell_command(user_input[1:])
             return
         
-        # Show processing box while thinking (for ModernCLI)
-        if hasattr(self.cli, 'show_processing_box'):
-            self.cli.show_processing_box("Understanding...")
-            plan = self.brain.understand(user_input)
-            self.cli.clear_processing_box()
-            self.cli.show_processing_box("Processing...")
-        else:
-            # Fallback for legacy CLI
-            with self.cli.spinner():
-                plan = self.brain.understand(user_input)
+        # Understand the input (no box needed - it's fast)
+        plan = self.brain.understand(user_input)
         
         # Execute
         success, result = self.brain.execute(plan)
-        
-        # Clear processing box after execution
-        if hasattr(self.cli, 'clear_processing_box'):
-            self.cli.clear_processing_box()
         
         # Track stats
         self.stats['actions'] += 1
@@ -191,13 +179,23 @@ class SessionLoop:
         # Show result (skip if streamed)
         if result and result != "__STREAMED__":
             if success:
-                # Check if it's a status message
-                if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
-                    self.cli.console.print(f"\n{result}")
+                # For ModernCLI, just add to content (will show on next prompt)
+                if hasattr(self.cli, 'add_content'):
+                    if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
+                        self.cli.add_content(result, "step")
+                    else:
+                        self.cli.add_content(result, "reply")
                 else:
-                    self.cli.assistant(result)
+                    # Legacy CLI
+                    if any(result.startswith(c) for c in ['✅', '✓', '📊', '●', '✗']):
+                        self.cli.console.print(f"\n{result}")
+                    else:
+                        self.cli.assistant(result)
             else:
-                self.cli.error(result)
+                if hasattr(self.cli, 'add_content'):
+                    self.cli.add_content(f"✗ {result}", "error")
+                else:
+                    self.cli.error(result)
         
         # Store for history
         history_result = result if result != "__STREAMED__" else "(streamed)"
