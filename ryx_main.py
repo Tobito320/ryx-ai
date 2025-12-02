@@ -40,31 +40,31 @@ def cli_main():
             show_help()
             return
         elif arg in ['--version', '-v']:
-            print("Ryx AI v3.0.0 - Copilot-style local AI assistant")
+            print("Ryx AI v4.0.0 - Copilot-style local AI assistant")
             return
         else:
             remaining_args.append(arg)
 
-    # No args = Start interactive session (v3)
+    # No args = Start interactive session (v4)
     if not remaining_args:
-        from core.session_loop_v3 import SessionLoopV3
-        session = SessionLoopV3(safety_mode=safety_mode)
+        from core.session_loop_v4 import SessionLoopV4
+        session = SessionLoopV4(safety_mode=safety_mode)
         session.run()
         return
 
     # Everything else: Let brain understand and execute
     prompt = " ".join(remaining_args)
     
-    from core.ryx_brain_v3 import get_brain_v3
+    from core.ryx_brain_v4 import get_brain_v4
     from core.ollama_client import OllamaClient
     from core.model_router import ModelRouter
     
     router = ModelRouter()
     ollama = OllamaClient(base_url=router.get_ollama_url())
-    brain = get_brain_v3(ollama)
+    brain = get_brain_v4(ollama)
     
-    action = brain.understand(prompt)
-    success, result = brain.execute(action)
+    plan = brain.understand(prompt)
+    success, result = brain.execute(plan)
     
     if result:
         print(result)
@@ -296,7 +296,7 @@ def handle_silent_prompt(prompt: str, safety_mode: str):
 def show_help():
     """Show help message"""
     print("""
-🟣 Ryx AI v3 - Copilot-Style Local AI
+🟣 Ryx AI v4 - Copilot-Style Local AI
 
 USAGE:
     ryx                      Start interactive session
@@ -304,10 +304,11 @@ USAGE:
     ryx -s "prompt"          Silent mode (minimal output)
 
 EXAMPLES:
-    ryx "open youtube"                    # Open website
+    ryx "youtube"                         # Open website
     ryx "hyprland config"                 # Open config file
     ryx "hyprland config new terminal"    # Open in new terminal
-    ryx "where is .zshrc"                 # Find file
+    ryx "where is .zshrc"                 # Show file path
+    ryx "find great wave"                 # Search for file
     ryx "search for IPv6"                 # Web search
     ryx "scrape arch wiki"                # Scrape webpage
     ryx "set zen as default browser"      # Save preference
@@ -321,11 +322,12 @@ FEATURES:
     • Web browsing and scraping
     • File operations
     • Model switching
+    • Precision mode for complex tasks
 
 SESSION COMMANDS (/):
     /help        Show help
     /models      List available models
-    /precision   Toggle precision mode
+    /precision   Toggle precision mode (larger models)
     /browsing    Toggle web browsing
     /scrape      Scrape webpage
     /search      Web search

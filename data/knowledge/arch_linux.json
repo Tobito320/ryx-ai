@@ -4,6 +4,10 @@
   "config_paths": {
     "hyprland": "~/.config/hypr/hyprland.conf",
     "hyprland_conf": "~/.config/hypr/hyprland.conf",
+    "hyprlock": "~/.config/hypr/hyprlock.conf",
+    "hypridle": "~/.config/hypr/hypridle.conf",
+    "wlogout": "~/.config/wlogout/layout",
+    "wlogout_style": "~/.config/wlogout/style.css",
     "waybar": "~/.config/waybar/config",
     "waybar_style": "~/.config/waybar/style.css",
     "kitty": "~/.config/kitty/kitty.conf",
@@ -36,7 +40,9 @@
     "pacman": "/etc/pacman.conf",
     "grub": "/etc/default/grub",
     "fstab": "/etc/fstab",
-    "hosts": "/etc/hosts"
+    "hosts": "/etc/hosts",
+    "zen": "~/.zen/default/prefs.js",
+    "firefox": "~/.mozilla/firefox/default/prefs.js"
   },
   "common_directories": {
     "home": "~",
@@ -76,7 +82,15 @@
   },
   "aliases": {
     "hypr": "hyprland",
+    "hyperland": "hyprland",
+    "hyperion": "hyprland",
     "hyprland config": "hyprland",
+    "hyprlock config": "hyprlock",
+    "hypridle config": "hypridle",
+    "lock config": "hyprlock",
+    "idle config": "hypridle",
+    "wlogout config": "wlogout",
+    "logout config": "wlogout",
     "waybar config": "waybar",
     "waybar style": "waybar_style",
     "kitty config": "kitty",
@@ -116,12 +130,14 @@
     "arch wiki": "https://wiki.archlinux.org"
   },
   "browsers": [
+    "zen",
+    "zen-browser",
     "firefox",
     "chromium",
     "brave",
     "qutebrowser"
   ],
-  "default_browser": "firefox",
+  "default_browser": "zen",
   "editors": [
     "nvim",
     "vim",
