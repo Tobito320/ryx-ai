@@ -399,29 +399,36 @@ class PhaseExecutor:
         """Explore phase: understand the codebase"""
         self.printer.step("Phase: EXPLORE", "Understanding codebase...")
         
-        # Get repo explorer
-        from core.repo_explorer import get_explorer
-        explorer = get_explorer()
-        explorer.scan()
+        # Try semantic search first if available, fall back to keyword
+        try:
+            from core.embeddings import get_semantic_search
+            search = get_semantic_search()
+            results = search.search(self.state.task, limit=15)
+            self.state.relevant_files = [path for path, _ in results]
+            self.printer.substep(f"Found {len(results)} relevant files (semantic)")
+        except Exception:
+            # Fallback to keyword search
+            from core.repo_explorer import get_explorer
+            explorer = get_explorer()
+            explorer.scan()
+            relevant = explorer.find_relevant(self.state.task, limit=15)
+            self.state.relevant_files = [f.path for f in relevant]
+            self.printer.substep(f"Found {len(relevant)} relevant files (keyword)")
         
-        # Find relevant files
-        relevant = explorer.find_relevant(self.state.task, limit=15)
-        self.state.relevant_files = [f.path for f in relevant]
-        
-        self.printer.substep(f"Found {len(relevant)} relevant files")
-        for f in relevant[:5]:
-            self.printer.substep(f"{f.path}")
+        # Show top files
+        for path in self.state.relevant_files[:5]:
+            self.printer.substep(f"  {path}")
         
         # Read the most relevant files to build context
         self.state.context_files = []
-        for f in relevant[:3]:
-            result = self.tools.execute("read_file", path=f.path)
+        for path in self.state.relevant_files[:3]:
+            result = self.tools.execute("read_file", path=path)
             if result.success:
                 self.state.context_files.append({
-                    "path": f.path,
+                    "path": path,
                     "content": result.output[:2000]  # Limit size
                 })
-                self.printer.substep(f"Read: {f.path}")
+                self.printer.substep(f"Read: {path}")
         
         self.state.transition_to(Phase.PLAN)
         return True
@@ -442,14 +449,19 @@ class PhaseExecutor:
             file_contents=file_contents
         )
         
+        # Get the CODE model for planning
+        from core.model_router import get_router, ModelRole
+        router = get_router()
+        model_config = router.get_model_by_role(ModelRole.CODE)
+        model_name = model_config.name
+        
         # Call LLM if brain is available
         if self.brain and hasattr(self.brain, 'ollama'):
-            self.printer.substep("Asking LLM for plan...")
+            self.printer.substep(f"Asking {model_name} for plan...")
             
-            model = self.brain.models.get("balanced", self.brain.precision_mode)
             response = self.brain.ollama.generate(
                 prompt=prompt,
-                model=model,
+                model=model_name,
                 system="You are a code planning assistant. Output valid JSON only.",
                 max_tokens=1000,
                 temperature=0.3
@@ -562,8 +574,13 @@ class PhaseExecutor:
         return True
     
     def _execute_verify(self) -> bool:
-        """Verify phase: check results"""
-        self.printer.step("Phase: VERIFY", "Checking results...")
+        """Verify phase: check results using REASON model"""
+        # Get the REASON model for verification
+        from core.model_router import get_router, ModelRole
+        router = get_router()
+        model_config = router.get_model_by_role(ModelRole.REASON)
+        
+        self.printer.step("Phase: VERIFY", f"Checking with {model_config.name}...")
         
         # Check if any changes were made
         has_changes = bool(self.state.changes)

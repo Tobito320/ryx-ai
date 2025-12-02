@@ -1,360 +1,415 @@
 """
 Ryx AI - Model Router
-Production-grade model routing with tier-based configuration and Ollama/Docker support
+
+Intelligent model selection based on task type.
+Each model has a specific purpose - no guessing.
+
+FIXED MODELS (do not change without reason):
+- qwen2.5:1.5b      → FAST: Intent detection, quick responses
+- gemma2:2b         → CHAT: Simple conversations, German
+- qwen2.5-coder:14b → CODE: Writing/modifying code  
+- deepseek-r1:14b   → REASON: Complex logic, verification
+- nomic-embed-text  → EMBED: Semantic search, RAG
+- gpt-oss:20b       → FALLBACK: When others fail
+- llama2-uncensored → UNCENSORED: No restrictions
 """
 
 import os
 import json
+import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Generator
+from typing import Optional, Dict, Any, List
 from enum import Enum
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class ModelTier(Enum):
-    """Model tiers for intelligent routing"""
-    FAST = "fast"  # Quick responses, simple tasks
-    BALANCED = "balanced"  # Default coding model
-    POWERFUL = "powerful"  # Complex coding tasks
-    ULTRA = "ultra"  # Heavy reasoning, architecture
-    UNCENSORED = "uncensored"  # Personal/uncensored conversations
+class ModelRole(Enum):
+    """What role does the model play in Ryx?"""
+    FAST = "fast"           # Intent detection, quick tasks
+    CHAT = "chat"           # Simple conversations
+    CODE = "code"           # Code generation/editing
+    REASON = "reason"       # Complex reasoning, verification
+    EMBED = "embed"         # Vector embeddings
+    FALLBACK = "fallback"   # When primary fails
+    UNCENSORED = "uncensored"  # No restrictions
 
 
 @dataclass
 class ModelConfig:
     """Configuration for a single model"""
-    name: str  # Model name in Ollama
-    tier: ModelTier
+    name: str
+    role: ModelRole
+    vram_mb: int
+    max_tokens: int
+    timeout_seconds: int
     description: str
-    vram_mb: int  # Expected VRAM usage
-    typical_latency_ms: int  # Typical response latency
-    specialties: List[str]  # What this model is good at
-    max_tokens: int = 4096
-    timeout_seconds: int = 60
+    
+    def __str__(self):
+        return f"{self.name} ({self.role.value})"
 
 
-@dataclass
-class RouterConfig:
-    """Configuration for the model router"""
-    ollama_base_url: str = "http://localhost:11434"
-    default_tier: ModelTier = ModelTier.BALANCED
-    auto_fallback: bool = True
-    stream_responses: bool = True
-    models: Dict[ModelTier, ModelConfig] = field(default_factory=dict)
+# ═══════════════════════════════════════════════════════════════
+# FIXED MODEL CONFIGURATION - These are THE models Ryx uses
+# ═══════════════════════════════════════════════════════════════
+
+MODELS: Dict[ModelRole, ModelConfig] = {
+    ModelRole.FAST: ModelConfig(
+        name="qwen2.5:1.5b",
+        role=ModelRole.FAST,
+        vram_mb=1500,
+        max_tokens=1024,
+        timeout_seconds=10,
+        description="Blitzschnell für Intent-Erkennung und einfache Aufgaben"
+    ),
+    
+    ModelRole.CHAT: ModelConfig(
+        name="gemma2:2b",
+        role=ModelRole.CHAT,
+        vram_mb=2000,
+        max_tokens=2048,
+        timeout_seconds=15,
+        description="Schneller Chat, gutes Deutsch, einfache Fragen"
+    ),
+    
+    ModelRole.CODE: ModelConfig(
+        name="qwen2.5-coder:14b",
+        role=ModelRole.CODE,
+        vram_mb=10000,
+        max_tokens=8192,
+        timeout_seconds=90,
+        description="Code schreiben, PLAN/APPLY Phasen, 88% HumanEval"
+    ),
+    
+    ModelRole.REASON: ModelConfig(
+        name="deepseek-r1:14b",
+        role=ModelRole.REASON,
+        vram_mb=10000,
+        max_tokens=8192,
+        timeout_seconds=120,
+        description="Chain-of-Thought Reasoning, VERIFY Phase, komplexe Logik"
+    ),
+    
+    ModelRole.EMBED: ModelConfig(
+        name="nomic-embed-text",
+        role=ModelRole.EMBED,
+        vram_mb=500,
+        max_tokens=8192,
+        timeout_seconds=30,
+        description="Vektor-Embeddings für semantische Suche"
+    ),
+    
+    ModelRole.FALLBACK: ModelConfig(
+        name="gpt-oss:20b",
+        role=ModelRole.FALLBACK,
+        vram_mb=13000,
+        max_tokens=8192,
+        timeout_seconds=120,
+        description="Backup wenn andere Modelle versagen"
+    ),
+    
+    ModelRole.UNCENSORED: ModelConfig(
+        name="llama2-uncensored:7b",
+        role=ModelRole.UNCENSORED,
+        vram_mb=4500,
+        max_tokens=4096,
+        timeout_seconds=60,
+        description="Keine Einschränkungen, unzensiert"
+    ),
+}
+
+
+# ═══════════════════════════════════════════════════════════════
+# TASK → MODEL ROUTING (fixed mapping)
+# ═══════════════════════════════════════════════════════════════
+
+TASK_ROUTING: Dict[str, ModelRole] = {
+    # Intent Detection & Quick Tasks
+    "intent_detection": ModelRole.FAST,
+    "typo_correction": ModelRole.FAST,
+    "json_parsing": ModelRole.FAST,
+    "quick_answer": ModelRole.FAST,
+    "file_search": ModelRole.FAST,
+    "app_launch": ModelRole.FAST,
+    
+    # Simple Chat
+    "simple_chat": ModelRole.CHAT,
+    "small_talk": ModelRole.CHAT,
+    "definition": ModelRole.CHAT,
+    "translation": ModelRole.CHAT,
+    "greeting": ModelRole.CHAT,
+    
+    # Code Tasks (EXPLORE/PLAN/APPLY phases)
+    "code_explore": ModelRole.CODE,
+    "code_plan": ModelRole.CODE,
+    "code_apply": ModelRole.CODE,
+    "code_generation": ModelRole.CODE,
+    "refactoring": ModelRole.CODE,
+    "debugging": ModelRole.CODE,
+    "script_writing": ModelRole.CODE,
+    "config_edit": ModelRole.CODE,
+    
+    # Complex Reasoning (VERIFY phase)
+    "code_verify": ModelRole.REASON,
+    "complex_analysis": ModelRole.REASON,
+    "architecture_review": ModelRole.REASON,
+    "problem_solving": ModelRole.REASON,
+    "step_by_step": ModelRole.REASON,
+    "verification": ModelRole.REASON,
+    
+    # Embeddings
+    "semantic_search": ModelRole.EMBED,
+    "file_relevance": ModelRole.EMBED,
+    "rag_embedding": ModelRole.EMBED,
+    "codebase_search": ModelRole.EMBED,
+    
+    # Uncensored
+    "uncensored_chat": ModelRole.UNCENSORED,
+    "personal_reflection": ModelRole.UNCENSORED,
+    "no_filter": ModelRole.UNCENSORED,
+}
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE → MODEL MAPPING (for the agent system)
+# ═══════════════════════════════════════════════════════════════
+
+PHASE_MODELS: Dict[str, ModelRole] = {
+    "explore": ModelRole.CODE,      # Understanding code needs coding model
+    "plan": ModelRole.CODE,         # Planning needs coding knowledge
+    "apply": ModelRole.CODE,        # Writing code
+    "verify": ModelRole.REASON,     # Verification needs reasoning
+}
+
+
+# ═══════════════════════════════════════════════════════════════
+# FALLBACK CHAINS
+# ═══════════════════════════════════════════════════════════════
+
+FALLBACK_CHAIN: Dict[ModelRole, List[ModelRole]] = {
+    ModelRole.FAST: [ModelRole.CHAT, ModelRole.FALLBACK],
+    ModelRole.CHAT: [ModelRole.FAST, ModelRole.FALLBACK],
+    ModelRole.CODE: [ModelRole.REASON, ModelRole.FALLBACK],
+    ModelRole.REASON: [ModelRole.CODE, ModelRole.FALLBACK],
+    ModelRole.EMBED: [],  # No fallback for embeddings
+    ModelRole.FALLBACK: [ModelRole.CODE, ModelRole.UNCENSORED],
+    ModelRole.UNCENSORED: [ModelRole.FALLBACK],
+}
 
 
 class ModelRouter:
     """
-    Intelligent model router with tier-based selection
-
-    Features:
-    - Tier-based model selection (fast, balanced, powerful, ultra, uncensored)
-    - Configurable Ollama base URL (Docker support)
-    - Streaming support
-    - Auto-fallback on model unavailability
-    - User tier overrides
+    Routes tasks to the appropriate model.
+    No guessing - each task type has a fixed model.
     """
-
-    # Default model configurations - OPTIMIZED for speed and conciseness
-    DEFAULT_MODELS = {
-        ModelTier.FAST: ModelConfig(
-            name="qwen2.5:3b",
-            tier=ModelTier.FAST,
-            description="Ultra-fast for simple queries",
-            vram_mb=2500,
-            typical_latency_ms=100,
-            specialties=["quick_tasks", "simple_queries", "chat", "greetings"],
-            max_tokens=512,  # Short responses
-            timeout_seconds=15
-        ),
-        ModelTier.BALANCED: ModelConfig(
-            name="qwen2.5-coder:7b",
-            tier=ModelTier.BALANCED,
-            description="Fast coding model (default)",
-            vram_mb=5000,
-            typical_latency_ms=300,
-            specialties=["coding", "scripts", "configs", "debugging"],
-            max_tokens=1024,  # Concise responses
-            timeout_seconds=30
-        ),
-        ModelTier.POWERFUL: ModelConfig(
-            name="qwen2.5-coder:14b",
-            tier=ModelTier.POWERFUL,
-            description="Strong coder for complex tasks",
-            vram_mb=9000,
-            typical_latency_ms=800,
-            specialties=["complex_code", "refactoring", "analysis"],
-            max_tokens=2048,
-            timeout_seconds=60
-        ),
-        ModelTier.ULTRA: ModelConfig(
-            name="deepseek-coder-v2:16b",
-            tier=ModelTier.ULTRA,
-            description="Heavy reasoning, architecture",
-            vram_mb=10000,
-            typical_latency_ms=1500,
-            specialties=["architecture", "complex_reasoning", "large_refactors"],
-            max_tokens=4096,
-            timeout_seconds=120
-        ),
-        ModelTier.UNCENSORED: ModelConfig(
-            name="huihui_ai/gpt-oss-abliterated:20b",
-            tier=ModelTier.UNCENSORED,
-            description="Uncensored personal reflection",
-            vram_mb=12000,
-            typical_latency_ms=1500,
-            specialties=["personal_chat", "uncensored", "creative"],
-            max_tokens=2048,
-            timeout_seconds=90
-        ),
-    }
-
-    # Fallback chain when primary model unavailable
-    FALLBACK_CHAIN = {
-        ModelTier.ULTRA: [ModelTier.POWERFUL, ModelTier.BALANCED, ModelTier.FAST],
-        ModelTier.POWERFUL: [ModelTier.BALANCED, ModelTier.FAST],
-        ModelTier.BALANCED: [ModelTier.FAST],
-        ModelTier.FAST: [],
-        ModelTier.UNCENSORED: [ModelTier.POWERFUL, ModelTier.BALANCED],
-    }
-
-    def __init__(self, config_path: Optional[Path] = None):
-        """
-        Initialize model router
-
-        Args:
-            config_path: Optional path to configuration file
-        """
-        self.config = self._load_config(config_path)
+    
+    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+        self.ollama_base_url = os.environ.get('OLLAMA_BASE_URL', ollama_base_url)
         self._available_models: Optional[List[str]] = None
-
-    def _load_config(self, config_path: Optional[Path] = None) -> RouterConfig:
-        """Load router configuration"""
-        # Check environment variable for Ollama URL
-        ollama_url = os.environ.get(
-            'OLLAMA_BASE_URL',
-            os.environ.get('RYX_OLLAMA_URL', 'http://localhost:11434')
-        )
-
-        config = RouterConfig(
-            ollama_base_url=ollama_url,
-            models=self.DEFAULT_MODELS.copy()
-        )
-
-        # Load from config file if provided
-        if config_path and config_path.exists():
-            try:
-                with open(config_path, 'r') as f:
-                    file_config = json.load(f)
-
-                # Update Ollama URL
-                if 'ollama_base_url' in file_config:
-                    config.ollama_base_url = file_config['ollama_base_url']
-
-                # Update default tier
-                if 'default_tier' in file_config:
-                    config.default_tier = ModelTier(file_config['default_tier'])
-
-                # Update models
-                if 'models' in file_config:
-                    for tier_name, model_config in file_config['models'].items():
-                        tier = ModelTier(tier_name)
-                        config.models[tier] = ModelConfig(
-                            name=model_config['name'],
-                            tier=tier,
-                            description=model_config.get('description', ''),
-                            vram_mb=model_config.get('vram_mb', 4000),
-                            typical_latency_ms=model_config.get('typical_latency_ms', 500),
-                            specialties=model_config.get('specialties', []),
-                            max_tokens=model_config.get('max_tokens', 4096),
-                            timeout_seconds=model_config.get('timeout_seconds', 60)
-                        )
-
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"Failed to load config from {config_path}: {e}")
-
-        return config
-
-    def get_model(self, tier: Optional[ModelTier] = None, intent_type: Optional[str] = None) -> ModelConfig:
+    
+    # ─────────────────────────────────────────────────────────────
+    # Core API
+    # ─────────────────────────────────────────────────────────────
+    
+    def get_model(self, task: str) -> ModelConfig:
+        """Get the model for a specific task"""
+        role = TASK_ROUTING.get(task, ModelRole.CHAT)
+        return MODELS[role]
+    
+    def get_model_by_role(self, role: ModelRole) -> ModelConfig:
+        """Get model by role directly"""
+        return MODELS[role]
+    
+    def get_model_name(self, task: str) -> str:
+        """Get just the model name for a task"""
+        return self.get_model(task).name
+    
+    def get_phase_model(self, phase: str) -> ModelConfig:
+        """Get the model for an agent phase"""
+        role = PHASE_MODELS.get(phase.lower(), ModelRole.CODE)
+        return MODELS[role]
+    
+    def select_for_query(self, query: str) -> ModelConfig:
         """
-        Get model configuration for a tier
-
-        Args:
-            tier: Model tier (or None for default)
-            intent_type: Intent type for automatic tier selection
-
-        Returns:
-            ModelConfig for the appropriate model
+        Smart model selection based on query analysis.
+        Quick heuristics - no LLM call needed.
         """
-        if tier is None:
-            tier = self._select_tier_for_intent(intent_type)
-
-        # Check if model is available, with fallback
-        model = self.config.models.get(tier, self.config.models[ModelTier.BALANCED])
-
-        if self.config.auto_fallback and not self._is_model_available(model.name):
-            model = self._get_fallback_model(tier)
-
-        return model
-
-    def select_model_for_query(self, query: str) -> ModelConfig:
-        """
-        Smart model selection based on query complexity.
-        NO hardcoded patterns - uses simple heuristics for speed.
-        """
-        query_len = len(query)
-        query_lower = query.lower()
+        q = query.lower()
+        qlen = len(query)
         
-        # Very short queries (greetings, simple questions) -> FAST
-        if query_len < 30:
-            return self.config.models[ModelTier.FAST]
+        # Very short → FAST
+        if qlen < 20:
+            return MODELS[ModelRole.FAST]
         
-        # Code-related queries -> BALANCED or POWERFUL
-        code_indicators = ['code', 'function', 'class', 'def ', 'import', 'error', 'bug', 'fix', 'refactor']
-        if any(ind in query_lower for ind in code_indicators):
-            if query_len > 200 or 'refactor' in query_lower or 'architecture' in query_lower:
-                return self.config.models[ModelTier.POWERFUL]
-            return self.config.models[ModelTier.BALANCED]
+        # Greetings → CHAT
+        greetings = ['hi', 'hello', 'hallo', 'hey', 'moin', 'servus']
+        if any(q.startswith(g) for g in greetings):
+            return MODELS[ModelRole.CHAT]
         
-        # File/config operations -> FAST
-        file_indicators = ['open', 'edit', 'config', 'file', 'path']
-        if any(ind in query_lower for ind in file_indicators):
-            return self.config.models[ModelTier.FAST]
+        # Code indicators → CODE
+        code_words = ['code', 'function', 'class', 'def ', 'import', 'error', 
+                      'bug', 'fix', 'refactor', 'implement', 'create a', 'add a',
+                      'funktion', 'fehler', 'erstelle', 'füge hinzu']
+        if any(w in q for w in code_words):
+            # Complex code → REASON for planning
+            if qlen > 200 or 'refactor' in q or 'architect' in q or 'design' in q:
+                return MODELS[ModelRole.REASON]
+            return MODELS[ModelRole.CODE]
         
-        # Complex reasoning -> POWERFUL
-        if query_len > 300:
-            return self.config.models[ModelTier.POWERFUL]
+        # Reasoning indicators → REASON
+        reason_words = ['why', 'warum', 'explain step', 'analyze', 'analysiere',
+                        'think through', 'verify', 'check if', 'prüfe']
+        if any(w in q for w in reason_words):
+            return MODELS[ModelRole.REASON]
         
-        # Default to FAST for most things (speed matters!)
-        return self.config.models[ModelTier.FAST]
-
-    def _select_tier_for_intent(self, intent_type: Optional[str]) -> ModelTier:
-        """Select tier based on intent type"""
-        if intent_type is None:
-            return ModelTier.FAST  # Default to fast, not balanced
-
-        intent_tier_map = {
-            'chat': ModelTier.FAST,
-            'code_edit': ModelTier.BALANCED,
-            'config_edit': ModelTier.FAST,  # Config is usually simple
-            'file_ops': ModelTier.FAST,
-            'web_research': ModelTier.FAST,
-            'system_task': ModelTier.FAST,
-            'knowledge_rag': ModelTier.FAST,
-            'personal_chat': ModelTier.UNCENSORED,
-        }
-
-        return intent_tier_map.get(intent_type, ModelTier.FAST)
-
-    def _is_model_available(self, model_name: str) -> bool:
-        """Check if a model is available in Ollama"""
+        # Uncensored indicators
+        uncensored_words = ['uncensored', 'unzensiert', 'no filter', 'honest opinion']
+        if any(w in q for w in uncensored_words):
+            return MODELS[ModelRole.UNCENSORED]
+        
+        # Medium length general query → CHAT
+        if qlen < 100:
+            return MODELS[ModelRole.CHAT]
+        
+        # Default for longer queries → CODE (can handle most things)
+        return MODELS[ModelRole.CODE]
+    
+    # ─────────────────────────────────────────────────────────────
+    # Availability & Fallback
+    # ─────────────────────────────────────────────────────────────
+    
+    @property
+    def available_models(self) -> List[str]:
+        """Get list of models installed in Ollama"""
         if self._available_models is None:
-            self._refresh_available_models()
-
-        return model_name in (self._available_models or [])
-
-    def _refresh_available_models(self):
-        """Refresh list of available models from Ollama"""
-        import requests
-
+            self._available_models = self._fetch_available_models()
+        return self._available_models
+    
+    def _fetch_available_models(self) -> List[str]:
+        """Fetch available models from Ollama"""
         try:
-            response = requests.get(
-                f"{self.config.ollama_base_url}/api/tags",
-                timeout=5
+            result = subprocess.run(
+                ["ollama", "list"],
+                capture_output=True,
+                text=True,
+                timeout=10
             )
-            if response.status_code == 200:
-                data = response.json()
-                self._available_models = [m['name'] for m in data.get('models', [])]
-            else:
-                self._available_models = []
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')[1:]  # Skip header
+                return [line.split()[0] for line in lines if line]
         except Exception as e:
-            logger.warning(f"Failed to refresh available models: {e}")
-            self._available_models = []
-
-    def _get_fallback_model(self, original_tier: ModelTier) -> ModelConfig:
-        """Get fallback model when original is unavailable"""
-        fallback_tiers = self.FALLBACK_CHAIN.get(original_tier, [])
-
-        for fallback_tier in fallback_tiers:
-            model = self.config.models.get(fallback_tier)
-            if model and self._is_model_available(model.name):
-                logger.info(f"Using fallback model {model.name} for tier {original_tier}")
+            logger.warning(f"Failed to fetch models: {e}")
+        return []
+    
+    def refresh_available(self) -> List[str]:
+        """Refresh the list of available models"""
+        self._available_models = None
+        return self.available_models
+    
+    def is_available(self, role: ModelRole) -> bool:
+        """Check if the model for a role is available"""
+        model = MODELS[role]
+        return model.name in self.available_models
+    
+    def get_fallback(self, role: ModelRole) -> Optional[ModelConfig]:
+        """Get fallback model if primary isn't available"""
+        for fallback_role in FALLBACK_CHAIN.get(role, []):
+            if self.is_available(fallback_role):
+                return MODELS[fallback_role]
+        return None
+    
+    def get_best_available(self, task: str) -> ModelConfig:
+        """Get best available model for a task (with fallback)"""
+        primary = self.get_model(task)
+        
+        if primary.name in self.available_models:
+            return primary
+        
+        # Try fallback
+        role = TASK_ROUTING.get(task, ModelRole.CHAT)
+        fallback = self.get_fallback(role)
+        if fallback:
+            logger.info(f"Using fallback {fallback.name} for task {task}")
+            return fallback
+        
+        # Last resort: any available model
+        for model in MODELS.values():
+            if model.name in self.available_models:
                 return model
-
-        # Last resort: return first available model
-        for tier, model in self.config.models.items():
-            if self._is_model_available(model.name):
-                return model
-
-        # Return default even if unavailable
-        return self.config.models[self.config.default_tier]
-
-    def get_ollama_url(self) -> str:
-        """Get Ollama base URL"""
-        return self.config.ollama_base_url
-
-    def list_models(self) -> Dict[str, ModelConfig]:
-        """List all configured models with availability"""
-        self._refresh_available_models()
-
-        result = {}
-        for tier, model in self.config.models.items():
-            result[tier.value] = {
-                'config': model,
-                'available': self._is_model_available(model.name)
+        
+        # Nothing available - return primary anyway (will fail gracefully)
+        return primary
+    
+    # ─────────────────────────────────────────────────────────────
+    # Status & Info
+    # ─────────────────────────────────────────────────────────────
+    
+    def get_status(self) -> Dict[str, Dict]:
+        """Get status of all models"""
+        available = self.available_models
+        status = {}
+        
+        for role, model in MODELS.items():
+            status[role.value] = {
+                "model": model.name,
+                "available": model.name in available,
+                "vram_mb": model.vram_mb,
+                "description": model.description
             }
-
+        
+        return status
+    
+    def print_status(self):
+        """Print status to console"""
+        status = self.get_status()
+        print("\n=== Ryx Model Status ===\n")
+        
+        for role, info in status.items():
+            icon = "✓" if info["available"] else "✗"
+            print(f"  {icon} {role.upper():12} → {info['model']}")
+        
+        print()
+    
+    def list_models(self) -> Dict[str, Any]:
+        """List all configured models with availability"""
+        self.refresh_available()
+        
+        result = {}
+        for role, model in MODELS.items():
+            result[role.value] = {
+                'config': model,
+                'available': model.name in self.available_models
+            }
+        
         return result
 
-    def get_tier_by_name(self, name: str) -> Optional[ModelTier]:
-        """Get tier by name string"""
-        name_lower = name.lower()
 
-        # Direct tier name match
-        for tier in ModelTier:
-            if tier.value == name_lower:
-                return tier
+# ═══════════════════════════════════════════════════════════════
+# Singleton & Helper Functions
+# ═══════════════════════════════════════════════════════════════
 
-        # Alias matching
-        aliases = {
-            'quick': ModelTier.FAST,
-            'small': ModelTier.FAST,
-            'default': ModelTier.BALANCED,
-            'strong': ModelTier.POWERFUL,
-            'big': ModelTier.POWERFUL,
-            'heavy': ModelTier.ULTRA,
-            '30b': ModelTier.ULTRA,
-            'qwen3': ModelTier.ULTRA,
-            'abliterated': ModelTier.UNCENSORED,
-            'gpt-oss': ModelTier.UNCENSORED,
-            'personal': ModelTier.UNCENSORED,
-        }
+_router: Optional[ModelRouter] = None
 
-        return aliases.get(name_lower)
+def get_router() -> ModelRouter:
+    """Get or create the model router singleton"""
+    global _router
+    if _router is None:
+        _router = ModelRouter()
+    return _router
 
-    def save_config(self, config_path: Path):
-        """Save current configuration to file"""
-        config_data = {
-            'ollama_base_url': self.config.ollama_base_url,
-            'default_tier': self.config.default_tier.value,
-            'auto_fallback': self.config.auto_fallback,
-            'stream_responses': self.config.stream_responses,
-            'models': {}
-        }
 
-        for tier, model in self.config.models.items():
-            config_data['models'][tier.value] = {
-                'name': model.name,
-                'description': model.description,
-                'vram_mb': model.vram_mb,
-                'typical_latency_ms': model.typical_latency_ms,
-                'specialties': model.specialties,
-                'max_tokens': model.max_tokens,
-                'timeout_seconds': model.timeout_seconds
-            }
+def get_model_for_task(task: str) -> ModelConfig:
+    """Convenience function to get model for a task"""
+    return get_router().get_model(task)
 
-        with open(config_path, 'w') as f:
-            json.dump(config_data, f, indent=2)
+
+def get_model_for_phase(phase: str) -> ModelConfig:
+    """Convenience function to get model for a phase"""
+    return get_router().get_phase_model(phase)
+
+
+def select_model(query: str) -> ModelConfig:
+    """Convenience function for smart model selection"""
+    return get_router().select_for_query(query)
