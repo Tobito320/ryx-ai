@@ -586,11 +586,21 @@ SPECIAL:
     def _save(self):
         state_file = get_data_dir() / "session_state.json"
         
+        # Include context for continuity
+        context_data = {
+            'last_path': self.brain.ctx.last_path,
+            'last_result': self.brain.ctx.last_result[:500] if self.brain.ctx.last_result else "",
+            'last_intent': self.brain.ctx.last_intent.value if self.brain.ctx.last_intent else None,
+            'created_files': getattr(self.brain.ctx, 'created_files', []),
+            'last_task_files': getattr(self.brain.ctx, 'last_task_files', []),
+        }
+        
         state = {
             'history': self.history[-50:],
             'stats': self.stats,
             'precision_mode': self.brain.precision_mode,
             'browsing_enabled': self.brain.browsing_enabled,
+            'context': context_data,
             'saved_at': datetime.now().isoformat()
         }
         
@@ -608,6 +618,19 @@ SPECIAL:
                 self.history = state.get('history', [])
                 self.brain.precision_mode = state.get('precision_mode', False)
                 self.brain.browsing_enabled = state.get('browsing_enabled', True)
+                
+                # Restore context
+                ctx = state.get('context', {})
+                if ctx:
+                    self.brain.ctx.last_path = ctx.get('last_path', '')
+                    self.brain.ctx.last_result = ctx.get('last_result', '')
+                    if ctx.get('last_intent'):
+                        try:
+                            self.brain.ctx.last_intent = Intent(ctx['last_intent'])
+                        except:
+                            pass
+                    self.brain.ctx.created_files = ctx.get('created_files', [])
+                    self.brain.ctx.last_task_files = ctx.get('last_task_files', [])
                 
                 if self.history:
                     self.ui.info(f"Session wiederhergestellt ({len(self.history)} Nachrichten)")

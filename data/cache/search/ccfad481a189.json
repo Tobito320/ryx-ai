@@ -1,0 +1,31 @@
+{
+  "query": "erkl\u00e4re rekursion",
+  "results": [
+    {
+      "title": "Algorithmus Lektion 7 (Rekursion) | by Shack | May, 2025 | Medium",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmedium.com%2F%40g0972222165%2Falgorithmus%2Dlektion%2D7%2Drekursion%2D0a388fac957b&rut=80be7444093ff32547cd5aea3372544c7f24257672e15da0095a6282d2418f4f",
+      "content": "Rekursionist eine Methode zur L\u00f6sung eiens Problem , indem man das Problem wiederholt in kleinere Teilprobleme zerlegt. Es ist ein typitscher Ansatz , der in dem bekannten Algorithmus \u201edivide ..."
+    },
+    {
+      "title": "Rekursion - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.wikipedia.org%2Fwiki%2FRekursion&rut=d8e8922dab85118e288dc10d9be3f77770bbaee66c2b19b3e2d1e58dcadf5245",
+      "content": "AlsRekursion(lateinisch recurrere \u201azur\u00fccklaufen') wird ein prinzipiell unendlicher Vorgang bezeichnet, der sich selbst als Teil enth\u00e4lt oder mithilfe von sich selbst definierbar ist. [1] \u00dcblicherweise sind rekursive Vorg\u00e4nge relativ kurz beschreibbar bzw. k\u00f6nnen durch eine relativ kurze Anweisung ausgel\u00f6st werden. [2][3] Die beiRekursionaufeinander folgenden Teilvorg\u00e4nge oder ..."
+    },
+    {
+      "title": "Rekursion: Definition, Formel und Funktion | StudySmarter",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.studysmarter.de%2Fschule%2Finformatik%2Falgorithmen%2Dund%2Ddatenstrukturen%2Frekursion%2F&rut=025a0b35c6f662899d9f05d511ab96ebae903b5c71730da9941e4683bf0bf3eb",
+      "content": "RekursionIn der Informatik istRekursioneine zentrale Konzeption und Technik, die in allt\u00e4glichen Situationen wie auch komplexen Algorithmen zur Anwendung kommt. In diesem Artikel verschaffen wir uns einen detaillierten \u00dcberblick \u00fcberRekursion, ihre Definition und Anwendung."
+    },
+    {
+      "title": "Rekursion in Python: Konzepte, Beispiele und Tipps | DataCamp",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.datacamp.com%2Fde%2Ftutorial%2Frecursion%2Din%2Dpython&rut=2952123b2e1cdf37df4a3f9bb34f7b7f9ee8de01c0f6d046fdd64bced1ecca2c",
+      "content": "LerneRekursionin Python mit Beispielen, Schl\u00fcsselkonzepten und praktischen Tipps. Basisf\u00e4lle und rekursive Funktionen verstehen und wissen, wannRekursionstatt Iteration eingesetzt werden sollte."
+    },
+    {
+      "title": "Rekursion einfach erkl\u00e4rt mit Beispielen - YouTube",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DCoN53%2DVVTWk&rut=5d35616f9d05b5b23e73d458308ac839a14a82dabb3f0c0df446d248fe233cf6",
+      "content": "Rekursioneinfach erkl\u00e4rt mit Beispielen. Wir gehen Schritt f\u00fcr Schritt an einem Beispiel durch, was bei einerRekursiongenau passiert, sodass du genau nach..."
+    }
+  ],
+  "timestamp": "2025-12-02T16:08:04.677565"
+}

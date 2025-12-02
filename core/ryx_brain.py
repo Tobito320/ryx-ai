@@ -81,6 +81,8 @@ class ConversationContext:
     last_scraped: Optional[Dict] = None
     language: str = "auto"
     turn_count: int = 0
+    created_files: List[str] = field(default_factory=list)  # Files created in code tasks
+    last_task_files: List[str] = field(default_factory=list)  # Files from last code task
 
 
 class KnowledgeBase:
@@ -656,27 +658,56 @@ ANFRAGE: {prompt}'''
         return Plan(intent=Intent.CHAT, target="Nichts ausgewählt." if self.ctx.language == 'de' else "Nothing selected.")
     
     def _handle_context_reference(self, prompt: str) -> Optional[Plan]:
-        """Handle 'open it', 'edit that', etc."""
+        """Handle 'open it', 'edit that', 'öffne das mal', etc."""
         p = prompt.lower()
         
-        refs_open = ['open it', 'edit it', 'open that', 'öffne es', 'öffne das', 'bearbeite es']
+        # References to open/edit something
+        refs_open = ['open it', 'edit it', 'open that', 'öffne es', 'öffne das', 'bearbeite es', 
+                     'öffne das mal', 'open the', 'zeig mal', 'show that']
         refs_show = ['show it', 'zeig es', 'zeig das']
         
-        if any(r in p for r in refs_open):
-            # Use last path or single pending item
+        # Check if this references recently created/worked files
+        if any(r in p for r in refs_open) or 'open the' in p or 'öffne die' in p:
+            # First check: recently created files from code tasks
+            if hasattr(self.ctx, 'created_files') and self.ctx.created_files:
+                # Return the most recently created file
+                last_file = self.ctx.created_files[-1]
+                return Plan(
+                    intent=Intent.OPEN_FILE,
+                    target=last_file,
+                    options={"editor": self.cache.get_preference("editor") or "nvim"}
+                )
+            
+            # Second check: last_path from context
             if self.ctx.last_path and os.path.exists(self.ctx.last_path):
                 return Plan(
                     intent=Intent.OPEN_FILE,
                     target=self.ctx.last_path,
                     options={"editor": self.cache.get_preference("editor") or "nvim"}
                 )
-            elif len(self.ctx.pending_items) == 1:
+            
+            # Third check: single pending item
+            if len(self.ctx.pending_items) == 1:
                 item = self.ctx.pending_items[0]
                 self.ctx.pending_items = []
                 if 'path' in item:
                     return Plan(intent=Intent.OPEN_FILE, target=item['path'])
                 elif 'url' in item:
                     return Plan(intent=Intent.OPEN_URL, target=item['url'])
+            
+            # Check if referring to code task results
+            if self.ctx.last_intent == Intent.CODE_TASK and self.ctx.last_result:
+                # Extract any file paths from the last result
+                import re
+                paths = re.findall(r'(?:→|Target:)\s*([^\s\n]+\.\w+)', self.ctx.last_result)
+                if paths:
+                    for path in paths:
+                        if os.path.exists(path):
+                            return Plan(intent=Intent.OPEN_FILE, target=path)
+                        # Try with cwd
+                        full_path = os.path.join(os.getcwd(), path)
+                        if os.path.exists(full_path):
+                            return Plan(intent=Intent.OPEN_FILE, target=full_path)
         
         return None
     
@@ -1050,9 +1081,19 @@ ANFRAGE: {prompt}'''
             # Summarize what was done
             changes = executor.state.changes
             if changes:
-                summary = f"✓ Completed: {task}\n\nChanges made:"
+                summary = f"✓ Completed: {task}\n\nFiles created/modified:"
+                created_files = []
                 for c in changes:
-                    summary += f"\n  - {c.action}: {c.file_path}"
+                    summary += f"\n  ✓ {c.file_path}"
+                    created_files.append(c.file_path)
+                
+                # Store created files for context ("open that")
+                self.ctx.created_files = created_files
+                self.ctx.last_task_files = created_files
+                if created_files:
+                    self.ctx.last_path = created_files[-1]
+                
+                summary += f"\n\nÖffnen? (Nummer oder 'öffne das')"
                 return True, summary
             else:
                 return True, f"✓ Analyzed: {task}\n\nNo changes were needed."

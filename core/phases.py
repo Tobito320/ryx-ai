@@ -547,7 +547,7 @@ class PhaseExecutor:
         return None
     
     def _execute_apply(self) -> bool:
-        """Apply phase: execute changes using tools"""
+        """Apply phase: execute changes using tools - ACTUALLY CREATE CODE"""
         if not self.state.plan:
             self.state.add_error("No plan to execute")
             return False
@@ -556,13 +556,27 @@ class PhaseExecutor:
         if step:
             self.printer.stream_thinking("APPLY", f"Step {step.id}: {step.description[:30]}...")
             
-            # Execute step based on action type
-            if step.file_path:
+            # Determine if this step needs code generation
+            action = step.action.lower() if hasattr(step, 'action') and step.action else 'create'
+            
+            if step.file_path and action in ['create', 'write', 'generate', 'implement']:
+                # Generate code for this file
+                success = self._generate_code_for_step(step)
+                if success:
+                    self.printer.stream_thinking_done("APPLY", f"✓ {step.file_path}")
+                    # Track created file
+                    if hasattr(self.brain, 'ctx'):
+                        if not hasattr(self.brain.ctx, 'created_files'):
+                            self.brain.ctx.created_files = []
+                        self.brain.ctx.created_files.append(step.file_path)
+                else:
+                    self.printer.stream_thinking_done("APPLY", f"→ {step.file_path}", success=False)
+            elif step.file_path:
                 self.printer.stream_thinking_done("APPLY", f"→ {step.file_path}")
             else:
                 self.printer.stream_thinking_done("APPLY", f"Step {step.id}")
             
-            self.state.plan.mark_step_complete(step.id, "Analyzed")
+            self.state.plan.mark_step_complete(step.id, "Completed")
         
         # Check if there are more steps
         next_step = self.state.plan.get_next_step()
@@ -573,6 +587,78 @@ class PhaseExecutor:
         # All steps done, move to verify
         self.state.transition_to(Phase.VERIFY)
         return True
+    
+    def _generate_code_for_step(self, step) -> bool:
+        """Actually generate code for a step using LLM"""
+        from core.model_router import get_router, ModelRole
+        import os
+        
+        router = get_router()
+        model_config = router.get_model_by_role(ModelRole.CODE)
+        model_name = model_config.name
+        
+        # Build context from explored files
+        context = ""
+        if self.state.context_files:
+            context = "Existing code context:\n"
+            for cf in self.state.context_files[:2]:
+                context += f"\n--- {cf['path']} ---\n{cf['content'][:1000]}\n"
+        
+        prompt = f"""Task: {self.state.task}
+Step: {step.description}
+Target file: {step.file_path}
+
+{context}
+
+Generate the complete code for {step.file_path}.
+Only output the code, no explanations.
+Use appropriate file format based on extension."""
+
+        if self.brain and hasattr(self.brain, 'ollama'):
+            self.printer.stream_thinking("APPLY", f"Generating {step.file_path}...")
+            
+            response = self.brain.ollama.generate(
+                prompt=prompt,
+                model=model_name,
+                system="You are a code generator. Output only valid code. No markdown, no explanations.",
+                max_tokens=2000,
+                temperature=0.3
+            )
+            
+            if response.response:
+                # Clean the response (remove markdown fences if present)
+                code = response.response.strip()
+                if code.startswith('```'):
+                    lines = code.split('\n')
+                    code = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+                
+                # Create the file
+                try:
+                    file_path = step.file_path
+                    # Handle relative paths
+                    if not os.path.isabs(file_path):
+                        file_path = os.path.join(os.getcwd(), file_path)
+                    
+                    # Create directory if needed
+                    os.makedirs(os.path.dirname(file_path) if os.path.dirname(file_path) else '.', exist_ok=True)
+                    
+                    with open(file_path, 'w') as f:
+                        f.write(code)
+                    
+                    # Track the change
+                    from core.phases import Change
+                    self.state.changes.append(Change(
+                        file_path=file_path,
+                        action="create",
+                        diff=f"+++ {file_path}\n{code[:500]}..."
+                    ))
+                    
+                    return True
+                except Exception as e:
+                    self.state.add_error(f"Failed to write {file_path}: {e}")
+                    return False
+        
+        return False
     
     def _execute_verify(self) -> bool:
         """Verify phase: check results using REASON model"""
