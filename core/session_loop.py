@@ -132,10 +132,14 @@ class SessionLoop:
         
         while self.running:
             try:
+                # Get current model for display
+                from core.model_router import select_model
+                current_model = select_model("chat").name.split(':')[0]  # Just model name without tag
+                
                 # Modern prompt with bottom hints
                 self.printer.print_bottom_hints(
                     left="Ctrl+c Exit · /help",
-                    right=f"Session: {len(self.history)} msgs"
+                    right=f"{current_model} · {len(self.history)} msgs"
                 )
                 user_input = self.ui.prompt()
                 
