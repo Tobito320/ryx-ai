@@ -43,6 +43,8 @@ class Emoji:
     WARNING = "⚠️"
     INFO = "ℹ️"
     QUESTION = "❓"
+    THINKING = "🤔"
+    BRAIN = "🧠"
 
     # Actions
     PLAN = "📋"
