@@ -57,10 +57,10 @@ class OllamaClient:
     def generate(
         self,
         prompt: str,
-        model: str = "qwen2.5-coder:14b",
+        model: str = "qwen2.5:3b",
         system: str = "",
-        max_tokens: int = 4096,
-        temperature: float = 0.3,
+        max_tokens: int = 512,
+        temperature: float = 0.1,  # Low temperature for focused responses
         stream: bool = False,
         context: Optional[list] = None
     ) -> GenerateResponse:
@@ -72,7 +72,7 @@ class OllamaClient:
             model: Model name
             system: System prompt
             max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature
+            temperature: Sampling temperature (low = focused)
             stream: Whether to stream the response
             context: Optional conversation context
 
@@ -85,7 +85,9 @@ class OllamaClient:
             "stream": False,  # We handle streaming separately
             "options": {
                 "temperature": temperature,
-                "num_predict": max_tokens
+                "num_predict": max_tokens,
+                "top_p": 0.9,  # Nucleus sampling for coherence
+                "repeat_penalty": 1.1,  # Avoid repetition
             }
         }
 

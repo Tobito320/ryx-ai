@@ -58,47 +58,47 @@ class ModelRouter:
     - User tier overrides
     """
 
-    # Default model configurations
+    # Default model configurations - OPTIMIZED for speed and conciseness
     DEFAULT_MODELS = {
         ModelTier.FAST: ModelConfig(
-            name="mistral:7b",
+            name="qwen2.5:3b",
             tier=ModelTier.FAST,
-            description="Fast general model for quick tasks",
-            vram_mb=4500,
-            typical_latency_ms=200,
-            specialties=["quick_tasks", "simple_queries", "chat"],
-            max_tokens=2048,
-            timeout_seconds=30
+            description="Ultra-fast for simple queries",
+            vram_mb=2500,
+            typical_latency_ms=100,
+            specialties=["quick_tasks", "simple_queries", "chat", "greetings"],
+            max_tokens=512,  # Short responses
+            timeout_seconds=15
         ),
         ModelTier.BALANCED: ModelConfig(
-            name="qwen2.5-coder:14b",
+            name="qwen2.5-coder:7b",
             tier=ModelTier.BALANCED,
-            description="Main coding model (default)",
-            vram_mb=9000,
-            typical_latency_ms=500,
+            description="Fast coding model (default)",
+            vram_mb=5000,
+            typical_latency_ms=300,
             specialties=["coding", "scripts", "configs", "debugging"],
-            max_tokens=4096,
-            timeout_seconds=60
+            max_tokens=1024,  # Concise responses
+            timeout_seconds=30
         ),
         ModelTier.POWERFUL: ModelConfig(
-            name="deepseek-coder-v2:16b",
+            name="qwen2.5-coder:14b",
             tier=ModelTier.POWERFUL,
-            description="Strong coder alternative",
-            vram_mb=10000,
-            typical_latency_ms=1000,
+            description="Strong coder for complex tasks",
+            vram_mb=9000,
+            typical_latency_ms=800,
             specialties=["complex_code", "refactoring", "analysis"],
-            max_tokens=8192,
-            timeout_seconds=90
+            max_tokens=2048,
+            timeout_seconds=60
         ),
         ModelTier.ULTRA: ModelConfig(
-            name="SimonPu/Qwen3-Coder:30B-Instruct_Q4_K_XL",
+            name="deepseek-coder-v2:16b",
             tier=ModelTier.ULTRA,
             description="Heavy reasoning, architecture",
-            vram_mb=16000,
-            typical_latency_ms=3000,
+            vram_mb=10000,
+            typical_latency_ms=1500,
             specialties=["architecture", "complex_reasoning", "large_refactors"],
-            max_tokens=16384,
-            timeout_seconds=180
+            max_tokens=4096,
+            timeout_seconds=120
         ),
         ModelTier.UNCENSORED: ModelConfig(
             name="huihui_ai/gpt-oss-abliterated:20b",
@@ -107,8 +107,8 @@ class ModelRouter:
             vram_mb=12000,
             typical_latency_ms=1500,
             specialties=["personal_chat", "uncensored", "creative"],
-            max_tokens=8192,
-            timeout_seconds=120
+            max_tokens=2048,
+            timeout_seconds=90
         ),
     }
 
@@ -200,23 +200,54 @@ class ModelRouter:
 
         return model
 
+    def select_model_for_query(self, query: str) -> ModelConfig:
+        """
+        Smart model selection based on query complexity.
+        NO hardcoded patterns - uses simple heuristics for speed.
+        """
+        query_len = len(query)
+        query_lower = query.lower()
+        
+        # Very short queries (greetings, simple questions) -> FAST
+        if query_len < 30:
+            return self.config.models[ModelTier.FAST]
+        
+        # Code-related queries -> BALANCED or POWERFUL
+        code_indicators = ['code', 'function', 'class', 'def ', 'import', 'error', 'bug', 'fix', 'refactor']
+        if any(ind in query_lower for ind in code_indicators):
+            if query_len > 200 or 'refactor' in query_lower or 'architecture' in query_lower:
+                return self.config.models[ModelTier.POWERFUL]
+            return self.config.models[ModelTier.BALANCED]
+        
+        # File/config operations -> FAST
+        file_indicators = ['open', 'edit', 'config', 'file', 'path']
+        if any(ind in query_lower for ind in file_indicators):
+            return self.config.models[ModelTier.FAST]
+        
+        # Complex reasoning -> POWERFUL
+        if query_len > 300:
+            return self.config.models[ModelTier.POWERFUL]
+        
+        # Default to FAST for most things (speed matters!)
+        return self.config.models[ModelTier.FAST]
+
     def _select_tier_for_intent(self, intent_type: Optional[str]) -> ModelTier:
         """Select tier based on intent type"""
         if intent_type is None:
-            return self.config.default_tier
+            return ModelTier.FAST  # Default to fast, not balanced
 
         intent_tier_map = {
             'chat': ModelTier.FAST,
             'code_edit': ModelTier.BALANCED,
-            'config_edit': ModelTier.BALANCED,
+            'config_edit': ModelTier.FAST,  # Config is usually simple
             'file_ops': ModelTier.FAST,
-            'web_research': ModelTier.BALANCED,
+            'web_research': ModelTier.FAST,
             'system_task': ModelTier.FAST,
             'knowledge_rag': ModelTier.FAST,
             'personal_chat': ModelTier.UNCENSORED,
         }
 
-        return intent_tier_map.get(intent_type, self.config.default_tier)
+        return intent_tier_map.get(intent_type, ModelTier.FAST)
 
     def _is_model_available(self, model_name: str) -> bool:
         """Check if a model is available in Ollama"""

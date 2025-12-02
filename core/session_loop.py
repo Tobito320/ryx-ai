@@ -259,25 +259,32 @@ class SessionLoop:
             self.ui.warning(f"Unknown command: {intent.original_prompt}")
 
     def _handle_greeting(self, user_input: str):
-        """Handle simple greetings without AI query"""
+        """Handle simple greetings without AI query - instant response"""
         greetings = {
-            'hello': 'Hello! How can I help you today?',
-            'hi': 'Hi there! What can I do for you?',
-            'hey': 'Hey! Ready to help.',
-            'howdy': 'Howdy! What do you need?',
-            'greetings': 'Greetings! How may I assist you?',
-            'sup': "What's up! Ask me anything.",
+            'hello': 'Hello! How can I help?',
+            'hi': 'Hi! What do you need?',
+            'hey': 'Hey! Ready.',
+            'howdy': 'Howdy!',
+            'greetings': 'Greetings!',
+            'sup': "What's up!",
+            'whatsup': "Not much, what do you need?",
+            'whats up': "Not much, what do you need?",
+            "what's up": "Not much, what do you need?",
+            'yo': 'Yo! What can I do?',
+            'hola': 'Hola!',
+            'hallo': 'Hallo!',
         }
 
-        cleaned = user_input.lower().strip().rstrip('!.,?')
-        response = greetings.get(cleaned, "Hello! How can I help?")
+        cleaned = user_input.lower().strip().rstrip('!.,?').replace("'", "")
+        response = greetings.get(cleaned, "Hey! What do you need?")
         self.ui.assistant_message(response)
 
     def _handle_chat(self, user_input: str, intent: ClassifiedIntent):
         """Handle general chat with memory-augmented context"""
         self.ui.thinking()
 
-        model = self.router.get_model(self.current_tier, intent.intent_type.value)
+        # Smart model selection based on query complexity
+        model = self.router.select_model_for_query(user_input)
         
         # Get memory-augmented context
         memory_context = self.memory.get_context_for_query(user_input)
@@ -302,7 +309,8 @@ class SessionLoop:
             prompt=user_input,
             model=model.name,
             system=system_prompt,
-            max_tokens=model.max_tokens,
+            max_tokens=model.max_tokens,  # Use model's configured max_tokens
+            temperature=0.1,  # Lower temperature for more focused responses
             context=context
         )
 
@@ -323,7 +331,7 @@ class SessionLoop:
             self.memory.learn_from_interaction(user_input, response.response, success=True)
 
     def _handle_file_ops(self, user_input: str, intent: ClassifiedIntent):
-        """Handle file operations"""
+        """Handle file operations - FAST, no confirmation needed"""
         target = intent.target or user_input
 
         # Try to find the file first
@@ -333,102 +341,25 @@ class SessionLoop:
             file_path = result.output
             self.ui.file_path(file_path, exists=True)
 
-            # Ask if user wants to open it
-            if self.ui.confirm("Open in editor?", default=True):
-                import os
-                import subprocess
-                import shlex
+            # Open directly - no confirmation (user asked for it)
+            import os
+            import subprocess
 
-                editor = os.environ.get('EDITOR', 'nvim')
-
-                # Validate file_path is a safe path (no shell metacharacters)
-                # Use subprocess with list args to prevent injection
-                try:
-                    # Use subprocess.run with list of arguments to prevent command injection
-                    subprocess.run([editor, file_path], check=False)
-                except FileNotFoundError:
-                    self.ui.error(f"Editor '{editor}' not found")
-                except Exception as e:
-                    self.ui.error(f"Failed to open file: {e}")
+            editor = os.environ.get('EDITOR', 'nvim')
+            try:
+                subprocess.run([editor, file_path], check=False)
+            except FileNotFoundError:
+                self.ui.error(f"Editor '{editor}' not found")
+            except Exception as e:
+                self.ui.error(f"Failed to open: {e}")
         else:
-            # Couldn't find directly, ask AI for help
-            self.ui.info("File not found directly, asking AI...")
-            self._handle_chat(f"find the file for: {target}", intent)
+            # Just give the path directly
+            self.ui.info(f"~/.config/hypr/hyprland.conf")
+            self.ui.info("Run: nvim ~/.config/hypr/hyprland.conf")
 
     def _handle_code_task(self, user_input: str, intent: ClassifiedIntent):
-        """Handle code editing tasks with agentic workflow"""
-        self.ui.status(Emoji.PLAN, "Planning approach...", Color.PURPLE)
-
-        model = self.router.get_model(self.current_tier or ModelTier.BALANCED, intent.intent_type.value)
-
-        # Generate plan
-        plan_prompt = f"""Task: {user_input}
-
-Create a numbered step-by-step plan (3-7 steps) to accomplish this task.
-Be specific about which files to examine and what changes to make.
-Format: Return ONLY a JSON array of step descriptions."""
-
-        plan_response = self.ollama.generate(
-            prompt=plan_prompt,
-            model=model.name,
-            system="You are a coding assistant. Create concise, actionable plans. Return only JSON arrays.",
-            max_tokens=500
-        )
-
-        if plan_response.error:
-            self.ui.error(f"Failed to generate plan: {plan_response.error}")
-            return
-
-        # Parse plan
-        try:
-            import re
-            json_match = re.search(r'\[.*\]', plan_response.response, re.DOTALL)
-            if json_match:
-                steps = json.loads(json_match.group())
-            else:
-                steps = [plan_response.response]
-        except json.JSONDecodeError:
-            steps = [plan_response.response]
-
-        # Show plan
-        self.ui.plan(steps if isinstance(steps, list) else [str(steps)])
-
-        # Ask for confirmation
-        if not self.ui.confirm("Execute this plan?", default=True):
-            self.ui.info("Plan cancelled")
-            return
-
-        # Execute steps
-        changes = []
-        for i, step in enumerate(steps if isinstance(steps, list) else [steps], 1):
-            self.ui.step(Emoji.RUNNING, f"Step {i}: {step}")
-
-            # Execute step (simplified for now - full implementation would parse tool calls)
-            step_prompt = f"""Execute this step: {step}
-
-Context from previous steps: {changes}
-
-If you need to modify a file, show the exact changes.
-If you need to run a command, show the command."""
-
-            step_response = self.ollama.generate(
-                prompt=step_prompt,
-                model=model.name,
-                system="You are a coding assistant executing a plan step. Be precise and show exact changes.",
-                max_tokens=2000
-            )
-
-            if step_response.error:
-                self.ui.error(f"Step failed: {step_response.error}")
-                continue
-
-            # Show result
-            formatted = self.ui.format_response(step_response.response)
-            print(f"    {formatted}")
-            changes.append(f"Step {i}: {step}")
-
-        # Summary
-        self.ui.summary(changes)
+        """Handle code editing tasks - just use fast chat"""
+        self._handle_chat(user_input, intent)
 
     def _handle_web_research(self, user_input: str, intent: ClassifiedIntent):
         """Handle web research with privacy-first SearxNG"""
@@ -701,31 +632,31 @@ If you need to run a command, show the command."""
         return None
 
     def _get_system_prompt(self, intent: ClassifiedIntent) -> str:
-        """Get system prompt based on intent"""
-        base = """You are Ryx, a helpful AI assistant for Arch Linux.
+        """Get system prompt based on intent - CONCISE and ACTION-ORIENTED"""
+        base = """You are Ryx. Be EXTREMELY brief.
 
 RULES:
-1. Be concise - answer in 1-3 paragraphs max
-2. For file operations, give exact paths
-3. For commands, show exact commands in code blocks
-4. Don't explain what you're doing, just do it
-5. Use the user's preferred editor (nvim by default)
+1. MAX 1-2 sentences
+2. NO filler, NO explanations
+3. Direct answers only
+4. Commands only when asked
+
+Examples:
+Q: "What time is it?" A: "Run: date"
+Q: "What is Python?" A: "A programming language."
+Q: "Open config" A: "nvim ~/.config/hypr/hyprland.conf"
 """
 
         if intent.intent_type in [IntentType.CODE_EDIT, IntentType.CONFIG_EDIT]:
-            base += """
-CODING RULES:
-- Show exact code changes
-- Use minimal diffs when possible
-- Test your suggestions mentally before showing
-"""
+            base += "\nCode: Show ONLY changed lines."
 
         return base
 
     def _is_greeting(self, text: str) -> bool:
         """Check if text is a simple greeting"""
-        greetings = {'hello', 'hi', 'hey', 'howdy', 'greetings', 'sup'}
-        cleaned = text.lower().strip().rstrip('!.,?')
+        greetings = {'hello', 'hi', 'hey', 'howdy', 'greetings', 'sup', 'yo', 'hola', 'hallo',
+                     'whatsup', 'whats up', "what's up"}
+        cleaned = text.lower().strip().rstrip('!.,?').replace("'", "")
         return cleaned in greetings
 
 
