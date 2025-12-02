@@ -144,10 +144,12 @@ class KnowledgeBase:
         if path:
             return os.path.expanduser(path)
         
-        # Try partial match
-        for key, val in self.config_paths.items():
-            if canonical in key:
-                return os.path.expanduser(val)
+        # Try partial match - but only if canonical is at least 4 chars
+        # to avoid matching "man" in "pacman" etc.
+        if len(canonical) >= 4:
+            for key, val in self.config_paths.items():
+                if canonical in key:
+                    return os.path.expanduser(val)
         
         return None
     
@@ -428,39 +430,40 @@ class RyxBrain:
     - Uses search to reduce hallucination
     """
     
-    SUPERVISOR_PROMPT = '''Du bist ein Supervisor-Agent für Ryx AI auf Arch Linux + Hyprland.
-Analysiere die Anfrage und erstelle einen Ausführungsplan.
+    SUPERVISOR_PROMPT = '''Du bist Ryx AI auf Arch Linux + Hyprland.
+Analysiere die Anfrage und bestimme den Intent.
 
 KONTEXT:
 - Letzte Anfrage: {last_query}
 - Letztes Ergebnis: {last_result}
 - Letzter Pfad: {last_path}
-- Ausstehende Auswahl: {pending_items}
 - Sprache: {language}
 
 WICHTIGE REGELN:
-1. NIEMALS "Could you be more specific?" sagen
-2. Stattdessen eine KONKRETE Frage stellen
-3. Kontext-Referenzen verstehen ("open it", "edit that", "ja", "1")
-4. Typos korrigieren (hyperland → hyprland)
-5. Bei Unklarheit: Optionen anbieten, nicht abweisen
+1. Für NORMALE FRAGEN/CHAT → intent: "chat"
+2. Für DATEI-OPERATIONEN → intent: "open_file" oder "find_file"
+3. Für WEBSITES → intent: "open_url" oder "search_web"
+4. NICHT raten wenn unklar → intent: "chat" und einfach antworten
 
-INTENTS:
-- open_file: Datei öffnen (target=Pfad, options={{editor, terminal: new/same}})
-- open_url: URL öffnen (target=URL, options={{browser}})
+INTENTS (nur diese verwenden):
+- chat: Normale Unterhaltung, Fragen beantworten, Erklärungen
+- open_file: Datei öffnen (target=Pfad)
+- open_url: URL öffnen (target=URL)
 - find_file: Datei suchen (target=Suchmuster)
 - find_path: Pfad anzeigen (target=Name)
 - search_web: Web-Suche (target=Query)
-- scrape: Webseite scrapen (target=URL/Name)
-- set_pref: Einstellung setzen (target=Key, options={{value}})
-- switch_model: Modell wechseln (target=Modell, options={{role}})
-- create_doc: Dokument erstellen (target=Thema, options={{type}})
-- get_info: Info abrufen (target=date/time/system)
-- chat: Normale Unterhaltung
-- unclear: Nachfrage nötig (question muss gesetzt sein!)
+- switch_model: Modell wechseln (target=Modellname)
+- get_info: Info abrufen (target=date/time)
+
+BEISPIELE:
+- "wie liest man schneller" → {{"intent": "chat"}}
+- "wer ist linus" → {{"intent": "search_web", "target": "linus torvalds"}}
+- "öffne hyprland config" → {{"intent": "open_file", "target": "~/.config/hypr/hyprland.conf"}}
+- "youtube" → {{"intent": "open_url", "target": "https://youtube.com"}}
+- "what model is this" → {{"intent": "chat"}}
 
 ANTWORT NUR ALS JSON:
-{{"intent": "<intent>", "target": "<ziel>", "options": {{}}, "question": "<falls unclear>"}}
+{{"intent": "<intent>", "target": "<ziel oder null>"}}
 
 ANFRAGE: {prompt}'''
 
@@ -503,7 +506,7 @@ ANFRAGE: {prompt}'''
         self.ctx.turn_count += 1
         
         # Detect language
-        german = ['bitte', 'öffne', 'zeig', 'mach', 'wo ist', 'was ist', 'erstelle']
+        german = ['bitte', 'öffne', 'zeig', 'mach', 'wo ist', 'was ist', 'erstelle', 'wie', 'wer', 'warum']
         self.ctx.language = 'de' if any(g in prompt.lower() for g in german) else 'en'
         
         # Stage 1: Quick resolution (no LLM)
@@ -528,8 +531,37 @@ ANFRAGE: {prompt}'''
         if plan:
             return plan
         
+        # Check if this is clearly a chat question (not an action)
+        if self._is_chat_question(prompt):
+            return Plan(intent=Intent.CHAT)
+        
         # Stage 2: LLM supervisor
         return self._supervisor_understand(prompt)
+    
+    def _is_chat_question(self, prompt: str) -> bool:
+        """Check if this is clearly a conversational question, not an action request"""
+        p = prompt.lower()
+        
+        # Question words that indicate chat/information seeking
+        chat_starters = [
+            'wie ', 'was ', 'wer ', 'warum ', 'wann ', 'welche',
+            'how ', 'what ', 'who ', 'why ', 'when ', 'which ',
+            'can you ', 'could you ', 'kannst du ', 'könntest du ',
+            'tell me ', 'explain ', 'erkläre ', 'erzähl ',
+            'is it ', 'ist es ', 'are ', 'sind ',
+        ]
+        
+        # These indicate ACTION, not chat
+        action_words = [
+            'open', 'öffne', 'find', 'finde', 'search', 'suche',
+            'config', 'edit', 'show file', 'zeig datei',
+            'youtube', 'github', 'reddit',  # Known websites
+        ]
+        
+        is_question = any(p.startswith(q) or f' {q}' in p for q in chat_starters)
+        is_action = any(a in p for a in action_words)
+        
+        return is_question and not is_action
     
     def _is_quick_response(self, prompt: str) -> bool:
         """Check if this is a y/n/number response"""
@@ -613,9 +645,14 @@ ANFRAGE: {prompt}'''
         if any(d in p for d in date_words):
             return Plan(intent=Intent.GET_INFO, target="datetime")
         
-        # Model listing
-        if 'model' in p and ('list' in p or 'show' in p or 'zeig' in p or '/m' in p):
-            return Plan(intent=Intent.LIST_MODELS)
+        # Model queries - "what model", "which model", "current model"
+        if 'model' in p:
+            if any(w in p for w in ['what', 'which', 'current', 'welches', 'aktuell', 'this']):
+                # Return current model info
+                current = self.cache.get_model("default") or self.models.get("balanced", self.precision_mode)
+                return Plan(intent=Intent.CHAT, target=f"Currently using: {current}")
+            if any(w in p for w in ['list', 'show', 'zeig', 'all', 'available']):
+                return Plan(intent=Intent.LIST_MODELS)
         
         # File finding patterns (check BEFORE configs and websites!)
         find_match = self._match_find_request(prompt)
@@ -635,16 +672,26 @@ ANFRAGE: {prompt}'''
         return None
     
     def _match_config_request(self, prompt: str) -> Optional[Plan]:
-        """Match config file requests flexibly"""
+        """Match config file requests - must have config intent"""
         p = prompt.lower()
         
+        # Must have some indication this is about configs
+        config_indicators = ['config', 'conf', 'konfiguration', 'settings', 'einstellung']
+        action_indicators = ['open', 'edit', 'show', 'öffne', 'zeig', 'bearbeite', 'look at']
+        
+        has_config_word = any(c in p for c in config_indicators)
+        has_action_word = any(a in p for a in action_indicators)
+        
+        # Need either config word OR action word + known config name
+        if not has_config_word and not has_action_word:
+            return None
+        
         # Extract potential config name
-        # Patterns: "hyprland config", "open waybar", "edit kitty", "show nvim config"
         words = p.replace('config', '').replace('configuration', '').replace('conf', '').split()
         
         # Filter out action words
         skip = {'open', 'edit', 'show', 'öffne', 'zeig', 'bearbeite', 'in', 'new', 'same', 'terminal', 
-                'neues', 'neuem', 'selben', 'diesem', 'the', 'my', 'mein', 'meine'}
+                'neues', 'neuem', 'selben', 'diesem', 'the', 'my', 'mein', 'meine', 'look', 'at', 'for'}
         
         config_name = None
         for word in words:
@@ -759,20 +806,34 @@ ANFRAGE: {prompt}'''
         """Match file finding requests"""
         p = prompt.lower()
         
-        find_words = ['find', 'search', 'locate', 'where is', 'wo ist', 'finde', 'suche']
+        find_words = ['find', 'locate', 'where is', 'wo ist', 'finde']
+        # Note: removed 'search' and 'suche' - those are for web search
         if not any(f in p for f in find_words):
             return None
         
         # Don't match web search
-        if any(w in p for w in ['online', 'web', 'internet', 'google']):
+        if any(w in p for w in ['online', 'web', 'internet', 'google', 'for']):
             return None
+        
+        # Check if this is a config request with typo (find hyperland config)
+        config_keywords = ['config', 'conf', 'konfiguration']
+        if any(k in p for k in config_keywords):
+            # Try to find a config name
+            for word in p.split():
+                resolved = self.kb.resolve_config_name(word)
+                path = self.kb.get_config_path(resolved)
+                if path:
+                    # Return the path, not open it
+                    return Plan(intent=Intent.FIND_PATH, target=os.path.expanduser(path))
         
         # Extract search query
         for fw in find_words:
             if fw in p:
                 query = p.split(fw)[-1].strip()
                 # Remove common suffixes
-                query = re.sub(r'\s*(file|files|datei|dateien)$', '', query).strip()
+                query = re.sub(r'\s*(file|files|datei|dateien|me)$', '', query).strip()
+                # Remove "me" at start too
+                query = re.sub(r'^me\s+', '', query).strip()
                 if query:
                     return Plan(intent=Intent.FIND_FILE, target=query)
         
