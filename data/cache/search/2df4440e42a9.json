@@ -1,0 +1,31 @@
+{
+  "query": "what is rust programming language",
+  "results": [
+    {
+      "title": "Rust Programming Language",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Frust%2Dlang.org%2F&rut=5f967b0992e99a34f5c6bc063df0ff0d528f202d5385a69f549ec6ca2b6a0b74",
+      "content": "Rustisa fast, memory-safe, and productiveprogramminglanguagethat can run on embedded devices, web services, and more. Learn how to get started, whyRustisdifferent, and what companies are using it in production."
+    },
+    {
+      "title": "Rust (programming language) - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FRust_(programming_language)&rut=5cf3c251456e7790633984d6dc901b91e3b62528bd84f972849ddf34e40fe50a",
+      "content": "Rustisa general-purposeprogramminglanguage. It is noted for its emphasis on performance, type safety, concurrency, and memory safety.Rustsupports multipleprogrammingparadigms. It was influenced by ideas from functionalprogramming, including immutability, higher-order functions, algebraic data types, and pattern matching."
+    },
+    {
+      "title": "What is Rust and why is it so popular? - Stack Overflow",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fstackoverflow.blog%2F2020%2F01%2F20%2Fwhat%2Dis%2Drust%2Dand%2Dwhy%2Dis%2Dit%2Dso%2Dpopular%2F&rut=e5252ba599ec256f3d83a09b49d96e2ff1e8e9f7961be9a1d67ae9dd2caed8d6",
+      "content": "Come and join us! Regardless of whichprogramminglanguagesyou love now, there's bound to be something that excites or intrigues you aboutRust. These are some of the reasons why I and others loveRustso much, and there's many more."
+    },
+    {
+      "title": "Introduction to Rust Programming Language - GeeksforGeeks",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.geeksforgeeks.org%2Frust%2Fintroduction%2Dto%2Drust%2Dprogramming%2Dlanguage%2F&rut=f613382f82f39e0b39c5e64fdb94e2eef91680e06f089c3317da68d9398e7f00",
+      "content": "RustisusingRustwhich means that all the standard compiler libraries are written inrust; there is a bit of use of the Cprogramminglanguagebut most of it isRust. The big project ofRustis\"servo\", It is a project to write out the totally parallel layout engine like Gecko in Firefox or WebKit in Safari."
+    },
+    {
+      "title": "Introduction to Rust - Learn Rust Programming",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Flearningrust.org%2Flessons%2Fintro&rut=1819b03298ff47bc509178f202490fb0df0b1d2daa1a2894584c000d215cf5a7",
+      "content": "Introduction toRustWelcome to your first lesson inRustprogramming! In this introduction, we'll cover whatRustis, why it's unique, and what makes it an excellent choice for modern software development. What isRust?Rustisa systemsprogramminglanguagethat focuses on safety, concurrency, and performance."
+    }
+  ],
+  "timestamp": "2025-12-03T20:44:34.396679"
+}

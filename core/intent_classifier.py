@@ -150,14 +150,14 @@ class IntentClassifier:
         'personal': 'uncensored',
     }
 
-    def __init__(self, ollama_client=None):
+    def __init__(self, llm_client=None):
         """
         Initialize intent classifier
 
         Args:
-            ollama_client: Optional Ollama client for LLM-based classification
+            llm_client: Optional vLLM client for LLM-based classification
         """
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
 
     def classify(self, prompt: str, context: Optional[Dict] = None) -> ClassifiedIntent:
         """
@@ -224,7 +224,7 @@ class IntentClassifier:
             )
 
         # Use LLM for ambiguous cases
-        if self.ollama_client:
+        if self.llm_client:
             llm_result = self._classify_by_llm(prompt, context)
             llm_result.tier_override = tier_override
             return llm_result
@@ -322,7 +322,7 @@ class IntentClassifier:
         classification_prompt = self._build_classification_prompt(prompt, context)
 
         try:
-            response = self.ollama_client.generate(
+            response = self.llm_client.generate(
                 prompt=classification_prompt,
                 system="You are an intent classifier. Respond ONLY with valid JSON.",
                 max_tokens=200,

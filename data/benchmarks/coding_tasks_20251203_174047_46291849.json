@@ -1,0 +1,42 @@
+{
+  "run_id": "coding_tasks_20251203_174047_46291849",
+  "benchmark_name": "coding_tasks",
+  "started_at": "2025-12-03T17:40:47.126521",
+  "finished_at": "2025-12-03T17:40:47.126929",
+  "results": {
+    "coding_001": {
+      "problem_id": "coding_001",
+      "timestamp": "2025-12-03T17:40:47.126694",
+      "score": 0.0,
+      "passed": false,
+      "tokens_used": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "wall_time_seconds": 7.8e-05,
+      "timed_out": false,
+      "error": "'VLLMClient' object is not callable",
+      "actual_output": null
+    },
+    "coding_002": {
+      "problem_id": "coding_002",
+      "timestamp": "2025-12-03T17:40:47.126792",
+      "score": 0.0,
+      "passed": false,
+      "tokens_used": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "wall_time_seconds": 5.8e-05,
+      "timed_out": false,
+      "error": "'VLLMClient' object is not callable",
+      "actual_output": null
+    }
+  },
+  "total_problems": 2,
+  "passed_count": 0,
+  "failed_count": 0,
+  "timed_out_count": 0,
+  "error_count": 2,
+  "average_score": 0.0,
+  "total_tokens": 0,
+  "total_time_seconds": 0.000136
+}

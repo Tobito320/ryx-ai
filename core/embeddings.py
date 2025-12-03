@@ -35,7 +35,7 @@ class FileEmbedding:
 class EmbeddingStore:
     """
     Stores and retrieves file embeddings for semantic search.
-    Uses nomic-embed-text via Ollama.
+    Uses nomic-embed-text via vLLM.
     """
     
     MODEL = "nomic-embed-text"
@@ -92,7 +92,7 @@ class EmbeddingStore:
             json.dump(data, f)
     
     def _get_embedding(self, text: str) -> Optional[List[float]]:
-        """Get embedding vector from Ollama"""
+        """Get embedding vector from vLLM"""
         try:
             import requests
             
@@ -305,7 +305,7 @@ class SemanticFileSearch:
         """Check if embedding model is installed"""
         try:
             result = subprocess.run(
-                ["ollama", "list"],
+                ["llm", "list"],
                 capture_output=True,
                 text=True,
                 timeout=5

@@ -155,7 +155,7 @@ class PersistentMemory:
         
         self.db_path = db_path
         self._init_db()
-        self.ollama = None
+        self.llm = None
     
     def _init_db(self):
         """Initialize memory database"""
@@ -215,20 +215,20 @@ class PersistentMemory:
         conn.commit()
         conn.close()
     
-    def _get_ollama(self):
-        """Lazy load Ollama client"""
-        if self.ollama is None:
-            from core.ollama_client import OllamaClient
-            self.ollama = OllamaClient()
-        return self.ollama
+    def _get_llm(self):
+        """Lazy load vLLM client"""
+        if self.llm is None:
+            from core.llm_client import vLLMClient
+            self.llm = vLLMClient()
+        return self.llm
     
     def _compute_embedding(self, text: str) -> Optional[List[float]]:
-        """Compute embedding using Ollama"""
+        """Compute embedding using vLLM"""
         try:
-            ollama = self._get_ollama()
+            llm = self._get_llm()
             # Use nomic-embed-text or similar if available
             # For now, use a simple hash-based pseudo-embedding
-            # In production, use: ollama.embeddings(model="nomic-embed-text", prompt=text)
+            # In production, use: llm.embeddings(model="nomic-embed-text", prompt=text)
             
             # Simple word-based embedding (fallback)
             words = text.lower().split()

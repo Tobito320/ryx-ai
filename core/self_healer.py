@@ -78,14 +78,14 @@ Entries to review:
             data_dir = get_data_dir()
         
         self.data_dir = Path(data_dir)
-        self.ollama = None
+        self.llm = None
     
-    def _get_ollama(self):
-        """Get Ollama client lazily"""
-        if self.ollama is None:
-            from core.ollama_client import OllamaClient
-            self.ollama = OllamaClient()
-        return self.ollama
+    def _get_llm(self):
+        """Get vLLM client lazily"""
+        if self.llm is None:
+            from core.llm_client import vLLMClient
+            self.llm = vLLMClient()
+        return self.llm
     
     def heal(self, aggressive: bool = False) -> CleanupResult:
         """
@@ -272,7 +272,7 @@ Entries to review:
         if not entries:
             return []
         
-        ollama = self._get_ollama()
+        llm = self._get_llm()
         
         # Use a capable model for cleanup decisions
         prompt = self.HEALING_PROMPT.format(entries=json.dumps(entries, indent=2))
@@ -280,7 +280,7 @@ Entries to review:
         if aggressive:
             prompt += "\n\nBe AGGRESSIVE - remove anything that isn't clearly valuable."
         
-        response = ollama.generate(
+        response = llm.generate(
             prompt=prompt,
             model="qwen2.5-coder:14b",  # Use capable model for cleanup decisions
             system="You are a data curator. Return ONLY valid JSON, no explanation.",

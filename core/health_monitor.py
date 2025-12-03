@@ -64,7 +64,7 @@ class HealthMonitor:
 
     Features:
     - Continuous Monitoring: Checks every 30 seconds
-    - Auto-Detect: Identifies issues (Ollama 404, service down, DB corrupt)
+    - Auto-Detect: Identifies issues (vLLM down, service not responding, DB corrupt)
     - Auto-Fix: Automatically repairs common issues
     - Incident Logging: Tracks all incidents and resolutions
     - Resource Monitoring: Tracks disk, memory, VRAM usage
@@ -76,7 +76,7 @@ class HealthMonitor:
             db_path = get_project_root() / "data" / "health_monitor.db"
 
         self.db_path = db_path
-        self.ollama_url = "http://localhost:11434"
+        self.vllm_url = "http://localhost:8001"  # vLLM API endpoint
         self.check_interval = 30  # seconds
         self.monitoring = False
         self.monitor_thread: Optional[threading.Thread] = None
@@ -131,7 +131,7 @@ class HealthMonitor:
                 memory_percent REAL,
                 disk_percent REAL,
                 vram_used_mb INTEGER,
-                ollama_responsive INTEGER
+                vllm_responsive INTEGER
             )
         """)
 
@@ -167,8 +167,8 @@ class HealthMonitor:
         """Run all health checks"""
         checks = {}
 
-        # Check Ollama service
-        checks["ollama"] = self._check_ollama()
+        # Check vLLM service
+        checks["vllm"] = self._check_vllm()
 
         # Check database
         checks["database"] = self._check_database()
@@ -194,50 +194,41 @@ class HealthMonitor:
 
         return checks
 
-    def _check_ollama(self) -> HealthCheck:
-        """Check Ollama service health"""
+    def _check_vllm(self) -> HealthCheck:
+        """Check vLLM service health"""
         try:
-            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+            response = requests.get(f"{self.vllm_url}/health", timeout=5)
 
             if response.status_code == 200:
-                models = response.json().get("models", [])
                 return HealthCheck(
-                    component="ollama",
+                    component="vllm",
                     status=HealthStatus.HEALTHY,
-                    message=f"Ollama running, {len(models)} models available",
+                    message="vLLM running",
                     timestamp=datetime.now(),
-                    details={"models_count": len(models)}
-                )
-            elif response.status_code == 404:
-                return HealthCheck(
-                    component="ollama",
-                    status=HealthStatus.UNHEALTHY,
-                    message="Ollama 404 error",
-                    timestamp=datetime.now(),
-                    details={"status_code": 404}
+                    details={"status": "healthy"}
                 )
             else:
                 return HealthCheck(
-                    component="ollama",
+                    component="vllm",
                     status=HealthStatus.DEGRADED,
-                    message=f"Ollama returned status {response.status_code}",
+                    message=f"vLLM returned status {response.status_code}",
                     timestamp=datetime.now(),
                     details={"status_code": response.status_code}
                 )
 
         except requests.exceptions.ConnectionError:
             return HealthCheck(
-                component="ollama",
+                component="vllm",
                 status=HealthStatus.CRITICAL,
-                message="Ollama service not responding",
+                message="vLLM service not responding. Run: ryx restart",
                 timestamp=datetime.now(),
                 details={"error": "connection_refused"}
             )
         except Exception as e:
             return HealthCheck(
-                component="ollama",
+                component="vllm",
                 status=HealthStatus.UNHEALTHY,
-                message=f"Ollama check failed: {str(e)}",
+                message=f"vLLM check failed: {str(e)}",
                 timestamp=datetime.now(),
                 details={"error": str(e)}
             )
@@ -474,8 +465,8 @@ class HealthMonitor:
         # Try component-specific fixes
         fixed = False
 
-        if component == "ollama":
-            fixed = self._fix_ollama()
+        if component == "vllm":
+            fixed = self._fix_vllm()
         elif component == "database":
             fixed = self._fix_database()
         elif component == "memory":
@@ -492,99 +483,26 @@ class HealthMonitor:
         else:
             self._log_incident(incident)
 
-    def _fix_ollama(self) -> bool:
+    def _fix_vllm(self) -> bool:
         """
-        Try to fix Ollama service with intelligent retry and recovery
-
-        Handles:
-        - 404 errors (model not loaded)
-        - Connection errors (service down)
-        - Timeout errors
+        Try to fix vLLM service by restarting the Docker container
         """
         try:
-            # First, check what the actual error is
-            last_check = self.last_checks.get("ollama")
-            if not last_check:
-                return False
-
-            error_code = last_check.details.get("status_code")
-            error_type = last_check.details.get("error")
-
-            # Handle 404 errors specifically
-            if error_code == 404:
-                # 404 usually means Ollama is running but no model loaded
-                # Try to wake up a model by making a tiny request
-                return self._wake_up_ollama_model()
-
-            # Handle connection refused (service down)
-            if error_type == "connection_refused":
-                # Try to restart the service
-                return self._restart_ollama_service()
-
-            # For other errors, try restart as well
-            return self._restart_ollama_service()
-
-        except Exception:
-            return False
-
-    def _wake_up_ollama_model(self) -> bool:
-        """Wake up Ollama by loading a lightweight model"""
-        try:
-            # Use exponential backoff for retries
-            max_retries = 3
-            backoff = [1, 2, 4]  # seconds
-
-            for attempt, delay in enumerate(backoff):
-                try:
-                    # Make a tiny request to load the base model
-                    response = requests.post(
-                        f"{self.ollama_url}/api/generate",
-                        json={
-                            "model": "qwen2.5:1.5b",
-                            "prompt": "test",
-                            "stream": False,
-                            "options": {"num_predict": 1}
-                        },
-                        timeout=10
-                    )
-
-                    if response.status_code == 200:
-                        # Success! Model loaded
-                        return True
-
-                    # If still 404, wait and retry
-                    if response.status_code == 404 and attempt < max_retries - 1:
-                        time.sleep(delay)
-                        continue
-
-                except requests.exceptions.RequestException:
-                    if attempt < max_retries - 1:
-                        time.sleep(delay)
-                        continue
-
-            return False
-
-        except Exception:
-            return False
-
-    def _restart_ollama_service(self) -> bool:
-        """Restart Ollama service with verification"""
-        try:
-            # Try to restart Ollama (user service)
+            import subprocess
+            
+            # Try to restart vLLM container
             result = subprocess.run(
-                ["systemctl", "--user", "restart", "ollama"],
+                ["docker", "restart", "ryx-vllm"],
                 capture_output=True,
-                timeout=10
+                timeout=30
             )
 
             if result.returncode == 0:
-                # Wait with exponential backoff for service to fully start
-                for delay in [1, 2, 4]:
+                # Wait for service to be ready
+                for delay in [2, 4, 8]:
                     time.sleep(delay)
-
-                    # Verify it's running
                     try:
-                        response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+                        response = requests.get(f"{self.vllm_url}/health", timeout=5)
                         if response.status_code == 200:
                             return True
                     except:
@@ -740,9 +658,9 @@ class HealthMonitor:
 
         return incidents
 
-    def check_and_fix_ollama(self) -> Dict[str, Any]:
+    def check_and_fix_vllm(self) -> Dict[str, Any]:
         """
-        On-demand Ollama health check and auto-fix
+        On-demand vLLM health check and auto-fix
 
         Returns:
             {
@@ -752,8 +670,8 @@ class HealthMonitor:
                 'message': str
             }
         """
-        # Run Ollama check
-        check = self._check_ollama()
+        # Run vLLM check
+        check = self._check_vllm()
 
         if check.status == HealthStatus.HEALTHY:
             return {
@@ -764,30 +682,24 @@ class HealthMonitor:
             }
 
         # Try to fix the issue
-        fixed = False
-        if check.details.get("status_code") == 404:
-            fixed = self._wake_up_ollama_model()
-        elif check.details.get("error") == "connection_refused":
-            fixed = self._restart_ollama_service()
-        else:
-            fixed = self._fix_ollama()
+        fixed = self._fix_vllm()
 
         # Verify fix
         if fixed:
-            verify_check = self._check_ollama()
+            verify_check = self._check_vllm()
             if verify_check.status == HealthStatus.HEALTHY:
                 return {
                     'healthy': True,
                     'error': None,
                     'fixed': True,
-                    'message': 'Ollama auto-fixed successfully'
+                    'message': 'vLLM auto-fixed successfully'
                 }
 
         return {
             'healthy': False,
             'error': check.message,
             'fixed': False,
-            'message': f'Failed to fix Ollama: {check.message}'
+            'message': f'Failed to fix vLLM: {check.message}. Run: ryx restart'
         }
 
     @property

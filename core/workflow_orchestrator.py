@@ -104,7 +104,7 @@ class WorkflowOrchestrator:
         start_time = time.time()
         
         # Classify intent
-        intent = self.classifier.classify(prompt, self.router.ollama)
+        intent = self.classifier.classify(prompt, self.router.llm)
         
         # Handle tier override
         if intent.tier_override:

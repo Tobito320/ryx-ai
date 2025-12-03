@@ -1,0 +1,56 @@
+{
+  "query": "recursion",
+  "results": [
+    {
+      "title": "Introduction to Recursion - GeeksforGeeks",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.geeksforgeeks.org%2Fdsa%2Fintroduction%2Dto%2Drecursion%2D2%2F&rut=58dce12c4356078a211ab7e776b9298ce2ac0e86e777782ac28da3a7b921cb10",
+      "content": "Please refer tailrecursionfor details. How memory is allocated to different function calls inrecursion?Recursionuses more memory to store data of every recursive call in an internal function call stack. Whenever we call a function, its record is added to the stack and remains there until the call is finished."
+    },
+    {
+      "title": "Recursion - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FRecursion&rut=59161b06e297cc893ee72075931a3dc61a9c1772893d3e7b390cb31940a6bb3e",
+      "content": "Recursionis the process a procedure goes through when one of the steps of the procedure involves invoking the procedure itself. A procedure that goes throughrecursionis said to be 'recursive'. [3] To understandrecursion, one must recognize the distinction between a procedure and the running of a procedure."
+    },
+    {
+      "title": "How Does Recursion Work? Explained with Code Examples",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.freecodecamp.org%2Fnews%2Fwhat%2Dis%2Drecursion%2F&rut=3d7e0ca39632111142e31089a46776fa9d7ed6bce358ba43efafdacadf970c89",
+      "content": "Learn whatrecursionis and how it works with Python code. See howrecursionbreaks down a problem into smaller subproblems and combines their solutions to solve the original problem."
+    },
+    {
+      "title": "What is Recursion? - W3Schools",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.w3schools.com%2Fprogramming%2Fprog_recursion.php&rut=2fb0b94335d10eb7163f68628006a458025427d554505521dc2ac8444d57bf15",
+      "content": "What isRecursion?Recursionis when a function calls itself to solve a smaller version of the problem. This continues until the problem becomes small enough that it can be solved directly. That smallest case is called the base case."
+    },
+    {
+      "title": "Recursion in Programming: What is it? - Codecademy",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.codecademy.com%2Fresources%2Fblog%2Frecursion&rut=bc95e550dafac3031c4fef392d579463315490394c7b7d22fd6bbfc5ae5c1598",
+      "content": "Recursionis breaking a problem into smaller components using the same function that calls itself. Learn howrecursionworks, see examples in Python, and understand its advantages and disadvantages."
+    },
+    {
+      "title": "A Beginner's Complete Visual Guide to Understanding Recursion",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fthelinuxcode.com%2Fa%2Dbeginners%2Dcomplete%2Dvisual%2Dguide%2Dto%2Dunderstanding%2Drecursion%2F&rut=5f6ce818fb432916e881f7ff19d469a72ad0e6eb4c97ebded382a9e7a86d36ba",
+      "content": "Learn whatrecursionis, why and how to use it, and see examples of recursive functions and applications. This guide covers the basics, tradeoffs, visualizations, and advanced concepts ofrecursionfor beginners."
+    },
+    {
+      "title": "Recursion (article) | Recursive algorithms | Khan Academy",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.khanacademy.org%2Fmath%2Fdiscrete%2Dmath%2Frecursion&rut=62233d5273eb1f0d92f40db4b033dfc8e42dd6db8c76d293e02cf456a00f7b9a",
+      "content": "Recursionhas many, many applications. In this module, we'll see how to userecursionto compute the factorial function, to determine whether a word is a palindrome, to compute powers of a number, to draw a type of fractal, and to solve the ancient Towers of Hanoi problem."
+    },
+    {
+      "title": "Recursion for Beginners: A Beginners Guide To Understanding ... - Medium",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmedium.com%2F%40aimmharf05%2Frecursion%2Dfor%2Dbeginners%2Da%2Dbeginners%2Dguide%2Dto%2Dunderstanding%2Drecursive%2Dalgorithms%2Daf8e1a3ff971&rut=6ae48e846cf716523fa7ffd78f43b1e5de3d13e88883b60316f02400a9a97d5c",
+      "content": "Understandingrecursionand its three fundamental laws. A step-by-step example to demonstrate howrecursionworks. Final thoughts and tips for designing recursive algorithms. What isRecursion?"
+    },
+    {
+      "title": "Understanding Recursion: When and How to Use It",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Falgocademy.com%2Fblog%2Funderstanding%2Drecursion%2Dwhen%2Dand%2Dhow%2Dto%2Duse%2Dit%2F&rut=9c79cb8bdb6fa3b9edbdd0779b0ba9f4f62b54d946e130f0c731088501101dd7",
+      "content": "Learn whatrecursionis, when to use it, and how to implement it effectively in your code. See examples of recursive algorithms for factorial, binary tree traversal, Fibonacci sequence, binary search, and quicksort."
+    },
+    {
+      "title": "Recursion (computer science) - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FRecursion_(computer_science)&rut=7e28a34d38230f0d0b78fd9be8b1466b672d0d3758764284f6f24be567a9b0c3",
+      "content": "Tree fractal created using the Logo programming language and relying heavily onrecursion. Each branch can be seen as a smaller version of a tree. Recursive drawing of a Sierpi\u0144ski Triangle through turtle graphics In computer science,recursionis a method of solving a computational problem where the solution depends on solutions to smaller instances of the same problem. [1][2]Recursion..."
+    }
+  ],
+  "timestamp": "2025-12-03T18:27:45.847443"
+}

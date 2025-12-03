@@ -1,0 +1,31 @@
+{
+  "query": "what is waylajnd",
+  "results": [
+    {
+      "title": "What Is Wayland on Linux, and How Is It Different From X?",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.howtogeek.com%2F900698%2Fwhat%2Dis%2Dwayland%2Don%2Dlinux%2Dand%2Dhow%2Dis%2Dit%2Ddifferent%2Dfrom%2Dx%2F&rut=0f117db965dc14c21d2f7f77f1f33836b3c5c2cd49db118344ba426a0f6a18ef",
+      "content": "WhatIsWayland? Wayland is a modern replacement for X11, which has been the default windowing system on Linux for decades. Wayland is a communication protocol and that defines the messaging between an X Window display server and client applications. The Wayland project provides client and server libraries that enable applications to use the ..."
+    },
+    {
+      "title": "What Is Wayland and What Does It Mean for Linux Users?",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.maketecheasier.com%2Fwhat%2Dis%2Dwayland%2F&rut=ce750f9547c684aeffe910de3a3551f7824379ca1a8af1334de369059c71726e",
+      "content": "WhatIsWayland Wayland is a modern display protocol that specifies how applications interact with a display server to render graphics and process user inputs, such as clicks or text. Introduced around 2008 as a lighter, more secure, and efficient alternative to the X Window System (X), which dominated Linux from 1984 to the mid-2010s, Wayland is optimized for modern graphics hardware and ..."
+    },
+    {
+      "title": "Wayland (protocol) - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FWayland_(protocol)&rut=8a8811851554c43e362f0ab0f56856002a49acd89d7b00dd3786f260a0435931",
+      "content": "Wayland is a communication protocol that specifies the communication between a display server and its clients, as well as a C library implementation of that protocol. [9] A display server using the Wayland protocol is called a Wayland compositor, because it additionally performs the task of a compositing window manager. Wayland is developed by a group of volunteers initially led by Kristian ..."
+    },
+    {
+      "title": "What Exactly Is Wayland and How Does It Differ from X11?",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fyomotherboard.com%2Fquestion%2Fwhat%2Dexactly%2Dis%2Dwayland%2Dand%2Dhow%2Ddoes%2Dit%2Ddiffer%2Dfrom%2Dx11%2F&rut=9b79d3a7ce9c02bc98966c6c32a8f6c3aeadef7527c4605beb74eb727eb89ced",
+      "content": "Wayland is essentially a protocol that specifies how applications and windows are managed on Linux. It's meant to replace the older X11 display server, which has become quite bloated and outdated over the years. The main goal of Wayland is to streamline how things work and reduce the complexity that comes with X, making it more efficient and ..."
+    },
+    {
+      "title": "Using Linux With Wayland? What You Need to Know",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fumatechnology.org%2Fusing%2Dlinux%2Dwith%2Dwayland%2Dwhat%2Dyou%2Dneed%2Dto%2Dknow%2F&rut=68f1c7ff32bb53ff0fd68f6935ca2796474d99e5a96f9e24c9ac569880565895",
+      "content": "Using Linux With Wayland: What You Need to Know As more users and developers seek alternatives to traditional graphical environments, Wayland has emerged as a key player in the Linux ecosystem. Designed to provide a modern approach to display server protocols, Wayland is aimed at addressing many of the shortcomings of the venerable X11 system. In this comprehensive article, we will dive into ..."
+    }
+  ],
+  "timestamp": "2025-12-03T19:47:06.490319"
+}

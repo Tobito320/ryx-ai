@@ -67,21 +67,21 @@ User: "what do you know about me" -> {{"action_type": "recall", "target": "user 
 User prompt: "{prompt}"
 '''
 
-    def __init__(self, ollama_client=None):
+    def __init__(self, llm_client=None):
         """
         Initialize interpreter.
         
         Args:
-            ollama_client: OllamaClient instance for AI queries
+            llm_client: vLLMClient instance for AI queries
         """
-        self.ollama = ollama_client
+        self.llm = llm_client
         self._ensure_client()
     
     def _ensure_client(self):
-        """Ensure we have an Ollama client"""
-        if self.ollama is None:
-            from core.ollama_client import OllamaClient
-            self.ollama = OllamaClient()
+        """Ensure we have an vLLM client"""
+        if self.llm is None:
+            from core.llm_client import vLLMClient
+            self.llm = vLLMClient()
     
     def interpret(self, prompt: str, context: Optional[Dict] = None) -> AIAction:
         """
@@ -105,7 +105,7 @@ User prompt: "{prompt}"
             full_prompt = full_prompt.replace('User prompt:', f'{context_str}User prompt:')
         
         # Query AI for interpretation
-        response = self.ollama.generate(
+        response = self.llm.generate(
             prompt=full_prompt,
             model="qwen2.5:3b",  # 3B model for better interpretation
             system="You are a JSON command parser. Return ONLY valid JSON, no markdown or explanation.",

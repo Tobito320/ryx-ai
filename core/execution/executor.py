@@ -37,8 +37,8 @@ class TaskExecutor:
     5. Handle failures with supervisor rescue
     """
     
-    def __init__(self, ollama_client, verbose: bool = False):
-        self.ollama = ollama_client
+    def __init__(self, llm_client, verbose: bool = False):
+        self.llm = llm_client
         self.verbose = verbose
         
         # Initialize components
@@ -61,7 +61,7 @@ class TaskExecutor:
     def _get_supervisor(self) -> SupervisorAgent:
         """Lazy-load supervisor (expensive model)"""
         if self.supervisor is None:
-            self.supervisor = SupervisorAgent(self.ollama)
+            self.supervisor = SupervisorAgent(self.llm)
         return self.supervisor
     
     def _get_operator(self, agent_type: AgentType, model_size: ModelSize) -> OperatorAgent:
@@ -78,13 +78,13 @@ class TaskExecutor:
         # Get or create operator
         if agent_type not in self.operators:
             if agent_type == AgentType.FILE:
-                self.operators[agent_type] = FileOperatorAgent(self.ollama, model)
+                self.operators[agent_type] = FileOperatorAgent(self.llm, model)
             elif agent_type == AgentType.CODE:
-                self.operators[agent_type] = CodeOperatorAgent(self.ollama)
+                self.operators[agent_type] = CodeOperatorAgent(self.llm)
             elif agent_type == AgentType.SHELL:
-                self.operators[agent_type] = ShellOperatorAgent(self.ollama, model)
+                self.operators[agent_type] = ShellOperatorAgent(self.llm, model)
             else:
-                self.operators[agent_type] = OperatorAgent(self.ollama, model, agent_type)
+                self.operators[agent_type] = OperatorAgent(self.llm, model, agent_type)
             
             # Register status callback
             self.operators[agent_type].register_status_callback(self._on_operator_status)
@@ -271,14 +271,14 @@ class TaskExecutor:
 # Singleton instance
 _executor: Optional[TaskExecutor] = None
 
-def get_executor(ollama_client=None, verbose: bool = False) -> TaskExecutor:
+def get_executor(llm_client=None, verbose: bool = False) -> TaskExecutor:
     """Get singleton executor instance"""
     global _executor
     if _executor is None:
-        if ollama_client is None:
-            from core.ollama_client import OllamaClient
+        if llm_client is None:
+            from core.llm_client import vLLMClient
             from core.model_router import ModelRouter
             router = ModelRouter()
-            ollama_client = OllamaClient(base_url=router.get_ollama_url())
-        _executor = TaskExecutor(ollama_client, verbose)
+            llm_client = vLLMClient(base_url=router.get_llm_url())
+        _executor = TaskExecutor(llm_client, verbose)
     return _executor

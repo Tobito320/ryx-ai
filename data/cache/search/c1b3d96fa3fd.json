@@ -1,0 +1,31 @@
+{
+  "query": "What is Arch Linux?",
+  "results": [
+    {
+      "title": "Arch Linux",
+      "url": "https://archlinux.org/",
+      "content": "Arch Linux archlinux.org Arch Linux You've reached the website for Arch Linux, a lightweight and flexible Linux\u00ae distribution that tries to Keep It Simple. Currently we have official packages optimize"
+    },
+    {
+      "title": "r/archlinux on Reddit: What even IS Arch Linux?",
+      "url": "https://www.reddit.com/r/archlinux/comments/tj4jvb/what_even_is_arch_linux/",
+      "content": "Reddit reddit.com \u203a r/archlinux \u203a what even is arch linux? r/archlinux on Reddit: What even IS Arch Linux? March 21, 2022 - I install a kernal, boot loader, text editor and desktop... None of that is "
+    },
+    {
+      "title": "Arch Linux - Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Arch_Linux",
+      "content": "Wikipedia en.wikipedia.org \u203a wiki \u203a Arch_Linux Arch Linux - Wikipedia 4 days ago - Arch Linux (/\u0251\u02d0rt\u0283/) is an open source, rolling release Linux distribution. Arch Linux is kept up-to-date by regularl"
+    },
+    {
+      "title": "Arch Linux - About",
+      "url": "https://archlinux.org/about/",
+      "content": "Arch Linux archlinux.org \u203a about Arch Linux - About Arch Linux is an independently developed, x86-64 general purpose GNU/Linux distribution versatile enough to suit any role. Development focuses on si"
+    },
+    {
+      "title": "Arch Linux - ArchWiki",
+      "url": "https://wiki.archlinux.org/title/Arch_Linux",
+      "content": "ArchWiki wiki.archlinux.org \u203a title \u203a Arch_Linux Arch Linux - ArchWiki It is based on a rolling-release system, which allows a one-time installation with continuous upgrades. Arch Linux incorporates t"
+    }
+  ],
+  "timestamp": "2025-12-03T21:21:43.790009"
+}

@@ -141,7 +141,7 @@ class ErrorClassifier:
             r'socket.*error',
         ],
         ErrorType.LLM_ERROR: [
-            r'ollama.*error',
+            r'llm.*error',
             r'model.*not found',
             r'context length exceeded',
             r'rate limit',

@@ -16,7 +16,7 @@ from core.planning import Plan, TaskResult, Context, StepResult, ModelSize
 class AgentConfig:
     """Configuration for an agent"""
     name: str
-    model: str                      # Ollama model name
+    model: str                      # vLLM model name
     model_size: ModelSize
     max_tokens: int = 500
     temperature: float = 0.3
@@ -41,9 +41,9 @@ class BaseAgent(ABC):
     - Report status
     """
     
-    def __init__(self, config: AgentConfig, ollama_client):
+    def __init__(self, config: AgentConfig, llm_client):
         self.config = config
-        self.ollama = ollama_client
+        self.llm = llm_client
         self.call_count = 0
         self.total_tokens = 0
         self.last_error: Optional[str] = None
@@ -78,7 +78,7 @@ class BaseAgent(ABC):
         self.call_count += 1
         
         try:
-            response = self.ollama.generate(
+            response = self.llm.generate(
                 prompt=prompt,
                 model=self.config.model,
                 system=system or self._get_system_prompt(),

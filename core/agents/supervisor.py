@@ -87,7 +87,7 @@ OUTPUT ONLY VALID JSON:
   "direct_result": null or "direct answer if TAKEOVER"
 }}'''
 
-    def __init__(self, ollama_client, model: str = "qwen2.5-coder:14b"):
+    def __init__(self, llm_client, model: str = "qwen2.5-coder:14b"):
         config = AgentConfig(
             name="Supervisor",
             model=model,
@@ -97,7 +97,7 @@ OUTPUT ONLY VALID JSON:
             timeout_seconds=60,
             system_prompt_suffix="You output ONLY valid JSON. No explanations."
         )
-        super().__init__(config, ollama_client)
+        super().__init__(config, llm_client)
     
     def create_plan(self, query: str, context: Context) -> Tuple[bool, Plan]:
         """

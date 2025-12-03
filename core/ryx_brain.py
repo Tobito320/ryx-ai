@@ -360,17 +360,17 @@ class SmartCache:
 
 
 class ModelManager:
-    """Manages model selection"""
+    """Manages model selection - vLLM only"""
     
     MODELS = {
-        # Fast (1-3B) - cached lookups, simple tasks
-        "fast": ["qwen2.5:1.5b", "qwen2.5:3b", "llama3.2:1b", "phi3:mini"],
-        # Balanced (7B) - general use, chat
-        "balanced": ["qwen2.5:7b", "mistral:7b"],
-        # Smart (14B+) - complex tasks, precision
-        "smart": ["qwen2.5-coder:14b", "gpt-oss:20b"],
-        # Precision (20B+) - learning, document creation
-        "precision": ["gpt-oss:20b", "huihui_ai/gpt-oss-abliterated:20b"],
+        # Small (1.5-3B) - fast tasks, search agents
+        "fast": ["/models/small/coding/qwen2.5-coder-1.5b", "/models/small/general/qwen2.5-3b"],
+        # Medium (7B) - supervisor, synthesis, general
+        "balanced": ["/models/medium/general/qwen2.5-7b-gptq", "/models/medium/coding/qwen2.5-coder-7b-gptq"],
+        # Coding (7B) - code tasks
+        "smart": ["/models/medium/coding/qwen2.5-coder-7b-gptq"],
+        # Supervisor (7B) - coordinates agents
+        "supervisor": ["/models/medium/general/qwen2.5-7b-gptq"],
     }
     
     def __init__(self, cache: SmartCache):
@@ -379,9 +379,14 @@ class ModelManager:
         self._refresh()
     
     def _refresh(self):
+        """Refresh available models from vLLM"""
+        import requests
+        
         try:
-            result = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10)
-            self.available = [line.split()[0] for line in result.stdout.strip().split('\n')[1:] if line.strip()]
+            resp = requests.get("http://localhost:8001/v1/models", timeout=3)
+            if resp.status_code == 200:
+                data = resp.json()
+                self.available = [m.get("id", "unknown") for m in data.get("data", [])]
         except:
             self.available = []
     
@@ -392,17 +397,13 @@ class ModelManager:
         if saved and saved in self.available:
             return saved
         
-        # Precision mode uses bigger models
-        if precision_mode and role not in ["precision", "smart"]:
-            role = "precision"
-        
         # Get from tier
-        for model in self.MODELS.get(role, self.MODELS["fast"]):
+        for model in self.MODELS.get(role, self.MODELS["balanced"]):
             if model in self.available:
                 return model
         
-        # Fallback
-        return self.available[0] if self.available else "qwen2.5:3b"
+        # Fallback to first available
+        return self.available[0] if self.available else "/models/medium/general/qwen2.5-7b-gptq"
     
     def find(self, query: str) -> Optional[str]:
         """Find model by natural language query"""
@@ -460,8 +461,12 @@ class ModelManager:
     
     def get_categorized(self) -> Dict[str, List[str]]:
         """Get models organized by category"""
+        # Refresh to get latest
+        self._refresh()
+        
         result = {cat: [] for cat in self.MODELS}
         result["other"] = []
+        result["vllm"] = []
         
         categorized = set()
         for cat, models in self.MODELS.items():
@@ -472,7 +477,11 @@ class ModelManager:
         
         for model in self.available:
             if model not in categorized:
-                result["other"].append(model)
+                # Check if it's a vLLM model (path-like)
+                if '/' in model or 'models' in model.lower():
+                    result["vllm"].append(model)
+                else:
+                    result["other"].append(model)
         
         return result
 
@@ -523,8 +532,8 @@ ANTWORT NUR ALS JSON:
 
 ANFRAGE: {prompt}'''
 
-    def __init__(self, ollama_client):
-        self.ollama = ollama_client
+    def __init__(self, llm_client):
+        self.llm = llm_client
         self.kb = KnowledgeBase()
         self.cache = SmartCache()
         self.models = ModelManager(self.cache)
@@ -538,6 +547,9 @@ ANFRAGE: {prompt}'''
         self.precision_mode = False
         self.browsing_enabled = True
         self.fail_count = 0
+        
+        # Response style (set by session_loop)
+        self.response_style = "normal"  # normal, concise, explanatory, learning, formal
         
         # Conversation history for context (keeps last 10 messages)
         self._recent_messages: List[Dict[str, str]] = []
@@ -558,7 +570,7 @@ ANFRAGE: {prompt}'''
         self.use_new_agents = enabled
         if enabled and self._executor is None:
             from core.execution import TaskExecutor
-            self._executor = TaskExecutor(self.ollama, verbose=False)
+            self._executor = TaskExecutor(self.llm, verbose=False)
     
     def understand(self, prompt: str) -> Plan:
         """
@@ -576,6 +588,10 @@ ANFRAGE: {prompt}'''
         self.ctx.language = 'de' if any(g in prompt.lower() for g in german) else 'en'
         
         # Stage 1: Quick resolution (no LLM)
+        
+        # Handle "show sources" after a search
+        if self._is_show_sources(prompt):
+            return self._handle_show_sources()
         
         # Handle y/n/number responses
         if self._is_quick_response(prompt):
@@ -662,9 +678,24 @@ ANFRAGE: {prompt}'''
             'where ', 'wo ',
         ]
         
+        # Content creation - NOT code tasks (spreadsheets, summaries, explanations)
+        content_words = [
+            'tabelle', 'spreadsheet', 'zusammenfassung', 'summary',
+            'erklärung', 'explanation', 'lern', 'learn', 'prüfung', 'exam',
+            'liste', 'list of', 'übersicht', 'overview', 'cheat sheet',
+            'notizen', 'notes', 'axiome', 'theorie', 'theory', 'konzept',
+            'definition', 'beispiel', 'example', 'deutsch', 'german',
+            'english', 'mathe', 'math', 'schule', 'school', 'uni',
+        ]
+        
         has_code_indicator = any(i in p for i in code_indicators)
         has_code_context = any(c in p for c in code_context)
-        is_simple_op = any(p.startswith(s) for s in simple_ops)  # Only check start, not middle
+        is_simple_op = any(p.startswith(s) for s in simple_ops)
+        is_content_creation = any(c in p for c in content_words)
+        
+        # If it's content creation (learning materials, etc.), it's NOT a code task
+        if is_content_creation:
+            return False
         
         return has_code_indicator and (has_code_context or len(p) > 30) and not is_simple_op
     
@@ -742,6 +773,31 @@ ANFRAGE: {prompt}'''
         ]
         
         return p in modifiers or any(p.startswith(m + ' ') or p == m for m in modifiers)
+    
+    def _is_show_sources(self, prompt: str) -> bool:
+        """Check if user is asking for search sources"""
+        p = prompt.lower().strip()
+        patterns = [
+            'show sources', 'show me sources', 'sources', 'quellen',
+            'zeig quellen', 'zeig mir quellen', 'what sources', 'welche quellen',
+            'links', 'show links', 'zeig links', 'where from', 'woher'
+        ]
+        return p in patterns or any(p.startswith(pat) for pat in patterns)
+    
+    def _handle_show_sources(self) -> Plan:
+        """Show sources from the last search"""
+        if not self.ctx.pending_items:
+            return Plan(intent=Intent.CHAT, target="Keine Quellen verfügbar. Zuerst suchen!")
+        
+        # Format sources nicely
+        lines = ["📚 **Quellen:**\n"]
+        for i, item in enumerate(self.ctx.pending_items[:5]):
+            title = item.get('title', 'Untitled')
+            url = item.get('url', '')
+            lines.append(f"[{i+1}] {title}")
+            lines.append(f"    {url}\n")
+        
+        return Plan(intent=Intent.CHAT, target="\n".join(lines))
     
     def _is_quick_response(self, prompt: str) -> bool:
         """Check if this is a y/n/number response"""
@@ -856,11 +912,20 @@ ANFRAGE: {prompt}'''
             return Plan(intent=Intent.GET_INFO, target="service_status")
         
         # Start/Stop service - also catch "öffne hub", "launch hub", etc.
-        start_words = ['starte', 'start', 'öffne', 'launch', 'aktiviere']
-        stop_words = ['stoppe', 'stop', 'beende', 'schließe', 'kill']
-        service_names = ['ryxhub', 'ryx hub', 'hub', 'webui', 'service', 'dashboard']
+        start_words = ['starte', 'start', 'öffne', 'launch', 'aktiviere', 'turn on', 'enable']
+        stop_words = ['stoppe', 'stop', 'beende', 'schließe', 'kill', 'turn off', 'disable']
         
-        if any(s in p for s in service_names):
+        # vLLM/LLM service
+        vllm_names = ['vllm', 'v-llm', 'llm', 'model', 'inference', 'gpu', 'ai model']
+        if any(s in p for s in vllm_names):
+            if any(w in p for w in stop_words):
+                return Plan(intent=Intent.STOP_SERVICE, target="vllm")
+            elif any(w in p for w in start_words):
+                return Plan(intent=Intent.START_SERVICE, target="vllm")
+        
+        # RyxHub service
+        hub_names = ['ryxhub', 'ryx hub', 'hub', 'webui', 'service', 'dashboard', 'web interface']
+        if any(s in p for s in hub_names):
             if any(w in p for w in stop_words):
                 return Plan(intent=Intent.STOP_SERVICE, target="ryxhub")
             elif any(w in p for w in start_words):
@@ -1084,7 +1149,7 @@ ANFRAGE: {prompt}'''
             "prompt": prompt
         }
         
-        response = self.ollama.generate(
+        response = self.llm.generate(
             prompt=self.SUPERVISOR_PROMPT.format(**context),
             model=model,
             system="Du bist ein JSON-Parser. Antworte NUR mit validem JSON. Keine Erklärungen.",
@@ -1099,7 +1164,7 @@ ANFRAGE: {prompt}'''
                 self.fail_count = 0
                 from core.model_router import get_router, ModelRole
                 fallback = get_router().get_model_by_role(ModelRole.FALLBACK)
-                response = self.ollama.generate(
+                response = self.llm.generate(
                     prompt=self.SUPERVISOR_PROMPT.format(**context),
                     model=fallback.name,
                     system="Du bist ein JSON-Parser. Antworte NUR mit validem JSON.",
@@ -1307,7 +1372,7 @@ ANFRAGE: {prompt}'''
         """
         if self._executor is None:
             from core.execution import TaskExecutor
-            self._executor = TaskExecutor(self.ollama, verbose=False)
+            self._executor = TaskExecutor(self.llm, verbose=False)
         
         # Build context from current state
         from core.planning import Context as AgentContext
@@ -1376,7 +1441,7 @@ ANFRAGE: {prompt}'''
                 full_context = context
             
             # Generate tool call
-            response = self.ollama.generate_tool_call(
+            response = self.llm.generate_tool_call(
                 task=task,
                 context=full_context,
                 available_files=context_files,
@@ -1517,13 +1582,13 @@ ANFRAGE: {prompt}'''
         return True, plan.target or ""
     
     def _exec_search_web(self, plan: Plan) -> Tuple[bool, str]:
-        """Search the web using the WebSearchTool"""
+        """Search the web and synthesize an answer from results"""
         query = plan.target
         if not query:
             return False, "Was suchen?"
         
         # Use the new web search tool (tries SearXNG first, then DuckDuckGo)
-        result = self.tools.web_search.search(query, num_results=10)
+        result = self.tools.web_search.search(query, num_results=5)
         
         if not result.success:
             return False, result.error or "Search failed"
@@ -1531,10 +1596,62 @@ ANFRAGE: {prompt}'''
         if not result.data:
             return False, f"Keine Ergebnisse für '{query}'"
         
-        # Store for selection
-        self.ctx.pending_items = [{"url": r["url"], "title": r["title"]} for r in result.data]
-        self.ctx.awaiting_selection = True
+        # Store sources for follow-up
+        self.ctx.pending_items = [{"url": r.get("url", ""), "title": r.get("title", ""), "snippet": r.get("snippet", "")} for r in result.data]
+        self.ctx.last_query = query
         
+        # Build context from snippets
+        context_parts = []
+        for i, r in enumerate(result.data[:5]):
+            title = r.get("title", "")
+            snippet = r.get("snippet", "")
+            url = r.get("url", "")
+            context_parts.append(f"[{i+1}] {title}\n{snippet}\n")
+        
+        search_context = "\n".join(context_parts)
+        
+        # Synthesize answer using LLM
+        synth_prompt = f"""Based on these search results, answer the user's question.
+Be concise and direct. Cite sources with [1], [2], etc.
+
+Question: {query}
+
+Search Results:
+{search_context}
+
+Answer (be concise, 2-3 sentences max):"""
+
+        # Apply response style
+        style_adjustments = {
+            "concise": "Be extremely brief. 1-2 sentences max.",
+            "explanatory": "Explain in detail with context and examples.",
+            "learning": "Teach step-by-step, help the user understand.",
+            "formal": "Use professional, formal language.",
+        }
+        if self.response_style in style_adjustments:
+            synth_prompt = synth_prompt.replace(
+                "be concise, 2-3 sentences max",
+                style_adjustments[self.response_style]
+            )
+
+        try:
+            resp = self.llm.generate(
+                prompt=synth_prompt,
+                model=self.models.get("balanced"),
+                max_tokens=300 if self.response_style == "concise" else 500,
+                temperature=0.3
+            )
+            
+            if resp.response:
+                # Add note about showing sources
+                answer = resp.response.strip()
+                # Store for follow-up context
+                self.add_message('assistant', answer)
+                return True, f"{answer}\n\n[dim]'show sources' für Quellen[/]"
+        except Exception as e:
+            logger.warning(f"Synthesis failed: {e}")
+        
+        # Fallback: just show results
         return True, result.output + "\n\nWelches? (Nummer)"
     
     def _exec_scrape(self, plan: Plan) -> Tuple[bool, str]:
@@ -1690,7 +1807,7 @@ Format:
 
 Sprache: Deutsch"""
 
-        response = self.ollama.generate(
+        response = self.llm.generate(
             prompt=prompt,
             model=model,
             system="Du erstellst präzise, gut strukturierte Lernmaterialien.",
@@ -1719,6 +1836,24 @@ Sprache: Deutsch"""
     
     def _exec_start_service(self, plan: Plan) -> Tuple[bool, str]:
         service = (plan.target or "").lower()
+        
+        # vLLM - GPU inference
+        if service in ['vllm', 'llm', 'model', 'inference', 'gpu']:
+            try:
+                from core.docker_services import start_service
+                result = start_service("vllm")
+                
+                if result.get('success'):
+                    return True, "✅ vLLM starting...\n  • Container: ryx-vllm\n  • Port: http://localhost:8001\n  • Model: Qwen2.5-Coder-14B-AWQ"
+                else:
+                    error = result.get('error', 'Unknown error')
+                    if 'already' in error.lower() or 'running' in error.lower():
+                        return True, "ℹ️ vLLM already running at http://localhost:8001"
+                    return False, f"❌ Failed to start vLLM: {error}"
+            except ImportError:
+                return False, "❌ docker_services not found"
+            except Exception as e:
+                return False, f"❌ Error: {e}"
         
         # RyxHub - Web UI
         if service in ['ryxhub', 'hub', 'webui', 'ui']:
@@ -1760,6 +1895,24 @@ Sprache: Deutsch"""
     
     def _exec_stop_service(self, plan: Plan) -> Tuple[bool, str]:
         service = (plan.target or "").lower()
+        
+        # vLLM - GPU inference
+        if service in ['vllm', 'llm', 'model', 'inference', 'gpu']:
+            try:
+                from core.docker_services import stop_service
+                result = stop_service("vllm")
+                
+                if result.get('success'):
+                    return True, "✅ vLLM stopped"
+                else:
+                    error = result.get('error', 'Unknown error')
+                    if 'not running' in error.lower():
+                        return True, "ℹ️ vLLM was not running"
+                    return False, f"❌ Failed to stop vLLM: {error}"
+            except ImportError:
+                return False, "❌ docker_services not found"
+            except Exception as e:
+                return False, f"❌ Error: {e}"
         
         # RyxHub - Web UI
         if service in ['ryxhub', 'hub', 'webui', 'ui']:
@@ -1827,17 +1980,6 @@ Sprache: Deutsch"""
                     for port_info in info['ports']:
                         lines.append(f"    └─ {port_info}")
             
-            # Also show Ollama status
-            try:
-                import requests
-                resp = requests.get("http://localhost:11434/api/tags", timeout=2)
-                if resp.status_code == 200:
-                    lines.append("  Ollama: 🟢 Running")
-                else:
-                    lines.append("  Ollama: 🔴 Error")
-            except:
-                lines.append("  Ollama: 🔴 Stopped")
-            
             return True, "\n".join(lines)
         
         return True, now.strftime("%Y-%m-%d %H:%M")
@@ -1875,8 +2017,9 @@ Sprache: Deutsch"""
             from core.rich_ui import get_ui
         ui = get_ui()
         
-        # Only return target directly for explicit cancel messages
-        if plan.target and plan.target.startswith(("Abgebrochen", "Cancelled", "Nichts")):
+        # Return target directly for cancel messages, sources display, and other pre-set responses
+        if plan.target and (plan.target.startswith(("Abgebrochen", "Cancelled", "Nichts", "📚", "Keine Quellen", "No sources"))
+                           or "Quellen" in plan.target):
             return True, plan.target
         
         query = self.ctx.last_query
@@ -1921,10 +2064,18 @@ Sprache: Deutsch"""
                 # Show top results
                 ui.search_results(search_results, query=query, limit=3)
                 
-                # Build context from search results
-                search_context = "\n\nSearch results to inform your answer:\n"
-                for r in search_results:
-                    search_context += f"- {r['title']}: {r.get('content', '')[:300]}\n"
+                # IMPORTANT: Store sources for /sources and "show sources" command
+                self.ctx.pending_items = [
+                    {"url": r.get("url", ""), "title": r.get("title", ""), "snippet": r.get("content", "")} 
+                    for r in search_results
+                ]
+                self.ctx.last_query = query
+                
+                # Build context from search results - include more content for educational queries
+                search_context = "\n\nSuchergebnisse - NUTZE DIESE INFORMATIONEN für deine Antwort:\n"
+                for i, r in enumerate(search_results, 1):
+                    content = r.get('content', '')[:500]  # More content per result
+                    search_context += f"[{i}] {r['title']}: {content}\n\n"
             else:
                 ui.step_done("Search", "no results")
         
@@ -1937,6 +2088,17 @@ Sprache: Deutsch"""
             model_config = select_model(query)
             model = model_config.name
         
+        # Build style-specific instructions
+        style = getattr(self, 'response_style', 'normal')
+        style_instructions = {
+            'normal': "Antworte klar und hilfreich.",
+            'concise': "Antworte SEHR KURZ - maximal 2 Sätze. Nur das Wichtigste.",
+            'explanatory': "Erkläre ausführlich mit Beispielen und Hintergrund.",
+            'learning': "Erkläre wie für einen Studenten - mit Kontext, Beispielen und Merkhilfen.",
+            'formal': "Antworte formal und professionell, wie in einer Dokumentation."
+        }
+        style_hint = style_instructions.get(style, style_instructions['normal'])
+        
         # Build system prompt with follow-up awareness
         if is_followup:
             system_prompt = f"""Du bist Ryx, ein hilfreicher AI-Assistent.
@@ -1947,6 +2109,8 @@ DEINE LETZTE ANTWORT WAR:
 
 USER FRAGT JETZT: "{query}"
 
+STIL: {style_hint}
+
 Passe deine Antwort entsprechend an:
 - "kürzer/shorter" → Fasse die Kernpunkte in 1-2 Sätzen zusammen
 - "mehr/more" → Gib mehr Details zu deiner Antwort
@@ -1954,9 +2118,13 @@ Passe deine Antwort entsprechend an:
 
 Antworte DIREKT auf das Thema deiner letzten Antwort!"""
         else:
-            system_prompt = """Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
-Antworte kurz und präzise. Wenn Suchergebnisse gegeben sind, nutze sie für deine Antwort.
-Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
+            system_prompt = f"""Du bist Ryx, ein hilfreicher AI-Assistent auf Arch Linux.
+{style_hint}
+
+WICHTIG für Suchergebnisse:
+- Wenn du die exakten Fakten NICHT in den Suchergebnissen findest, sage ehrlich: "Die Suchergebnisse enthalten nicht alle Details. Hier ist was ich weiß, bitte verifiziere:"
+- Erfinde KEINE Fakten die nicht in den Quellen stehen
+- Zitiere mit [1], [2], etc."""
             
             if conversation_context:
                 system_prompt += f"\n\nBisheriges Gespräch:\n{conversation_context}"
@@ -1969,7 +2137,7 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
         full_response = ""
         
         try:
-            for token in self.ollama.generate_stream(
+            for token in self.llm.generate_stream(
                 prompt=query,
                 model=model,
                 system=system_prompt,
@@ -1979,14 +2147,15 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
                 ui.stream_token(token)
                 full_response += token
             
-            ui.stream_end()
-            
-            # IMPORTANT: Store the actual response in context for follow-ups!
+            # Only show stats if we got actual content
             if full_response.strip():
+                ui.stream_end()
                 self.add_message('assistant', full_response.strip())
-            
-            # Return special marker so session_loop knows not to print again
-            return True, "__STREAMED__"
+                return True, "__STREAMED__"
+            else:
+                # Empty response - don't show misleading stats
+                ui._stream_state = None  # Cancel stream without stats
+                return True, "I couldn't generate a response. Please try rephrasing."
             
         except Exception as e:
             ui.stream_end()
@@ -2001,37 +2170,53 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
             'hi', 'hello', 'hallo', 'hey', 'wie gehts', 'wie geht', 
             'how are you', 'whats up', 'was geht', 'yo', 'moin',
             'guten tag', 'guten morgen', 'guten abend', 'good morning',
-            'danke', 'thanks', 'ok', 'okay', 'ja', 'nein', 'yes', 'no'
+            'danke', 'thanks', 'ok', 'okay', 'ja', 'nein', 'yes', 'no',
+            'shorter', 'kürzer', 'longer', 'mehr', 'show sources', 'sources'
         ]
         if q in short_greetings or any(q.startswith(g) for g in short_greetings):
             return False
         
         # Very short queries without question words are conversational
-        if len(q) < 10:
+        # But allow single technical terms (5+ chars that are alpha)
+        if len(q) < 5:
             return False
         
         # Don't search for personal/system questions
         personal_indicators = [
             'my', 'mein', 'config', 'file', 'datei',
-            'open', 'öffne', 'find', 'finde', 'where',
+            'open', 'öffne', 'find', 'finde',
         ]
-        if any(p in q for p in personal_indicators):
+        # But DO search for educational content creation
+        educational_keywords = [
+            'lern', 'axiom', 'theorie', 'prüfung', 'exam', 'schule', 'school',
+            'watzlawick', 'kommunikation', 'definition', 'konzept',
+        ]
+        is_educational = any(e in q for e in educational_keywords)
+        
+        if any(p in q for p in personal_indicators) and not is_educational:
             return False
         
-        # Search for factual questions - needs enough context
+        # Search for factual questions - be more aggressive
         factual_indicators = [
-            'what is', 'was ist', 'how to', 'how do i',
+            'what is', 'was ist', 'what are', 'was sind',
+            'how to', 'how do', 'wie macht man', 'wie kann ich',
             'explain', 'erkläre', 'tell me about', 'erzähl mir',
             'latest', 'newest', 'current', 'aktuell',
-            'why does', 'warum funktioniert', 'when did', 'wann wurde',
+            'why does', 'warum', 'when did', 'wann',
             'documentation', 'docs', 'tutorial',
-            'wer ist', 'who is',  # Questions about people
+            'wer ist', 'who is', 'where is', 'wo ist',
+            'difference between', 'unterschied zwischen',
+            'best', 'beste', 'recommended', 'empfohlen',
+            'axiom', 'theorie', 'definition', 'lern-tabelle', 'übersicht',
         ]
         
         # "wie" needs more context (avoid "wie gehts" matching)
-        has_wie = 'wie ' in q and len(q) > 20 and 'gehts' not in q and 'geht' not in q
+        has_wie = 'wie ' in q and len(q) > 15 and 'gehts' not in q and 'geht' not in q
         
-        return any(f in q for f in factual_indicators) or has_wie
+        # Single word that could be a topic (e.g., "hyprland", "wayland")
+        is_single_topic = ' ' not in q and len(q) > 4 and q.isalpha()
+        
+        return any(f in q for f in factual_indicators) or has_wie or is_single_topic
     
     def _exec_confirm(self, plan: Plan) -> Tuple[bool, str]:
         self.ctx.awaiting_confirmation = True
@@ -2095,38 +2280,82 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
         return "🧠 Self-improvement abgeschlossen\n" + "\n".join(updates) if updates else "Wissensbasis ist aktuell."
     
     def health_check(self) -> Dict[str, Any]:
-        """Check system health - Ollama, models, etc."""
+        """Check system health - vLLM only"""
         health = {
-            "ollama": False,
+            "backend_available": False,
+            "vllm": False,
             "models": [],
             "default_model": None,
             "errors": []
         }
         
+        import requests
+        
+        # Check vLLM first (preferred)
         try:
-            # Check Ollama is reachable
-            import requests
-            response = requests.get(f"{self.ollama.base_url}/api/tags", timeout=5)
+            response = requests.get("http://localhost:8001/health", timeout=3)
             if response.status_code == 200:
-                health["ollama"] = True
-                data = response.json()
-                health["models"] = [m["name"] for m in data.get("models", [])]
-                
-                # Check if we have our preferred models
-                preferred = ["qwen2.5:3b", "qwen2.5-coder:7b", "qwen2.5-coder:14b"]
-                for model in preferred:
-                    if any(model in m for m in health["models"]):
-                        health["default_model"] = model
-                        break
-                
-                if not health["models"]:
-                    health["errors"].append("No models installed. Run: ollama pull qwen2.5:3b")
-            else:
-                health["errors"].append(f"Ollama returned status {response.status_code}")
-        except requests.exceptions.ConnectionError:
-            health["errors"].append("Cannot connect to Ollama. Is it running?")
-        except Exception as e:
-            health["errors"].append(f"Health check error: {e}")
+                health["vllm"] = True
+                health["backend_available"] = True
+                health["vllm"] = True
+                # Get actual model from vLLM
+                try:
+                    import requests
+                    resp = requests.get(f"{self.llm.base_url}/v1/models", timeout=5)
+                    if resp.status_code == 200:
+                        models = resp.json().get("data", [])
+                        if models:
+                            health["models"] = [m["id"] for m in models]
+                            health["default_model"] = models[0]["id"]
+                except:
+                    health["models"] = ["qwen2.5-7b-gptq"]
+                    health["default_model"] = "qwen2.5-7b-gptq"
+                return health
+        except:
+            pass
+        
+        # Check if this is a vLLM wrapper
+        if hasattr(self.llm, 'backend'):
+            try:
+                backend_health = self.llm.backend.health_check()
+                if backend_health.get("healthy"):
+                    health["vllm"] = True
+                    health["backend_available"] = True
+                    # Get actual model
+                    try:
+                        import requests
+                        resp = requests.get(f"{self.llm.base_url}/v1/models", timeout=5)
+                        if resp.status_code == 200:
+                            models = resp.json().get("data", [])
+                            if models:
+                                health["models"] = [m["id"] for m in models]
+                                health["default_model"] = models[0]["id"]
+                    except:
+                        health["models"] = ["qwen2.5-7b-gptq"]
+                        health["default_model"] = "qwen2.5-7b-gptq"
+                    return health
+            except:
+                pass
+        
+        # Try vLLM directly (in case wrapper doesn't have backend attribute)
+        try:
+            import requests
+            resp = requests.get("http://localhost:8001/health", timeout=5)
+            if resp.status_code == 200:
+                health["vllm"] = True
+                health["backend_available"] = True
+                resp = requests.get("http://localhost:8001/v1/models", timeout=5)
+                if resp.status_code == 200:
+                    models = resp.json().get("data", [])
+                    if models:
+                        health["models"] = [m["id"] for m in models]
+                        health["default_model"] = models[0]["id"]
+                return health
+        except:
+            pass
+        
+        # No backend available
+        health["errors"].append("No LLM backend. Run: ryx start vllm")
         
         return health
 
@@ -2134,13 +2363,92 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
 # Global instance
 _brain: Optional[RyxBrain] = None
 
-def get_brain(ollama_client=None) -> RyxBrain:
+def get_brain(llm_client=None, prefer_vllm: bool = True) -> RyxBrain:
+    """
+    Get or create the global RyxBrain instance.
+    
+    Args:
+        llm_client: Optional LLMBackend/VLLMBackend client
+        prefer_vllm: Always True - we only use vLLM now
+    """
     global _brain
     if _brain is None:
-        if ollama_client is None:
-            from core.ollama_client import OllamaClient
-            from core.model_router import ModelRouter
-            router = ModelRouter()
-            ollama_client = OllamaClient(base_url=router.get_ollama_url())
-        _brain = RyxBrain(ollama_client)
+        # If a backend was provided, wrap it
+        if llm_client is not None:
+            from core.llm_backend import VLLMBackend, LLMBackend
+            if isinstance(llm_client, (VLLMBackend, LLMBackend)):
+                _brain = RyxBrain(_VLLMWrapper(llm_client))
+                return _brain
+            else:
+                _brain = RyxBrain(llm_client)
+                return _brain
+        
+        # Try vLLM (only backend now)
+        try:
+            from core.llm_backend import VLLMBackend
+            backend = VLLMBackend()
+            health = backend.health_check()
+            if health.get("healthy"):
+                _brain = RyxBrain(_VLLMWrapper(backend))
+                return _brain
+        except Exception as e:
+            logger.warning(f"vLLM not available: {e}")
+        
+        raise RuntimeError("vLLM not running. Start with: ryx start vllm")
     return _brain
+
+
+class _VLLMResponse:
+    """Response object for vLLM responses"""
+    def __init__(self, response: str = "", error: str = None):
+        self.response = response
+        self.error = error
+
+
+class _VLLMWrapper:
+    """
+    Wrapper to make VLLMBackend compatible with RyxBrain interface.
+    
+    IMPORTANT: vLLM serves ONE model at a time. We ALWAYS use that model.
+    """
+    
+    # Default model - 7B for general use (lower VRAM, faster)
+    DEFAULT_MODEL = "/models/medium/general/qwen2.5-7b-gptq"
+    
+    def __init__(self, backend):
+        self.backend = backend
+        self.base_url = backend.base_url
+        # Detect actual model from vLLM
+        self._detect_model()
+    
+    def _detect_model(self):
+        """Detect which model vLLM is actually serving"""
+        import requests
+        try:
+            resp = requests.get(f"{self.base_url}/v1/models", timeout=5)
+            if resp.status_code == 200:
+                models = resp.json().get("data", [])
+                if models:
+                    self.DEFAULT_MODEL = models[0]["id"]
+        except:
+            pass
+    
+    def generate(self, prompt: str, system: str = "", model: str = None, **kwargs) -> '_VLLMResponse':
+        """Generate response - ALWAYS uses vLLM's served model"""
+        # Ignore passed model - vLLM only serves one model
+        resp = self.backend.generate(prompt, system=system, model=self.DEFAULT_MODEL, **kwargs)
+        return _VLLMResponse(response=resp.response, error=resp.error)
+    
+    def generate_stream(self, prompt: str, system: str = "", **kwargs):
+        """Stream response - ALWAYS uses vLLM's served model"""
+        # Remove any model from kwargs - we use DEFAULT_MODEL
+        kwargs.pop('model', None)
+        return self.backend.generate_stream(prompt, system=system, model=self.DEFAULT_MODEL, **kwargs)
+    
+    def generate_tool_call(self, prompt: str, tools: list, **kwargs) -> '_VLLMResponse':
+        """Generate with tools - for now just regular generation"""
+        return self.generate(prompt, **kwargs)
+    
+    def list_models(self) -> list:
+        """List available models"""
+        return [{"name": self.DEFAULT_MODEL}]

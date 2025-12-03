@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from core.paths import get_data_dir, get_project_root
-from core.ollama_client import OllamaClient
+from core.llm_client import vLLMClient
 
 
 class ActionType(Enum):
@@ -127,8 +127,8 @@ class IntelligentAgent:
     Uses LLM for understanding, knowledge base for accuracy.
     """
     
-    def __init__(self, ollama_client: OllamaClient):
-        self.ollama = ollama_client
+    def __init__(self, llm_client: vLLMClient):
+        self.llm = llm_client
         self.kb = KnowledgeBase()
         self.model = "qwen2.5:3b"  # Fast model for understanding
         self.smart_model = "qwen2.5-coder:14b"  # Smart model for complex tasks
@@ -256,7 +256,7 @@ RESPOND IN JSON ONLY:
 {{"action": "open_file|open_url|find_file|run_command|answer|clarify", "target": "path/url/command/answer", "question": "clarification question if action=clarify", "confidence": 0.0-1.0}}
 """
 
-        response = self.ollama.generate(
+        response = self.llm.generate(
             prompt=f"User prompt: {prompt}",
             model=self.model,
             system=system_prompt,
@@ -480,7 +480,7 @@ Return a JSON with improvements:
 {{"updates": {{"config_paths": {{}}, "websites": {{}}, "defaults": {{}}}}, "removals": [], "summary": "what was improved"}}
 """
         
-        response = self.ollama.generate(
+        response = self.llm.generate(
             prompt="Analyze and improve the knowledge base",
             model=self.smart_model,
             system=system_prompt.format(
@@ -558,13 +558,13 @@ Return a JSON with improvements:
 # Global instance
 _agent: Optional[IntelligentAgent] = None
 
-def get_agent(ollama_client: OllamaClient = None) -> IntelligentAgent:
+def get_agent(llm_client: vLLMClient = None) -> IntelligentAgent:
     """Get or create the intelligent agent"""
     global _agent
     if _agent is None:
-        if ollama_client is None:
+        if llm_client is None:
             from core.model_router import ModelRouter
             router = ModelRouter()
-            ollama_client = OllamaClient(base_url=router.get_ollama_url())
-        _agent = IntelligentAgent(ollama_client)
+            llm_client = vLLMClient(base_url=router.get_llm_url())
+        _agent = IntelligentAgent(llm_client)
     return _agent

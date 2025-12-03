@@ -1,0 +1,31 @@
+{
+  "query": "what is kubernetes",
+  "results": [
+    {
+      "title": "Overview - Kubernetes",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fkubernetes.io%2Fdocs%2Fconcepts%2Foverview%2F&rut=1ebedb1dc2253eaa0e5799a02962d398dae7c693b235caaac55065da7700527a",
+      "content": "Kubernetesisa platform for managing containerized workloads and services, that provides declarative configuration and automation. Learn whatKubernetescan do, what it is not, and its historical context."
+    },
+    {
+      "title": "Kubernetes - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FKubernetes&rut=af336f285a2739758a36721a0970578a69cb0d90bd1a56f56dd4753bf591f425",
+      "content": "Kubernetes(/ \u02cck (j) u\u02d0b\u0259r\u02c8n\u025bt\u026as, - \u02c8ne\u026at\u026as, - \u02c8ne\u026ati\u02d0z, - \u02c8n\u025bti\u02d0z /), also known as K8s is an open-source container orchestration system for automating software deployment, scaling, and management. [3][4] Originally designed by Google, the project is now maintained by a worldwide community of contributors, and the trademark is held by the Cloud Native Computing Foundation. The ..."
+    },
+    {
+      "title": "Introduction to Kubernetes (K8s) - GeeksforGeeks",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.geeksforgeeks.org%2Fdevops%2Fintroduction%2Dto%2Dkubernetes%2Dk8s%2F&rut=6fd5b3988536db8361800e435ee1d8edbb8f75fbf65dd02c9a60dd74d1b56345",
+      "content": "Kubernetes, often shortened to K8s (K, 8 letters, s), is an open-source platform that automates the deployment, scaling, and management of containerized applications."
+    },
+    {
+      "title": "What is Kubernetes? A Beginner's Guide to Understanding ... - Medium",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmedium.com%2Fthe%2Dk8s%2Dplaybook%2Fwhat%2Dis%2Dkubernetes%2Da%2Dbeginners%2Dguide%2Dto%2Dunderstanding%2Dthe%2Dbasics%2Dbb6c4e80b83b&rut=3259dacb2be2eb2b644835829a51f9236c0ff661d177a200f238a1e73e3b57a9",
+      "content": "\ud83d\ude80 What isKubernetes? A Beginner's Guide to Understanding the Basics \ud83e\udde0 In today's cloud-powered world \ud83c\udf0d, software is built and shipped faster than ever \u2014 often using containers \ud83d\udc33 ..."
+    },
+    {
+      "title": "What Is Kubernetes? Definitions, Components & Use Cases [2025]",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.finout.io%2Fblog%2Fwhat%2Dis%2Dkubernetes%2Ddefinitions%2Dcomponents%2Duse%2Dcases%2D2025&rut=d9a35a37797913bd8014cebf8d6627f0310a5a23224b687605f35bf10404045a",
+      "content": "WhatIsKubernetes?Kubernetesisan open-source platform to automate deploying, scaling, and managing containerized applications. It schedules and runs containers across clusters of hosts, managing the lifecycle of applications and ensuring they remain available and performant as load and resource requirements change.Kubernetesabstracts the complexity of the underlying infrastructure ..."
+    }
+  ],
+  "timestamp": "2025-12-03T20:45:28.474471"
+}

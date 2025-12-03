@@ -1,0 +1,31 @@
+{
+  "query": "what is nginx",
+  "results": [
+    {
+      "title": "Official site",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fnginx.org%2F&rut=3a49aaedb73f52c296e7c0fcdf2c2d09c34ea8eedd07b0546f9dce06e4f63dcb",
+      "content": "Nginx"
+    },
+    {
+      "title": "What is Nginx (Web Server) and how to install it - GeeksforGeeks",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.geeksforgeeks.org%2Foperating%2Dsystems%2Fwhat%2Dis%2Dnginx%2Dweb%2Dserver%2Dand%2Dhow%2Dto%2Dinstall%2Dit%2F&rut=57cf726b0decbe58e674e19a9dcb4daa7cf389f1351066624cf6b5487247e718",
+      "content": "Nginxisa dedicated web server that has solved efficiency issues and provided us with an optimum way to handle 1000s of requests concurrently. Web server for reverse proxy, caching, and load balancing."
+    },
+    {
+      "title": "Nginx - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FNginx&rut=98050d756deab90ee5ae33b0293594015909ba7cd1521a96224f38321ff78936",
+      "content": "Nginx(pronounced \"engine x\" [8] / \u02cc\u025bnd\u0292\u026an\u02c8\u025bks / EN-jin-EKS, stylized asNGINXornginx)isa web server that can also be used as a reverse proxy, load balancer, mail proxy and HTTP cache. The software was created by Russian developer Igor Sysoev and publicly released in 2004. [9]Nginxisfree and open-source software, released under the terms of the 2-clause BSD license. A large ..."
+    },
+    {
+      "title": "Beginner's Guide",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fnginx.org%2Fen%2Fdocs%2Fbeginners_guide.html&rut=5444b47df5cdc2bffa739060eee8d31b0a2772879505e47189feef4f85697119",
+      "content": "Learn how to install, configure, and usenginx, a high-performance web server and reverse proxy. This guide covers basic tasks such as serving static content, setting up a proxy server, and connecting with FastCGI applications."
+    },
+    {
+      "title": "What Is Nginx? A Basic Look at What It Is and How It Works - Kinsta",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fkinsta.com%2Fblog%2Fwhat%2Dis%2Dnginx%2F&rut=f108d36d322ef5ac33d09cff015cfe0ca28e578ad8c30ba899359ebdd0b266e1",
+      "content": "Nginx, pronounced \"engine-ex\", is an open-source web server, also used as a reverse proxy, HTTP cache & load balancer. Learn more from this in-depth guide."
+    }
+  ],
+  "timestamp": "2025-12-03T20:47:15.843275"
+}

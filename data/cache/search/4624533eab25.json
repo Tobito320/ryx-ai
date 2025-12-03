@@ -1,0 +1,31 @@
+{
+  "query": "what is wayland",
+  "results": [
+    {
+      "title": "So what exactly is Wayland? : r/linuxquestions - Reddit",
+      "url": "https://www.reddit.com/r/linuxquestions/comments/1089ctd/so_what_exactly_is_wayland/",
+      "content": "Reddit reddit.com \u203a r/linuxquestions \u203a so what exactly is wayland? r/linuxquestions on Reddit: So what exactly is Wayland? January 10, 2023 - From what I understand, Wayland is some sort of GUI compon"
+    },
+    {
+      "title": "xorg - What is Wayland? - Unix & Linux Stack Exchange",
+      "url": "https://unix.stackexchange.com/questions/4771/what-is-wayland",
+      "content": "I was looking for a lightweight X server, but failed to find one. Then I found out about Wayland. I says that it aims to coexist with X, but can run standalone. When I try to compile it, it needs ... "
+    },
+    {
+      "title": "\u0395\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03af\u03b7\u03c3\u03b7 \u03ba\u03b1\u03b9 \u03b1\u03c0\u03b5\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03af\u03b7\u03c3\u03b7 \u03c4\u03bf\u03c5 \u03b5\u03b9\u03ba\u03bf\u03bd\u03b9\u03ba\u03bf\u03cd touchpad",
+      "url": "https://support.microsoft.com/el-gr/windows/%CE%B5%CE%BD%CE%B5%CF%81%CE%B3%CE%BF%CF%80%CE%BF%CE%AF%CE%B7%CF%83%CE%B7-%CE%BA%CE%B1%CE%B9-%CE%B1%CF%80%CE%B5%CE%BD%CE%B5%CF%81%CE%B3%CE%BF%CF%80%CE%BF%CE%AF%CE%B7%CF%83%CE%B7-%CF%84%CE%BF%CF%85-%CE%B5%CE%B9%CE%BA%CE%BF%CE%BD%CE%B9%CE%BA%CE%BF%CF%8D-touchpad-2d402c64-949b-05ca-ebeb-978a6548d151",
+      "content": "\u039c\u03ac\u03b8\u03b5\u03c4\u03b5 \u03c0\u03ce\u03c2 \u03bc\u03c0\u03bf\u03c1\u03b5\u03af\u03c4\u03b5 \u03bd\u03b1 \u03b5\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03b5\u03c4\u03b5 \u03ba\u03b1\u03b9 \u03bd\u03b1 \u03b1\u03c0\u03b5\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03b5\u03c4\u03b5 \u03c4\u03bf \u03b5\u03b9\u03ba\u03bf\u03bd\u03b9\u03ba\u03cc touchpad \u03c3\u03c4\u03b1 Windows."
+    },
+    {
+      "title": "Wayland",
+      "url": "https://wayland.freedesktop.org/",
+      "content": "Wayland is a protocol and architecture for applications to talk to a display server and get input from the user. It is not tied to a single common server like X11, but allows various compositor implem"
+    },
+    {
+      "title": "\u0394\u03b5\u03bd \u03bb\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03b5\u03af \u03c4\u03bf touchpad \u03c3\u03c4\u03bf laptop - \u039f\u03b4\u03b7\u03b3\u03cc\u03c2 \u03ba\u03b1\u03b9 \u039b\u03cd\u03c3\u03b5\u03b9\u03c2",
+      "url": "https://pcsupports.gr/den-leitourgei-to-touchpad",
+      "content": "Jan 21, 2022 \u00b7 \u0393\u03b9\u03b1 \u03bd\u03b1 \u03b4\u03b9\u03bf\u03c1\u03b8\u03ce\u03c3\u03b5\u03c4\u03b5 \u03c4\u03bf \u03c0\u03c1\u03cc\u03b2\u03bb\u03b7\u03bc\u03b1 Broken Touchpad, \u03c0\u03c1\u03ad\u03c0\u03b5\u03b9 \u03bd\u03b1 \u03b5\u03ba\u03c4\u03b5\u03bb\u03ad\u03c3\u03b5\u03c4\u03b5 \u03bc\u03b9\u03b1 \u03ba\u03b1\u03b8\u03b1\u03c1\u03ae \u03b5\u03ba\u03ba\u03af\u03bd\u03b7\u03c3\u03b7 \u03c3\u03c4\u03bf\u03bd \u03c5\u03c0\u03bf\u03bb\u03bf\u03b3\u03b9\u03c3\u03c4\u03ae \u03c3\u03b1\u03c2 \u03ba\u03b1\u03b9 \u03bd\u03b1 \u03b4\u03b9\u03b1\u03b3\u03bd\u03ce\u03c3\u03b5\u03c4\u03b5 \u03c4\u03bf \u03c0\u03c1\u03cc\u03b2\u03bb\u03b7\u03bc\u03b1 \u03b2\u03ae\u03bc\u03b1 \u03c0\u03c1\u03bf\u03c2 \u03b2\u03ae\u03bc\u03b1."
+    }
+  ],
+  "timestamp": "2025-12-03T20:59:32.418691"
+}

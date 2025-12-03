@@ -77,7 +77,7 @@ class ModelOrchestrator:
             config_path = get_project_root() / "configs" / "models.json"
 
         self.config_path = config_path
-        self.ollama_url = "http://localhost:11434"
+        self.vllm_url = "http://localhost:8001"  # vLLM API
 
         # Model tiers
         self.model_tiers: Dict[str, ModelTier] = {}
@@ -86,7 +86,7 @@ class ModelOrchestrator:
 
         # Configuration
         self.idle_timeout = timedelta(minutes=5)
-        self.base_model_name = "qwen2.5:1.5b"  # Always loaded
+        self.base_model_name = "/models/medium/general/qwen2.5-7b-gptq"  # Default vLLM model
 
         # Database for performance tracking
         self.db_path = get_project_root() / "data" / "model_performance.db"
@@ -95,7 +95,7 @@ class ModelOrchestrator:
         # Load configuration
         self._load_config()
 
-        # Load base model immediately
+        # Base model is loaded by vLLM container
         self._ensure_base_model_loaded()
 
         # Start cleanup thread
@@ -210,7 +210,7 @@ class ModelOrchestrator:
     def _is_model_available(self, model_name: str) -> bool:
         """Check if model is available in Ollama"""
         try:
-            response = requests.get(f"{self.ollama_url}/api/tags", timeout=2)
+            response = requests.get(f"{self.vllm_url}/v1/models", timeout=2)
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 return any(m["name"] == model_name for m in models)
@@ -347,7 +347,7 @@ class ModelOrchestrator:
         # Preload by making a tiny request
         try:
             response = requests.post(
-                f"{self.ollama_url}/api/generate",
+                f"{self.vllm_url}/v1/chat/completions",
                 json={
                     "model": model_name,
                     "prompt": "test",
@@ -520,7 +520,7 @@ class ModelOrchestrator:
         for attempt in range(max_retries):
             try:
                 response = requests.post(
-                    f"{self.ollama_url}/api/generate",
+                    f"{self.vllm_url}/v1/chat/completions",
                     json={
                         "model": model_name,
                         "prompt": f"{system_prompt}\n\nUser: {prompt}",
@@ -571,7 +571,7 @@ class ModelOrchestrator:
                         "response": (
                             "❌ Cannot connect to Ollama service\n\n"
                             "Possible fixes:\n"
-                            "  1. Start Ollama: ollama serve\n"
+                            "  1. Start vLLM: ryx start vllm\n"
                             "  2. Check if another application is using Ollama\n"
                             "  3. Wait if Ollama is busy with another request\n"
                         ),

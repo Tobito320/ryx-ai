@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
 
-from core.ollama_client import OllamaClient
+from core.llm_client import vLLMClient
 from core.model_router import ModelRouter
 from core.paths import get_data_dir, get_project_root
 
@@ -475,8 +475,8 @@ class RyxEngine:
     4. Action-biased: Do things, don't explain
     """
     
-    def __init__(self, ollama_url: str = "http://localhost:11434"):
-        self.ollama = OllamaClient(base_url=ollama_url)
+    def __init__(self, llm_url: str = "http://localhost:11434"):
+        self.llm = vLLMClient(base_url=llm_url)
         self.kb = KnowledgeBase()
         self.searcher = WebSearcher()
         self.scraper = WebScraper()
@@ -505,9 +505,9 @@ CURRENT INFO:
         return self.system_prompt.format(**info)
     
     def _call_llm(self, prompt: str, model: str, system: str = None) -> str:
-        """Call Ollama LLM"""
+        """Call vLLM LLM"""
         try:
-            response = self.ollama.generate(
+            response = self.llm.generate(
                 model=model,
                 prompt=prompt,
                 system=system or self._get_system_prompt(),
@@ -1099,5 +1099,5 @@ def get_engine() -> RyxEngine:
     global _engine
     if _engine is None:
         router = ModelRouter()
-        _engine = RyxEngine(ollama_url=router.get_ollama_url())
+        _engine = RyxEngine(llm_url=router.get_llm_url())
     return _engine

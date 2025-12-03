@@ -333,7 +333,7 @@ class ToolRegistry:
         # Misc tools
         self.register(ToolDefinition(
             name="health_check",
-            description="Check system health (Ollama, databases, etc.)",
+            description="Check system health (vLLM, databases, etc.)",
             category=ToolCategory.MISC,
             safety_level=SafetyLevel.SAFE,
             parameters={},
@@ -1259,14 +1259,14 @@ class ToolRegistry:
 
     def _health_check(self, params: Dict) -> ToolResult:
         """Check system health"""
-        from core.ollama_client import OllamaClient
+        from core.llm_client import vLLMClient
 
         checks = {}
 
-        # Check Ollama
-        client = OllamaClient()
-        ollama_health = client.health_check()
-        checks['ollama'] = ollama_health
+        # Check vLLM
+        client = vLLMClient()
+        llm_health = client.health_check()
+        checks['llm'] = llm_health
 
         # Check database
         try:

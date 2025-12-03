@@ -1,0 +1,31 @@
+{
+  "query": "what is docker",
+  "results": [
+    {
+      "title": "What is Docker? | Docker Docs",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fdocs.docker.com%2Fget%2Dstarted%2Fdocker%2Doverview%2F&rut=9678336e6c1da7199827d2e3e890c063df4ecf1233fe064a4dc62ba52d9343e6",
+      "content": "Dockerisan open platform for developing, shipping, and running applications using containers. Containers are lightweight, isolated environments that can run on any infrastructure and simplify the development lifecycle."
+    },
+    {
+      "title": "What is Docker? - GeeksforGeeks",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.geeksforgeeks.org%2Fdevops%2Fintroduction%2Dto%2Ddocker%2F&rut=0c22c173ac7a8c6e596d2aef4f4e0eb0473aa7deeda80ba091089456a982917d",
+      "content": "Dockerisan OS\u2011level virtualization (or containerization) platform, which allows applications to share the host OS kernel instead of running a separate guest OS like in traditional virtualization. This design makesDockercontainers lightweight, fast, and portable, while keeping them isolated from one another."
+    },
+    {
+      "title": "Docker (software) - Wikipedia",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fen.wikipedia.org%2Fwiki%2FDocker_(software)&rut=377ab80259d017c3d7f522f5a0aec8c141bd372d82066f9e269ac108fbbe9356",
+      "content": "Docker(software) ... Former logoDockerisa set of platform as a service (PaaS) products that uses operating-system-level virtualization to deliver software in packages called containers.Dockerautomates the deployment of applications within lightweight containers, enabling them to run consistently across different computing environments."
+    },
+    {
+      "title": "Docker for Beginners: Everything You Need to Know",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.howtogeek.com%2F733522%2Fdocker%2Dfor%2Dbeginners%2Deverything%2Dyou%2Dneed%2Dto%2Dknow%2F&rut=21cb8361e9d9485e18321029ebace9e0f0b56be2d39c5e0c925c25d9cc2ea5cb",
+      "content": "Dockercontainers create isolated environments similar to VMs without running a full operating system, enhancing portability and convenience.Dockeriseasy to use and popular for launching applications quickly without impacting your system. To useDocker, install it on your platform and build your firstDockerimage by writing a Dockerfile."
+    },
+    {
+      "title": "Docker Explained in Simple Terms: What, Why, and How - Medium",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmedium.com%2F%40ilartstu%2Fdocker%2Dexplained%2Din%2Dsimple%2Dterms%2Dwhat%2Dwhy%2Dand%2Dhow%2D15bf14e5d464&rut=17eab37a2e51f8dbaee6b34177215ec3addc6ba4bf6d1e352f5913afdaa5aebb",
+      "content": "This article is a straightforward, no-fluff guide toDocker. I'll explain whatDockeris, why it's useful, and how it works\u2026"
+    }
+  ],
+  "timestamp": "2025-12-03T20:46:33.145374"
+}

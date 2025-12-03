@@ -3,120 +3,84 @@
     {
       "role": "user",
       "content": "hi",
-      "ts": "2025-12-03T14:02:15.569424"
+      "ts": "2025-12-03T22:50:57.888114"
     },
     {
       "role": "assistant",
-      "content": "Hello! How can I assist you today?",
-      "ts": "2025-12-03T14:02:18.008315"
+      "content": "You can use variations like \"Hi! How can I assist you today?\" or \"What can I do for you today?\" Both are effective and friendly [1, 4].",
+      "ts": "2025-12-03T22:51:01.236586"
     },
     {
       "role": "user",
-      "content": "was gehjt",
-      "ts": "2025-12-03T14:02:19.553187"
+      "content": "ipv6",
+      "ts": "2025-12-03T22:51:17.181185"
     },
     {
       "role": "assistant",
-      "content": "Ich kenne keine Begriffe oder W\u00f6rter, die sich auf das \"was gehjt\" bezogen haben. M\u00f6chten Sie weitere Informationen?",
-      "ts": "2025-12-03T14:02:19.869070"
+      "content": "IPv6 is the latest IP protocol designed to replace IPv4 due to address exhaustion issues. It offers more addresses and improved features like built-in autoconfiguration [1, 4].",
+      "ts": "2025-12-03T22:51:20.708325"
     },
     {
       "role": "user",
-      "content": "wie gehts dor",
-      "ts": "2025-12-03T14:02:21.884095"
+      "content": "search for ipv6",
+      "ts": "2025-12-03T22:51:25.787789"
     },
     {
       "role": "assistant",
-      "content": "Ich habs gut! Wie kann ich Ihnen heute weiter behilflich sein?",
-      "ts": "2025-12-03T14:02:22.116380"
-    },
-    {
-      "role": "user",
-      "content": "wie kannst du mir helfen",
-      "ts": "2025-12-03T14:02:27.593221"
-    },
-    {
-      "role": "assistant",
-      "content": "Ich kann dir bei vielen Dingen helfen, wie z.B.  Informationen finden, Aufgaben erledigen oder Ratschl\u00e4ge erhalten. Um genauere Hilfe zu bekommen, sag mir bitte, was ich f\u00fcr dich tun soll.",
-      "ts": "2025-12-03T14:02:32.107090"
+      "content": "IPv6 offers enhanced addressing and connectivity features over IPv4 [2]. Cisco provides detailed guides for configuring IPv6, including basic connectivity and addressing [1, 5].",
+      "ts": "2025-12-03T22:51:28.944404"
     },
     {
       "role": "user",
       "content": "/model",
-      "ts": "2025-12-03T14:02:46.953854"
+      "ts": "2025-12-03T22:51:32.562429"
+    },
+    {
+      "role": "user",
+      "content": "/sources",
+      "ts": "2025-12-03T22:51:51.768494"
+    },
+    {
+      "role": "user",
+      "content": "/metrics",
+      "ts": "2025-12-03T22:51:56.954268"
     },
     {
       "role": "user",
       "content": "/help",
-      "ts": "2025-12-03T14:03:31.404746"
+      "ts": "2025-12-03T22:52:18.817211"
     },
     {
       "role": "user",
-      "content": "hyprland config",
-      "ts": "2025-12-03T14:03:35.441539"
+      "content": "deep research recursion",
+      "ts": "2025-12-03T22:52:28.691716"
     },
     {
       "role": "assistant",
-      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
-      "ts": "2025-12-03T14:03:37.075536"
+      "content": "Recursion in computer science is a method where a function solves a problem by calling itself with a simpler version of the same problem [1]. It involves breaking down a problem into smaller instances until a base case is reached [1].",
+      "ts": "2025-12-03T22:52:31.679078"
     },
     {
       "role": "user",
-      "content": "can you tell me what keybinds we have in hyprland",
-      "ts": "2025-12-03T14:03:46.462026"
-    },
-    {
-      "role": "assistant",
-      "content": "In Hyprland, the keybinding options are configured using `~/.config/hypr/hyprland.conf`.  Commonly used commands include:\n\n* **`:`:**  for command-line interface (CLI) mode.\n* **`ctrl + alt + f1`:** for switching between screens.\n* **`ctrl + shift + h`:** to cycle through different modes, like fullscreen or normal. \n\n\nFor a comprehensive list of keybinds and their associated commands, you can consult the Hyprland documentation.",
-      "ts": "2025-12-03T14:03:47.465931"
-    },
-    {
-      "role": "user",
-      "content": "tell me what keybind i added inside of hyperland config",
-      "ts": "2025-12-03T14:04:08.119982"
-    },
-    {
-      "role": "assistant",
-      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
-      "ts": "2025-12-03T14:04:09.394260"
-    },
-    {
-      "role": "user",
-      "content": "create login py",
-      "ts": "2025-12-03T14:04:28.615082"
-    },
-    {
-      "role": "assistant",
-      "content": "File not found: /home/tobi/.config/hypr/login.py",
-      "ts": "2025-12-03T14:04:28.903146"
-    },
-    {
-      "role": "user",
-      "content": "create login.py",
-      "ts": "2025-12-03T14:04:32.308042"
+      "content": "/metrics",
+      "ts": "2025-12-03T22:52:37.189315"
     }
   ],
   "stats": {
-    "prompts": 0,
-    "actions": 0,
+    "prompts": 9,
+    "actions": 4,
     "files": 0,
     "urls": 0,
-    "searches": 0,
+    "searches": 4,
     "scrapes": 0
   },
   "precision_mode": false,
   "browsing_enabled": true,
   "context": {
-    "last_path": "/home/tobi/.config/hypr/hyprland.conf",
-    "last_result": "File not found: /home/tobi/.config/hypr/login.py",
-    "last_intent": "code_task",
-    "created_files": [
-      "login.py",
-      "login.py",
-      "login.py",
-      "ryx_main.py",
-      "test_login.py"
-    ]
+    "last_path": "",
+    "last_result": "\ud83d\udcca Verf\u00fcgbare Modelle:\n\n\nBALANCED:\n  \u2022 /models/medium/general/qwen2.5-7b-gptq\n\nSUPERVISOR:\n  \u2022 /models/medium/general/qwen2.5-7b-gptq\n\n\n\u2699\ufe0f Aktuelle Einstellungen:",
+    "last_intent": "list_models",
+    "created_files": []
   },
-  "saved_at": "2025-12-03T14:55:41.245033"
+  "saved_at": "2025-12-03T22:52:48.051904"
 }

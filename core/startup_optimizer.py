@@ -56,8 +56,8 @@ class StartupOptimizer:
         # Benchmark database initialization
         results['database'] = self._benchmark_database_init()
 
-        # Benchmark Ollama connection
-        results['ollama'] = self._benchmark_ollama_connection()
+        # Benchmark vLLM connection
+        results['vllm'] = self._benchmark_vllm_connection()
 
         # Save results
         self._save_benchmarks(results)
@@ -153,28 +153,27 @@ class StartupOptimizer:
                 details=str(e)
             )
 
-    def _benchmark_ollama_connection(self) -> BenchmarkResult:
-        """Benchmark Ollama connection"""
+    def _benchmark_vllm_connection(self) -> BenchmarkResult:
+        """Benchmark vLLM connection"""
         import requests
 
         start = time.perf_counter()
 
         try:
-            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            response = requests.get("http://localhost:8001/health", timeout=5)
 
             if response.status_code == 200:
-                models = response.json().get("models", [])
                 duration = (time.perf_counter() - start) * 1000
                 return BenchmarkResult(
-                    name='ollama',
+                    name='vllm',
                     duration_ms=duration,
                     success=True,
-                    details=f"Connected, {len(models)} models available"
+                    details="vLLM connected and healthy"
                 )
             else:
                 duration = (time.perf_counter() - start) * 1000
                 return BenchmarkResult(
-                    name='ollama',
+                    name='vllm',
                     duration_ms=duration,
                     success=False,
                     details=f"HTTP {response.status_code}"
@@ -182,15 +181,15 @@ class StartupOptimizer:
         except requests.exceptions.ConnectionError:
             duration = (time.perf_counter() - start) * 1000
             return BenchmarkResult(
-                name='ollama',
+                name='vllm',
                 duration_ms=duration,
                 success=False,
-                details="Connection refused - Ollama not running"
+                details="Connection refused - vLLM not running. Run: ryx restart"
             )
         except Exception as e:
             duration = (time.perf_counter() - start) * 1000
             return BenchmarkResult(
-                name='ollama',
+                name='vllm',
                 duration_ms=duration,
                 success=False,
                 details=str(e)
@@ -362,7 +361,7 @@ class StartupOptimizer:
         """Generate systemd service file for boot loading"""
         service_content = f"""[Unit]
 Description=Ryx AI Preloader
-After=network.target ollama.service
+After=network.target llm.service
 
 [Service]
 Type=oneshot

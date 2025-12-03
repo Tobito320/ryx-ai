@@ -1,0 +1,21 @@
+{
+  "query": "hyprland wayland compositor",
+  "results": [
+    {
+      "title": "Hyprland is an independent, highly customizable, dynamic tiling Wayland ...",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fgithub.com%2Fhyprwm%2FHyprland&rut=f757afbf41d987baeec0265416edbaca168751967060a2fad7433cbb22240077",
+      "content": "Hyprlandis a 100% independent, dynamic tilingWaylandcompositorthat doesn't sacrifice on its looks. It provides the latestWaylandfeatures, is highly customizable, has all the eyecandy, the most powerful plugins, easy IPC, much more QoL stuff than othercompositorsand more..."
+    },
+    {
+      "title": "Hyprland - ArchWiki",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwiki.archlinux.org%2Ftitle%2FHyprland&rut=9108465fcbc598b746bc16773d39ce8973dc0a009a47761e75cc3d6554416753",
+      "content": "Hyprlandis an independent tilingWaylandcompositorwritten in C++. Noteworthy features ofHyprlandinclude dynamic tiling, tabbed windows, a clean and readable C++ code-base, and a custom renderer that provides window animations, rounded corners, and Dual-Kawase Blur on transparent windows. General usage and configuration is thoroughly documented atHyprlandwiki."
+    },
+    {
+      "title": "Hyprland: The Next-Gen Wayland Compositor - JR IT Services",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.jr%2Dit%2Dservices.de%2Fhyprland%2Dthe%2Dnext%2Dgen%2Dwayland%2Dcompositor%2F&rut=ffe830daf7ad4db2325963341538f900b26f32a4e728a1ebd6e2e3cccb8fa575",
+      "content": "Hyprlandis an emergingWaylandcompositorthat has garnered significant attention in the Linux desktop ecosystem. Designed for advanced users and those seeking maximum customization,Hyprlandis a modern, feature-packedcompositorbuilt with dynamic tiling and window management in mind. At its core,Hyprlandaims to offer a superior user experience for those wanting to leave the X11 legacy ..."
+    }
+  ],
+  "timestamp": "2025-12-03T19:19:31.301786"
+}

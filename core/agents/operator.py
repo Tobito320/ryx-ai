@@ -51,7 +51,7 @@ OUTPUT ONLY VALID JSON:
     
     def __init__(
         self,
-        ollama_client,
+        llm_client,
         model: str = "qwen2.5:3b",
         agent_type: AgentType = AgentType.SHELL
     ):
@@ -64,7 +64,7 @@ OUTPUT ONLY VALID JSON:
             timeout_seconds=30,
             max_retries=2
         )
-        super().__init__(config, ollama_client)
+        super().__init__(config, llm_client)
         self.agent_type = agent_type
         self.tool_registry = get_tool_registry()
         self.status_callbacks: List[Callable[[OperatorStatus], None]] = []
@@ -300,24 +300,24 @@ OUTPUT ONLY valid JSON with exact parameter names:
 class FileOperatorAgent(OperatorAgent):
     """Specialized operator for file operations"""
     
-    def __init__(self, ollama_client, model: str = "qwen2.5:3b"):
-        super().__init__(ollama_client, model, AgentType.FILE)
+    def __init__(self, llm_client, model: str = "qwen2.5:3b"):
+        super().__init__(llm_client, model, AgentType.FILE)
         self.config.allowed_tools = ["find_files", "read_file", "search_content"]
 
 
 class ShellOperatorAgent(OperatorAgent):
     """Specialized operator for shell commands"""
     
-    def __init__(self, ollama_client, model: str = "qwen2.5:3b"):
-        super().__init__(ollama_client, model, AgentType.SHELL)
+    def __init__(self, llm_client, model: str = "qwen2.5:3b"):
+        super().__init__(llm_client, model, AgentType.SHELL)
         self.config.allowed_tools = ["run_command", "find_files", "read_file"]
 
 
 class CodeOperatorAgent(OperatorAgent):
     """Specialized operator for code operations"""
     
-    def __init__(self, ollama_client, model: str = "qwen2.5-coder:7b"):
-        super().__init__(ollama_client, model, AgentType.CODE)
+    def __init__(self, llm_client, model: str = "qwen2.5-coder:7b"):
+        super().__init__(llm_client, model, AgentType.CODE)
         self.config.model_size = ModelSize.MEDIUM
         self.config.max_tokens = 1000
         self.config.allowed_tools = ["read_file", "run_command", "search_content"]

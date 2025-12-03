@@ -1,77 +1,53 @@
 {
-  "ollama_base_url": "http://localhost:11434",
+  "vllm_base_url": "http://localhost:8001",
+  "searxng_url": "http://localhost:8888",
   "models": {
+    "supervisor": {
+      "name": "/models/medium/general/qwen2.5-7b-gptq",
+      "role": "supervisor",
+      "description": "7B Supervisor - assigns and synthesizes",
+      "vram_mb": 5000,
+      "max_tokens": 4096,
+      "timeout_seconds": 60
+    },
     "fast": {
-      "name": "qwen2.5:1.5b",
+      "name": "/models/small/coding/qwen2.5-coder-1.5b",
       "role": "fast",
-      "description": "Blitzschnell für Intent-Erkennung",
+      "description": "1.5B Agent - quick tasks",
       "vram_mb": 1500,
       "max_tokens": 1024,
       "timeout_seconds": 10
     },
-    "chat": {
-      "name": "gemma2:2b",
-      "role": "chat", 
-      "description": "Schneller Chat, gutes Deutsch",
-      "vram_mb": 2000,
-      "max_tokens": 2048,
-      "timeout_seconds": 15
-    },
     "code": {
-      "name": "qwen2.5-coder:14b",
+      "name": "/models/medium/coding/qwen2.5-coder-7b-gptq",
       "role": "code",
-      "description": "Code schreiben, 88% HumanEval",
-      "vram_mb": 10000,
+      "description": "7B Coder - coding tasks",
+      "vram_mb": 5000,
       "max_tokens": 8192,
       "timeout_seconds": 90
     },
-    "reason": {
-      "name": "deepseek-r1:14b",
-      "role": "reason",
-      "description": "Chain-of-Thought Reasoning",
-      "vram_mb": 10000,
-      "max_tokens": 8192,
-      "timeout_seconds": 120
-    },
-    "embed": {
-      "name": "nomic-embed-text",
-      "role": "embed",
-      "description": "Vektor-Embeddings für Suche",
-      "vram_mb": 500,
-      "max_tokens": 8192,
-      "timeout_seconds": 30
-    },
-    "fallback": {
-      "name": "gpt-oss:20b",
-      "role": "fallback",
-      "description": "Backup wenn andere versagen",
-      "vram_mb": 13000,
-      "max_tokens": 8192,
-      "timeout_seconds": 120
-    },
-    "uncensored": {
-      "name": "llama2-uncensored:7b",
-      "role": "uncensored",
-      "description": "Keine Einschränkungen",
-      "vram_mb": 4500,
+    "default": {
+      "name": "/models/medium/general/qwen2.5-7b-gptq",
+      "role": "default",
+      "description": "7B General - default responses",
+      "vram_mb": 5000,
       "max_tokens": 4096,
       "timeout_seconds": 60
     }
   },
   "task_routing": {
     "intent_detection": "fast",
-    "simple_chat": "chat",
+    "simple_chat": "default",
+    "search": "supervisor",
     "code_explore": "code",
     "code_plan": "code",
     "code_apply": "code",
-    "code_verify": "reason",
-    "semantic_search": "embed",
-    "uncensored_chat": "uncensored"
+    "code_verify": "default"
   },
   "phase_routing": {
     "explore": "code",
     "plan": "code",
     "apply": "code",
-    "verify": "reason"
+    "verify": "default"
   }
 }

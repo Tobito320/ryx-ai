@@ -1,0 +1,31 @@
+{
+  "query": "arch linux pacman",
+  "results": [
+    {
+      "title": "pacman - ArchWiki",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwiki.archlinux.org%2Ftitle%2FPacman&rut=cab2c3437ef75802f8f60cdeb7a7071d88a9794669923664b7a0fd71e07da84d",
+      "content": "Thepacmanpackage manager is one of the major distinguishing features ofArchLinux. It combines a simple binary package format with an easy-to-useArchbuild system. The goal ofpacmanis to make it possible to easily manage packages, whether they are from the official repositories or the user's own builds.pacmankeeps the system up-to-date by synchronizing package lists with the master ..."
+    },
+    {
+      "title": "Using pacman Commands in Arch Linux [Beginner's Guide]",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fitsfoss.com%2Fpacman%2Dcommand%2F&rut=741b6c71c31cb8b1afd45d90b98b29f04ca472f097c2aaa8fca1f426663eeb8e",
+      "content": "Learn what you can do withpacmancommands inLinux, how to use them to find new packages, install and upgrade new packages, and clean your system."
+    },
+    {
+      "title": "10+ pacman command Examples Arch Linux [Cheat Sheet]",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.golinuxcloud.com%2Fpacman%2Dcommand%2Din%2Darch%2Dlinux%2F&rut=e3aace38aa98318b3092bf08d88c870f3777b4866e53076be173ab3fc637a389",
+      "content": "Archis targeted more toward power users who like to have complete customization control over how their packages are built and added to the system.Archuses a package-management tool calledpacman, which can be used to install both pre-built, binary packages and custom-built packages."
+    },
+    {
+      "title": "Pacman Commands Cheat Sheet for Arch Linux :: IT'S FOSS",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fitsfoss.gitlab.io%2Fpost%2Fpacman%2Dcommands%2Dcheat%2Dsheet%2Dfor%2Darch%2Dlinux%2F&rut=08d2ccc13dd06ca4007ff51ebf8a630e7cd9cad99325adc0177f74e6ead8ff2d",
+      "content": "MasterArchLinuxwith thisPacmancommands cheat sheet. Learn essential commands to simplify your daily interaction and experience."
+    },
+    {
+      "title": "Arch Linux Pacman: A Detailed Guide with Commands and Examples",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fdev.to%2Fsnigdhaos%2Farch%2Dlinux%2Dpacman%2Da%2Ddetailed%2Dguide%2Dwith%2Dcommands%2Dand%2Dexamples%2Den5&rut=bd596046f47c082dcf8af3cd6dae6e5ae5448fab0b8fb4e32357c318beb0cc8b",
+      "content": "ForArchLinuxusers,Pacmanis the Swiss Army knife of package management. Designed for simplicity and efficiency, it handles everything from installing software to resolving dependencies, all via the command line. \ud83c\udf1f Whether you're just starting withArchor looking to deepen your understanding, this guide dives deep intoPacmancommands with detailed explanations and examples. Let's ..."
+    }
+  ],
+  "timestamp": "2025-12-03T19:47:32.815741"
+}

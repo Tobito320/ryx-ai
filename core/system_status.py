@@ -20,24 +20,40 @@ class SystemStatus:
         self.data_dir = get_data_dir()
         self.log_dir = get_log_dir()
 
-    def get_ollama_status(self) -> Dict[str, Any]:
-        """Get Ollama service status"""
+    def get_llm_status(self) -> Dict[str, Any]:
+        """Get vLLM backend status"""
+        import requests
+        
+        # Check vLLM (only backend)
         try:
-            import requests
-            response = requests.get("http://localhost:11434/api/tags", timeout=2)
-
+            response = requests.get("http://localhost:8000/health", timeout=2)
             if response.status_code == 200:
-                models = response.json().get("models", [])
+                # Get actual model info
+                try:
+                    models_resp = requests.get("http://localhost:8000/v1/models", timeout=2)
+                    if models_resp.status_code == 200:
+                        models_data = models_resp.json().get("data", [])
+                        model_names = [m.get("id", "unknown") for m in models_data]
+                        return {
+                            'running': True,
+                            'backend': 'vllm',
+                            'models': model_names,
+                            'model_count': len(model_names)
+                        }
+                except:
+                    pass
                 return {
                     'running': True,
-                    'models': [m['name'] for m in models],
-                    'model_count': len(models)
+                    'backend': 'vllm',
+                    'models': ['unknown'],
+                    'model_count': 1
                 }
         except:
             pass
-
+        
         return {
             'running': False,
+            'backend': None,
             'models': [],
             'model_count': 0
         }
@@ -129,10 +145,10 @@ class SystemStatus:
             'issues': []
         }
 
-        # Check Ollama
-        ollama = self.get_ollama_status()
-        if not ollama['running']:
-            health['issues'].append('Ollama not running')
+        # Check LLM backend (vLLM)
+        llm_status = self.get_llm_status()
+        if not llm_status['running']:
+            health['issues'].append('vLLM not running. Start: ryx start vllm')
             health['overall'] = 'degraded'
 
         # Check databases
@@ -152,18 +168,19 @@ class SystemStatus:
         lines.append("\033[1;36m╰──────────────────────────────────────────╯\033[0m")
         lines.append("")
 
-        # Ollama Status
-        ollama = self.get_ollama_status()
-        if ollama['running']:
-            lines.append(f"\033[1;32m●\033[0m Ollama: \033[1;32mOnline\033[0m")
-            lines.append(f"  Models: {ollama['model_count']} installed")
-            for model in ollama['models'][:3]:
+        # LLM Backend Status (vLLM)
+        llm = self.get_llm_status()
+        if llm['running']:
+            backend = llm.get('backend', 'vllm').upper()
+            lines.append(f"\033[1;32m●\033[0m LLM Backend: \033[1;32m{backend} Online\033[0m")
+            lines.append(f"  Models: {llm['model_count']} available")
+            for model in llm['models'][:3]:
                 lines.append(f"    • {model}")
-            if ollama['model_count'] > 3:
-                lines.append(f"    • ... and {ollama['model_count'] - 3} more")
+            if llm['model_count'] > 3:
+                lines.append(f"    • ... and {llm['model_count'] - 3} more")
         else:
-            lines.append(f"\033[1;31m●\033[0m Ollama: \033[1;31mOffline\033[0m")
-            lines.append(f"  \033[2mStart with: systemctl --user start ollama\033[0m")
+            lines.append(f"\033[1;31m●\033[0m LLM Backend: \033[1;31mOffline\033[0m")
+            lines.append(f"  \033[2mStart with: ryx start vllm\033[0m")
 
         lines.append("")
 

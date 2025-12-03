@@ -46,6 +46,32 @@ def cli_main():
         session.run()
         return
 
+    # Handle special commands first
+    first_arg = remaining_args[0].lower() if remaining_args else ""
+    
+    # Service commands: ryx start/stop/status
+    if first_arg == "start":
+        service = remaining_args[1] if len(remaining_args) > 1 else "ryxhub"
+        _start_service(service)
+        return
+    elif first_arg == "stop":
+        service = remaining_args[1] if len(remaining_args) > 1 else "ryxhub"
+        _stop_service(service)
+        return
+    elif first_arg == "status":
+        _service_status()
+        return
+    
+    # Benchmark commands: ryx benchmark [list|run|compare]
+    elif first_arg == "benchmark":
+        _handle_benchmark(remaining_args[1:])
+        return
+    
+    # RSI commands: ryx rsi [start|status|iterate]
+    elif first_arg == "rsi":
+        _handle_rsi(remaining_args[1:])
+        return
+
     # Everything else: Let brain understand and execute
     prompt = " ".join(remaining_args).strip()
     
@@ -54,12 +80,10 @@ def cli_main():
         return
     
     from core.ryx_brain import get_brain
-    from core.ollama_client import OllamaClient
-    from core.model_router import ModelRouter
+    from core.llm_backend import get_backend
     
-    router = ModelRouter()
-    ollama = OllamaClient(base_url=router.get_ollama_url())
-    brain = get_brain(ollama)
+    backend = get_backend()
+    brain = get_brain(backend)
     
     plan = brain.understand(prompt)
     success, result = brain.execute(plan)
@@ -134,6 +158,13 @@ def _start_service(service: str):
     """Start a service (internal helper)"""
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
     
+    # "ryx start" with no args = start all (vllm + searxng)
+    if service in ["all", ""]:
+        print("🚀 Starting all services...")
+        _start_service("vllm")
+        _start_service("searxng")
+        return
+    
     # Normalize service name (AI might say "ryxhub", "hub", "web interface", etc.)
     if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
         from core.service_manager import ServiceManager
@@ -147,6 +178,31 @@ def _start_service(service: str):
         else:
             print(f"❌ Failed to start RyxHub: {result.get('error', 'Unknown error')}")
     
+    elif service in ["vllm", "llm", "model", "inference"]:
+        from core.docker_services import start_service
+        
+        print("🚀 Starting vLLM (GPU inference)...")
+        result = start_service("vllm")
+        
+        if result.get("success"):
+            print("✅ vLLM started")
+            print("   Port: http://localhost:8001")
+            print("   Model: qwen2.5-7b-gptq")
+        else:
+            print(f"❌ Failed to start vLLM: {result.get('error', 'Unknown')}")
+    
+    elif service in ["searxng", "search", "websearch"]:
+        from core.docker_services import start_service
+        
+        print("🔍 Starting SearXNG (web search)...")
+        result = start_service("searxng")
+        
+        if result.get("success"):
+            print("✅ SearXNG started")
+            print("   Port: http://localhost:8888")
+        else:
+            print(f"❌ Failed to start SearXNG: {result.get('error', 'Unknown')}")
+    
     elif service in ["session", "interactive", "cli", "terminal"]:
         from core.session_loop import SessionLoop
         session = SessionLoop()
@@ -154,12 +210,20 @@ def _start_service(service: str):
     
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available: ryxhub, session")
+        print("Available: all, vllm, searxng, ryxhub, session")
 
 
 def _stop_service(service: str):
     """Stop a service (internal helper)"""
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
+    
+    # "ryx stop all" = stop everything
+    if service in ["all", ""]:
+        print("🛑 Stopping all services...")
+        _stop_service("vllm")
+        _stop_service("searxng")
+        _stop_service("ryxhub")
+        return
     
     if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
         from core.service_manager import ServiceManager
@@ -169,23 +233,68 @@ def _stop_service(service: str):
             print("✅ Stopped RyxHub")
         else:
             print(f"❌ Failed to stop RyxHub: {result.get('error', 'Unknown error')}")
+    
+    elif service in ["vllm", "llm", "model", "inference"]:
+        from core.docker_services import stop_service
+        
+        print("🛑 Stopping vLLM...")
+        result = stop_service("vllm")
+        
+        if result.get("success"):
+            print("✅ vLLM stopped")
+        else:
+            print(f"❌ Failed to stop vLLM: {result.get('error', 'Unknown')}")
+    
+    elif service in ["searxng", "search", "websearch"]:
+        from core.docker_services import stop_service
+        
+        print("🛑 Stopping SearXNG...")
+        result = stop_service("searxng")
+        
+        if result.get("success"):
+            print("✅ SearXNG stopped")
+        else:
+            print(f"❌ Failed to stop SearXNG: {result.get('error', 'Unknown')}")
+    
     else:
         print(f"❌ Unknown service: {service}")
+        print("Available: all, vllm, searxng, ryxhub")
 
 
 def _service_status(service: str = None):
     """Check service status (internal helper)"""
-    from core.service_manager import ServiceManager
-    manager = ServiceManager()
-    status = manager.get_status()
+    from core.docker_services import get_docker_manager, service_status
     
-    print("🔍 Service Status:")
-    for svc, info in status.items():
-        state = "🟢 Running" if info.get('running') else "🔴 Stopped"
-        print(f"  {svc}: {state}")
-        if info.get('ports'):
-            for port_info in info['ports']:
-                print(f"    └─ {port_info}")
+    print("\n🔍 Service Status:\n")
+    
+    # Docker services status
+    docker_status = service_status()
+    
+    if docker_status.get("success"):
+        for svc_name, info in docker_status.get("services", {}).items():
+            status = info.get("status", "unknown")
+            if status == "running":
+                urls = info.get("urls", [])
+                url_str = f" ({urls[0]})" if urls else ""
+                print(f"  {svc_name}: 🟢 Running{url_str}")
+            elif status == "stopped":
+                print(f"  {svc_name}: 🔴 Stopped")
+            else:
+                print(f"  {svc_name}: ⚪ {status}")
+    else:
+        print(f"  ⚠️ Could not get Docker status: {docker_status.get('error', 'Unknown')}")
+    
+    # Also show legacy service manager status
+    try:
+        from core.service_manager import ServiceManager
+        manager = ServiceManager()
+        legacy_status = manager.get_status()
+        
+        for svc, info in legacy_status.items():
+            state = "🟢 Running" if info.get('running') else "🔴 Stopped"
+            print(f"  {svc}: {state}")
+    except:
+        pass
 
 
 def _run_self_healing(aggressive: bool = False):
@@ -201,6 +310,197 @@ def _run_self_healing(aggressive: bool = False):
     
     print()
     print(result.summary)
+
+
+def _handle_benchmark(args):
+    """Handle benchmark commands"""
+    import asyncio
+    
+    if not args:
+        args = ["list"]
+    
+    cmd = args[0].lower()
+    
+    if cmd == "list":
+        from core.benchmarks import BenchmarkRegistry
+        print("\n📊 Available Benchmarks:\n")
+        for name in BenchmarkRegistry.list_all():
+            benchmark = BenchmarkRegistry.create(name)
+            if benchmark:
+                print(f"  • {name}")
+                print(f"    {benchmark.description}")
+                print(f"    Problems: {len(benchmark.problems)}")
+                print()
+    
+    elif cmd == "run":
+        from core.benchmarks import BenchmarkRunner, BenchmarkRegistry, RunConfig
+        
+        benchmark_name = args[1] if len(args) > 1 else "coding_tasks"
+        dry_run = "--dry-run" in args
+        verbose = "-v" in args or "--verbose" in args
+        
+        if benchmark_name not in BenchmarkRegistry.list_all():
+            print(f"❌ Unknown benchmark: {benchmark_name}")
+            print(f"Available: {', '.join(BenchmarkRegistry.list_all())}")
+            return
+        
+        print(f"\n🚀 Running benchmark: {benchmark_name}")
+        
+        if dry_run:
+            print("   (dry-run mode - using dummy executor)")
+        
+        runner = BenchmarkRunner()
+        
+        if dry_run:
+            async def dummy_executor(problem, config):
+                return f"# Placeholder\ndef placeholder(): pass"
+            runner.set_executor(dummy_executor)
+        else:
+            # Try to connect to vLLM
+            try:
+                from core.benchmarks.executor import create_connected_executor
+                executor = asyncio.get_event_loop().run_until_complete(
+                    create_connected_executor()
+                )
+                if executor:
+                    runner.set_executor(executor.run_problem)
+                else:
+                    print("❌ Cannot connect to vLLM. Use --dry-run or start vLLM first.")
+                    print("   Run: ryx start vllm")
+                    return
+            except Exception as e:
+                print(f"❌ Executor error: {e}")
+                print("   Use --dry-run for testing without LLM")
+                return
+        
+        config = RunConfig(verbose=verbose)
+        
+        try:
+            result = asyncio.get_event_loop().run_until_complete(
+                runner.run(benchmark_name, config)
+            )
+            print(result.summary())
+            print(f"\n💾 Results saved: {result.run_id}")
+        except Exception as e:
+            print(f"❌ Benchmark failed: {e}")
+    
+    elif cmd == "history":
+        from core.benchmarks import BenchmarkRunner
+        runner = BenchmarkRunner()
+        
+        benchmark_name = args[1] if len(args) > 1 else None
+        runs = runner.list_runs(benchmark_name)
+        
+        if not runs:
+            print("ℹ️  No benchmark runs found")
+            return
+        
+        print(f"\n📜 Benchmark History:\n")
+        for run_id in runs[:10]:
+            run = runner.load_run(run_id)
+            if run:
+                print(f"  {run_id}")
+                print(f"    Score: {run.average_score:.2%} | Passed: {run.passed_count}/{run.total_problems}")
+                print()
+    
+    elif cmd == "compare":
+        if len(args) < 3:
+            print("Usage: ryx benchmark compare <run_id_1> <run_id_2>")
+            return
+        
+        from core.benchmarks import BenchmarkRunner
+        runner = BenchmarkRunner()
+        
+        try:
+            diff = runner.compare(args[1], args[2])
+            print(f"\n📊 Comparison:\n")
+            print(f"Score: {diff['run1_score']:.2%} → {diff['run2_score']:.2%} ({diff['score_diff']:+.2%})")
+            print(f"Improved: {diff['improved_count']} problems")
+            print(f"Regressed: {diff['regressed_count']} problems")
+            
+            if diff['is_improvement']:
+                print("\n✅ Run 2 is an improvement!")
+            else:
+                print("\n⚠️  Run 2 has regressions")
+        except Exception as e:
+            print(f"❌ Error: {e}")
+    
+    else:
+        print(f"Unknown benchmark command: {cmd}")
+        print("Available: list, run, history, compare")
+
+
+def _handle_rsi(args):
+    """Handle RSI (self-improvement) commands"""
+    import asyncio
+    
+    if not args:
+        args = ["status"]
+    
+    cmd = args[0].lower()
+    
+    if cmd == "status":
+        from core.rsi import RSILoop
+        rsi = RSILoop()
+        
+        summary = rsi.get_summary()
+        print("\n🔄 RSI Status:\n")
+        print(f"  Phase: {summary['current_phase']}")
+        print(f"  Iterations: {summary['total_iterations']}")
+        print(f"  Accepted: {summary['accepted']}")
+        print(f"  Rejected: {summary['rejected']}")
+        print(f"  Total improvement: {summary['total_improvement']:.2%}")
+    
+    elif cmd == "iterate":
+        print("\n🔄 Starting RSI iteration...")
+        print("   (This requires vLLM to be running)")
+        
+        from core.rsi import RSILoop, RSIConfig
+        
+        config = RSIConfig(
+            benchmarks=["coding_tasks", "bug_fixing"],
+            require_approval=True,
+        )
+        rsi = RSILoop(config)
+        
+        async def run_iteration():
+            await rsi.initialize()
+            return await rsi.iterate()
+        
+        try:
+            result = asyncio.get_event_loop().run_until_complete(run_iteration())
+            print(f"\n📊 Iteration complete:")
+            print(f"   Baseline: {result.baseline_score:.2%}")
+            print(f"   New: {result.new_score:.2%}")
+            print(f"   Accepted: {result.accepted}")
+        except Exception as e:
+            print(f"❌ RSI iteration failed: {e}")
+    
+    elif cmd == "loop":
+        max_iter = int(args[1]) if len(args) > 1 else 5
+        print(f"\n🔄 Starting RSI loop ({max_iter} max iterations)...")
+        
+        from core.rsi import RSILoop, RSIConfig
+        
+        config = RSIConfig(require_approval=True)
+        rsi = RSILoop(config)
+        
+        async def run_loop():
+            await rsi.initialize()
+            await rsi.run_loop(max_iterations=max_iter)
+            return rsi.get_summary()
+        
+        try:
+            summary = asyncio.get_event_loop().run_until_complete(run_loop())
+            print(f"\n📊 RSI loop complete:")
+            print(f"   Total iterations: {summary['total_iterations']}")
+            print(f"   Improvements accepted: {summary['accepted']}")
+        except Exception as e:
+            print(f"❌ RSI loop failed: {e}")
+    
+    else:
+        print(f"Unknown RSI command: {cmd}")
+        print("Available: status, iterate, loop")
 
 
 def _remember(content: str, parameters: Dict):
@@ -300,15 +600,36 @@ USAGE:
     ryx                    Start interactive session
     ryx "prompt"           Execute prompt directly
 
+SERVICES:
+    ryx start vllm         Start vLLM (GPU inference)
+    ryx start ryxhub       Start web dashboard
+    ryx stop vllm          Stop vLLM
+    ryx stop ryxhub        Stop web dashboard
+    ryx status             Show all service status
+
+BENCHMARKS:
+    ryx benchmark list     List available benchmarks
+    ryx benchmark run      Run a benchmark
+    ryx benchmark history  Show past runs
+    ryx benchmark compare  Compare two runs
+
+RSI (Self-Improvement):
+    ryx rsi status         Show RSI status
+    ryx rsi iterate        Run one improvement iteration
+    ryx rsi loop [n]       Run n improvement iterations
+
 SHORTCUTS:
     @                      Include file contents
     !                      Run shell command
-    Ctrl+c                 Cancel/Exit
+    Ctrl+c                 Interrupt current operation
+    Ctrl+c twice           Exit session
 
-COMMANDS:
+SESSION COMMANDS:
     /help                  Show help
     /clear                 Clear conversation
     /model                 Show/change model
+    /style <name>          Set style (normal/concise/explanatory/learning/formal)
+    /sources               Show sources from last search
     /status                Show statistics
     /quit                  Exit session
 
@@ -317,6 +638,8 @@ EXAMPLES:
     ryx "open hyprland config"   Open config file
     ryx "search recursion"       Web search
     ryx "create login.py"        Generate code
+    ryx start vllm               Start GPU inference
+    ryx benchmark run            Run coding benchmark
 """)
 
 

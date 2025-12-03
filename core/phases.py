@@ -15,6 +15,8 @@ Now integrated with:
 - ryx_pkg/git: Git integration (GitManager, GitSafety)
 - ryx_pkg/editing: Diff-based editing (DiffEditor)
 - ryx_pkg/testing: Test execution (TestRunner)
+- core/memory: Experience-based learning
+- core/healing: Self-healing on exceptions
 """
 
 from enum import Enum
@@ -48,6 +50,15 @@ try:
 except ImportError as e:
     logger.warning(f"P1 modules not available: {e}")
     P1_MODULES_AVAILABLE = False
+
+# Import RSI modules (experience memory, healing)
+try:
+    from core.memory import get_memory, ExperienceType
+    from core.healing import ExceptionHandler
+    RSI_MODULES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"RSI modules not available: {e}")
+    RSI_MODULES_AVAILABLE = False
 
 
 class Phase(Enum):
@@ -457,6 +468,34 @@ class PhaseExecutor:
         """Start a new task"""
         self.state.start_task(task)
         self.ui.task_start("Starting task", task[:60])
+        
+        # Check for similar past experiences
+        self._check_past_experiences(task)
+    
+    def _check_past_experiences(self, task: str):
+        """Check for similar past experiences and use insights"""
+        if not RSI_MODULES_AVAILABLE:
+            return
+        
+        try:
+            memory = get_memory()
+            
+            # Find similar experiences
+            matches = memory.find_similar(task, limit=3, category="code_task")
+            
+            if matches:
+                # Log what we found
+                for match in matches:
+                    if match.similarity > 0.3:
+                        exp = match.experience
+                        if exp.experience_type == ExperienceType.SUCCESS:
+                            logger.info(f"Found similar success: {exp.task_description[:50]}")
+                            self.ui.substep(f"💡 Similar task succeeded before")
+                        elif exp.experience_type == ExperienceType.FAILURE:
+                            logger.info(f"Found similar failure: {exp.error_if_any}")
+                            self.ui.warn(f"⚠️ Similar task failed: {exp.error_if_any[:50]}...")
+        except Exception as e:
+            logger.warning(f"Failed to check experiences: {e}")
     
     def execute_phase(self) -> bool:
         """Execute the current phase and transition to next"""
@@ -575,10 +614,10 @@ class PhaseExecutor:
         model_name = model_config.name
         
         # Call LLM if brain is available
-        if self.brain and hasattr(self.brain, 'ollama'):
+        if self.brain and hasattr(self.brain, 'llm'):
             self.ui.phase_start("PLAN", f"Asking {model_name}...")
             
-            response = self.brain.ollama.generate(
+            response = self.brain.llm.generate(
                 prompt=prompt,
                 model=model_name,
                 system="You are a code planning assistant. Output valid JSON only.",
@@ -888,10 +927,10 @@ Requirements:
 
 Output ONLY the code. No explanations, no markdown fences."""
 
-        if self.brain and hasattr(self.brain, 'ollama'):
+        if self.brain and hasattr(self.brain, 'llm'):
             self.ui.step_start(f"Generating {step.file_path}")
             
-            response = self.brain.ollama.generate(
+            response = self.brain.llm.generate(
                 prompt=prompt,
                 model=model_name,
                 system=f"You are a senior {lang} developer. Output only valid, complete code. No markdown, no explanations.",
@@ -1050,6 +1089,55 @@ Output ONLY the code. No explanations, no markdown fences."""
             
         self.state.checkpoint_ids = []
 
+    def _is_simple_task(self) -> bool:
+        """
+        Check if this is a simple task that doesn't need testing.
+        
+        Simple tasks:
+        - Single file creation (create X.py)
+        - Greeting/hello world scripts
+        - Demo files with no dependencies
+        - Configuration files
+        """
+        task = self.state.task.lower()
+        
+        # Simple task patterns
+        simple_patterns = [
+            # Single file creation
+            'create a file', 'create file', 'erstelle eine datei', 'erstelle datei',
+            'make a file', 'make file', 'new file',
+            # Hello world / greetings
+            'hello world', 'hallo welt', 'print hello', 'greet', 'greeting',
+            # Simple demos
+            'simple', 'basic', 'example', 'demo', 'test file',
+            # Quick scripts
+            'that prints', 'das printed', 'die ausgibt', 'ausgeben'
+        ]
+        
+        for pattern in simple_patterns:
+            if pattern in task:
+                return True
+        
+        # Also check: only 1 file created, file is small, no imports of project code
+        if len(self.state.changes) == 1:
+            change = self.state.changes[0]
+            if change.action in ['create', 'created']:
+                # Read file content to check simplicity
+                try:
+                    with open(change.file_path, 'r') as f:
+                        content = f.read()
+                    
+                    # Simple if under 50 lines and no complex imports
+                    lines = content.count('\n')
+                    has_complex_import = 'from core' in content or 'from ryx' in content
+                    
+                    if lines < 50 and not has_complex_import:
+                        return True
+                except:
+                    pass
+        
+        return False
+
     def _execute_verify(self) -> bool:
         """Verify phase: check results using TestRunner, LintRunner, HallucinationDetector"""
         # Get the REASON model for verification
@@ -1098,8 +1186,11 @@ Output ONLY the code. No explanations, no markdown fences."""
                     verification_issues.append(f"Consistency: {issue}")
                     self.ui.substep(f"⚠️ {issue}")
         
-        # 4. Test Execution
-        if has_changes:
+        # 4. Test Execution - SKIP for simple tasks
+        # Simple tasks: single file creation, greeting scripts, demos, etc.
+        is_simple = self._is_simple_task()
+        
+        if has_changes and not is_simple:
             # Use new TestRunner if available
             if self.test_runner and self.test_runner.framework:
                 self.ui.substep(f"Running tests ({self.test_runner.framework})...")
@@ -1238,14 +1329,14 @@ Output ONLY the code. No explanations, no markdown fences."""
             logger.debug("Supervisor agent not available for rescue")
             return False
         
-        if not self.brain or not hasattr(self.brain, 'ollama'):
+        if not self.brain or not hasattr(self.brain, 'llm'):
             return False
         
         self.ui.warn("Max retries exhausted - calling Supervisor for rescue...")
         
         try:
             # Create supervisor
-            supervisor = SupervisorAgent(self.brain.ollama)
+            supervisor = SupervisorAgent(self.brain.llm)
             
             # Build context
             context = Context(
@@ -1517,8 +1608,12 @@ IMPORTANT:
         
         With autonomous_retries > 0, will automatically attempt to fix issues
         without requiring human intervention.
+        
+        Now integrated with experience memory to learn from successes/failures.
         """
         auto_retry_count = 0
+        original_task = self.state.task
+        start_time = datetime.now()
         
         while self.state.phase not in [Phase.IDLE, Phase.ERROR, Phase.COMPLETE]:
             if not self.execute_phase():
@@ -1537,6 +1632,59 @@ IMPORTANT:
                     self.state.plan = None
                     
                     continue
+                
+                # Store failure experience
+                self._store_experience(
+                    original_task,
+                    success=False,
+                    errors=self.state.errors,
+                    duration=(datetime.now() - start_time).total_seconds()
+                )
                 return False
         
+        # Store success experience
+        if self.state.phase == Phase.COMPLETE:
+            self._store_experience(
+                original_task,
+                success=True,
+                changes=self.state.changes,
+                duration=(datetime.now() - start_time).total_seconds()
+            )
+        
         return self.state.phase == Phase.COMPLETE
+    
+    def _store_experience(
+        self,
+        task: str,
+        success: bool,
+        errors: List[str] = None,
+        changes: List[str] = None,
+        duration: float = 0.0
+    ):
+        """Store task experience for learning"""
+        if not RSI_MODULES_AVAILABLE:
+            return
+        
+        try:
+            memory = get_memory()
+            
+            if success:
+                memory.store_success(
+                    task=task,
+                    approach=f"Phase execution with {len(changes or [])} changes",
+                    result="\n".join(changes or []),
+                    category="code_task",
+                    tags=["phase-executor", "autonomous"],
+                    time=duration
+                )
+            else:
+                memory.store_failure(
+                    task=task,
+                    error="\n".join(errors or ["Unknown error"]),
+                    approach="Phase execution",
+                    category="code_task",
+                    tags=["phase-executor", "autonomous"],
+                    time=duration
+                )
+        except Exception as e:
+            logger.warning(f"Failed to store experience: {e}")

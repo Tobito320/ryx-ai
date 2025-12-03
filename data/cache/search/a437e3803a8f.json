@@ -1,0 +1,31 @@
+{
+  "query": "hyprland",
+  "results": [
+    {
+      "title": "GitHub - hyprwm/Hyprland: Hyprland is an independent, highly ...",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fgithub.com%2Fhyprwm%2FHyprland&rut=f757afbf41d987baeec0265416edbaca168751967060a2fad7433cbb22240077",
+      "content": "Hyprlandis an independent, highly customizable, dynamic tiling Wayland compositor that doesn't sacrifice on its looks. - hyprwm/Hyprland"
+    },
+    {
+      "title": "Hyprland - ArchWiki",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwiki.archlinux.org%2Ftitle%2FHyprland&rut=9108465fcbc598b746bc16773d39ce8973dc0a009a47761e75cc3d6554416753",
+      "content": "Hyprlandis an independent tiling Wayland compositor written in C++. Noteworthy features ofHyprlandinclude dynamic tiling, tabbed windows, a clean and readable C++ code-base, and a custom renderer that provides window animations, rounded corners, and Dual-Kawase Blur on transparent windows. General usage and configuration is thoroughly documented atHyprlandwiki."
+    },
+    {
+      "title": "Hyprland Standards",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fstandards.hyprland.org%2F&rut=2493f3ea0608aa828949930e422e86f7d42d552e7dbad263f9d37dabe859d574",
+      "content": "The documentation forHyprlandStandards.Welcome to standards! Take a look at a standard you're interested in from the navbar on the left."
+    },
+    {
+      "title": "Installing the Much Hyped Hyprland on Linux - It's FOSS",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fitsfoss.com%2Finstall%2Dhyprland%2F&rut=40b95b5277840617fbb2c500b3145a2834583a05ab67a3a9c63e23602b63cda9",
+      "content": "Hyprlandis a dynamic tiling window compositor that is both highly customizable and provides plenty of eye candy. Learn how to installHyprlandon Arch Linux, Ubuntu and other distributions with this guide."
+    },
+    {
+      "title": "4 reasons why Hyprland is the best windows manager for Linux",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.xda%2Ddevelopers.com%2Freasons%2Dwhy%2Dhyprland%2Dis%2Dthe%2Dbest%2Dwindow%2Dmanager%2Dfor%2Dlinux%2F&rut=9368cefce586c94e5c5cecc73deed1ddad3b410c89202fa04e66839beb82a317",
+      "content": "Hyprlandis a Wayland-based Windows Manager (WM) that promises a new way to interact with content displayed on your monitor. Supported on a few Linux distros, this WM is perfect for those feeling ..."
+    }
+  ],
+  "timestamp": "2025-12-03T19:44:55.683873"
+}

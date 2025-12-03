@@ -202,11 +202,11 @@ FALLBACK_CHAIN: Dict[ModelRole, List[ModelRole]] = {
 class ModelRouter:
     """
     Routes tasks to the appropriate model.
-    No guessing - each task type has a fixed model.
+    Now uses vLLM (single model at a time).
     """
     
-    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
-        self.ollama_base_url = os.environ.get('OLLAMA_BASE_URL', ollama_base_url)
+    def __init__(self, vllm_base_url: str = "http://localhost:8001"):
+        self.vllm_base_url = os.environ.get('VLLM_BASE_URL', vllm_base_url)
         self._available_models: Optional[List[str]] = None
     
     # ─────────────────────────────────────────────────────────────
@@ -282,25 +282,21 @@ class ModelRouter:
     
     @property
     def available_models(self) -> List[str]:
-        """Get list of models installed in Ollama"""
+        """Get list of models from vLLM"""
         if self._available_models is None:
             self._available_models = self._fetch_available_models()
         return self._available_models
     
     def _fetch_available_models(self) -> List[str]:
-        """Fetch available models from Ollama"""
+        """Fetch available models from vLLM"""
         try:
-            result = subprocess.run(
-                ["ollama", "list"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')[1:]  # Skip header
-                return [line.split()[0] for line in lines if line]
+            import requests
+            resp = requests.get(f"{self.vllm_base_url}/v1/models", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                return [m["id"] for m in data.get("data", [])]
         except Exception as e:
-            logger.warning(f"Failed to fetch models: {e}")
+            logger.warning(f"Failed to fetch models from vLLM: {e}")
         return []
     
     def refresh_available(self) -> List[str]:
@@ -308,9 +304,9 @@ class ModelRouter:
         self._available_models = None
         return self.available_models
     
-    def get_ollama_url(self) -> str:
-        """Get Ollama base URL"""
-        return self.ollama_base_url
+    def get_vllm_url(self) -> str:
+        """Get vLLM base URL"""
+        return self.vllm_base_url
     
     def is_available(self, role: ModelRole) -> bool:
         """Check if the model for a role is available"""

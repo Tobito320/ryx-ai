@@ -263,7 +263,7 @@ TOBI'S ENVIRONMENT:
 - File manager: thunar
 - Menu: wofi
 - Key configs: ~/.config/hypr/hyprland.conf, ~/.config/waybar/
-- Uses Ollama via Docker for AI models
+- Uses vLLM via Docker for AI models
 
 MY CAPABILITIES (as Tobi's partner):
 - Design and implement new menus, scripts, and workflows autonomously
@@ -357,7 +357,7 @@ MY APPROACH:
         })
         
         # Classify intent
-        intent = self.classifier.classify(prompt, self.router.ollama)
+        intent = self.classifier.classify(prompt, self.router.llm)
         
         # Handle special cases
         if intent.tier_override:
