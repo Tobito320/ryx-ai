@@ -1,6 +1,8 @@
 """
 Ryx AI - Ollama Client
 Production-grade Ollama client with streaming support and error handling
+
+Now with Tool-Call support for structured LLM outputs.
 """
 
 import os
@@ -9,10 +11,20 @@ import time
 import requests
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Generator, Callable
+from typing import Optional, Dict, Any, Generator, Callable, List, Union
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Import tool schema
+try:
+    from core.tool_schema import (
+        ToolCall, ToolCallSequence, ToolCallParser,
+        TOOL_ONLY_SYSTEM_PROMPT, get_tool_prompt, get_parser
+    )
+    TOOL_SCHEMA_AVAILABLE = True
+except ImportError:
+    TOOL_SCHEMA_AVAILABLE = False
 
 
 @dataclass
@@ -26,6 +38,9 @@ class GenerateResponse:
     prompt_eval_count: Optional[int] = None
     eval_count: Optional[int] = None
     error: Optional[str] = None
+    # Tool call support
+    tool_calls: Optional[List[ToolCall]] = None
+    is_complete: bool = False
 
 
 class OllamaClient:
@@ -287,6 +302,67 @@ class OllamaClient:
                 done=True,
                 error=str(e)
             )
+    
+    def generate_tool_call(
+        self,
+        task: str,
+        model: str = "qwen2.5-coder:14b",
+        context: str = "",
+        available_files: List[str] = None,
+        max_tokens: int = 2000,
+        temperature: float = 0.2
+    ) -> GenerateResponse:
+        """
+        Generate a tool call response from the LLM.
+        
+        Uses tool-only system prompt to force structured JSON output.
+        
+        Args:
+            task: The task description
+            model: Model to use
+            context: Additional context (file contents, etc.)
+            available_files: List of available files
+            max_tokens: Max tokens to generate
+            temperature: Sampling temperature (low for structured output)
+            
+        Returns:
+            GenerateResponse with parsed tool_calls
+        """
+        if not TOOL_SCHEMA_AVAILABLE:
+            return GenerateResponse(
+                response="",
+                model=model,
+                done=True,
+                error="Tool schema not available"
+            )
+        
+        # Build prompt
+        prompt = get_tool_prompt(task, context, available_files)
+        
+        # Generate with tool-only system prompt
+        response = self.generate(
+            prompt=prompt,
+            model=model,
+            system=TOOL_ONLY_SYSTEM_PROMPT,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        
+        if response.error:
+            return response
+        
+        # Parse tool calls from response
+        parser = get_parser()
+        sequence = parser.parse(response.response)
+        
+        if sequence:
+            response.tool_calls = sequence.calls
+            response.is_complete = sequence.complete
+        else:
+            # Parsing failed - still return the raw response
+            logger.warning(f"Failed to parse tool calls from: {response.response[:100]}...")
+        
+        return response
 
     def list_models(self) -> list:
         """List available models"""

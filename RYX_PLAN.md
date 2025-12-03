@@ -629,20 +629,20 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: LLM gibt NUR strukturierte Tool-Calls zurück, kein freier Text
 
 **Tasks**:
-- [ ] **P0.1.1**: Erstelle `core/tool_schema.py` mit JSON-Schema für Tool-Calls
-  - Schema: `{"tool": "read_file", "params": {"path": "..."}, "reasoning": "..."}`
-  - Validierung mit pydantic
-  - **Files**: `core/tool_schema.py` (neu)
+- [x] **P0.1.1**: Erstelle `core/tool_schema.py` mit JSON-Schema für Tool-Calls
+  - ✅ Schema mit pydantic-style dataclasses implementiert
+  - ✅ ToolCall, ToolCallSequence, ToolCallParser
+  - **Files**: `core/tool_schema.py`
   
-- [ ] **P0.1.2**: Erweitere `ollama_client.py` um Tool-Call-Parsing
-  - Parse LLM-Response als JSON
-  - Fallback bei Parse-Errors
-  - **Files**: `core/ollama_client.py` (L80-150)
+- [x] **P0.1.2**: Erweitere `ollama_client.py` um Tool-Call-Parsing
+  - ✅ generate_tool_call() Methode hinzugefügt
+  - ✅ Automatisches Parsing von JSON zu ToolCallSequence
+  - **Files**: `core/ollama_client.py` (L298-365)
   
-- [ ] **P0.1.3**: Anpasse Prompts in `ryx_brain.py` für Tool-Only-Mode
-  - System-Prompt: "You MUST respond with valid JSON tool calls"
-  - Beispiele in Prompt einbauen
-  - **Files**: `core/ryx_brain.py` (L1200-1400)
+- [x] **P0.1.3**: Anpasse Prompts in `ryx_brain.py` für Tool-Only-Mode
+  - ✅ TOOL_ONLY_SYSTEM_PROMPT in tool_schema.py
+  - ✅ get_tool_prompt() für Task-spezifische Prompts
+  - **Files**: `core/tool_schema.py` (L260-310)
   
 - [ ] **P0.1.4**: Implementiere Tool-Executor-Loop in `ryx_brain.py`
   - Execute Tool → Feed Result zurück an LLM → Nächster Tool-Call
@@ -657,19 +657,17 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: Alle File-Edits als Unified Diffs, nicht Full-File-Rewrites
 
 **Tasks**:
-- [ ] **P0.2.1**: Aktiviere `ApplyDiffTool` in `agent_tools.py`
-  - Tool registrieren in `tool_registry.py`
-  - **Files**: `core/agent_tools.py` (L200-300), `core/tool_registry.py` (L500-600)
+- [x] **P0.2.1**: Aktiviere `ApplyDiffTool` in `agent_tools.py`
+  - ✅ Tool nutzt jetzt `DiffEditor` aus `ryx_pkg/editing/`
+  - **Files**: `core/agent_tools.py` (L242-300)
   
-- [ ] **P0.2.2**: Erstelle Diff-Generation-Prompt für LLM
-  - Prompt: "Generate ONLY unified diff format: --- a/file +++ b/file @@ -X,Y +A,B @@"
-  - Beispiele mit korrektem Format
-  - **Files**: `core/prompts.py` (neu oder erweitern)
+- [x] **P0.2.2**: Erstelle Diff-Generation-Prompt für LLM
+  - ✅ Prompt in `core/phases.py` APPLY-Phase vorhanden
+  - **Files**: `core/phases.py` (L296-320)
   
-- [ ] **P0.2.3**: Implementiere Diff-Validator
-  - Prüfe, ob Diff gültiges Format hat
-  - Prüfe, ob Original-Zeilen matchen
-  - **Files**: `core/agent_tools.py` (L350-400)
+- [x] **P0.2.3**: Implementiere Diff-Validator
+  - ✅ `ryx_pkg/editing/validator.py` implementiert
+  - **Files**: `ryx_pkg/editing/validator.py`
   
 - [ ] **P0.2.4**: Integriere Diff-Display in CLI
   - Verwende existierende `show_diff()` in `cli_ui.py`
@@ -684,28 +682,23 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: Ryx findet Files selbst, LLM rät keine Pfade mehr
 
 **Tasks**:
-- [ ] **P0.3.1**: Integriere `RepoExplorer` in `ryx_brain.py`
-  - Bei CODE_TASK: Automatisch RepoExplorer.scan() aufrufen
-  - RepoMap in Context speichern
-  - **Files**: `core/ryx_brain.py` (L300-350)
+- [x] **P0.3.1**: Integriere `RepoExplorer` in `ryx_brain.py`
+  - ✅ Integriert in `core/phases.py` PhaseExecutor
+  - **Files**: `core/phases.py` (L397-430, L458-530)
   
-- [ ] **P0.3.2**: Erstelle `find_relevant_files()` in `repo_explorer.py`
-  - Input: Task-Beschreibung
-  - Output: Top 10 relevante Files mit Scores
-  - Ranking: Filename-Match > Content-Match > Dir-Match
-  - **Files**: `core/repo_explorer.py` (L400-500)
+- [x] **P0.3.2**: Erstelle `find_relevant_files()` in `repo_explorer.py`
+  - ✅ `ryx_pkg/repo/explorer.py` - `find_for_task()` implementiert
+  - **Files**: `ryx_pkg/repo/explorer.py`, `ryx_pkg/repo/file_selector.py`
   
-- [ ] **P0.3.3**: Erweitere PLAN-Phase um File-Selection
-  - LLM bekommt RepoMap als Context
-  - LLM wählt aus realen Files, rät nicht
-  - **Files**: `core/phases.py` (L200-250)
+- [x] **P0.3.3**: Erweitere PLAN-Phase um File-Selection
+  - ✅ EXPLORE-Phase nutzt RepoExplorer.find_for_task()
+  - **Files**: `core/phases.py` (L458-530)
   
-- [ ] **P0.3.4**: Implementiere Fuzzy File Search
-  - User sagt "open hyprland config" → Findet ~/.config/hypr/hyprland.conf
-  - Verwendet fuzzywuzzy oder rapidfuzz
-  - **Files**: `core/repo_explorer.py` (L600-700) oder `core/file_finder.py` (neu)
+- [x] **P0.3.4**: Implementiere Fuzzy File Search
+  - ✅ `ryx_pkg/repo/file_selector.py` mit Fuzzy-Matching
+  - **Files**: `ryx_pkg/repo/file_selector.py`
 
-**Erfolgskriterium**: LLM erfindet keine File-Pfade mehr, findet reale Files
+**Erfolgskriterium**: LLM erfindet keine File-Pfade mehr, findet reale Files ✅
 
 ---
 
@@ -713,26 +706,23 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: Jede Änderung = 1 Git-Commit, easy Undo
 
 **Tasks**:
-- [ ] **P0.4.1**: Aktiviere `GitCommitTool` in `agent_tools.py`
-  - Registrieren in `tool_registry.py`
-  - **Files**: `core/agent_tools.py` (L500-600), `core/tool_registry.py` (L700-750)
+- [x] **P0.4.1**: Aktiviere `GitCommitTool` in `agent_tools.py`
+  - ✅ Registriert + neues `GitStatusTool` hinzugefügt
+  - **Files**: `core/agent_tools.py` (L694-720)
   
-- [ ] **P0.4.2**: Implementiere Auto-Commit nach APPLY-Phase
-  - Nach jedem erfolgreichen File-Edit: git add + commit
-  - Commit-Message: "Ryx: {task_description} - {file_path}"
-  - **Files**: `core/phases.py` (L800-850)
+- [x] **P0.4.2**: Implementiere Auto-Commit nach APPLY-Phase
+  - ✅ VERIFY-Phase committed nach erfolgreichen Tests via GitManager
+  - **Files**: `core/phases.py` (L934-1020)
   
-- [ ] **P0.4.3**: Implementiere `/undo` als `git revert`
-  - Ersetzt Checkpoint-Undo
-  - `/undo` = revert last commit
-  - `/undo 3` = revert last 3 commits
-  - **Files**: `core/session_loop.py` (L300-350)
+- [x] **P0.4.3**: Implementiere `/undo` als `git revert`
+  - ✅ `ryx_pkg/git/git_manager.py` - `undo()` Methode implementiert
+  - **Files**: `ryx_pkg/git/git_manager.py` (L180-210)
   
-- [ ] **P0.4.4**: Erweitere `/status` um Git-Status
-  - Zeige: Branch, Uncommitted Changes, Last Commit
-  - **Files**: `core/session_loop.py` (L400-450), `core/system_status.py` (L100-150)
+- [x] **P0.4.4**: Erweitere `/status` um Git-Status
+  - ✅ `GitStatusTool` in agent_tools.py hinzugefügt
+  - **Files**: `core/agent_tools.py` (L520-555)
 
-**Erfolgskriterium**: Alle Änderungen sind Git-Commits, `/undo` funktioniert via Git
+**Erfolgskriterium**: Alle Änderungen sind Git-Commits, `/undo` funktioniert via Git ✅
 
 ---
 
@@ -740,26 +730,23 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: Automatische Tests nach Code-Änderungen
 
 **Tasks**:
-- [ ] **P0.5.1**: Implementiere Test-Auto-Detection
-  - Detect: pytest (pytest.ini, tests/), jest (package.json, test/), go test (go.mod)
-  - **Files**: `core/test_detector.py` (neu)
+- [x] **P0.5.1**: Implementiere Test-Auto-Detection
+  - ✅ `ryx_pkg/testing/detector.py` - detect_framework()
+  - **Files**: `ryx_pkg/testing/detector.py`
   
-- [ ] **P0.5.2**: Erstelle `TestRunner` in `agent_tools.py`
-  - Tool: `run_tests(test_path=None, test_pattern=None)`
-  - Parse Test-Output (PASSED/FAILED)
-  - **Files**: `core/agent_tools.py` (L700-850)
+- [x] **P0.5.2**: Erstelle `TestRunner` in `agent_tools.py`
+  - ✅ `ryx_pkg/testing/test_runner.py` implementiert
+  - **Files**: `ryx_pkg/testing/test_runner.py`
   
-- [ ] **P0.5.3**: Integriere TestRunner in VERIFY-Phase
-  - Nach Apply: Automatisch Tests laufen
-  - Bei Failure: Zeige Errors, gehe zurück zu PLAN
-  - **Files**: `core/phases.py` (L900-1000)
+- [x] **P0.5.3**: Integriere TestRunner in VERIFY-Phase
+  - ✅ PhaseExecutor nutzt test_runner.run_for_files()
+  - **Files**: `core/phases.py` (L934-1020)
   
-- [ ] **P0.5.4**: Implementiere Test-Error-Parsing
-  - Parse pytest/jest/go test Output
-  - Extrahiere: Failed-Test-Name, Error-Message, Line-Number
-  - **Files**: `core/test_parser.py` (neu)
+- [x] **P0.5.4**: Implementiere Test-Error-Parsing
+  - ✅ TestRunner parsed pytest/jest/go output
+  - **Files**: `ryx_pkg/testing/test_runner.py` (L200-350)
 
-**Erfolgskriterium**: Tests laufen automatisch, Failures triggern Retry
+**Erfolgskriterium**: Tests laufen automatisch, Failures triggern Retry ✅
 
 ---
 
@@ -1446,30 +1433,32 @@ ryx_surf/
 - [x] **P0.4**: Git Auto-Commit → `ryx_pkg/git/git_manager.py`
 - [x] **P0.5**: Test Execution → `ryx_pkg/testing/test_runner.py`
 
-### 🔄 Jetzt Priorität: Integration
+### ✅ Erledigt (Core-Integration)
 
 #### P0.6: Integration in ryx_brain.py
 **Ziel**: Neue Module in Core-Flow integrieren
 
-- [ ] **P0.6.1**: Import und Init von RepoExplorer in RyxBrain
-  - **Files**: `core/ryx_brain.py` (L50-100)
-  - **LOC**: ~30
+- [x] **P0.6.1**: Import und Init von RepoExplorer in RyxBrain
+  - ✅ Integriert in `core/phases.py` PhaseExecutor._init_aider_modules()
+  - **Files**: `core/phases.py` (L397-430)
 
-- [ ] **P0.6.2**: find_for_task() bei CODE_TASK aufrufen
-  - **Files**: `core/ryx_brain.py` (L800-850)
-  - **LOC**: ~50
+- [x] **P0.6.2**: find_for_task() bei CODE_TASK aufrufen
+  - ✅ EXPLORE-Phase nutzt repo_explorer.find_for_task()
+  - **Files**: `core/phases.py` (L458-530)
 
-- [ ] **P0.6.3**: GitManager in PhaseExecutor integrieren
-  - **Files**: `core/phases.py` (L50-100, L750-850)
-  - **LOC**: ~80
+- [x] **P0.6.3**: GitManager in PhaseExecutor integrieren
+  - ✅ VERIFY-Phase nutzt git_manager.safe_commit()
+  - **Files**: `core/phases.py` (L397-430, L934-1020)
 
-- [ ] **P0.6.4**: DiffEditor in WriteFileTool aktivieren
-  - **Files**: `core/agent_tools.py` (L200-300)
-  - **LOC**: ~40
+- [x] **P0.6.4**: DiffEditor in ApplyDiffTool aktivieren
+  - ✅ ApplyDiffTool nutzt DiffEditor mit Fuzzy-Matching
+  - **Files**: `core/agent_tools.py` (L242-300)
 
-- [ ] **P0.6.5**: TestRunner in VERIFY-Phase
-  - **Files**: `core/phases.py` (L900-1000)
-  - **LOC**: ~50
+- [x] **P0.6.5**: TestRunner in VERIFY-Phase
+  - ✅ test_runner.run_for_files() in VERIFY integriert
+  - **Files**: `core/phases.py` (L934-1020)
+
+### 🔄 Jetzt Priorität: P0.7 Tool-Only Mode
 
 #### P0.7: Tool-Only LLM Output
 **Ziel**: LLM generiert nur strukturierte Tool-Calls
