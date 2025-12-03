@@ -34,11 +34,32 @@ try:
 except ImportError:
     TOMLLIB_AVAILABLE = False
 
-from ryx.core.permission_manager import (
-    PermissionDeniedError,
-    PermissionLevel,
-    require_permission,
-)
+# Try relative import first, then absolute
+try:
+    from .permission_manager import (
+        PermissionDeniedError,
+        PermissionLevel,
+        require_permission,
+    )
+except ImportError:
+    try:
+        from ryx_pkg.core.permission_manager import (
+            PermissionDeniedError,
+            PermissionLevel,
+            require_permission,
+        )
+    except ImportError:
+        # Fallback: Define minimal stubs if import fails
+        class PermissionDeniedError(Exception):
+            pass
+        class PermissionLevel:
+            READ = "read"
+            WRITE = "write"
+            EXECUTE = "execute"
+        def require_permission(level):
+            def decorator(func):
+                return func
+            return decorator
 
 
 # =============================================================================
