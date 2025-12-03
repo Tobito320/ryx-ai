@@ -587,6 +587,229 @@ class CLI:
         
         panel = Panel(help_text, title="[accent]Ryx[/]", border_style="border", padding=(0, 1))
         self.console.print(panel)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Plan Approval UI (P1.6)
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def show_plan(self, plan_steps: List[Dict[str, Any]], task: str = "") -> None:
+        """
+        Display execution plan for user approval.
+        
+        Format:
+        ┌─ Execution Plan ───────────────────────────────────────────┐
+        │ Task: Fix the login bug in auth.py                         │
+        ├────────────────────────────────────────────────────────────┤
+        │  1. [modify] core/auth.py                                  │
+        │     Fix validation logic in validate_token()               │
+        │  2. [modify] tests/test_auth.py                            │
+        │     Add test case for token expiry                         │
+        │  3. [run] pytest tests/test_auth.py                        │
+        │     Verify the fix works                                   │
+        └────────────────────────────────────────────────────────────┘
+        """
+        box_width = self.width - 4
+        
+        # Header
+        title = " Execution Plan "
+        title_padding = box_width - len(title) - 2
+        self.console.print("\n┌─" + title + "─" * title_padding + "┐", style="border")
+        
+        # Task description
+        if task:
+            task_line = f" Task: {task[:box_width - 10]}"
+            padding = box_width - len(task_line) - 1
+            self.console.print(
+                Text("│", style="border") +
+                Text(task_line, style="accent") +
+                Text(" " * max(0, padding) + "│", style="border")
+            )
+            self.console.print("├" + "─" * box_width + "┤", style="border")
+        
+        # Steps
+        for i, step in enumerate(plan_steps, 1):
+            action = step.get("action", "modify")
+            file_path = step.get("file_path", step.get("file", ""))
+            description = step.get("description", step.get("details", ""))
+            
+            # Action color
+            action_styles = {
+                "modify": "warning",
+                "create": "success",
+                "delete": "error",
+                "run": "info",
+                "read": "dim"
+            }
+            action_style = action_styles.get(action, "text")
+            
+            # Step line
+            step_text = f" {i}. [{action}] {file_path}"
+            padding = box_width - len(step_text) - 1
+            self.console.print(
+                Text("│", style="border") +
+                Text(f" {i}. ", style="step") +
+                Text(f"[{action}]", style=action_style) +
+                Text(f" {file_path[:box_width - 20]}", style="path") +
+                Text(" " * max(0, padding - len(f"[{action}]")) + "│", style="border")
+            )
+            
+            # Description (indented)
+            if description:
+                desc_line = f"    {description[:box_width - 8]}"
+                desc_padding = box_width - len(desc_line) - 1
+                self.console.print(
+                    Text("│", style="border") +
+                    Text(desc_line, style="dim") +
+                    Text(" " * max(0, desc_padding) + "│", style="border")
+                )
+        
+        # Footer
+        self.console.print("└" + "─" * box_width + "┘", style="border")
+    
+    def plan_approval_prompt(self, plan_steps: List[Dict[str, Any]], task: str = "") -> str:
+        """
+        Show plan and get user approval.
+        
+        Returns:
+            'y' - Approve and execute
+            'n' - Cancel
+            'e' - Edit plan
+            's' - Skip step (returns 's{step_num}')
+        """
+        self.show_plan(plan_steps, task)
+        
+        # Options line
+        options = Text("\n")
+        options.append("[y]", style="success bold")
+        options.append(" Approve  ", style="dim")
+        options.append("[n]", style="error bold")
+        options.append(" Cancel  ", style="dim")
+        options.append("[e]", style="warning bold")
+        options.append(" Edit  ", style="dim")
+        options.append("[s#]", style="info bold")
+        options.append(" Skip step", style="dim")
+        self.console.print(options)
+        
+        # Get input
+        try:
+            choice = self.console.input(Text("Choice: ", style="accent")).strip().lower()
+            return choice if choice else 'y'
+        except (KeyboardInterrupt, EOFError):
+            return 'n'
+    
+    def edit_plan_interactive(self, plan_steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Interactive plan editing.
+        
+        User can:
+        - Remove steps (d{num})
+        - Reorder steps (m{from},{to})
+        - Done editing (done)
+        """
+        edited_steps = list(plan_steps)
+        
+        while True:
+            self.show_plan(edited_steps, "Editing Plan")
+            
+            options = Text("\n")
+            options.append("[d#]", style="error bold")
+            options.append(" Delete step  ", style="dim")
+            options.append("[m#,#]", style="warning bold")
+            options.append(" Move step  ", style="dim")
+            options.append("[done]", style="success bold")
+            options.append(" Finish editing", style="dim")
+            self.console.print(options)
+            
+            try:
+                cmd = self.console.input(Text("Edit: ", style="accent")).strip().lower()
+                
+                if cmd == 'done' or not cmd:
+                    break
+                
+                if cmd.startswith('d') and len(cmd) > 1:
+                    # Delete step
+                    try:
+                        step_num = int(cmd[1:]) - 1
+                        if 0 <= step_num < len(edited_steps):
+                            removed = edited_steps.pop(step_num)
+                            self.success(f"Removed step: {removed.get('description', 'unknown')[:40]}")
+                    except ValueError:
+                        self.error("Invalid step number")
+                
+                elif cmd.startswith('m') and ',' in cmd:
+                    # Move step
+                    try:
+                        parts = cmd[1:].split(',')
+                        from_idx = int(parts[0]) - 1
+                        to_idx = int(parts[1]) - 1
+                        if 0 <= from_idx < len(edited_steps) and 0 <= to_idx < len(edited_steps):
+                            step = edited_steps.pop(from_idx)
+                            edited_steps.insert(to_idx, step)
+                            self.success(f"Moved step {from_idx + 1} to position {to_idx + 1}")
+                    except (ValueError, IndexError):
+                        self.error("Invalid move command. Use: m{from},{to}")
+                
+                else:
+                    self.warn("Unknown command. Use d#, m#,#, or done")
+                    
+            except (KeyboardInterrupt, EOFError):
+                break
+        
+        return edited_steps
+    
+    def show_plan_progress(self, plan_steps: List[Dict[str, Any]], current_step: int = 0):
+        """
+        Show plan with progress indicators.
+        
+        ┌─ Progress ──────────────────────────────────────────────────┐
+        │  ✓ 1. [modify] core/auth.py - Fix validation               │
+        │  ▸ 2. [modify] tests/test_auth.py - Add tests              │
+        │  ○ 3. [run] pytest - Verify                                │
+        └─────────────────────────────────────────────────────────────┘
+        """
+        box_width = self.width - 4
+        
+        # Header
+        title = " Progress "
+        title_padding = box_width - len(title) - 2
+        self.console.print("┌─" + title + "─" * title_padding + "┐", style="border")
+        
+        for i, step in enumerate(plan_steps):
+            # Status icon
+            if step.get("completed", False):
+                icon = "✓"
+                icon_style = "success"
+            elif step.get("failed", False):
+                icon = "✗"
+                icon_style = "error"
+            elif i == current_step:
+                icon = "▸"
+                icon_style = "step"
+            else:
+                icon = "○"
+                icon_style = "muted"
+            
+            action = step.get("action", "modify")
+            file_path = step.get("file_path", step.get("file", ""))[:25]
+            desc = step.get("description", "")[:30]
+            
+            step_line = f" {icon} {i + 1}. [{action}] {file_path}"
+            if desc:
+                step_line += f" - {desc}"
+            
+            step_line = step_line[:box_width - 2]
+            padding = box_width - len(step_line) - 1
+            
+            self.console.print(
+                Text("│", style="border") +
+                Text(f" {icon}", style=icon_style) +
+                Text(f" {i + 1}. [{action}] ", style="dim") +
+                Text(file_path, style="path") +
+                Text(f" - {desc}"[:box_width - 35] if desc else "", style="dim") +
+                Text(" " * max(0, padding) + "│", style="border")
+            )
+        
+        self.console.print("└" + "─" * box_width + "┘", style="border")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

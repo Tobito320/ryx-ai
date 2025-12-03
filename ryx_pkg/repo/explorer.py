@@ -3,6 +3,7 @@ Ryx Repository Explorer
 
 High-level repository exploration for Ryx agents.
 Combines RepoMap and FileSelector for intelligent file discovery.
+Now integrated with Manifest system for project-specific configuration.
 """
 
 import os
@@ -17,6 +18,15 @@ from .repo_map import RepoMap
 from .file_selector import FileSelector
 
 logger = logging.getLogger(__name__)
+
+# Try to import Manifest system
+try:
+    from core.manifest import ManifestLoader, ManifestConfig
+    MANIFEST_AVAILABLE = True
+except ImportError:
+    MANIFEST_AVAILABLE = False
+    ManifestLoader = None
+    ManifestConfig = None
 
 
 @dataclass
@@ -49,6 +59,7 @@ class RepoExplorer:
     - Automatic file discovery for tasks
     - Context generation for LLMs
     - Caching for performance
+    - Manifest integration for project-specific config (P1.7)
     
     Usage:
         explorer = RepoExplorer("/path/to/project")
@@ -78,6 +89,20 @@ class RepoExplorer:
         self.verbose = verbose
         self.use_cache = use_cache
         
+        # Load manifest if available (P1.7)
+        self.manifest: Optional[Any] = None
+        if MANIFEST_AVAILABLE:
+            try:
+                loader = ManifestLoader(str(self.root))
+                self.manifest = loader.load()
+                if self.manifest and self.manifest.ignore_patterns:
+                    # Merge manifest ignore patterns with provided ones
+                    ignore_patterns = list(set(
+                        (ignore_patterns or []) + self.manifest.ignore_patterns
+                    ))
+            except Exception as e:
+                logger.debug(f"Could not load manifest: {e}")
+        
         self.repo_map = RepoMap(
             root=str(self.root),
             verbose=verbose,
@@ -90,6 +115,22 @@ class RepoExplorer:
         
         self._stats: Optional[RepoStats] = None
         self._scanned = False
+    
+    def get_manifest(self) -> Optional[Any]:
+        """Get the loaded manifest config"""
+        return self.manifest
+    
+    def get_priority_files(self) -> List[str]:
+        """Get priority files from manifest (P1.7)"""
+        if self.manifest and hasattr(self.manifest, 'priority_files'):
+            return self.manifest.priority_files
+        return []
+    
+    def get_context_limit(self) -> int:
+        """Get context limit from manifest (P1.7)"""
+        if self.manifest and hasattr(self.manifest, 'context_limit'):
+            return self.manifest.context_limit
+        return 50
     
     def scan(self, force: bool = False, progress_callback=None) -> RepoStats:
         """
@@ -193,6 +234,7 @@ class RepoExplorer:
         Find relevant files for a task.
         
         This is the main entry point for Ryx agents to find files.
+        Respects manifest priority_files if available (P1.7).
         
         Args:
             task: Natural language task description
@@ -205,6 +247,10 @@ class RepoExplorer:
         if not self._scanned:
             self.scan()
         
+        # Use manifest context limit if available
+        if self.manifest and hasattr(self.manifest, 'context_limit'):
+            max_files = min(max_files, self.manifest.context_limit)
+        
         # Convert file types to extensions
         extensions = None
         if file_types:
@@ -214,11 +260,29 @@ class RepoExplorer:
                 if ft in FileSelector.EXTENSIONS:
                     extensions.extend(FileSelector.EXTENSIONS[ft])
         
-        return self.file_selector.find_files(
+        # Get priority files from manifest first (P1.7)
+        priority_files = []
+        if self.manifest and hasattr(self.manifest, 'priority_files'):
+            for pf in self.manifest.priority_files:
+                # Check if file exists
+                full_path = self.root / pf
+                if full_path.exists():
+                    priority_files.append(pf)
+        
+        # Find task-relevant files
+        task_files = self.file_selector.find_files(
             task,
             max_files=max_files,
             extensions=extensions
         )
+        
+        # Combine: priority files first, then task-relevant (no duplicates)
+        result = list(priority_files)
+        for f in task_files:
+            if f not in result and len(result) < max_files:
+                result.append(f)
+        
+        return result
     
     def get_context_for_llm(
         self,

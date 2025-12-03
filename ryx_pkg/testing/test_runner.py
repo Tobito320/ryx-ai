@@ -109,9 +109,26 @@ class TestRunner:
             timeout: Test timeout in seconds
         """
         self.root = Path(root or os.getcwd()).resolve()
-        self.framework = framework or self._detect_framework()
         self.timeout = timeout
         self._custom_cmd = None
+        self._manifest = None
+        
+        # Try to load manifest for test command (P1.7)
+        try:
+            from core.manifest import ManifestLoader
+            loader = ManifestLoader(str(self.root))
+            self._manifest = loader.load()
+            
+            # Use manifest test command if available
+            if self._manifest and self._manifest.test_command:
+                self._custom_cmd = self._manifest.test_command.split()
+                logger.debug(f"Using manifest test command: {self._manifest.test_command}")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"Could not load manifest: {e}")
+        
+        self.framework = framework or self._detect_framework()
     
     def _detect_framework(self) -> Optional[str]:
         """Auto-detect test framework"""

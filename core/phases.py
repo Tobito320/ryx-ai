@@ -597,16 +597,82 @@ class PhaseExecutor:
         else:
             self._build_simple_plan()
         
-        # Show plan summary to user (reduced noise)
+        # Show plan and get user approval (P1.6)
         if self.state.plan and self.state.plan.steps:
-            self.ui.substep(f"Plan: {len(self.state.plan.steps)} steps")
+            # Convert plan steps to format expected by UI
+            plan_steps = [
+                {
+                    "action": step.action,
+                    "file_path": step.file_path or "",
+                    "description": step.description,
+                    "details": step.details
+                }
+                for step in self.state.plan.steps
+            ]
+            
+            # Check if UI supports plan approval
+            if hasattr(self.ui, 'plan_approval_prompt'):
+                choice = self.ui.plan_approval_prompt(plan_steps, self.state.task)
+                
+                if choice == 'n':
+                    self.ui.warn("Plan cancelled by user")
+                    self.state.transition_to(Phase.ERROR)
+                    return False
+                
+                elif choice == 'e':
+                    # Interactive plan editing
+                    if hasattr(self.ui, 'edit_plan_interactive'):
+                        edited_steps = self.ui.edit_plan_interactive(plan_steps)
+                        # Rebuild plan from edited steps
+                        self.state.plan = ExecutionPlan(task=self.state.task)
+                        for s in edited_steps:
+                            self.state.plan.add_step(
+                                description=s.get('description', ''),
+                                file_path=s.get('file_path', s.get('file')),
+                                action=s.get('action', 'modify')
+                            )
+                
+                elif choice.startswith('s') and len(choice) > 1:
+                    # Skip specific step
+                    try:
+                        skip_idx = int(choice[1:]) - 1
+                        if 0 <= skip_idx < len(self.state.plan.steps):
+                            self.state.plan.steps[skip_idx].completed = True
+                            self.ui.substep(f"Skipped step {skip_idx + 1}")
+                    except ValueError:
+                        pass
+                
+                # 'y' or empty = approve
+                self.state.plan.approved = True
+            else:
+                # Fallback: auto-approve
+                self.ui.substep(f"Plan: {len(self.state.plan.steps)} steps")
+                self.state.plan.approved = True
         
-        # For now, auto-approve
-        # TODO: Add user confirmation
-        self.state.plan.approved = True
+        # Optional: Create branch for task (P1.4)
+        if self.git_manager and self.git_manager.is_repo:
+            # Check if user wants a branch (could be a config option)
+            # For now, only create branch for tasks with "branch" in command
+            if "branch" in self.state.task.lower() or getattr(self, '_use_branch', False):
+                branch_name = self._generate_branch_name(self.state.task)
+                if self.git_manager.create_branch(branch_name):
+                    self.ui.substep(f"Created branch: {branch_name}")
         
         self.state.transition_to(Phase.APPLY)
         return True
+    
+    def _generate_branch_name(self, task: str) -> str:
+        """Generate a branch name from task description"""
+        import re
+        from datetime import datetime
+        
+        # Clean task text
+        clean = re.sub(r'[^a-zA-Z0-9\s-]', '', task.lower())
+        words = clean.split()[:4]
+        slug = '-'.join(words) if words else 'task'
+        timestamp = datetime.now().strftime('%m%d%H%M')
+        
+        return f"ryx/{slug}-{timestamp}"
     
     def _build_plan_from_json(self, data: dict):
         """Build execution plan from LLM JSON response"""
@@ -1052,9 +1118,111 @@ Output ONLY the code. No explanations, no markdown fences."""
                 self._revert_changes()
                 self.state.transition_to(Phase.PLAN)
             else:
-                self.state.transition_to(Phase.ERROR)
+                # P1.3.3: Supervisor Rescue on repeated failures
+                if self._try_supervisor_rescue():
+                    # Supervisor provided a new plan, retry
+                    self.state.retry_count = 0  # Reset retries for new plan
+                    self.state.transition_to(Phase.PLAN)
+                else:
+                    self.state.transition_to(Phase.ERROR)
         
         return True
+    
+    def _try_supervisor_rescue(self) -> bool:
+        """
+        P1.3.3: Attempt supervisor rescue after max retries exhausted.
+        
+        Supervisor analyzes the failure and decides:
+        - ADJUST_PLAN: Modify the plan and retry
+        - CHANGE_AGENT: Try different approach
+        - TAKEOVER: Give up with explanation
+        
+        Returns True if rescue succeeded and we should retry.
+        """
+        try:
+            from core.agents.supervisor import SupervisorAgent
+            from core.planning import Context
+        except ImportError:
+            logger.debug("Supervisor agent not available for rescue")
+            return False
+        
+        if not self.brain or not hasattr(self.brain, 'ollama'):
+            return False
+        
+        self.ui.warn("Max retries exhausted - calling Supervisor for rescue...")
+        
+        try:
+            # Create supervisor
+            supervisor = SupervisorAgent(self.brain.ollama)
+            
+            # Build context
+            context = Context(
+                cwd=os.getcwd(),
+                language="de" if any(c in self.state.task for c in "äöüß") else "en",
+                recent_commands=[],
+                last_result=self.state.test_output or ""
+            )
+            
+            # Get current plan as JSON
+            plan_json = ""
+            if self.state.plan:
+                steps = [{"step": s.id, "action": s.action, "description": s.description} 
+                         for s in self.state.plan.steps]
+                plan_json = str(steps)
+            
+            # Create a simple plan object for rescue
+            from core.planning import Plan, PlanStep as PlanningStep, AgentType, ModelSize
+            rescue_plan = Plan(
+                understanding=self.state.task,
+                complexity=3,
+                confidence=0.5,
+                steps=[],
+                agent_type=AgentType.CODE,
+                model_size=ModelSize.MEDIUM,
+                operator_prompt=self.state.task
+            )
+            
+            # Call rescue
+            action, adjusted_plan, direct_result = supervisor.rescue(
+                query=self.state.task,
+                plan=rescue_plan,
+                errors=self.state.errors,
+                attempts=self.state.retry_count,
+                context=context
+            )
+            
+            self.ui.substep(f"Supervisor decision: {action}")
+            
+            if action == "ADJUST_PLAN" and adjusted_plan:
+                # Rebuild plan from supervisor's adjusted plan
+                self.state.plan = ExecutionPlan(task=self.state.task)
+                for step in adjusted_plan.steps:
+                    self.state.plan.add_step(
+                        description=step.description,
+                        file_path=step.params.get('file') if step.params else None,
+                        action=step.action
+                    )
+                self.ui.success("Supervisor provided adjusted plan")
+                return True
+            
+            elif action == "CHANGE_AGENT":
+                # Try simpler approach - just create a basic plan
+                self.state.plan = ExecutionPlan(task=self.state.task)
+                self.state.plan.add_step(
+                    description="Simplified approach based on supervisor guidance",
+                    action="modify"
+                )
+                return True
+            
+            elif action == "TAKEOVER" and direct_result:
+                # Supervisor gave up but provided explanation
+                self.ui.warn(f"Supervisor takeover: {direct_result}")
+                return False
+            
+        except Exception as e:
+            logger.warning(f"Supervisor rescue failed: {e}")
+        
+        return False
     
     def _execute_complete(self) -> bool:
         """Complete phase: finish up"""
