@@ -1,31 +1,61 @@
 # 🟣 Ryx AI - Architektur & Verbesserungsplan
 
 **Erstellt**: 2025-12-03  
+**Aktualisiert**: 2025-12-03 (Aider-basierte Infrastruktur integriert)  
 **Status**: Vollständige Analyse & Roadmap  
 **Zweck**: Entwicklungsplan für automatisierte Agent-basierte Umsetzung
+
+---
+
+## 🌐 Ryx Ökosystem Vision
+
+Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
+
+| Komponente | Beschreibung | Status |
+|------------|--------------|--------|
+| **Ryx CLI/Brain** | Terminal-Assistent (Claude Code/Aider-Stil) | 🟡 In Entwicklung |
+| **RyxHub** | Zentrale Steuerung/Orchestrator für alle Ryx-Services | 📋 Geplant |
+| **RyxSurf** | Browser-/Web-Automation (langfristig eigener Browser) | 📋 Geplant |
+| **RyxVoice** | Spracheingabe/-ausgabe | 📋 Geplant |
+| **RyxFace** | Hardware/Kamera-Integration | 📋 Geplant |
+| **RyxCouncil** | Multi-Agent-Entscheidungen | 📋 Geplant |
+
+**Design-Prinzipien**:
+- Linux-first (Arch als Dev-Umgebung), aber portabel
+- Lokal-first (Ollama/vLLM), Cloud optional
+- Modular: Jede Komponente unabhängig nutzbar
+- Privacy-first: Keine Telemetrie, eigene SearXNG-Instanz
 
 ---
 
 ## 📊 Executive Summary
 
 ### Aktueller Status
-- **Codebase**: 62 Python-Module, ~27.280 LOC
-- **Fortschritt**: ~45% der Zielarchitektur implementiert
+- **Codebase**: 62 Python-Module, ~27.280 LOC + **neue Aider-basierte Module**
+- **Fortschritt**: ~55% der Zielarchitektur implementiert (↑ von 38%)
+- **Neu**: Repository-Exploration, Git-Integration, Diff-Editing, Test-Execution
 - **Hauptstärken**: Solide Basis, gute Tool-Abstraktion, funktionierendes Phase-System
-- **Hauptschwächen**: Unvollständige Supervisor-Worker-Hierarchie, fehlende Verifikation, keine Git-Integration
 
-### Kritische Lücken vs. Claude Code/Aider
-1. **Keine automatische Repo-Exploration**: Ryx rät Dateipfade statt sie zu finden
-2. **Keine Diff-basierte Edits**: Schreibt ganze Dateien statt kleine Patches
-3. **Keine Test-Verifikation**: Führt keine automatischen Tests nach Änderungen aus
-4. **Keine Git-Safety**: Keine Auto-Commits, kein einfaches Rollback
-5. **Keine LLM-Selbstkritik**: LLM reviewed seine Änderungen nicht
-6. **Unvollständige Tool-Trennung**: LLM kann noch freien Text statt strukturierte Tool-Calls generieren
+### P0-Status nach Aider-Integration
 
-### Prioritäten
-1. **P0 (Kritisch)**: Tool-Only-Modus, Diff-Editing, File-Finder
-2. **P1 (Wichtig)**: Git-Integration, Test-Verifikation, Self-Critique
-3. **P2 (Nice-to-Have)**: Multi-Agent-Council, Learning-System, Advanced RAG
+| P0-Feature | Status | Neue Module |
+|------------|--------|-------------|
+| File-Finder / Repo-Map | ✅ **Implementiert** | `ryx_pkg/repo/` |
+| Diff-Based Editing | ✅ **Implementiert** | `ryx_pkg/editing/` |
+| Git-Integration | ✅ **Implementiert** | `ryx_pkg/git/` |
+| Test-Execution | ✅ **Implementiert** | `ryx_pkg/testing/` |
+| Tool-Only-Mode | 🟡 Teilweise | Integration ausstehend |
+
+### Verbleibende Kritische Lücken
+1. **Integration**: Neue Module müssen in `core/ryx_brain.py` integriert werden
+2. **LLM-Tool-Only**: LLM muss strukturierte Tool-Calls statt freiem Text generieren
+3. **Self-Critique**: LLM-basierte Selbstkritik nach Änderungen
+4. **UI-Integration**: Diffs und Git-Status in CLI anzeigen
+
+### Prioritäten (aktualisiert)
+1. **P0 (Kritisch)**: ~~File-Finder, Diff-Editing, Git-Integration, Test-Execution~~ → Integration in Brain
+2. **P1 (Wichtig)**: Self-Critique, UI-Updates, Error-Recovery
+3. **P2 (Nice-to-Have)**: RyxHub, RyxSurf, Multi-Agent-Council
 
 ---
 
@@ -1137,3 +1167,360 @@ Ryx ist "Claude Code/Aider-level", wenn:
 ---
 
 *Dieser Plan ist ein lebendes Dokument. Agenten (Copilot/Claude/Aider/Ryx) können ihn lesen und direkt Tasks umsetzen. PRs zur Verbesserung willkommen!*
+
+---
+
+## 🔧 Aider-basierte Infrastruktur
+
+### Übernommene Konzepte und Module
+
+Die folgenden Module wurden basierend auf Aider-Konzepten für Ryx implementiert:
+
+| Aider-Konzept | Ryx-Modul | Beschreibung |
+|---------------|-----------|--------------|
+| `repomap.py` | `ryx_pkg/repo/repo_map.py` | Repository-Indexierung mit tree-sitter und PageRank |
+| `repo.py` (GitRepo) | `ryx_pkg/git/git_manager.py` | Git-Operationen mit Safety-Features |
+| `editblock_coder.py` | `ryx_pkg/editing/search_replace.py` | Search/Replace-Block-Editing |
+| `diffs.py` | `ryx_pkg/editing/diff_editor.py` | Unified-Diff-Application |
+| `linter.py` | `ryx_pkg/testing/test_runner.py` | Test-Execution und Parsing |
+
+### Neue Module im Detail
+
+#### `ryx_pkg/repo/` - Repository Understanding
+
+```
+ryx_pkg/repo/
+├── __init__.py
+├── repo_map.py      # Tree-sitter basierte Code-Analyse, PageRank für Relevanz
+├── file_selector.py # Keyword-basierte Dateiauswahl
+└── explorer.py      # High-level API für Ryx-Agents
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.repo import RepoExplorer
+
+explorer = RepoExplorer("/path/to/project")
+files = explorer.find_for_task("fix the login button")
+context = explorer.get_context_for_llm(files)
+```
+
+**Kernfunktionen:**
+- `find_for_task(task)`: Findet relevante Dateien basierend auf Aufgabenbeschreibung
+- `get_context_for_llm(files)`: Generiert LLM-Kontext mit Definitionen
+- `scan()`: Indexiert Repository mit Caching
+- Automatische Erkennung: Python, JavaScript, TypeScript, Go, Rust
+
+#### `ryx_pkg/git/` - Git-Integration
+
+```
+ryx_pkg/git/
+├── __init__.py
+├── git_manager.py   # Core Git-Operationen
+├── safety.py        # Pre-commit Checks, Backups, Recovery
+└── commit_helper.py # Commit-Message-Generierung
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.git import GitManager, GitSafety
+
+git = GitManager("/path/to/repo")
+status = git.get_status()
+diff = git.get_diff(files=["path/to/file.py"])
+commit_hash = git.safe_commit("feat: add feature", files=["path/to/file.py"])
+git.undo()  # Rollback
+```
+
+**Kernfunktionen:**
+- `get_status()`: Aktueller Git-Status (Branch, Modified, Staged)
+- `get_diff()`: Unified-Diff für Dateien
+- `safe_commit()`: Commit mit Ryx-Attribution
+- `undo(n)`: Letzte n Commits rückgängig machen
+- `create_branch()`: Task-Branch erstellen
+- Safety-Layer: Verhindert Commits von Secrets, große Dateien, etc.
+
+#### `ryx_pkg/editing/` - Diff-basiertes Editing
+
+```
+ryx_pkg/editing/
+├── __init__.py
+├── diff_editor.py     # Unified-Diff-Application
+├── search_replace.py  # Search/Replace-Blocks
+└── validator.py       # Syntax- und Safety-Validierung
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.editing import DiffEditor, SearchReplace
+
+# Diff-basiert
+editor = DiffEditor()
+result = editor.apply_diff("path/to/file.py", diff_text)
+
+# Search/Replace
+sr = SearchReplace()
+result = sr.replace_in_file("path/to/file.py", search, replace)
+```
+
+**Kernfunktionen:**
+- `apply_diff()`: Wendet Unified-Diffs an mit Fuzzy-Matching
+- `generate_diff()`: Erstellt Diffs aus Original/Modified
+- `replace_in_file()`: Search/Replace mit Fuzzy-Matching
+- Automatische Backups vor Änderungen
+- Syntax-Validierung (Python, JSON)
+
+#### `ryx_pkg/testing/` - Test-Execution
+
+```
+ryx_pkg/testing/
+├── __init__.py
+├── test_runner.py  # Test-Ausführung und Parsing
+└── detector.py     # Framework-Erkennung
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.testing import TestRunner, detect_framework
+
+runner = TestRunner("/path/to/project")
+result = runner.run()
+print(result.summary)  # "✓ 42/42 tests passed"
+
+# Nur für geänderte Dateien
+result = runner.run_for_files(["src/login.py"])
+```
+
+**Unterstützte Frameworks:**
+- pytest (Python)
+- jest/npm test (JavaScript/TypeScript)
+- go test (Go)
+- cargo test (Rust)
+- Automatische Erkennung via Marker-Files
+
+---
+
+## 🔗 Integration in Ryx Core
+
+### Nächste Schritte zur Integration
+
+Die neuen Module müssen in `core/ryx_brain.py` integriert werden:
+
+#### 1. RepoExplorer bei CODE_TASK aktivieren
+
+```python
+# In core/ryx_brain.py, ca. Zeile 300
+
+from ryx_pkg.repo import RepoExplorer
+
+class RyxBrain:
+    def __init__(self, ...):
+        ...
+        self.repo_explorer = RepoExplorer(root=os.getcwd())
+    
+    def _handle_code_task(self, plan: Plan):
+        # Automatisch relevante Dateien finden
+        files = self.repo_explorer.find_for_task(plan.target or self.ctx.last_query)
+        context = self.repo_explorer.get_context_for_llm(files)
+        
+        # Context an LLM übergeben
+        self.ctx.relevant_files = files
+        ...
+```
+
+#### 2. Git-Integration für Commits
+
+```python
+# In core/phases.py, ca. Zeile 800
+
+from ryx_pkg.git import GitManager, GitSafety
+
+class PhaseExecutor:
+    def __init__(self, ...):
+        ...
+        self.git = GitManager()
+        self.git_safety = GitSafety(self.git)
+    
+    def _apply_phase(self, step: PlanStep):
+        # Backup vor Änderungen
+        backup = self.git_safety.create_backup_point("pre-apply")
+        
+        # Änderungen durchführen
+        result = self._execute_step(step)
+        
+        # Auto-Commit
+        if result.success:
+            self.git.safe_commit(f"Apply: {step.description}", files=result.files)
+```
+
+#### 3. Diff-Editing statt Full-File-Writes
+
+```python
+# In core/agent_tools.py, erweitern
+
+from ryx_pkg.editing import DiffEditor, SearchReplace
+
+class WriteFileTool(AgentTool):
+    def execute(self, path: str, content: str = None, diff: str = None, **params):
+        if diff:
+            # Diff-basiert
+            editor = DiffEditor()
+            result = editor.apply_diff(path, diff)
+            return ToolResult(success=result.success, output=result.message)
+        else:
+            # Fallback: Full-file (legacy)
+            ...
+```
+
+#### 4. Test-Execution in VERIFY-Phase
+
+```python
+# In core/phases.py, ca. Zeile 900
+
+from ryx_pkg.testing import TestRunner
+
+class PhaseExecutor:
+    def _verify_phase(self, changes: List[str]):
+        runner = TestRunner()
+        
+        # Tests für geänderte Dateien
+        result = runner.run_for_files(changes)
+        
+        if not result.success:
+            self.cli.show_error(f"Tests failed: {result.summary}")
+            return False
+        
+        self.cli.show_success(result.summary)
+        return True
+```
+
+---
+
+## 🛠️ RyxHub & RyxSurf Andockpunkte
+
+Die neuen Module sind so entworfen, dass sie später auch von RyxHub und RyxSurf genutzt werden können:
+
+### RyxHub (Zentrale Orchestrierung)
+
+```
+ryx_hub/
+├── orchestrator.py    # Nutzt: ryx_pkg/repo, ryx_pkg/git, ryx_pkg/testing
+├── service_manager.py # Startet/Stoppt Ryx-Services
+├── api/               # REST/WebSocket API
+└── dashboard/         # Web-Dashboard
+```
+
+**Andockpunkte:**
+- `ryx_pkg/repo/`: Project-Scanning für alle verbundenen Projekte
+- `ryx_pkg/git/`: Git-Status-Dashboard, Multi-Repo-Commits
+- `ryx_pkg/testing/`: CI/CD-Integration, Test-Dashboard
+
+### RyxSurf (Browser/Web-Automation)
+
+```
+ryx_surf/
+├── browser.py         # Browser-Steuerung (Playwright/Selenium → später eigener Browser)
+├── page_analyzer.py   # Nutzt: ryx_pkg/repo (für lokale Dateien)
+├── scraper.py         # Web-Scraping
+└── automation/        # Task-Automation
+```
+
+**Andockpunkte:**
+- `ryx_pkg/editing/`: Lokale Dateien aus Browser-Kontext editieren
+- `ryx_pkg/git/`: Downloads direkt committen
+- `ryx_pkg/testing/`: Web-Tests (Playwright-basiert)
+
+---
+
+## 📋 Aktualisierte TODO-Liste (Post-Aider-Integration)
+
+### ✅ Erledigt (durch Aider-Integration)
+
+- [x] **P0.2**: Diff-Based Editing → `ryx_pkg/editing/diff_editor.py`
+- [x] **P0.3**: Automatic File Finder → `ryx_pkg/repo/`
+- [x] **P0.4**: Git Auto-Commit → `ryx_pkg/git/git_manager.py`
+- [x] **P0.5**: Test Execution → `ryx_pkg/testing/test_runner.py`
+
+### 🔄 Jetzt Priorität: Integration
+
+#### P0.6: Integration in ryx_brain.py
+**Ziel**: Neue Module in Core-Flow integrieren
+
+- [ ] **P0.6.1**: Import und Init von RepoExplorer in RyxBrain
+  - **Files**: `core/ryx_brain.py` (L50-100)
+  - **LOC**: ~30
+
+- [ ] **P0.6.2**: find_for_task() bei CODE_TASK aufrufen
+  - **Files**: `core/ryx_brain.py` (L800-850)
+  - **LOC**: ~50
+
+- [ ] **P0.6.3**: GitManager in PhaseExecutor integrieren
+  - **Files**: `core/phases.py` (L50-100, L750-850)
+  - **LOC**: ~80
+
+- [ ] **P0.6.4**: DiffEditor in WriteFileTool aktivieren
+  - **Files**: `core/agent_tools.py` (L200-300)
+  - **LOC**: ~40
+
+- [ ] **P0.6.5**: TestRunner in VERIFY-Phase
+  - **Files**: `core/phases.py` (L900-1000)
+  - **LOC**: ~50
+
+#### P0.7: Tool-Only LLM Output
+**Ziel**: LLM generiert nur strukturierte Tool-Calls
+
+- [ ] **P0.7.1**: JSON-Schema für Tool-Calls definieren
+  - **Files**: `core/tool_schema.py` (neu)
+  - **LOC**: ~100
+
+- [ ] **P0.7.2**: Prompts für Tool-Only-Mode anpassen
+  - **Files**: `core/ryx_brain.py` (Prompt-Strings)
+  - **LOC**: ~50
+
+- [ ] **P0.7.3**: Tool-Call-Parser in ollama_client
+  - **Files**: `core/ollama_client.py` (L150-250)
+  - **LOC**: ~80
+
+### 🟡 P1: Self-Critique und UI
+
+- [ ] **P1.1**: Self-Critique-Prompt erstellen
+- [ ] **P1.2**: Git-Status in CLI-Header anzeigen
+- [ ] **P1.3**: Diffs vor Apply anzeigen mit Confirmation
+- [ ] **P1.4**: Test-Ergebnisse formatiert anzeigen
+
+### 📋 P2: RyxHub & RyxSurf Vorbereitung
+
+- [ ] **P2.1**: RyxHub-Ordnerstruktur erstellen
+- [ ] **P2.2**: RyxSurf-Ordnerstruktur erstellen
+- [ ] **P2.3**: Gemeinsame API-Schnittstelle definieren
+
+---
+
+## 🧪 Testing der neuen Module
+
+```bash
+# Repo-Module testen
+python -c "from ryx_pkg.repo import RepoExplorer; e = RepoExplorer(); print(e.find_for_task('fix theme'))"
+
+# Git-Module testen
+python -c "from ryx_pkg.git import GitManager; g = GitManager(); print(g.format_status())"
+
+# Editing-Module testen
+python -c "from ryx_pkg.editing import DiffEditor; d = DiffEditor(); print('DiffEditor ready')"
+
+# Testing-Module testen
+python -c "from ryx_pkg.testing import TestRunner, detect_framework; print(detect_framework())"
+```
+
+---
+
+## 📜 Lizenzhinweise
+
+Die Module in `ryx_pkg/` sind inspiriert von und basieren teilweise auf:
+
+- **Aider** (https://github.com/paul-gauthier/aider) - Apache 2.0 License
+  - RepoMap-Konzept und PageRank-Algorithmus
+  - Search/Replace-Block-Format
+  - Git-Attribution-Logik
+
+Ryx ist ein eigenständiges Projekt von Tobi und unterliegt seiner eigenen Lizenz.
