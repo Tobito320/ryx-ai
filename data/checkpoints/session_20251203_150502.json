@@ -1,0 +1,23 @@
+{
+  "session_id": "20251203_150502",
+  "checkpoints": [
+    {
+      "id": "Create index.html_a6e912",
+      "name": "Create index.html",
+      "description": "",
+      "changes": [
+        {
+          "path": "/home/tobi/ryx-ai/test_coffeeshop/index.html",
+          "change_type": "create",
+          "old_content": null,
+          "new_content": "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Coffee Shop</title>\n    <link rel=\"stylesheet\" href=\"styles.css\">\n</head>\n<body>\n    <header>\n        <h1>Welcome to Our Coffee Shop</h1>\n    </header>\n\n    <nav>\n        <ul>\n            <li><a href=\"#\">Home</a></li>\n            <li><a href=\"reservations.html\">Reservations</a></li>\n        </ul>\n    </nav>\n\n    <main>\n        <section id=\"menu\">\n            <h2>Our Menu</h2>\n            <ul>\n                <li>Coffee - \u20ac3.50</li>\n                <li>Tea - \u20ac2.00</li>\n                <li>Espresso - \u20ac4.00</li>\n                <li>Cappuccino - \u20ac5.00</li>\n                <li>Latte - \u20ac6.00</li>\n            </ul>\n        </section>\n\n        <section id=\"reservation\">\n            <h2>Make a Reservation</h2>\n            <form id=\"reservationForm\">\n                <label for=\"name\">Name:</label>\n                <input type=\"text\" id=\"name\" name=\"name\" required><br>\n\n                <label for=\"date\">Date:</label>\n                <input type=\"date\" id=\"date\" name=\"date\" required><br>\n\n                <label for=\"time\">Time:</label>\n                <input type=\"time\" id=\"time\" name=\"time\" required><br>\n\n                <label for=\"people\">Number of People:</label>\n                <input type=\"number\" id=\"people\" name=\"people\" min=\"1\" required><br>\n\n                <button type=\"submit\">Reserve</button>\n            </form>\n        </section>\n    </main>\n\n    <footer>\n        <p>&copy; 2023 Coffee Shop. All rights reserved.</p>\n    </footer>\n\n    <script src=\"script.js\"></script>\n</body>\n</html>",
+          "old_path": null,
+          "timestamp": "2025-12-03T15:05:02.328312"
+        }
+      ],
+      "timestamp": "2025-12-03T15:05:02.328302",
+      "task_context": "Erstelle Coffee Shop Website: index.html (Men\u00fc + Formular mit id='reservationForm' f\u00fcr Name/Datum/Zeit/Personen), styles.css, script.js (verwendet getElementById('reservationForm'), localStorage), reservations.html (id='reservationsList' f\u00fcr Anzeige)"
+    }
+  ],
+  "last_updated": "2025-12-03T15:05:46.957457"
+}

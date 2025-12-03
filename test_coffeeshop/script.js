@@ -1,79 +1,54 @@
-// script.js
+// Import statements if needed
+// import { someFunction } from './someModule';
 
 /**
- * Handles form submission and localStorage operations for a coffee shop reservation system.
- */
-
-// Select DOM elements
-const reservationForm = document.getElementById('reservation-form');
-const reservationsList = document.getElementById('reservations-list');
-
-// Load existing reservations from localStorage on page load
-document.addEventListener('DOMContentLoaded', () => {
-  renderReservations();
-});
-
-/**
- * Handles the submission of the reservation form.
- * @param {Event} event - The form submission event.
+ * Function to handle form submission and save reservation data to localStorage.
  */
 function handleFormSubmit(event) {
   event.preventDefault();
-
-  // Collect form data
-  const formData = new FormData(reservationForm);
+  const form = document.getElementById('reservationForm');
+  const formData = new FormData(form);
   const reservationData = {};
 
   for (const [key, value] of formData.entries()) {
     reservationData[key] = value;
   }
 
-  // Validate the number of people
-  if (!reservationData.people || isNaN(reservationData.people) || reservationData.people <= 0) {
-    alert('Please enter a valid number of people.');
-    return;
+  // Save reservation data to localStorage
+  localStorage.setItem('reservation', JSON.stringify(reservationData));
+  alert('Reservation saved successfully!');
+}
+
+/**
+ * Function to load and display reservation data from localStorage.
+ */
+function loadReservation() {
+  const reservationData = localStorage.getItem('reservation');
+  if (reservationData) {
+    const form = document.getElementById('reservationForm');
+    const parsedData = JSON.parse(reservationData);
+
+    for (const [key, value] of Object.entries(parsedData)) {
+      const inputField = form.querySelector(`[name="${key}"]`);
+      if (inputField) {
+        inputField.value = value;
+      }
+    }
   }
-
-  // Save reservation to localStorage
-  saveReservation(reservationData);
-
-  // Clear form and render reservations
-  reservationForm.reset();
-  renderReservations();
 }
 
 /**
- * Saves a reservation to localStorage.
- * @param {Object} reservation - The reservation data.
+ * Main function to initialize the script.
  */
-function saveReservation(reservation) {
-  let reservations = JSON.parse(localStorage.getItem('reservations')) || [];
-  reservations.push(reservation);
-  localStorage.setItem('reservations', JSON.stringify(reservations));
+function init() {
+  const reservationForm = document.getElementById('reservationForm');
+  if (reservationForm) {
+    reservationForm.addEventListener('submit', handleFormSubmit);
+    loadReservation();
+  } else {
+    console.error('Element with id "reservationForm" not found.');
+  }
 }
 
-/**
- * Renders all reservations from localStorage on the page.
- */
-function renderReservations() {
-  const reservations = JSON.parse(localStorage.getItem('reservations')) || [];
-
-  // Clear existing reservations
-  reservationsList.innerHTML = '';
-
-  // Render each reservation
-  reservations.forEach((reservation, index) => {
-    const reservationElement = document.createElement('div');
-    reservationElement.classList.add('reservation-item');
-    reservationElement.innerHTML = `
-      <p><strong>Name:</strong> ${reservation.name}</p>
-      <p><strong>Date:</strong> ${reservation.date}</p>
-      <p><strong>Time:</strong> ${reservation.time}</p>
-      <p><strong>People:</strong> ${reservation.people}</p>
-    `;
-    reservationsList.appendChild(reservationElement);
-  });
-}
-
-// Add event listener to the reservation form
-reservationForm.addEventListener('submit', handleFormSubmit);
+// Initialize the script
+document.addEventListener('DOMContentLoaded', init);

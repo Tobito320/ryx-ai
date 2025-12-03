@@ -1089,7 +1089,16 @@ Output ONLY the code. No explanations, no markdown fences."""
             except Exception as e:
                 logger.debug(f"Lint check failed: {e}")
         
-        # 3. Test Execution
+        # 3. Cross-File Consistency Check (NEW)
+        if has_changes and len(changed_files) > 1:
+            self.ui.substep("Checking cross-file consistency...")
+            consistency_issues = self._check_cross_file_consistency(changed_files)
+            if consistency_issues:
+                for issue in consistency_issues:
+                    verification_issues.append(f"Consistency: {issue}")
+                    self.ui.substep(f"⚠️ {issue}")
+        
+        # 4. Test Execution
         if has_changes:
             # Use new TestRunner if available
             if self.test_runner and self.test_runner.framework:
@@ -1148,9 +1157,30 @@ Output ONLY the code. No explanations, no markdown fences."""
         else:
             self.ui.warn("Verification failed")
             
+            # Store verification issues for the retry
+            if verification_issues and not hasattr(self.state, 'last_verification_issues'):
+                self.state.last_verification_issues = verification_issues
+            
             if self.state.can_retry():
-                self.ui.warn("Rolling back changes to retry...")
-                self._revert_changes()
+                # Determine if we should rollback or just fix
+                # For consistency issues (ID mismatches), don't rollback - just fix in place
+                is_consistency_issue = any('Consistency' in str(i) for i in verification_issues)
+                is_minor_fix = all('Consistency' in str(i) or 'mismatch' in str(i).lower() for i in verification_issues)
+                
+                if is_minor_fix:
+                    # Don't rollback - just generate fix plan
+                    self.ui.warn("Minor issues detected - fixing in place...")
+                else:
+                    self.ui.warn("Rolling back changes to retry...")
+                    self._revert_changes()
+                
+                # Augment the task with specific fix instructions
+                if verification_issues:
+                    fix_hints = self._generate_fix_hints(verification_issues)
+                    if fix_hints:
+                        # Prepend fix hints to the original task
+                        self.state.task = f"{fix_hints}\n\nOriginal task: {self.state.task}"
+                
                 self.state.transition_to(Phase.PLAN)
             else:
                 # P1.3.3: Supervisor Rescue on repeated failures
@@ -1162,6 +1192,33 @@ Output ONLY the code. No explanations, no markdown fences."""
                     self.state.transition_to(Phase.ERROR)
         
         return True
+    
+    def _generate_fix_hints(self, issues: List[str]) -> str:
+        """Generate specific fix hints from verification issues"""
+        import re
+        hints = []
+        
+        for issue in issues:
+            if 'ID mismatch' in issue:
+                # Extract the IDs from the message
+                match = re.search(r"JS uses '([^']+)' but HTML has '([^']+)'", issue)
+                if match:
+                    js_id, html_id = match.groups()
+                    hints.append(f"WICHTIG: Benutze '{html_id}' (nicht '{js_id}') in JavaScript getElementById()")
+            elif 'Missing ID' in issue:
+                match = re.search(r"JS references '([^']+)'", issue)
+                if match:
+                    missing_id = match.group(1)
+                    hints.append(f"WICHTIG: HTML braucht ein Element mit id='{missing_id}'")
+            elif 'Field mismatch' in issue:
+                match = re.search(r"JS uses '([^']+)' but HTML has '([^']+)'", issue)
+                if match:
+                    js_field, html_field = match.groups()
+                    hints.append(f"WICHTIG: Benutze '{html_field}' (nicht '{js_field}') in formData.get()")
+        
+        if hints:
+            return "FIX DIESE FEHLER:\n" + "\n".join(f"- {h}" for h in hints)
+        return ""
     
     def _try_supervisor_rescue(self) -> bool:
         """
@@ -1284,22 +1341,175 @@ Output ONLY the code. No explanations, no markdown fences."""
         # Get list of created/modified files
         changed_files = [c.file_path for c in self.state.changes] if self.state.changes else []
         
+        # Check for specific issue types to give better guidance
+        has_id_mismatch = any('ID mismatch' in i or 'Missing ID' in i for i in issues)
+        has_field_mismatch = any('Field mismatch' in i for i in issues)
+        
+        specific_guidance = ""
+        if has_id_mismatch:
+            specific_guidance += """
+CRITICAL: HTML IDs and JavaScript selectors MUST match exactly!
+- If HTML has id="reservationForm", JS must use getElementById('reservationForm')
+- If HTML has id="reservation-form", JS must use getElementById('reservation-form')
+Pick ONE naming convention and use it consistently everywhere.
+"""
+        if has_field_mismatch:
+            specific_guidance += """
+CRITICAL: Form field names in HTML must match the names used in JavaScript!
+- If HTML has name="people", JS must use formData.get('people')
+- If HTML has name="persons", JS must use formData.get('persons')
+"""
+        
         prompt = f"""Fix the following issues in the code:
 
 Issues detected:
 {chr(10).join(issue_descriptions)}
 
+{specific_guidance}
+
 Files that were modified:
 {chr(10).join(f'- {f}' for f in changed_files)}
 
-Please fix all the issues. Do not create new files unless absolutely necessary.
-Focus on:
-1. Correcting any broken references or paths
-2. Fixing syntax errors
-3. Ensuring all files work together correctly
-4. Making sure the code actually runs
+IMPORTANT: 
+1. Use CONSISTENT ID naming between HTML and JavaScript
+2. All getElementById() calls in JS must reference IDs that exist in HTML
+3. All form field names in HTML must match what JavaScript expects
+4. Do NOT mix naming conventions like 'reservation-form' and 'reservationForm'
 """
         return prompt
+    
+    def _check_cross_file_consistency(self, changed_files: List[str]) -> List[str]:
+        """
+        Check for consistency issues between related files.
+        
+        Detects:
+        - HTML id/class references that don't match JS selectors
+        - Missing script/css file references
+        - Broken import paths
+        """
+        issues = []
+        
+        # Separate files by type
+        html_files = [f for f in changed_files if f.endswith('.html')]
+        js_files = [f for f in changed_files if f.endswith('.js')]
+        css_files = [f for f in changed_files if f.endswith('.css')]
+        
+        # Read file contents
+        file_contents = {}
+        for f in changed_files:
+            try:
+                if os.path.exists(f):
+                    with open(f, 'r') as fp:
+                        file_contents[f] = fp.read()
+            except:
+                pass
+        
+        # Check HTML->JS consistency
+        import re
+        
+        # First, collect ALL IDs from ALL HTML files
+        all_html_ids = set()
+        for html_file in html_files:
+            if html_file not in file_contents:
+                continue
+            html_content = file_contents[html_file]
+            html_ids = set(re.findall(r'id=["\']([^"\']+)["\']', html_content))
+            all_html_ids.update(html_ids)
+        
+        # Check each JS file's getElementById calls against ALL HTML IDs
+        for js_file in js_files:
+            if js_file not in file_contents:
+                continue
+            js_content = file_contents[js_file]
+            
+            # Find getElementById calls
+            js_ids = set(re.findall(r'getElementById\(["\']([^"\']+)["\']\)', js_content))
+            
+            # Find querySelector calls with IDs
+            js_ids.update(re.findall(r'querySelector\(["\']#([^"\']+)["\']\)', js_content))
+            
+            # Check for mismatches - only flag if ID doesn't exist in ANY HTML file
+            for js_id in js_ids:
+                if js_id not in all_html_ids:
+                    # Check if it's a close match (typo)
+                    close_matches = [h for h in all_html_ids if self._is_similar(js_id, h)]
+                    if close_matches:
+                        issues.append(
+                            f"ID mismatch: JS uses '{js_id}' but HTML has '{close_matches[0]}'"
+                        )
+                    else:
+                        issues.append(
+                            f"Missing ID: JS references '{js_id}' but it's not in any HTML file"
+                        )
+        
+        # Check each HTML file for script/CSS references
+        for html_file in html_files:
+            if html_file not in file_contents:
+                continue
+            html_content = file_contents[html_file]
+            
+            # Check for script references
+            script_refs = re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html_content)
+            for ref in script_refs:
+                ref_path = os.path.join(os.path.dirname(html_file), ref)
+                if not os.path.exists(ref_path) and ref not in [os.path.basename(f) for f in js_files]:
+                    issues.append(f"Missing script: {ref} referenced in {os.path.basename(html_file)}")
+            
+            # Check for CSS references
+            css_refs = re.findall(r'<link[^>]+href=["\']([^"\']+\.css)["\']', html_content)
+            for ref in css_refs:
+                ref_path = os.path.join(os.path.dirname(html_file), ref)
+                if not os.path.exists(ref_path) and ref not in [os.path.basename(f) for f in css_files]:
+                    issues.append(f"Missing CSS: {ref} referenced in {os.path.basename(html_file)}")
+        
+        # Check JS for form field references - collect all form field names from all HTML
+        all_html_names = set()
+        for html_file in html_files:
+            if html_file not in file_contents:
+                continue
+            html_content = file_contents[html_file]
+            html_names = set(re.findall(r'name=["\']([^"\']+)["\']', html_content))
+            all_html_names.update(html_names)
+        
+        # Check JS FormData.get() calls against all HTML form fields
+        for js_file in js_files:
+            if js_file not in file_contents:
+                continue
+            js_content = file_contents[js_file]
+            
+            # Find FormData.get() calls
+            form_fields = set(re.findall(r"\.get\(['\"]([^'\"]+)['\"]\)", js_content))
+            
+            for field in form_fields:
+                if field not in all_html_names:
+                    close_matches = [n for n in all_html_names if self._is_similar(field, n)]
+                    if close_matches:
+                        issues.append(
+                            f"Field mismatch: JS uses '{field}' but HTML has '{close_matches[0]}'"
+                        )
+        
+        return issues
+    
+    def _is_similar(self, s1: str, s2: str) -> bool:
+        """Check if two strings are similar (for typo detection)"""
+        # Simple similarity: same length, differ by 1-2 chars, or one is subset of other
+        s1, s2 = s1.lower(), s2.lower()
+        if s1 == s2:
+            return True
+        
+        # Check if one contains the other (e.g., 'reservation-form' vs 'reservationForm')
+        s1_clean = s1.replace('-', '').replace('_', '')
+        s2_clean = s2.replace('-', '').replace('_', '')
+        if s1_clean == s2_clean:
+            return True
+        
+        # Check edit distance (allow up to 2 differences for short strings)
+        if abs(len(s1) - len(s2)) <= 2:
+            differences = sum(1 for a, b in zip(s1, s2) if a != b)
+            differences += abs(len(s1) - len(s2))
+            return differences <= 2
+        
+        return False
     
     def run_to_completion(self, autonomous_retries: int = 3) -> bool:
         """
