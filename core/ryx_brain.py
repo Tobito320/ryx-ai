@@ -606,6 +606,10 @@ ANFRAGE: {prompt}'''
         if plan:
             return plan
         
+        # Check if this is smalltalk/greeting (should NOT trigger web search)
+        if self._is_smalltalk(prompt):
+            return Plan(intent=Intent.CHAT)
+        
         # Check if this is clearly a chat question (not an action)
         if self._is_chat_question(prompt):
             return Plan(intent=Intent.CHAT)
@@ -682,6 +686,29 @@ ANFRAGE: {prompt}'''
         is_action = any(a in p for a in action_words)
         
         return is_question and not is_action
+    
+    def _is_smalltalk(self, prompt: str) -> bool:
+        """Check if this is smalltalk/greeting that shouldn't trigger web search"""
+        p = prompt.lower().strip()
+        
+        # Common greetings and smalltalk (German + English)
+        smalltalk = [
+            # Greetings
+            'hi', 'hello', 'hey', 'hallo', 'moin', 'servus', 'guten tag',
+            'good morning', 'good evening', 'guten morgen', 'guten abend',
+            # How are you
+            'wie gehts', 'wie geht es', 'wie geht es dir', 'wie gehts dir',
+            'how are you', "how's it going", 'whats up', "what's up",
+            'was geht', 'alles klar', 'alles gut',
+            # Thanks
+            'danke', 'thanks', 'thank you', 'thx', 'vielen dank', 'merci',
+            # Bye
+            'bye', 'tschüss', 'ciao', 'bis dann', 'see you', 'auf wiedersehen',
+            # Acknowledgment
+            'ok', 'okay', 'alright', 'got it', 'verstanden', 'cool', 'nice',
+        ]
+        
+        return p in smalltalk or any(p.startswith(s + ' ') or p.startswith(s + ',') for s in smalltalk)
     
     def _is_followup_modifier(self, prompt: str) -> bool:
         """Check if this is a follow-up modifier like 'shorter', 'kürzer', 'more detail'"""
@@ -822,13 +849,16 @@ ANFRAGE: {prompt}'''
         if any(s in p for s in service_words) and any(st in p for st in status_words):
             return Plan(intent=Intent.GET_INFO, target="service_status")
         
-        # Start/Stop service
-        if any(w in p for w in ['starte', 'start', 'stoppe', 'stop']):
-            if any(s in p for s in ['ryxhub', 'hub', 'service']):
-                if any(w in p for w in ['stoppe', 'stop', 'beende']):
-                    return Plan(intent=Intent.STOP_SERVICE, target="ryxhub")
-                else:
-                    return Plan(intent=Intent.START_SERVICE, target="ryxhub")
+        # Start/Stop service - also catch "öffne hub", "launch hub", etc.
+        start_words = ['starte', 'start', 'öffne', 'launch', 'aktiviere']
+        stop_words = ['stoppe', 'stop', 'beende', 'schließe', 'kill']
+        service_names = ['ryxhub', 'ryx hub', 'hub', 'webui', 'service', 'dashboard']
+        
+        if any(s in p for s in service_names):
+            if any(w in p for w in stop_words):
+                return Plan(intent=Intent.STOP_SERVICE, target="ryxhub")
+            elif any(w in p for w in start_words):
+                return Plan(intent=Intent.START_SERVICE, target="ryxhub")
         
         # Date/time queries
         date_words = ['date', 'time', 'datum', 'zeit', 'uhrzeit', 'today', 'heute', 'what day', 'welcher tag']

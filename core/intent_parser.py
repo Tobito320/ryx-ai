@@ -31,10 +31,10 @@ class IntentParser:
     BROWSE_KEYWORDS = ['look up', 'browse', 'google', 'search', 'what is', 'who is', 'search for']
     LOCATE_KEYWORDS = ['find', 'where is', 'show me', 'locate', 'path to', 'where']
 
-    # Service management keywords
-    SERVICE_START_KEYWORDS = ['start', 'launch', 'run', 'boot', 'spin up']
-    SERVICE_STOP_KEYWORDS = ['stop', 'kill', 'shutdown', 'terminate', 'end']
-    SERVICE_STATUS_KEYWORDS = ['status', 'check', 'is running']
+    # Service management keywords (English + German)
+    SERVICE_START_KEYWORDS = ['start', 'launch', 'run', 'boot', 'spin up', 'starte', 'öffne', 'aktiviere']
+    SERVICE_STOP_KEYWORDS = ['stop', 'kill', 'shutdown', 'terminate', 'end', 'stoppe', 'beende', 'schließe']
+    SERVICE_STATUS_KEYWORDS = ['status', 'check', 'is running', 'läuft', 'zustand']
 
     # Known services with fuzzy variants (typos, partial matches)
     KNOWN_SERVICES = ['ryxhub', 'hub', 'session', 'backend', 'frontend']

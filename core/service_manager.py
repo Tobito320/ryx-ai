@@ -2,14 +2,275 @@
 Ryx AI - Service Manager
 
 Manages RyxHub services (FastAPI backend, React frontend, WebSocket).
+Also manages SearXNG for privacy-first web search.
 """
 import os
 import subprocess
 import signal
 import json
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 from core.paths import get_project_root, get_runtime_dir
+
+
+class SearXNGManager:
+    """Manages SearXNG service for privacy-first web search"""
+    
+    DEFAULT_PORT = 8888
+    SEARXNG_IMAGE = "searxng/searxng:latest"
+    
+    def __init__(self):
+        self.runtime_dir = get_runtime_dir()
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.pid_file = self.runtime_dir / "searxng.pid"
+        self.config_dir = get_project_root() / "configs" / "searxng"
+        
+    def ensure_running(self) -> Dict:
+        """
+        Ensure SearXNG is running. Start if not running.
+        Returns dict with success, url, and any messages.
+        """
+        # Check if already running
+        if self.is_running():
+            return {
+                'success': True,
+                'url': f'http://localhost:{self.DEFAULT_PORT}',
+                'message': 'SearXNG already running'
+            }
+        
+        # Try to start
+        return self.start()
+    
+    def is_running(self) -> bool:
+        """Check if SearXNG is accessible"""
+        import requests
+        try:
+            response = requests.get(
+                f'http://localhost:{self.DEFAULT_PORT}/', 
+                timeout=2
+            )
+            return response.status_code == 200
+        except:
+            return False
+    
+    def start(self) -> Dict:
+        """Start SearXNG using available method (podman/docker or local)"""
+        # Try podman first (Arch Linux preference)
+        if self._has_command('podman'):
+            return self._start_with_podman()
+        
+        # Try docker
+        if self._has_command('docker'):
+            return self._start_with_docker()
+        
+        # Try local installation
+        return self._start_local()
+    
+    def _has_command(self, cmd: str) -> bool:
+        """Check if command exists"""
+        try:
+            subprocess.run(['which', cmd], capture_output=True, check=True)
+            return True
+        except:
+            return False
+    
+    def _start_with_podman(self) -> Dict:
+        """Start SearXNG with podman"""
+        try:
+            # Check if container already exists
+            result = subprocess.run(
+                ['podman', 'ps', '-a', '--filter', 'name=ryx-searxng', '--format', '{{.Names}}'],
+                capture_output=True, text=True
+            )
+            
+            container_exists = 'ryx-searxng' in result.stdout
+            
+            if container_exists:
+                # Start existing container
+                subprocess.run(
+                    ['podman', 'start', 'ryx-searxng'],
+                    capture_output=True, check=True
+                )
+            else:
+                # Create and start new container
+                subprocess.run([
+                    'podman', 'run', '-d',
+                    '--name', 'ryx-searxng',
+                    '-p', f'{self.DEFAULT_PORT}:8080',
+                    '-e', 'SEARXNG_BASE_URL=http://localhost:8888/',
+                    self.SEARXNG_IMAGE
+                ], capture_output=True, check=True)
+            
+            # Wait for startup
+            for _ in range(10):
+                if self.is_running():
+                    self._update_ryx_config()
+                    return {
+                        'success': True,
+                        'url': f'http://localhost:{self.DEFAULT_PORT}',
+                        'message': 'SearXNG started via podman'
+                    }
+                time.sleep(1)
+            
+            return {
+                'success': False,
+                'error': 'SearXNG started but not responding'
+            }
+            
+        except subprocess.CalledProcessError as e:
+            return {
+                'success': False,
+                'error': f'Podman error: {e.stderr if e.stderr else str(e)}'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _start_with_docker(self) -> Dict:
+        """Start SearXNG with docker"""
+        try:
+            # Check if container already exists
+            result = subprocess.run(
+                ['docker', 'ps', '-a', '--filter', 'name=ryx-searxng', '--format', '{{.Names}}'],
+                capture_output=True, text=True
+            )
+            
+            container_exists = 'ryx-searxng' in result.stdout
+            
+            if container_exists:
+                subprocess.run(['docker', 'start', 'ryx-searxng'], capture_output=True, check=True)
+            else:
+                subprocess.run([
+                    'docker', 'run', '-d',
+                    '--name', 'ryx-searxng',
+                    '-p', f'{self.DEFAULT_PORT}:8080',
+                    '-e', 'SEARXNG_BASE_URL=http://localhost:8888/',
+                    self.SEARXNG_IMAGE
+                ], capture_output=True, check=True)
+            
+            for _ in range(10):
+                if self.is_running():
+                    self._update_ryx_config()
+                    return {
+                        'success': True,
+                        'url': f'http://localhost:{self.DEFAULT_PORT}',
+                        'message': 'SearXNG started via docker'
+                    }
+                time.sleep(1)
+            
+            return {
+                'success': False,
+                'error': 'SearXNG started but not responding'
+            }
+            
+        except subprocess.CalledProcessError as e:
+            return {
+                'success': False,
+                'error': f'Docker error: {e.stderr if e.stderr else str(e)}'
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def _start_local(self) -> Dict:
+        """Try to start local SearXNG installation"""
+        # Check for common local installations
+        local_paths = [
+            '/usr/local/searxng',
+            '/opt/searxng',
+            Path.home() / 'searxng',
+            Path.home() / '.local' / 'share' / 'searxng'
+        ]
+        
+        for path in local_paths:
+            searxng_run = Path(path) / 'searxng-run'
+            if searxng_run.exists():
+                try:
+                    proc = subprocess.Popen(
+                        [str(searxng_run)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True
+                    )
+                    
+                    with open(self.pid_file, 'w') as f:
+                        f.write(str(proc.pid))
+                    
+                    for _ in range(10):
+                        if self.is_running():
+                            self._update_ryx_config()
+                            return {
+                                'success': True,
+                                'url': f'http://localhost:{self.DEFAULT_PORT}',
+                                'message': f'SearXNG started from {path}'
+                            }
+                        time.sleep(1)
+                        
+                except Exception as e:
+                    continue
+        
+        return {
+            'success': False,
+            'error': (
+                'SearXNG not found. Install with:\n'
+                '  podman run -d --name ryx-searxng -p 8888:8080 searxng/searxng\n'
+                'Or: docker run -d --name ryx-searxng -p 8888:8080 searxng/searxng'
+            )
+        }
+    
+    def stop(self) -> Dict:
+        """Stop SearXNG"""
+        try:
+            # Try podman first
+            if self._has_command('podman'):
+                subprocess.run(['podman', 'stop', 'ryx-searxng'], capture_output=True)
+                return {'success': True, 'message': 'SearXNG stopped'}
+            
+            # Try docker
+            if self._has_command('docker'):
+                subprocess.run(['docker', 'stop', 'ryx-searxng'], capture_output=True)
+                return {'success': True, 'message': 'SearXNG stopped'}
+            
+            # Try local PID
+            if self.pid_file.exists():
+                with open(self.pid_file) as f:
+                    pid = int(f.read().strip())
+                os.kill(pid, signal.SIGTERM)
+                self.pid_file.unlink()
+                return {'success': True, 'message': 'SearXNG stopped'}
+            
+            return {'success': False, 'error': 'SearXNG not found'}
+            
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    def _update_ryx_config(self):
+        """Update ryx_config.json with SearXNG URL"""
+        config_path = get_project_root() / 'configs' / 'ryx_config.json'
+        
+        try:
+            if config_path.exists():
+                with open(config_path) as f:
+                    config = json.load(f)
+            else:
+                config = {}
+            
+            if 'search' not in config:
+                config['search'] = {}
+            
+            config['search']['searxng_url'] = f'http://localhost:{self.DEFAULT_PORT}'
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+                
+        except Exception:
+            # Non-critical, continue anyway
+            pass
 
 
 class ServiceManager:

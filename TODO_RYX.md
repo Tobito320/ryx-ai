@@ -1,6 +1,6 @@
 # Ryx AI - Development TODO
 
-**Last Updated**: 2025-12-02
+**Last Updated**: 2025-12-03
 **See also**: `HANDOFF.md` for detailed session notes
 
 ---
@@ -35,6 +35,26 @@
 
 **Files**: `core/ryx_brain.py` `_exec_chat()` (line 1658-1666)
 
+### 5. JSON File Generation
+- [x] JSON files now generate correctly (added .json to lang_hints)
+- [x] Minimum length check reduced for JSON files (2 chars instead of 10)
+- [x] JSON validation before writing
+
+**Files**: `core/phases.py` `_generate_code_for_step()`
+
+### 6. Smalltalk Triggers Web Search
+- [x] Added `_is_smalltalk()` method to detect greetings
+- [x] "wie gehts", "hallo", "danke" etc. now go to CHAT
+
+**Files**: `core/ryx_brain.py`
+
+### 7. SearXNG Integration
+- [x] SearXNGManager auto-starts SearXNG if not running
+- [x] Works with docker or podman
+- [x] Auto-configuration of ryx_config.json
+
+**Files**: `core/service_manager.py`, `core/tool_registry.py`
+
 ---
 
 ## ✅ COMPLETED
@@ -44,9 +64,10 @@
 - [x] Rich CLI UI with Claude Code-style design (`core/cli_ui.py`) **← CREATED but not integrated**
 - [x] Model router with intelligent model selection (`core/model_router.py`)
 - [x] Session loop with slash commands (`core/session_loop.py`)
-- [x] Web search tool (SearXNG + DuckDuckGo fallback)
+- [x] Web search tool (SearXNG + DuckDuckGo fallback) **← Now auto-starts SearXNG!**
 - [x] Scrape tool for webpage content
 - [x] **Follow-up context handling** (shorter/kürzer/mehr etc.)
+- [x] **Service management** (start/stop ryxhub with German support)
 
 ### UI Features (Created, Not Working)
 - [x] Token streaming with tok/s display **← Works**

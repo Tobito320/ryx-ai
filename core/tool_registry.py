@@ -896,19 +896,24 @@ class ToolRegistry:
         searxng_url = config.get('searxng_url')
         timeout = config.get('timeout_seconds', 10)
         
+        # Auto-start SearXNG if not configured or not running
         if not searxng_url:
-            return ToolResult(
-                success=False,
-                output=None,
-                error=(
-                    "❌ Web search disabled: SearxNG URL not configured.\n"
-                    "Set SEARXNG_URL environment variable or configure in:\n"
-                    "  configs/ryx_config.json → search.searxng_url\n\n"
-                    "Example: export SEARXNG_URL=http://localhost:8080\n"
-                    "Or add to ryx_config.json:\n"
-                    '  "search": { "searxng_url": "http://localhost:8080" }'
+            from core.service_manager import SearXNGManager
+            manager = SearXNGManager()
+            result = manager.ensure_running()
+            if result.get('success'):
+                searxng_url = result.get('url')
+            else:
+                return ToolResult(
+                    success=False,
+                    output=None,
+                    error=(
+                        f"❌ Web search unavailable: {result.get('error', 'SearXNG not running')}\n"
+                        "Install SearXNG with:\n"
+                        "  podman run -d --name ryx-searxng -p 8888:8080 searxng/searxng\n"
+                        "Or: docker run -d --name ryx-searxng -p 8888:8080 searxng/searxng"
+                    )
                 )
-            )
         
         try:
             # Build search URL (SearxNG JSON API)
@@ -951,14 +956,28 @@ class ToolRegistry:
             )
             
         except requests.exceptions.ConnectionError:
+            # Try to auto-start SearXNG
+            from core.service_manager import SearXNGManager
+            manager = SearXNGManager()
+            result = manager.ensure_running()
+            
+            if result.get('success'):
+                # Retry with the new URL
+                new_url = result.get('url')
+                return self._searxng_search({
+                    'query': query,
+                    'num_results': num_results,
+                    '_retry': True  # Prevent infinite loop
+                })
+            
             return ToolResult(
                 success=False,
                 output=None,
                 error=(
                     f"❌ Cannot connect to SearxNG at {searxng_url}\n"
-                    "Make sure SearxNG is running. To start it:\n"
-                    "  docker run -d -p 8080:8080 searxng/searxng\n"
-                    "Or check your SEARXNG_URL configuration."
+                    f"Auto-start failed: {result.get('error', 'Unknown error')}\n"
+                    "Install SearXNG with:\n"
+                    "  podman run -d --name ryx-searxng -p 8888:8080 searxng/searxng"
                 )
             )
         except requests.exceptions.Timeout:

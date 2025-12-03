@@ -6,9 +6,9 @@
     "description": "Ryx is Tobi's technical partner and extension of his engineering mind"
   },
   "search": {
-    "_comment": "Privacy-first web search via self-hosted SearxNG. Set searxng_url to your SearxNG instance.",
-    "_setup": "To enable web search: 1) Run SearxNG locally (docker run -d -p 8080:8080 searxng/searxng), 2) Set searxng_url below OR set SEARXNG_URL env var",
-    "searxng_url": null,
+    "_comment": "Privacy-first web search via self-hosted SearxNG. Auto-managed by Ryx.",
+    "_setup": "SearXNG is auto-started by Ryx when needed. Container: ryx-searxng on port 8888.",
+    "searxng_url": "http://localhost:8888",
     "fallback_to_duckduckgo": false,
     "max_results": 5,
     "timeout_seconds": 10

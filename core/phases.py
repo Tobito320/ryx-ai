@@ -857,6 +857,14 @@ class PhaseExecutor:
             '.rs': 'Rust',
             '.java': 'Java',
             '.sh': 'Bash',
+            '.json': 'JSON (valid JSON only, no comments)',
+            '.yaml': 'YAML',
+            '.yml': 'YAML',
+            '.html': 'HTML5',
+            '.css': 'CSS3',
+            '.md': 'Markdown',
+            '.toml': 'TOML',
+            '.xml': 'XML',
         }
         lang = lang_hints.get(ext, 'appropriate language')
         
@@ -898,10 +906,21 @@ Output ONLY the code. No explanations, no markdown fences."""
                     else:
                         code = '\n'.join(lines[1:])
                 
-                # Validate we got actual code
-                if len(code) < 10:
-                    self.state.add_error(f"Generated code too short for {step.file_path}")
+                # Validate we got actual content
+                # JSON files can be very short (e.g., "[]" or "{}")
+                min_length = 2 if ext == '.json' else 10
+                if len(code) < min_length:
+                    self.state.add_error(f"Generated content too short for {step.file_path}")
                     return False
+                
+                # For JSON files, validate it's valid JSON
+                if ext == '.json':
+                    import json
+                    try:
+                        json.loads(code)
+                    except json.JSONDecodeError as e:
+                        self.state.add_error(f"Invalid JSON generated for {step.file_path}: {e}")
+                        return False
                 
                 # Create the file
                 try:
