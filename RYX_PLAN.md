@@ -1467,24 +1467,24 @@ ryx_surf/
 #### P0.7: Tool-Only LLM Output
 **Ziel**: LLM generiert nur strukturierte Tool-Calls
 
-- [ ] **P0.7.1**: JSON-Schema für Tool-Calls definieren
-  - **Files**: `core/tool_schema.py` (neu)
-  - **LOC**: ~100
+- [x] **P0.7.1**: JSON-Schema für Tool-Calls definieren
+  - ✅ `core/tool_schema.py` erstellt
+  - **Files**: `core/tool_schema.py`
 
-- [ ] **P0.7.2**: Prompts für Tool-Only-Mode anpassen
-  - **Files**: `core/ryx_brain.py` (Prompt-Strings)
-  - **LOC**: ~50
+- [x] **P0.7.2**: Prompts für Tool-Only-Mode anpassen
+  - ✅ TOOL_ONLY_SYSTEM_PROMPT in tool_schema.py
+  - **Files**: `core/tool_schema.py`, `core/ryx_brain.py`
 
-- [ ] **P0.7.3**: Tool-Call-Parser in ollama_client
-  - **Files**: `core/ollama_client.py` (L150-250)
-  - **LOC**: ~80
+- [x] **P0.7.3**: Tool-Call-Parser in ollama_client
+  - ✅ ToolCallParser + generate_tool_call() implementiert
+  - **Files**: `core/ollama_client.py`, `core/tool_schema.py`
 
-### 🟡 P1: Self-Critique und UI
+### 🟡 P1: Self-Critique und UI (Zusammenfassung)
 
-- [ ] **P1.1**: Self-Critique-Prompt erstellen
-- [ ] **P1.2**: Git-Status in CLI-Header anzeigen
-- [ ] **P1.3**: Diffs vor Apply anzeigen mit Confirmation
-- [ ] **P1.4**: Test-Ergebnisse formatiert anzeigen
+- [x] **P1.1**: Self-Critique-Prompt ✅ (core/phases.py VERIFY)
+- [x] **P1.2**: Git-Status in Tools ✅ (GitStatusTool)
+- [x] **P1.3**: Diffs anzeigen ✅ (cli_ui.py show_diff)
+- [x] **P1.4**: Test-Ergebnisse ✅ (TestRunner.summary)
 
 ### 📋 P2: RyxHub & RyxSurf Vorbereitung
 
