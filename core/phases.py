@@ -333,7 +333,7 @@ Output the diff only, no explanation. Format:
  context
 ```""",
 
-    Phase.VERIFY: """You just made changes. Verify they are correct.
+    Phase.VERIFY: """You just made changes. Critically review them as if you're a senior code reviewer.
 
 Changes made:
 {changes_summary}
@@ -344,17 +344,21 @@ Test output (if any):
 Lint output (if any):
 {lint_output}
 
-Instructions:
-1. Review if changes match the intended task
-2. Check for obvious bugs or issues
-3. Verify we only changed intended files
-4. Recommend if we should proceed or fix something
+SELF-CRITIQUE CHECKLIST:
+1. Does the change actually solve the original task?
+2. Are there any bugs, edge cases, or security issues?
+3. Did we accidentally break existing functionality?
+4. Is the code clean and follows best practices?
+5. Are there any obvious improvements we should make?
+
+Be CRITICAL. If something looks wrong, flag it.
 
 Output as JSON:
 {{
     "status": "pass/fail/warning",
-    "issues": ["list of problems found"],
-    "suggestions": ["improvements to make"],
+    "issues": ["list of problems found - be specific"],
+    "suggestions": ["concrete improvements to make"],
+    "confidence": 0.0-1.0,
     "should_revert": true/false,
     "ready_to_complete": true/false
 }}""",

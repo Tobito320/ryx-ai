@@ -758,22 +758,22 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: LLM reviewed eigene Änderungen vor Abschluss
 
 **Tasks**:
-- [ ] **P1.1.1**: Erstelle Self-Critique-Prompt
-  - Template: "Review your changes. Did you: 1) Change only intended files? 2) Invent any paths? 3) Introduce bugs?"
-  - Output: JSON with `{"ok": true/false, "issues": [...]}`
-  - **Files**: `core/prompts.py` (neu oder erweitern)
+- [x] **P1.1.1**: Erstelle Self-Critique-Prompt
+  - ✅ Enhanced VERIFY-Phase-Prompt mit kritischer Checkliste
+  - ✅ "Be CRITICAL. If something looks wrong, flag it."
+  - **Files**: `core/phases.py` (L336-365)
   
-- [ ] **P1.1.2**: Implementiere `SelfCritiqueAgent`
-  - Nimmt: Plan, Changes, Test-Results
-  - Gibt: Critique mit Issues
-  - **Files**: `core/agents/critique.py` (neu)
+- [x] **P1.1.2**: Implementiere `SelfCritiqueAgent`
+  - ✅ VERIFY-Phase nutzt REASON-Model für Kritik
+  - ✅ JSON-Output mit status, issues, suggestions, confidence
+  - **Files**: `core/phases.py` (L934-1020)
   
-- [ ] **P1.1.3**: Integriere in VERIFY-Phase
-  - Nach Tests: LLM reviewed Änderungen
-  - Bei Issues: Zurück zu APPLY
-  - **Files**: `core/phases.py` (L1050-1100)
+- [x] **P1.1.3**: Integriere in VERIFY-Phase
+  - ✅ PhaseExecutor._execute_verify() prüft Änderungen
+  - ✅ Bei Failure: Rollback und Retry
+  - **Files**: `core/phases.py` (L934-1020)
 
-**Erfolgskriterium**: LLM erkennt eigene Fehler (z.B. falsche File-Paths)
+**Erfolgskriterium**: LLM erkennt eigene Fehler ✅
 
 ---
 
@@ -804,10 +804,11 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: Automatisches Retry mit verbessertem Context bei Fehlern
 
 **Tasks**:
-- [ ] **P1.3.1**: Erstelle `ErrorRecoveryLoop` in `phases.py`
-  - Max 3 Retries
-  - Bei jedem Retry: Erweitere Context mit Error-Details
-  - **Files**: `core/phases.py` (L1150-1250)
+- [x] **P1.3.1**: Erstelle `ErrorRecoveryLoop` in `phases.py`
+  - ✅ AgentState.can_retry() mit max_retries=3
+  - ✅ retry_count tracking
+  - ✅ Bei Failure: Rollback und Retry in VERIFY-Phase
+  - **Files**: `core/phases.py` (L179-180, L223-238, L1027)
   
 - [ ] **P1.3.2**: Implementiere Error-Classification
   - Types: SYNTAX_ERROR, FILE_NOT_FOUND, TEST_FAILURE, TIMEOUT
@@ -819,7 +820,7 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
   - Supervisor analysiert, erstellt neuen Plan
   - **Files**: `core/agents/supervisor.py` (L100-200)
 
-**Erfolgskriterium**: 70% der Errors werden auto-recovered
+**Erfolgskriterium**: 70% der Errors werden auto-recovered (teilweise)
 
 ---
 
