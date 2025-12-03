@@ -56,6 +56,7 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 | Komponente | Module | Beschreibung |
 |------------|--------|--------------|
 | RyxHub | `ryx_pkg/hub/` | Service-Registry, EventBus, REST/WS API |
+| **RyxHub-UI** | `ryxhub-ui/` (separates Repo) | Web Dashboard (React/Vite) |
 | RyxVoice | `ryx_pkg/voice/` | STT (Whisper), TTS (Piper), WakeWord |
 | RyxHardware | `ryx_pkg/hardware/` | Camera, Face Detection, Presence |
 | FileWatcher | `ryx_pkg/core/file_watcher.py` | Watch Mode für AI-Kommentare |
@@ -1865,11 +1866,17 @@ exporter.import_patterns(data)
 
 ### Verbleibende Tasks
 
-#### P2.5: Web UI (RyxHub) - Geplant für später
-- [ ] **P2.5.1**: React-Frontend
+#### P2.5: Web UI (RyxHub) - ✅ In Entwicklung
+- [x] **P2.5.1**: React-Frontend (ryxhub-ui Repo)
+  - Dashboard, Chat, Workflow Views
+  - API Client + Mock Layer
+  - React Query Hooks
 - [ ] **P2.5.2**: WebSocket für Streaming  
 - [ ] **P2.5.3**: Workflow-Graph-Visualisierung
 
+#### Bekannte Fehler (gefixt)
+- [x] ~~`phases.py:1114` - TypeError: CLI.success() got unexpected kwarg 'success'~~ → Gefixt 2025-12-03
+
 ---
 
-*Letzte Aktualisierung: 2025-12-03 - P2 Multi-Agent, Council, RAG, Learning implementiert*
+*Letzte Aktualisierung: 2025-12-03 - RyxHub-UI API-Layer hinzugefügt, phases.py Bug gefixt*
