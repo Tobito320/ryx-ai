@@ -1,7 +1,7 @@
 # 🟣 Ryx AI - Architektur & Verbesserungsplan
 
 **Erstellt**: 2025-12-03  
-**Aktualisiert**: 2025-12-03 (Aider-basierte Infrastruktur integriert)  
+**Aktualisiert**: 2025-12-03 (Aider-basierte Infrastruktur **vollständig integriert**)  
 **Status**: Vollständige Analyse & Roadmap  
 **Zweck**: Entwicklungsplan für automatisierte Agent-basierte Umsetzung
 
@@ -13,7 +13,7 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 
 | Komponente | Beschreibung | Status |
 |------------|--------------|--------|
-| **Ryx CLI/Brain** | Terminal-Assistent (Claude Code/Aider-Stil) | 🟡 In Entwicklung |
+| **Ryx CLI/Brain** | Terminal-Assistent (Claude Code/Aider-Stil) | 🟢 Funktional |
 | **RyxHub** | Zentrale Steuerung/Orchestrator für alle Ryx-Services | 📋 Geplant |
 | **RyxSurf** | Browser-/Web-Automation (langfristig eigener Browser) | 📋 Geplant |
 | **RyxVoice** | Spracheingabe/-ausgabe | 📋 Geplant |
@@ -31,31 +31,36 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 ## 📊 Executive Summary
 
 ### Aktueller Status
-- **Codebase**: 62 Python-Module, ~27.280 LOC + **neue Aider-basierte Module**
-- **Fortschritt**: ~55% der Zielarchitektur implementiert (↑ von 38%)
-- **Neu**: Repository-Exploration, Git-Integration, Diff-Editing, Test-Execution
-- **Hauptstärken**: Solide Basis, gute Tool-Abstraktion, funktionierendes Phase-System
+- **Codebase**: 62 Python-Module + 16 neue Aider-basierte Module (~32.000 LOC)
+- **Fortschritt**: ~65% der Zielarchitektur implementiert (↑ von 38%)
+- **Neu integriert**: Repository-Exploration, Git-Integration, Diff-Editing, Test-Execution
 
-### P0-Status nach Aider-Integration
+### P0-Status (VOLLSTÄNDIG INTEGRIERT ✅)
 
-| P0-Feature | Status | Neue Module |
-|------------|--------|-------------|
-| File-Finder / Repo-Map | ✅ **Implementiert** | `ryx_pkg/repo/` |
-| Diff-Based Editing | ✅ **Implementiert** | `ryx_pkg/editing/` |
-| Git-Integration | ✅ **Implementiert** | `ryx_pkg/git/` |
-| Test-Execution | ✅ **Implementiert** | `ryx_pkg/testing/` |
-| Tool-Only-Mode | 🟡 Teilweise | Integration ausstehend |
+| P0-Feature | Status | Module | Integration |
+|------------|--------|--------|-------------|
+| File-Finder / Repo-Map | ✅ **Fertig** | `ryx_pkg/repo/` | `core/phases.py` |
+| Diff-Based Editing | ✅ **Fertig** | `ryx_pkg/editing/` | `core/agent_tools.py` |
+| Git-Integration | ✅ **Fertig** | `ryx_pkg/git/` | `core/phases.py` + Tools |
+| Test-Execution | ✅ **Fertig** | `ryx_pkg/testing/` | `core/phases.py` |
+| Tool-Only-Mode | 🟡 Teilweise | - | Prompts ausstehend |
 
-### Verbleibende Kritische Lücken
-1. **Integration**: Neue Module müssen in `core/ryx_brain.py` integriert werden
-2. **LLM-Tool-Only**: LLM muss strukturierte Tool-Calls statt freiem Text generieren
-3. **Self-Critique**: LLM-basierte Selbstkritik nach Änderungen
-4. **UI-Integration**: Diffs und Git-Status in CLI anzeigen
+### Neue Agent-Tools (nach Integration)
+```
+- read_file, list_directory, search_code (bestehend)
+- write_file, create_file, delete_file (bestehend)
+- apply_diff          ← Nutzt jetzt DiffEditor mit Fuzzy-Matching
+- search_replace      ← NEU: Suchen/Ersetzen mit Fuzzy-Matching
+- find_relevant_files ← NEU: Intelligente Dateisuche
+- git_status          ← NEU: Formatierter Git-Status
+- git_commit, git_revert, git_diff (bestehend)
+- run_command (bestehend)
+```
 
-### Prioritäten (aktualisiert)
-1. **P0 (Kritisch)**: ~~File-Finder, Diff-Editing, Git-Integration, Test-Execution~~ → Integration in Brain
-2. **P1 (Wichtig)**: Self-Critique, UI-Updates, Error-Recovery
-3. **P2 (Nice-to-Have)**: RyxHub, RyxSurf, Multi-Agent-Council
+### Verbleibende Prioritäten
+1. **P0.7 (Kritisch)**: Tool-Only LLM Output - Prompts anpassen
+2. **P1**: Self-Critique, UI-Updates, Error-Recovery
+3. **P2**: RyxHub, RyxSurf, Multi-Agent-Council
 
 ---
 
