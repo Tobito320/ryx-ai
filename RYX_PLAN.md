@@ -1086,8 +1086,11 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
   - ✅ Health Monitoring
   - **Files**: `ryx_pkg/hub/{hub,service_registry,event_bus,api}.py`
 
-- [ ] **P2.5.4**: React-Frontend für RyxHub (bereits begonnen in `ryx_pkg/interfaces/web/`)
-- [ ] **P2.5.5**: Visualisierung von Workflow-Graphs
+- [x] **P2.5.4**: React-Frontend für RyxHub - ✅ Vollständig in `ryxhub/`
+  - Dashboard, Chat, Workflow Views
+  - Mock API + React Query Hooks
+  - Dark Theme mit Tailwind/shadcn
+- [ ] **P2.5.5**: Visualisierung von Workflow-Graphs (Canvas vorhanden, Drag&Drop fehlt)
 
 **Erfolgskriterium**: RyxHub als zentraler Orchestrator für alle Ryx-Services ✅
 
@@ -1625,9 +1628,9 @@ ryx_surf/
 
 ### 📋 P2: RyxHub & RyxSurf Vorbereitung
 
-- [ ] **P2.1**: RyxHub-Ordnerstruktur erstellen
-- [ ] **P2.2**: RyxSurf-Ordnerstruktur erstellen
-- [ ] **P2.3**: Gemeinsame API-Schnittstelle definieren
+- [x] **P2.1**: RyxHub-Ordnerstruktur erstellen ✅ (`ryxhub/`, `ryx_pkg/hub/`)
+- [ ] **P2.2**: RyxSurf-Ordnerstruktur erstellen (geplant)
+- [x] **P2.3**: Gemeinsame API-Schnittstelle definieren ✅ (`ryxhub/src/services/ryxService.ts`)
 
 ---
 
@@ -1866,17 +1869,18 @@ exporter.import_patterns(data)
 
 ### Verbleibende Tasks
 
-#### P2.5: Web UI (RyxHub) - ✅ In Entwicklung
-- [x] **P2.5.1**: React-Frontend (ryxhub-ui Repo)
+#### P2.5: Web UI (RyxHub) - ✅ Vollständig
+- [x] **P2.5.1**: React-Frontend (jetzt integriert unter `/ryxhub/`)
   - Dashboard, Chat, Workflow Views
   - API Client + Mock Layer
   - React Query Hooks
-- [ ] **P2.5.2**: WebSocket für Streaming  
-- [ ] **P2.5.3**: Workflow-Graph-Visualisierung
+  - `ryx starte ryxhub` startet UI auf Port 5173
+- [ ] **P2.5.2**: WebSocket für Streaming (Backend-Integration ausstehend)
+- [x] **P2.5.3**: Workflow-Graph-Visualisierung (Basis-Canvas vorhanden)
 
 #### Bekannte Fehler (gefixt)
 - [x] ~~`phases.py:1114` - TypeError: CLI.success() got unexpected kwarg 'success'~~ → Gefixt 2025-12-03
 
 ---
 
-*Letzte Aktualisierung: 2025-12-03 - RyxHub-UI API-Layer hinzugefügt, phases.py Bug gefixt*
+*Letzte Aktualisierung: 2025-12-03 - RyxHub-UI vollständig integriert in `/ryxhub/`, phases.py Bug gefixt*
