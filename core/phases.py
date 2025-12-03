@@ -1226,7 +1226,7 @@ Output ONLY the code. No explanations, no markdown fences."""
     
     def _execute_complete(self) -> bool:
         """Complete phase: finish up"""
-        self.ui.success("Task completed successfully", success=True)
+        self.ui.success("Task completed successfully")
         self.state.transition_to(Phase.IDLE)
         return True
     

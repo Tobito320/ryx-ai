@@ -272,6 +272,11 @@ class SmartCache:
     
     def store(self, query: str, plan: Plan, success: bool = True):
         """Store resolution result"""
+        # Don't cache service commands - they should always be re-evaluated
+        nocache_intents = {'start_svc', 'stop_svc', 'restart', 'get_info'}
+        if plan.intent.value in nocache_intents:
+            return
+        
         h = self._hash(query)
         now = datetime.now().isoformat()
         conn = sqlite3.connect(self.db_path)
@@ -1671,6 +1676,29 @@ Sprache: Deutsch"""
     def _exec_start_service(self, plan: Plan) -> Tuple[bool, str]:
         service = (plan.target or "").lower()
         
+        # RyxHub - Web UI
+        if service in ['ryxhub', 'hub', 'webui', 'ui']:
+            try:
+                from core.service_manager import ServiceManager
+                manager = ServiceManager()
+                result = manager.start_ryxhub()
+                
+                if result.get('success'):
+                    info = result.get('info', [])
+                    return True, "✅ RyxHub gestartet:\n" + "\n".join(f"  • {i}" for i in info)
+                else:
+                    error = result.get('error', 'Unbekannter Fehler')
+                    # If already running, show info
+                    if 'already running' in error.lower():
+                        info = result.get('info', ['http://localhost:5173'])
+                        return True, "ℹ️ RyxHub läuft bereits:\n" + "\n".join(f"  • {i}" for i in info)
+                    return False, f"❌ Fehler beim Starten: {error}"
+            except ImportError:
+                return False, "❌ ServiceManager nicht gefunden"
+            except Exception as e:
+                return False, f"❌ Fehler: {e}"
+        
+        # SearXNG - Search engine
         if service in ['searxng', 'searx', 'search']:
             try:
                 import requests
@@ -1689,6 +1717,27 @@ Sprache: Deutsch"""
     def _exec_stop_service(self, plan: Plan) -> Tuple[bool, str]:
         service = (plan.target or "").lower()
         
+        # RyxHub - Web UI
+        if service in ['ryxhub', 'hub', 'webui', 'ui']:
+            try:
+                from core.service_manager import ServiceManager
+                manager = ServiceManager()
+                result = manager.stop_ryxhub()
+                
+                if result.get('success'):
+                    stopped = result.get('stopped', [])
+                    return True, "✅ RyxHub gestoppt:\n" + "\n".join(f"  • {s}" for s in stopped)
+                else:
+                    error = result.get('error', 'Unbekannter Fehler')
+                    if 'not running' in error.lower():
+                        return True, "ℹ️ RyxHub läuft nicht"
+                    return False, f"❌ Fehler: {error}"
+            except ImportError:
+                return False, "❌ ServiceManager nicht gefunden"
+            except Exception as e:
+                return False, f"❌ Fehler: {e}"
+        
+        # SearXNG - Search engine
         if service in ['searxng', 'searx']:
             try:
                 subprocess.run(["docker", "stop", "searxng"], capture_output=True, timeout=10)
