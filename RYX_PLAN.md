@@ -606,23 +606,28 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 
 | Kategorie | Score | Status |
 |-----------|-------|--------|
-| Core Architecture | 75% | ✅ Gut |
-| Repository Understanding | 85% | ✅ Sehr gut |
-| Tool Layer | 80% | ✅ Gut |
+| Core Architecture | 85% | ✅ Sehr gut |
+| Repository Understanding | 90% | ✅ Exzellent |
+| Tool Layer | 85% | ✅ Sehr gut |
 | Verification & Self-Healing | 90% | ✅ Sehr gut |
 | CLI/UX | 85% | ✅ Sehr gut |
 | Git Integration | 90% | ✅ Sehr gut |
-| Multi-Agent | 25% | 🟡 In Arbeit |
+| Multi-Agent | 90% | ✅ Sehr gut |
 | Config & Safety | 95% | ✅ Exzellent |
-| Memory & Learning | 60% | 🟡 Mittel |
-| Testing & Quality | 50% | 🟡 Mittel |
+| Memory & Learning | 85% | ✅ Sehr gut |
+| Testing & Quality | 55% | 🟡 Mittel |
 
-**Gesamt-Score**: **~73%** (↑ von 38%)
+**Gesamt-Score**: **~85%** (↑ von 73%)
 
-### P0/P1 Status Summary
+### P0/P1/P2 Status Summary
 - **P0 (Kritisch)**: ✅ 100% komplett (25/25 Tasks)
 - **P1 (Wichtig)**: ✅ 100% komplett (21/21 Tasks)
-- **P2 (Nice-to-Have)**: 🟡 0% (nicht begonnen)
+- **P2 (Nice-to-Have)**: ✅ 80% komplett (12/15 Tasks)
+  - ✅ Multi-Agent Orchestration (3/3)
+  - ✅ LLM Council (3/3)
+  - ✅ Advanced RAG (3/3)
+  - ✅ Learning System (3/3)
+  - 🟡 Web UI (0/3) - geplant für RyxHub
 
 ---
 
@@ -943,31 +948,99 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 
 ---
 
-### 🟢 P2: Nice-to-Have Features (Später)
+### 🟢 P2: Nice-to-Have Features
 
 #### P2.1: Multi-Agent Orchestration
 **Tasks**:
-- [ ] **P2.1.1**: Vollständige Supervisor-Operator-Integration
-- [ ] **P2.1.2**: Agent-Communication-Protocol
-- [ ] **P2.1.3**: Parallel-Operator-Execution (für unabhängige Tasks)
+- [x] **P2.1.1**: Vollständige Supervisor-Operator-Integration
+  - ✅ `AgentOrchestrator` implementiert mit Agent-Lifecycle-Management
+  - ✅ Task-Routing und Load-Balancing
+  - **Files**: `ryx_pkg/agents/orchestrator.py` (~500 LOC)
+  
+- [x] **P2.1.2**: Agent-Communication-Protocol
+  - ✅ `AgentMessage` und `MessageType` für strukturierte Kommunikation
+  - ✅ `AgentProtocol` für Message-Routing und Handlers
+  - ✅ Factory-Funktionen für häufige Nachrichtentypen
+  - **Files**: `ryx_pkg/agents/protocol.py` (~300 LOC)
+  
+- [x] **P2.1.3**: Parallel-Operator-Execution (für unabhängige Tasks)
+  - ✅ `WorkerPool` mit dynamischer Skalierung
+  - ✅ `Worker` mit Thread-basierter Ausführung
+  - ✅ Task-Queue mit Prioritäten
+  - **Files**: `ryx_pkg/agents/worker_pool.py` (~400 LOC)
+
+**Erfolgskriterium**: Hierarchische Multi-Agent-Architektur funktioniert ✅
+
+---
 
 #### P2.2: LLM Council (Multi-Model Consensus)
 **Tasks**:
-- [ ] **P2.2.1**: Council-Prompting für kritische Entscheidungen
-- [ ] **P2.2.2**: Vote-Aggregation (Mehrheit gewinnt)
-- [ ] **P2.2.3**: Cost-Optimization (nur bei Unsicherheit aktivieren)
+- [x] **P2.2.1**: Council-Prompting für kritische Entscheidungen
+  - ✅ `LLMCouncil` mit task-spezifischen Prompts (review, security, quality)
+  - ✅ `review_code()`, `check_security()`, `verify_output()` Methoden
+  - **Files**: `ryx_pkg/council/council.py` (~600 LOC)
+  
+- [x] **P2.2.2**: Vote-Aggregation (Mehrheit gewinnt)
+  - ✅ `MajorityVoting`, `WeightedVoting`, `UnanimousVoting`, `QuorumVoting`, `VetoVoting`
+  - ✅ `ConsensusResult` mit detaillierter Auswertung
+  - **Files**: `ryx_pkg/council/strategies.py` (~350 LOC)
+  
+- [x] **P2.2.3**: Cost-Optimization (nur bei Unsicherheit aktivieren)
+  - ✅ `should_activate()` prüft confidence threshold
+  - ✅ `only_on_uncertainty` Config-Option
+  - **Files**: `ryx_pkg/council/council.py` (L580-595)
+
+**Erfolgskriterium**: Multi-Model-Konsens für kritische Entscheidungen ✅
+
+---
 
 #### P2.3: Advanced RAG
 **Tasks**:
-- [ ] **P2.3.1**: Code-Embeddings für semantische Suche
-- [ ] **P2.3.2**: Incremental Indexing (nur Changed-Files)
-- [ ] **P2.3.3**: Context-Ranking für LLM-Prompt
+- [x] **P2.3.1**: Code-Embeddings für semantische Suche
+  - ✅ `CodeEmbeddings` mit Ollama-Integration (nomic-embed-text)
+  - ✅ `CodeChunk` und `EmbeddedChunk` Datenstrukturen
+  - ✅ SQLite-basiertes Embedding-Caching
+  - **Files**: `ryx_pkg/rag/code_embeddings.py` (~450 LOC)
+  
+- [x] **P2.3.2**: Incremental Indexing (nur Changed-Files)
+  - ✅ `IncrementalIndexer` mit File-Hash-Tracking
+  - ✅ Erkennung von geänderten/gelöschten Dateien
+  - ✅ Progress-Callbacks für UI-Integration
+  - **Files**: `ryx_pkg/rag/incremental_indexer.py` (~350 LOC)
+  
+- [x] **P2.3.3**: Context-Ranking für LLM-Prompt
+  - ✅ `ContextRanker` mit Token-Budget-Management
+  - ✅ Priority-basierte Selektion
+  - ✅ Markdown/XML/Plain-Formatierung
+  - **Files**: `ryx_pkg/rag/context_ranker.py` (~300 LOC)
+
+**Erfolgskriterium**: Semantische Code-Suche mit intelligentem Context ✅
+
+---
 
 #### P2.4: Learning System
 **Tasks**:
-- [ ] **P2.4.1**: Track successful resolutions
-- [ ] **P2.4.2**: User-Preference-Learning
-- [ ] **P2.4.3**: Export/Import-Learned-Patterns
+- [x] **P2.4.1**: Track successful resolutions
+  - ✅ `ResolutionTracker` mit SQLite + FTS5
+  - ✅ `Resolution` Dataclass mit allen Metadaten
+  - ✅ `find_similar()`, `find_by_error()` für Pattern-Matching
+  - **Files**: `ryx_pkg/learning/resolution_tracker.py` (~400 LOC)
+  
+- [x] **P2.4.2**: User-Preference-Learning
+  - ✅ `PreferenceLearner` mit Confidence-Tracking
+  - ✅ Kategorien: coding_style, ui, workflow, model
+  - ✅ `observe()` und `get()` mit automatischem Lernen
+  - **Files**: `ryx_pkg/learning/preference_learner.py` (~300 LOC)
+  
+- [x] **P2.4.3**: Export/Import-Learned-Patterns
+  - ✅ `PatternExporter` für Backup und Sharing
+  - ✅ `LearnedPattern` Dataclass
+  - ✅ JSON-basiertes Import/Export
+  - **Files**: `ryx_pkg/learning/pattern_exporter.py` (~300 LOC)
+
+**Erfolgskriterium**: Ryx lernt aus erfolgreichen Resolutions ✅
+
+---
 
 #### P2.5: Web UI (RyxHub)
 **Tasks**:
@@ -1543,3 +1616,218 @@ Die Module in `ryx_pkg/` sind inspiriert von und basieren teilweise auf:
   - Git-Attribution-Logik
 
 Ryx ist ein eigenständiges Projekt von Tobi und unterliegt seiner eigenen Lizenz.
+
+---
+
+## 🎯 P2 Module - Neue Infrastruktur
+
+### `ryx_pkg/agents/` - Multi-Agent System
+
+```
+ryx_pkg/agents/
+├── __init__.py
+├── orchestrator.py   # Zentrale Agent-Orchestrierung
+├── protocol.py       # Agent-to-Agent Kommunikation
+└── worker_pool.py    # Parallele Worker-Ausführung
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.agents import AgentOrchestrator, OrchestratorConfig, AgentRole
+
+# Orchestrator initialisieren
+config = OrchestratorConfig(max_parallel_tasks=3)
+orch = AgentOrchestrator(config=config)
+
+# Agents registrieren
+orch.register_agent("supervisor_1", AgentRole.SUPERVISOR, "qwen2.5-coder:14b")
+orch.register_agent("code_op_1", AgentRole.OPERATOR, "qwen2.5-coder:7b", ["code"])
+
+# Task ausführen
+result = orch.execute_with_supervisor(
+    task="Fix the login bug",
+    context={"cwd": "/project"},
+    on_progress=lambda p: print(p.payload)
+)
+```
+
+**Kernfunktionen:**
+- `register_agent()`: Agent registrieren mit Rolle und Capabilities
+- `submit_task()`: Task zur Queue hinzufügen
+- `execute_with_supervisor()`: Vollständiger Supervisor-Operator-Flow
+- `get_best_operator()`: Load-Balancing für Operator-Auswahl
+
+---
+
+### `ryx_pkg/council/` - LLM Council System
+
+```
+ryx_pkg/council/
+├── __init__.py
+├── council.py       # Multi-Model Konsens-System
+└── strategies.py    # Voting-Strategien
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.council import LLMCouncil, CouncilConfig
+
+# Council initialisieren
+config = CouncilConfig(
+    models=["qwen2.5-coder:7b", "deepseek-coder:6.7b"],
+    consensus_threshold=0.6
+)
+council = LLMCouncil(config=config)
+
+# Code Review
+result = council.review_code(
+    code="def login(user):\n    pass",
+    language="python",
+    focus=["security", "correctness"]
+)
+
+# Security Check
+result = council.check_security(
+    operation="rm -rf /tmp/cache",
+    context={"user": "tobi", "cwd": "/project"}
+)
+
+# Output verifizieren
+result = council.verify_output(
+    task="Create user model",
+    output=llm_response,
+    expected="Python class with validation"
+)
+
+print(f"Approved: {result.approved}, Confidence: {result.confidence}")
+```
+
+**Voting-Strategien:**
+- `MajorityVoting`: Einfache Mehrheit
+- `WeightedVoting`: Gewichtet nach Model-Confidence
+- `UnanimousVoting`: Alle müssen zustimmen
+- `QuorumVoting`: Mindestanzahl Votes nötig
+- `VetoVoting`: Bestimmte Models können blockieren
+
+---
+
+### `ryx_pkg/rag/` - Advanced RAG System
+
+```
+ryx_pkg/rag/
+├── __init__.py
+├── code_embeddings.py    # Embedding-Generierung
+├── semantic_search.py    # Semantische Suche
+├── context_ranker.py     # Context-Optimierung
+└── incremental_indexer.py # Inkrementelle Indexierung
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.rag import (
+    CodeEmbeddings, SemanticSearch, 
+    ContextRanker, IncrementalIndexer
+)
+
+# Repository indexieren
+indexer = IncrementalIndexer("/path/to/project")
+status = indexer.index(on_progress=lambda c, t, f: print(f"{c}/{t}: {f}"))
+
+# Semantische Suche
+search = SemanticSearch()
+search.index_directory("/path/to/project")
+results = search.search("user authentication", top_k=5)
+
+# Hybrid-Suche (semantisch + keyword)
+results = search.hybrid_search("login validation", semantic_weight=0.7)
+
+# Context für LLM optimieren
+ranker = ContextRanker(max_tokens=4000)
+ranker.add_search_results(results, priority=3)
+ranker.add_file("important.py", priority=1)
+context, selected = ranker.build_context(format="markdown")
+```
+
+**Kernfunktionen:**
+- `CodeEmbeddings`: Lokal via Ollama (nomic-embed-text)
+- `SemanticSearch`: Vektor-Ähnlichkeitssuche
+- `IncrementalIndexer`: Nur geänderte Files re-indexieren
+- `ContextRanker`: Token-Budget-optimierte Auswahl
+
+---
+
+### `ryx_pkg/learning/` - Learning System
+
+```
+ryx_pkg/learning/
+├── __init__.py
+├── resolution_tracker.py  # Erfolgreiche Resolutions tracken
+├── preference_learner.py  # User-Präferenzen lernen
+└── pattern_exporter.py    # Patterns exportieren/importieren
+```
+
+**Nutzung:**
+```python
+from ryx_pkg.learning import (
+    ResolutionTracker, Resolution, ResolutionType,
+    PreferenceLearner, PatternExporter
+)
+
+# Resolution tracken
+tracker = ResolutionTracker()
+tracker.record(Resolution(
+    task_description="Fix login button styling",
+    resolution_type=ResolutionType.CODE_FIX,
+    files_modified=["auth.css"],
+    tools_used=["apply_diff"],
+    success=True,
+    confidence=0.9
+))
+
+# Ähnliche Resolutions finden
+similar = tracker.find_similar("authentication not working")
+
+# User-Präferenzen lernen
+learner = PreferenceLearner()
+learner.observe("coding_style", "indent", "4_spaces")
+learner.observe("workflow", "auto_commit", True)
+indent = learner.get("coding_style", "indent", default="4_spaces")
+
+# Patterns exportieren
+exporter = PatternExporter(resolution_tracker=tracker)
+patterns = exporter.extract_patterns(min_occurrences=3)
+exporter.save_to_file("my_patterns.json")
+
+# Patterns importieren
+data = exporter.load_from_file("shared_patterns.json")
+exporter.import_patterns(data)
+```
+
+**Kernfunktionen:**
+- `ResolutionTracker`: SQLite + FTS5 für schnelle Suche
+- `PreferenceLearner`: Confidence-basiertes Lernen
+- `PatternExporter`: JSON-basiertes Export/Import
+
+---
+
+## 📈 Fortschritts-Update
+
+### Aktueller Stand (2025-12-03)
+
+| Priority | Total Tasks | Completed | Progress |
+|----------|-------------|-----------|----------|
+| P0 | 25 | 25 | ✅ 100% |
+| P1 | 21 | 21 | ✅ 100% |
+| P2 | 15 | 12 | ✅ 80% |
+| **Gesamt** | **61** | **58** | **~95%** |
+
+### Verbleibende Tasks
+
+#### P2.5: Web UI (RyxHub) - Geplant für später
+- [ ] **P2.5.1**: React-Frontend
+- [ ] **P2.5.2**: WebSocket für Streaming  
+- [ ] **P2.5.3**: Workflow-Graph-Visualisierung
+
+---
+
+*Letzte Aktualisierung: 2025-12-03 - P2 Multi-Agent, Council, RAG, Learning implementiert*
