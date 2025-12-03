@@ -37,6 +37,18 @@ except ImportError as e:
     logger.warning(f"Aider-based modules not available: {e}")
     AIDER_MODULES_AVAILABLE = False
 
+# Import P1 modules
+try:
+    from core.hallucination_detector import HallucinationDetector, detect_hallucinations
+    from core.error_classifier import ErrorClassifier, ErrorRecoveryLoop, ErrorType
+    from core.lint_runner import LintRunner, lint_files
+    from core.manifest import ManifestLoader, load_manifest
+    from core.history_manager import HistoryManager, ContextManager, Message, Role
+    P1_MODULES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"P1 modules not available: {e}")
+    P1_MODULES_AVAILABLE = False
+
 
 class Phase(Enum):
     """Agent execution phases"""
@@ -938,7 +950,7 @@ Output ONLY the code. No explanations, no markdown fences."""
         self.state.checkpoint_ids = []
 
     def _execute_verify(self) -> bool:
-        """Verify phase: check results using TestRunner and REASON model"""
+        """Verify phase: check results using TestRunner, LintRunner, HallucinationDetector"""
         # Get the REASON model for verification
         from core.model_router import get_router, ModelRole
         router = get_router()
@@ -948,81 +960,92 @@ Output ONLY the code. No explanations, no markdown fences."""
         
         # Check if any changes were made
         has_changes = bool(self.state.changes)
+        changed_files = [c.file_path for c in self.state.changes] if has_changes else []
         
+        verification_issues = []
+        
+        # 1. Hallucination Detection (P1.2)
+        if P1_MODULES_AVAILABLE and has_changes:
+            self.ui.substep("Checking for hallucinated paths...")
+            detector = HallucinationDetector()
+            for change in self.state.changes:
+                report = detector.check_paths([change.file_path])
+                if report.has_issues:
+                    verification_issues.append(f"Hallucination: {report.summary()}")
+        
+        # 2. Lint Check (P1.5)
+        if P1_MODULES_AVAILABLE and has_changes and changed_files:
+            self.ui.substep("Running linter...")
+            try:
+                lint_runner = LintRunner()
+                lint_result = lint_runner.lint_files(changed_files)
+                self.state.lint_output = lint_result.raw_output
+                if lint_result.has_errors:
+                    verification_issues.append(f"Lint errors: {lint_result.error_count}")
+                    self.ui.substep(f"⚠️ {lint_result.summary()}")
+                elif lint_result.has_warnings:
+                    self.ui.substep(f"○ {lint_result.summary()}")
+            except Exception as e:
+                logger.debug(f"Lint check failed: {e}")
+        
+        # 3. Test Execution
         if has_changes:
             # Use new TestRunner if available
             if self.test_runner and self.test_runner.framework:
-                self.ui.phase_start("VERIFY", f"Running tests ({self.test_runner.framework})...")
+                self.ui.substep(f"Running tests ({self.test_runner.framework})...")
                 
-                # Get changed files for targeted testing
-                changed_files = [c.file_path for c in self.state.changes]
                 test_result = self.test_runner.run_for_files(changed_files)
-                
                 self.state.test_output = test_result.output
                 
                 if test_result.success:
-                    self.ui.phase_done("VERIFY", test_result.summary)
-                    self.state.verification_passed = True
-                    
-                    # Auto-commit if git is available
-                    if self.git_manager and self.git_manager.is_repo:
-                        commit_msg = f"ryx: {self.state.task[:50]}"
-                        commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
-                        if commit_hash:
-                            self.ui.substep(f"Committed: {commit_hash}")
+                    self.ui.substep(f"✓ {test_result.summary}")
                 else:
-                    self.ui.phase_done("VERIFY", f"Tests failed: {test_result.summary}", success=False)
-                    self.state.verification_passed = False
+                    verification_issues.append(f"Tests failed: {test_result.summary}")
+                    self.ui.substep(f"✗ {test_result.summary}")
+                    
+                    # Error classification for better recovery (P1.3)
+                    if P1_MODULES_AVAILABLE:
+                        classifier = ErrorClassifier()
+                        error_ctx = classifier.classify_from_output(test_result.output)
+                        if error_ctx.suggested_fix:
+                            self.ui.substep(f"Suggestion: {error_ctx.suggested_fix}")
             else:
                 # Fallback to command-based testing
                 test_cmd = self._detect_test_command()
                 if test_cmd:
-                    self.ui.phase_start("VERIFY", f"Running tests ({test_cmd})...")
+                    self.ui.substep(f"Running tests ({test_cmd})...")
                     test_result = self.tools.execute("run_command", command=f"{test_cmd} 2>/dev/null || true", timeout=30)
                     if test_result.success:
                         self.state.test_output = test_result.output
                         if "failed" in test_result.output.lower() or "error" in test_result.output.lower():
-                            self.ui.phase_done("VERIFY", "Tests failed", success=False)
-                            self.state.verification_passed = False
+                            verification_issues.append("Tests failed")
                         else:
-                            self.ui.phase_done("VERIFY", "Tests passed")
-                            self.state.verification_passed = True
-                            
-                            # Auto-commit if git is available
-                            if self.git_manager and self.git_manager.is_repo:
-                                changed_files = [c.file_path for c in self.state.changes]
-                                commit_msg = f"ryx: {self.state.task[:50]}"
-                                commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
-                                if commit_hash:
-                                    self.ui.substep(f"Committed: {commit_hash}")
+                            self.ui.substep("✓ Tests passed")
                     else:
-                        self.ui.phase_done("VERIFY", "Test execution failed", success=False)
-                        self.state.verification_passed = False
-                else:
-                    self.ui.phase_done("VERIFY", "No tests found")
-                    self.state.verification_passed = True  # No tests = pass
-                    
-                    # Auto-commit if git is available
-                    if self.git_manager and self.git_manager.is_repo:
-                        changed_files = [c.file_path for c in self.state.changes]
-                        commit_msg = f"ryx: {self.state.task[:50]}"
-                        commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
-                        if commit_hash:
-                            self.ui.substep(f"Committed: {commit_hash}")
-        else:
-            # No changes, just analysis
-            self.ui.phase_done("VERIFY", "Analysis complete")
-            self.state.verification_passed = True
+                        verification_issues.append("Test execution failed")
         
+        # Determine final verification status
+        if verification_issues:
+            self.state.verification_passed = False
+            self.ui.phase_done("VERIFY", f"Issues: {len(verification_issues)}", success=False)
+            for issue in verification_issues:
+                self.ui.warn(f"  - {issue}")
+        else:
+            self.state.verification_passed = True
+            self.ui.phase_done("VERIFY", "All checks passed")
+            
+            # Auto-commit if git is available
+            if self.git_manager and self.git_manager.is_repo and changed_files:
+                commit_msg = f"ryx: {self.state.task[:50]}"
+                commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
+                if commit_hash:
+                    self.ui.substep(f"Committed: {commit_hash}")
+        
+        # Handle verification result
         if self.state.verification_passed:
             self.state.transition_to(Phase.COMPLETE)
         else:
             self.ui.success("Verification failed", success=False)
-            
-            # Ask user if they want to revert?
-            # For now, just log it. Automatic revert might be too aggressive without user input.
-            # But the TODO said "Automatic rollback".
-            # Let's do it if we can retry.
             
             if self.state.can_retry():
                 self.ui.warn("Rolling back changes to retry...")

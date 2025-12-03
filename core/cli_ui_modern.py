@@ -243,7 +243,6 @@ class ModernCLI:
 
         # The complete input box
         input_box = HSplit([
-            top_border,
             input_row,
             bottom_border,
         ])

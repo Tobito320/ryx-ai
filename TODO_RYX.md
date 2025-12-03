@@ -72,10 +72,10 @@
 
 ### Phase System (EXPLORE → PLAN → APPLY → VERIFY)
 - [x] Basic phase executor (`core/phases.py`)
-- [ ] Integrate checkpoints into phase execution
-- [ ] Show diffs during APPLY phase
-- [ ] Run tests during VERIFY phase
-- [ ] Automatic rollback on VERIFY failure
+- [x] Integrate checkpoints into phase execution
+- [x] Show diffs during APPLY phase
+- [x] Run tests during VERIFY phase (auto-detects test command)
+- [x] Automatic rollback on VERIFY failure
 
 ### Context Management
 - [x] Basic context tracking (last_path, last_intent)
