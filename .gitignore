@@ -85,3 +85,9 @@ data/exports/
 # Node
 node_modules/
 .npm/
+
+# RyxHub specific
+ryxhub/node_modules/
+ryxhub/dist/
+ryxhub/.env
+ryxhub/.env.local

@@ -56,7 +56,7 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 | Komponente | Module | Beschreibung |
 |------------|--------|--------------|
 | RyxHub | `ryx_pkg/hub/` | Service-Registry, EventBus, REST/WS API |
-| **RyxHub-UI** | `ryxhub-ui/` (separates Repo) | Web Dashboard (React/Vite) |
+| **RyxHub-UI** | `ryxhub/` | Web Dashboard (React/Vite) - integriert im Repo |
 | RyxVoice | `ryx_pkg/voice/` | STT (Whisper), TTS (Piper), WakeWord |
 | RyxHardware | `ryx_pkg/hardware/` | Camera, Face Detection, Presence |
 | FileWatcher | `ryx_pkg/core/file_watcher.py` | Watch Mode für AI-Kommentare |

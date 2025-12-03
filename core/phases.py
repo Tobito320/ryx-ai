@@ -1233,7 +1233,7 @@ Output ONLY the code. No explanations, no markdown fences."""
     def _handle_error(self) -> bool:
         """Handle error state"""
         error_msg = self.state.errors[-1] if self.state.errors else 'Unknown error'
-        self.ui.success(f"Task failed: {error_msg}", success=False)
+        self.ui.error(f"Task failed: {error_msg}")
         return False
     
     def run_to_completion(self) -> bool:

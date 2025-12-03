@@ -24,7 +24,7 @@ class ServiceManager:
 
     def start_ryxhub(self) -> Dict:
         """
-        Start RyxHub services (FastAPI backend + React frontend).
+        Start RyxHub services (Vite React frontend + optional FastAPI backend).
 
         Returns:
             dict: {success: bool, error: str, info: list[str]}
@@ -41,65 +41,83 @@ class ServiceManager:
         info = []
 
         try:
-            # Start FastAPI backend
-            backend_port = 8000
-            backend_dir = self.project_root / "ryx" / "interfaces" / "web" / "backend"
+            # Frontend (Vite React) - Primary UI
+            frontend_port = 5173
+            frontend_dir = self.project_root / "ryxhub"
 
-            if not backend_dir.exists():
+            if not frontend_dir.exists():
                 return {
                     'success': False,
-                    'error': f'Backend directory not found: {backend_dir}'
+                    'error': f'RyxHub directory not found: {frontend_dir}'
                 }
 
-            # Start uvicorn in background
-            backend_proc = subprocess.Popen(
-                [
-                    "python3", "-m", "uvicorn",
-                    "main:app",
-                    "--host", "127.0.0.1",
-                    "--port", str(backend_port),
-                    "--reload"
-                ],
-                cwd=str(backend_dir),
+            if not (frontend_dir / "package.json").exists():
+                return {
+                    'success': False,
+                    'error': f'package.json not found in {frontend_dir}'
+                }
+
+            # Check if node_modules exists, install if not
+            if not (frontend_dir / "node_modules").exists():
+                info.append("Installing frontend dependencies...")
+                install_result = subprocess.run(
+                    ["npm", "install"],
+                    cwd=str(frontend_dir),
+                    capture_output=True,
+                    text=True
+                )
+                if install_result.returncode != 0:
+                    return {
+                        'success': False,
+                        'error': f'npm install failed: {install_result.stderr}'
+                    }
+                info.append("Dependencies installed successfully")
+
+            # Start Vite dev server
+            frontend_proc = subprocess.Popen(
+                ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", str(frontend_port)],
+                cwd=str(frontend_dir),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                start_new_session=True
+                start_new_session=True,
+                env={**os.environ, "BROWSER": "none"}
             )
-            pids['backend'] = backend_proc.pid
-            info.append(f"FastAPI backend: http://localhost:{backend_port}")
+            pids['frontend'] = frontend_proc.pid
+            info.append(f"RyxHub UI: http://localhost:{frontend_port}")
 
-            # Start React frontend
-            frontend_port = 3000
-            frontend_dir = self.project_root / "ryx" / "interfaces" / "web"
-
-            if (frontend_dir / "package.json").exists():
-                # Check if node_modules exists
-                if not (frontend_dir / "node_modules").exists():
-                    info.append("Installing frontend dependencies...")
-                    subprocess.run(
-                        ["npm", "install"],
-                        cwd=str(frontend_dir),
-                        capture_output=True,
-                        check=True
-                    )
-
-                # Start React dev server
-                frontend_proc = subprocess.Popen(
-                    ["npm", "start"],
-                    cwd=str(frontend_dir),
+            # Optional: Start FastAPI backend if exists
+            backend_port = 8000
+            backend_dir = self.project_root / "ryx_pkg" / "interfaces" / "web" / "backend"
+            
+            if backend_dir.exists() and (backend_dir / "main.py").exists():
+                backend_proc = subprocess.Popen(
+                    [
+                        "python3", "-m", "uvicorn",
+                        "main:app",
+                        "--host", "127.0.0.1",
+                        "--port", str(backend_port),
+                        "--reload"
+                    ],
+                    cwd=str(backend_dir),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                    env={**os.environ, "PORT": str(frontend_port), "BROWSER": "none"}
+                    start_new_session=True
                 )
-                pids['frontend'] = frontend_proc.pid
-                info.append(f"React frontend: http://localhost:{frontend_port}")
-
-            # WebSocket is served by FastAPI
-            info.append(f"WebSocket: ws://localhost:{backend_port}/ws")
+                pids['backend'] = backend_proc.pid
+                info.append(f"FastAPI backend: http://localhost:{backend_port}")
+                info.append(f"WebSocket: ws://localhost:{backend_port}/ws")
 
             # Save PIDs
             self._save_pids(pids)
+
+            # Open browser after short delay
+            import threading
+            import webbrowser
+            def open_browser():
+                import time
+                time.sleep(2)
+                webbrowser.open(f"http://localhost:{frontend_port}")
+            threading.Thread(target=open_browser, daemon=True).start()
 
             return {
                 'success': True,
@@ -207,11 +225,11 @@ class ServiceManager:
             status['RyxHub']['running'] = True
             status['RyxHub']['pids'] = pids
 
-            # Add port info
+        # Add port info
+            if 'frontend' in pids:
+                status['RyxHub']['ports'].append("RyxHub UI: http://localhost:5173")
             if 'backend' in pids:
                 status['RyxHub']['ports'].append("FastAPI: http://localhost:8000")
-            if 'frontend' in pids:
-                status['RyxHub']['ports'].append("React: http://localhost:3000")
 
         return status
 
@@ -241,10 +259,10 @@ class ServiceManager:
         info = []
         pids = self._load_pids()
 
+        if 'frontend' in pids:
+            info.append("RyxHub UI: http://localhost:5173")
         if 'backend' in pids:
             info.append("FastAPI backend: http://localhost:8000")
-        if 'frontend' in pids:
-            info.append("React frontend: http://localhost:3000")
 
         return info
 
