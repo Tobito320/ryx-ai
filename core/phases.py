@@ -1111,7 +1111,7 @@ Output ONLY the code. No explanations, no markdown fences."""
         if self.state.verification_passed:
             self.state.transition_to(Phase.COMPLETE)
         else:
-            self.ui.success("Verification failed", success=False)
+            self.ui.warn("Verification failed")
             
             if self.state.can_retry():
                 self.ui.warn("Rolling back changes to retry...")
