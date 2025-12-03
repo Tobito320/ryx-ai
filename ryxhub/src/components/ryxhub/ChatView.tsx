@@ -1,17 +1,21 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, RotateCcw, Check } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, RotateCcw, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
+import { useSendMessage } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
 
 export function ChatView() {
   const { sessions, selectedSessionId, addMessageToSession } = useRyxHub();
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const sendMessageMutation = useSendMessage();
 
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
   const messages = currentSession?.messages ?? [];
@@ -21,33 +25,57 @@ export function ChatView() {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages.length]);
+  }, [messages.length, isTyping]);
 
-  const handleSend = () => {
-    if (!input.trim() || !selectedSessionId) return;
+  const handleSend = async () => {
+    if (!input.trim() || !selectedSessionId || isTyping) return;
 
-    // Add user message
+    const userMessage = input;
+    setInput("");
+
+    // Add user message immediately
     addMessageToSession(selectedSessionId, {
       role: "user",
-      content: input,
+      content: userMessage,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });
 
-    // Simulate AI response
-    setTimeout(() => {
+    // Show typing indicator
+    setIsTyping(true);
+
+    try {
+      // Send message via API service
+      const response = await sendMessageMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        message: userMessage,
+      });
+
+      // Add AI response to session
       addMessageToSession(selectedSessionId, {
         role: "assistant",
-        content: `I've received your message: "${input.slice(0, 50)}..."\n\nThis is a simulated response. In a real implementation, this would be connected to your AI backend via the Ryx API.`,
+        content: response.content,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        model: currentSession?.model,
+        model: response.model || currentSession?.model,
       });
-    }, 1000);
+    } catch (error) {
+      // Handle API errors gracefully
+      const errorMessage = error instanceof Error ? error.message : "Failed to get response";
+      toast.error(`API Error: ${errorMessage}`);
 
-    setInput("");
+      // Add error message to chat
+      addMessageToSession(selectedSessionId, {
+        role: "assistant",
+        content: `⚠️ **Connection Error**\n\nCouldn't reach the Ryx backend. Please check:\n- Is vLLM running on localhost:8420?\n- Is the model loaded?\n\n_Error: ${errorMessage}_`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        model: "System",
+      });
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !isTyping) {
       e.preventDefault();
       handleSend();
     }
@@ -162,6 +190,22 @@ export function ChatView() {
               )}
             </div>
           ))}
+
+          {/* Typing Indicator */}
+          {isTyping && (
+            <div className="flex gap-4 justify-start">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+              </div>
+              <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
@@ -184,9 +228,13 @@ export function ChatView() {
               size="icon"
               className="h-8 w-8 bg-primary hover:bg-primary/90"
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() || isTyping}
             >
-              <Send className="w-4 h-4" />
+              {isTyping ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </Button>
           </div>
         </div>

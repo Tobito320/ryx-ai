@@ -17,7 +17,7 @@ export const mockSessions: Session[] = [
     timestamp: "2m ago",
     isActive: true,
     agentId: "agent-code-review",
-    model: "GPT-4 Turbo",
+    model: "Qwen2.5-7B-Instruct",
     messages: [
       {
         id: "msg-1",
@@ -41,7 +41,7 @@ export const mockSessions: Session[] = [
 
 Would you like me to create automated fixes for these issues?`,
         timestamp: "10:24 AM",
-        model: "GPT-4 Turbo",
+        model: "Qwen2.5-7B-Instruct",
       },
       {
         id: "msg-3",
@@ -65,7 +65,7 @@ Would you like me to create automated fixes for these issues?`,
 
 I've created a draft PR with all fixes. Would you like me to open it for review?`,
         timestamp: "10:26 AM",
-        model: "GPT-4 Turbo",
+        model: "Qwen2.5-7B-Instruct",
       },
     ],
   },
@@ -76,7 +76,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
     timestamp: "15m ago",
     isActive: false,
     agentId: "agent-data",
-    model: "Claude 3.5",
+    model: "Llama-3.2-3B-Instruct",
     messages: [
       {
         id: "msg-5",
@@ -107,7 +107,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
 - Records processed: 15,234
 - Success rate: 99.7%`,
         timestamp: "9:50 AM",
-        model: "Claude 3.5",
+        model: "Llama-3.2-3B-Instruct",
       },
     ],
   },
@@ -118,7 +118,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
     timestamp: "1h ago",
     isActive: false,
     agentId: "agent-research",
-    model: "GPT-4 Turbo",
+    model: "Qwen2.5-7B-Instruct",
     messages: [
       {
         id: "msg-7",
@@ -147,7 +147,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
 
 Would you like me to summarize any of these papers in detail?`,
         timestamp: "8:35 AM",
-        model: "GPT-4 Turbo",
+        model: "Qwen2.5-7B-Instruct",
       },
     ],
   },
@@ -158,7 +158,7 @@ Would you like me to summarize any of these papers in detail?`,
     timestamp: "3h ago",
     isActive: false,
     agentId: "agent-bug",
-    model: "GPT-4 Turbo",
+    model: "Llama-3.2-3B-Instruct",
     messages: [
       {
         id: "msg-9",
@@ -173,7 +173,7 @@ Would you like me to summarize any of these papers in detail?`,
 
 **Critical (3):**
 - BUG-1234: Memory leak in production server
-- BUG-1235: Authentication bypass vulnerability  
+- BUG-1235: Authentication bypass vulnerability
 - BUG-1236: Data corruption in batch processing
 
 **High (8):**
@@ -190,18 +190,18 @@ Would you like me to summarize any of these papers in detail?`,
 
 I recommend addressing the critical issues immediately. Should I create tasks and assign them to the team?`,
         timestamp: "6:15 AM",
-        model: "GPT-4 Turbo",
+        model: "Llama-3.2-3B-Instruct",
       },
     ],
   },
 ];
 
-// Active Models
+// Active Models - vLLM compatible local models (optimized for multi-agent on RX 7800 XT)
 export const mockModels: Model[] = [
-  { id: "model-1", name: "GPT-4 Turbo", status: "online", provider: "OpenAI" },
-  { id: "model-2", name: "Claude 3.5", status: "online", provider: "Anthropic" },
-  { id: "model-3", name: "Llama 3.1", status: "loading", provider: "Meta" },
-  { id: "model-4", name: "Gemini Pro", status: "offline", provider: "Google" },
+  { id: "model-1", name: "Qwen2.5-7B-Instruct", status: "online", provider: "vLLM" },
+  { id: "model-2", name: "Llama-3.2-3B-Instruct", status: "online", provider: "vLLM" },
+  { id: "model-3", name: "Mistral-7B-Instruct-v0.3", status: "loading", provider: "vLLM" },
+  { id: "model-4", name: "Phi-3.5-mini-instruct", status: "offline", provider: "vLLM" },
 ];
 
 // RAG Status
@@ -252,7 +252,7 @@ export const mockWorkflowNodes: WorkflowNode[] = [
     y: 120,
     status: "running",
     config: {
-      model: "GPT-4 Turbo",
+      model: "Qwen2.5-7B-Instruct",
       temperature: 0.7,
       maxTokens: 4096,
       ragEnabled: true,
@@ -281,7 +281,7 @@ export const mockWorkflowNodes: WorkflowNode[] = [
     y: 280,
     status: "idle",
     config: {
-      model: "Claude 3.5",
+      model: "Llama-3.2-3B-Instruct",
       temperature: 0.3,
       maxTokens: 2048,
       scanTypes: ["SQL Injection", "XSS", "CSRF", "Secrets"],

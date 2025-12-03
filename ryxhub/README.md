@@ -74,19 +74,54 @@ src/
 
 ### Left Sidebar
 - **Sessions**: Alle Chat-Sessions mit Quick-Switch
-- **Active Models**: Ollama/vLLM Status
+- **Active Models**: vLLM Model Status (ROCm/AMD GPU)
 - **RAG Index**: Sync-Status und Dokument-Count
 - **Quick Actions**: Agents, Tools, Sources, Triggers
 
 ## 🔌 Backend-Integration
+
+### Running with Mock Data (Development)
+
+```bash
+# Default: Uses mock data, no backend required
+cd ryxhub
+npm install
+npm run dev
+
+# Mock mode is enabled by default (VITE_USE_MOCK_API=true)
+# Open http://localhost:5173
+```
+
+### Running with Live Ryx Backend (Production)
+
+```bash
+# 1. Start your vLLM backend first (see main repo)
+# 2. Create .env.local for live mode:
+echo "VITE_USE_MOCK_API=false" > .env.local
+echo "VITE_RYX_API_URL=http://localhost:8420" >> .env.local
+
+# 3. Start RyxHub
+npm run dev
+```
 
 ### Environment Variables
 
 ```bash
 # .env.local
 VITE_RYX_API_URL=http://localhost:8420   # Ryx Backend URL
-VITE_USE_MOCK_API=false                   # true = Mock, false = Live
+VITE_USE_MOCK_API=false                   # true = Mock (default), false = Live
 ```
+
+### Hardware Requirements (for Live Mode)
+- **GPU**: AMD RX 7800 XT (16GB VRAM) or similar with ROCm support
+- **RAM**: 32GB recommended for multi-agent workflows
+- **vLLM**: Running with ROCm backend
+
+### Supported Models (vLLM)
+- Qwen2.5-7B-Instruct (primary)
+- Llama-3.2-3B-Instruct (fast)
+- Mistral-7B-Instruct-v0.3
+- Phi-3.5-mini-instruct
 
 ### API Endpoints (erwartet)
 
