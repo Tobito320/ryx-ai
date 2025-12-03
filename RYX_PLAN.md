@@ -1,9 +1,13 @@
 # 🟣 Ryx AI - Architektur & Verbesserungsplan
 
 **Erstellt**: 2025-12-03  
-**Aktualisiert**: 2025-12-03 (P2.5 RyxHub/Voice/Hardware + Features aus Aider & Claude-Code)  
-**Status**: ~95% der Zielarchitektur implementiert  
+**Aktualisiert**: 2025-12-03 (Kritische Bugfixes + Ehrliche Status-Bewertung)  
+**Status**: ~60% funktional (Module existieren, aber Integration unvollständig)  
 **Zweck**: Entwicklungsplan für automatisierte Agent-basierte Umsetzung
+
+> ⚠️ **WICHTIG**: Die bisherige Bewertung von "~95%" war zu optimistisch. 
+> Viele Module wurden angelegt, aber nicht korrekt integriert oder getestet.
+> Siehe "KRITISCHE VERBLEIBENDE TODOS" am Ende dieses Dokuments.
 
 ---
 
@@ -32,24 +36,22 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 
 ### Aktueller Status
 - **Codebase**: 80+ Python-Module (~40.000 LOC)
-- **Fortschritt**: ~95% der Zielarchitektur implementiert (↑ von 92%)
-- **Neu integriert**: 
-  - RyxHub (Service-Orchestrator)
-  - RyxVoice (STT/TTS/WakeWord)
-  - RyxHardware (Camera/Face)
-  - FileWatcher (Watch Mode)
-  - WebScraper (URL-zu-Markdown)
-  - ChatSummary (Kontext-Kompression)
+- **Fortschritt**: ~60% funktional (Module existieren, Integration unvollständig)
+- **Kritische Bugs**: 9 offene TODOs (siehe Ende des Dokuments)
+- **Blockierende Issues**:
+  - TypeError in phases.py (TODO-005)
+  - RyxHub nicht startbar via CLI (TODO-001)
+  - Self-Healing nicht getestet (TODO-009)
 
-### P0-Status (VOLLSTÄNDIG ✅)
+### P0-Status (TEILWEISE ⚠️)
 
-| P0-Feature | Status | Module | Integration |
-|------------|--------|--------|-------------|
-| File-Finder / Repo-Map | ✅ **Fertig** | `ryx_pkg/repo/` | `core/phases.py` |
-| Diff-Based Editing | ✅ **Fertig** | `ryx_pkg/editing/` | `core/agent_tools.py` |
-| Git-Integration | ✅ **Fertig** | `ryx_pkg/git/` | `core/phases.py` + Tools |
-| Test-Execution | ✅ **Fertig** | `ryx_pkg/testing/` | `core/phases.py` |
-| Tool-Only-Mode | ✅ **Fertig** | `core/tool_schema.py` | Brain integriert |
+| P0-Feature | Status | Module | Problem |
+|------------|--------|--------|---------|
+| File-Finder / Repo-Map | ⚠️ **Existiert** | `ryx_pkg/repo/` | Nicht korrekt integriert |
+| Diff-Based Editing | ⚠️ **Existiert** | `ryx_pkg/editing/` | Fuzzy-Matching ungetestet |
+| Git-Integration | ⚠️ **Existiert** | `ryx_pkg/git/` | Auto-Commit nicht aktiv |
+| Test-Execution | ⚠️ **Existiert** | `ryx_pkg/testing/` | Error-Parsing fehlerhaft |
+| Tool-Only-Mode | ⚠️ **Existiert** | `core/tool_schema.py` | LLM gibt noch freien Text |
 
 ### Neue Komponenten (P2.5+)
 
@@ -1884,3 +1886,352 @@ exporter.import_patterns(data)
 ---
 
 *Letzte Aktualisierung: 2025-12-03 - RyxHub-UI vollständig integriert in `/ryxhub/`, phases.py Bug gefixt*
+
+---
+
+## 🔴 KRITISCHE VERBLEIBENDE TODOS
+
+### Bekannte Probleme (Stand 2025-12-03)
+
+Die folgenden Probleme wurden durch User-Testing identifiziert und müssen behoben werden:
+
+---
+
+### TODO-001: RyxHub Service-Erkennung nicht funktional
+**Priorität**: P0 (Kritisch)
+**Status**: ❌ Offen
+**Symptom**: 
+```bash
+ryx starte ryxhub
+# Output: "Unbekannter Service: ryxhub"
+```
+**Problem**: 
+- Der Befehl `ryx starte ryxhub` wird nicht als Service-Start erkannt
+- Intent-Parser routet zu generischem CHAT statt SERVICE_CONTROL
+- ServiceManager existiert, aber ist nicht in ryx_brain.py integriert
+
+**Betroffene Dateien**:
+- `core/intent_parser.py` - Muss "starte/stoppe ryxhub" als Intent erkennen
+- `core/ryx_brain.py` - Muss ServiceManager importieren und nutzen
+- `ryx_pkg/hub/service_registry.py` - Muss "ryxhub" als bekannten Service registrieren
+
+**Lösung**:
+1. Intent `SERVICE_START` / `SERVICE_STOP` in intent_parser.py hinzufügen
+2. Pattern: `(starte|stoppe|start|stop)\s+(ryxhub|ryx\s*hub)` erkennen
+3. In ryx_brain._handle_service_control() ServiceManager aufrufen
+4. `npm run dev` im ryxhub/ Ordner via subprocess starten
+
+**Akzeptanzkriterium**: `ryx starte ryxhub` startet Dev-Server auf Port 5173
+
+---
+
+### TODO-002: RyxHub Theme ist Light statt Dark
+**Priorität**: P1 (Wichtig)
+**Status**: ❌ Offen
+**Symptom**: 
+- RyxHub UI erscheint in hellem Theme
+- Sollte Dark Mode sein (passend zu Ryx CLI)
+
+**Problem**:
+- CSS hat Light-Mode als Default `:root`
+- Dark-Mode ist unter `.dark` definiert, aber nicht aktiviert
+- `<html>` Tag hat keine `class="dark"`
+
+**Betroffene Dateien**:
+- `ryxhub/src/index.css` - Dark-Theme Variablen vorhanden
+- `ryxhub/index.html` - Muss `class="dark"` haben
+- `ryxhub/src/main.tsx` - Alternativ: Theme-Provider mit Dark-Default
+
+**Lösung**:
+```html
+<!-- ryxhub/index.html -->
+<html lang="en" class="dark">
+```
+Oder Theme-Toggle mit localStorage-Persistenz implementieren (Dark als Default).
+
+**Akzeptanzkriterium**: RyxHub startet standardmäßig in Dark Mode
+
+---
+
+### TODO-003: RyxHub hat keine echte Funktionalität
+**Priorität**: P1 (Wichtig)
+**Status**: ❌ Offen
+**Symptom**: 
+- Alle Daten sind hardcoded Mock-Daten
+- Buttons/Aktionen tun nichts Reales
+- Models werden nicht von Ollama gefetched
+- Chat sendet keine echten Nachrichten
+
+**Problem**:
+- `ryxService.ts` nutzt `mockApi` statt echte API-Calls
+- Backend-API für RyxHub existiert nicht
+- Keine WebSocket-Verbindung für Streaming
+
+**Betroffene Dateien**:
+- `ryxhub/src/lib/api/mock.ts` - Mock-Daten
+- `ryxhub/src/lib/api/client.ts` - API-Client (nicht genutzt)
+- `ryx_pkg/hub/api.py` - Backend-API (muss implementiert werden)
+
+**Lösung** (mehrstufig):
+1. **Phase 1**: Backend-API in `ryx_pkg/hub/api.py` implementieren
+   - FastAPI/Flask Server auf Port 8420
+   - Endpoints: `/api/health`, `/api/models`, `/api/sessions`, `/api/chat`
+2. **Phase 2**: Frontend auf echte API umstellen
+   - `.env.local` mit `VITE_USE_MOCK_API=false`
+   - `VITE_RYX_API_URL=http://localhost:8420`
+3. **Phase 3**: WebSocket für Chat-Streaming
+
+**Akzeptanzkriterium**: 
+- `/api/models` zeigt echte Ollama-Modelle
+- Chat sendet Nachrichten an Ryx Backend
+
+---
+
+### TODO-004: Ryx nutzt neue Module nicht korrekt
+**Priorität**: P0 (Kritisch)
+**Status**: ❌ Offen
+**Symptom**:
+- `ryx create login.py` erstellt Datei, aber mit Fehlern
+- Self-Healing erkennt Fehler nicht richtig
+- Tests schlagen fehl, aber Recovery funktioniert nicht
+
+**Problem**:
+- Module in `ryx_pkg/` sind implementiert, aber nicht richtig integriert
+- `phases.py` nutzt Module, aber Error-Handling ist unvollständig
+- Cache-Probleme: Alte Imports werden gecached
+
+**Betroffene Dateien**:
+- `core/phases.py` - Integration unvollständig
+- `core/ryx_brain.py` - Nutzt nicht alle neuen Tools
+- `__pycache__/` - Muss geleert werden
+
+**Lösung**:
+1. Cache leeren: `find . -type d -name __pycache__ -exec rm -rf {} +`
+2. Imports in phases.py prüfen und fixen
+3. Error-Recovery-Loop testen und verbessern
+
+**Akzeptanzkriterium**: 
+- `ryx create X.py` erstellt funktionierende Datei
+- Bei Fehlern: Self-Healing versucht automatisch zu fixen
+
+---
+
+### TODO-005: CLI.success() TypeError in phases.py
+**Priorität**: P0 (Kritisch)
+**Status**: ✅ Gefixt (laut Plan, aber verifizieren!)
+**Symptom**:
+```python
+TypeError: CLI.success() got an unexpected keyword argument 'success'
+```
+**Problem**: 
+- `cli_ui.py` success() Methode hat kein `success` Parameter
+- Falscher Funktionsaufruf in phases.py
+
+**Betroffene Dateien**:
+- `core/phases.py` (Line ~1114)
+- `core/cli_ui.py`
+
+**Lösung**:
+```python
+# FALSCH:
+self.ui.success("Verification failed", success=False)
+
+# RICHTIG:
+self.ui.error("Verification failed")
+# oder
+self.ui.warning("Verification failed")
+```
+
+**Akzeptanzkriterium**: `ryx create login.py` läuft ohne TypeError
+
+---
+
+### TODO-006: Conversation Context geht verloren
+**Priorität**: P1 (Wichtig)
+**Status**: ❌ Offen
+**Symptom**:
+```bash
+ryx was ist kubernetes
+# Antwort: "Kubernetes ist..."
+
+ryx kürzer bitte
+# Antwort: "Ich habe keine vorherige Antwort zum Anpassen."
+```
+
+**Problem**:
+- Bei direktem CLI-Aufruf (`ryx "prompt"`) wird keine Session gespeichert
+- Nur interaktiver Modus (`ryx` + Enter) hat Memory
+
+**Betroffene Dateien**:
+- `ryx_main.py` - CLI-Handler
+- `core/session_loop.py` - Session-Management
+- `core/memory.py` - Persistence
+
+**Lösung**:
+1. Bei `ryx "prompt"` auch Session speichern (default Session-ID)
+2. Letzte N Messages in SQLite persistieren
+3. Bei Follow-up ohne Context: Letzte Session laden
+
+**Akzeptanzkriterium**: `ryx kürzer bitte` funktioniert auch ohne interaktiven Modus
+
+---
+
+### TODO-007: Model-Wechsel funktioniert inkonsistent
+**Priorität**: P2 (Nice-to-Have)
+**Status**: ❌ Offen
+**Symptom**:
+```bash
+> benutze bitte qwen2.5:7b
+✅ default: qwen2.5-coder:14b  # FALSCH - anderes Model!
+
+> benutze bitte qwen2.5:7
+✅ Im Browser geöffnet  # FALSCH - sollte Model wechseln!
+```
+
+**Problem**:
+- Fuzzy-Matching für Model-Namen ist fehlerhaft
+- "qwen2.5:7" wird als URL interpretiert
+
+**Betroffene Dateien**:
+- `core/intent_parser.py` - Model-Switch-Intent
+- `core/ryx_brain.py` - Model-Wechsel-Logik
+- `core/model_router.py` - Model-Name-Matching
+
+**Lösung**:
+1. Model-Name-Pattern besser matchen: `^[a-z0-9.-]+:[a-z0-9.]+$`
+2. Fuzzy-Match gegen verfügbare Modelle
+3. Bestätigung mit korrektem Namen anzeigen
+
+**Akzeptanzkriterium**: `verwende qwen2.5:7b` wechselt zu genau diesem Model
+
+---
+
+### TODO-008: Web-Suche bei einfachen Fragen
+**Priorität**: P2 (Nice-to-Have)
+**Status**: ❌ Offen
+**Symptom**:
+```bash
+ryx wie gehts
+# Output: Searching 'wie gehts'... (Web-Suche!)
+```
+
+**Problem**:
+- Intent-Parser klassifiziert Smalltalk als SEARCH_WEB
+- Sollte CHAT sein
+
+**Betroffene Dateien**:
+- `core/intent_parser.py` - Intent-Klassifizierung
+
+**Lösung**:
+1. Smalltalk-Patterns erkennen: "wie gehts", "hallo", "danke"
+2. Diese als CHAT klassifizieren, nicht SEARCH_WEB
+
+**Akzeptanzkriterium**: "wie gehts" → direkter Chat ohne Web-Suche
+
+---
+
+### TODO-009: Ryx Self-Healing Test erforderlich
+**Priorität**: P0 (Kritisch)
+**Status**: ❌ Offen
+**Beschreibung**:
+Ein umfassender Test ist nötig, bei dem Ryx selbst eine Aufgabe durchführt und bei Problemen sich selbst heilt.
+
+**Test-Szenario**: Coffee Shop Website
+1. Ryx soll eine einfache Coffee-Shop-Website erstellen
+2. Features: Reservierungen, die in eine JSON-Datei gespeichert werden
+3. Bei Fehlern soll Ryx sich selbst korrigieren (Self-Healing)
+4. Kein manuelles Eingreifen erlaubt - Ryx muss mit Prompts gefixt werden
+
+**Test-Schritte**:
+```bash
+ryx "Erstelle eine Coffee Shop Website mit HTML/CSS/JS. 
+Features: 
+- Startseite mit Menü
+- Reservierungsformular (Name, Datum, Uhrzeit, Personenzahl)
+- Reservierungen werden in reservations.json gespeichert
+- Übersicht aller Reservierungen
+Erstelle alle nötigen Dateien und teste sie."
+```
+
+**Erwartetes Verhalten**:
+1. Ryx erstellt HTML, CSS, JS Dateien
+2. Bei Syntax-Fehlern: Self-Healing korrigiert automatisch
+3. Bei fehlenden Imports: HallucinationDetector warnt
+4. Bei Test-Failures: ErrorRecoveryLoop versucht Fixes
+
+**Falls Self-Healing versagt**:
+- Dokumentiere den Fehler
+- Verbessere entsprechendes Modul
+- Wiederhole Test
+
+**Akzeptanzkriterium**: 
+- Website funktioniert nach max. 3 Self-Healing-Zyklen
+- Reservierungen können gespeichert werden
+- Keine manuellen Code-Edits nötig
+
+---
+
+## 📊 Zusammenfassung verbleibender Arbeit
+
+| TODO | Priorität | Aufwand | Status |
+|------|-----------|---------|--------|
+| TODO-001: RyxHub Service | P0 | 2-3h | ❌ Offen |
+| TODO-002: Dark Theme | P1 | 15min | ❌ Offen |
+| TODO-003: Echte API | P1 | 1-2 Tage | ❌ Offen |
+| TODO-004: Module-Integration | P0 | 3-4h | ❌ Offen |
+| TODO-005: TypeError Fix | P0 | 30min | ⚠️ Verifizieren |
+| TODO-006: Context-Persistenz | P1 | 2-3h | ❌ Offen |
+| TODO-007: Model-Wechsel | P2 | 1h | ❌ Offen |
+| TODO-008: Smalltalk Intent | P2 | 30min | ❌ Offen |
+| TODO-009: Self-Healing Test | P0 | 2-4h | ❌ Offen |
+
+**Geschätzte Gesamtzeit**: ~2-3 Tage für alle P0/P1 Tasks
+
+---
+
+## 🎯 Empfohlene Reihenfolge
+
+1. **TODO-005**: TypeError fixen (Blocker für alles andere)
+2. **TODO-004**: Module richtig integrieren
+3. **TODO-001**: RyxHub starten ermöglichen
+4. **TODO-002**: Dark Theme (schneller Fix)
+5. **TODO-009**: Self-Healing-Test durchführen
+6. **TODO-006**: Context-Persistenz
+7. **TODO-003**: Echte API (größtes Projekt)
+8. **TODO-007/008**: Nice-to-Have Fixes
+
+---
+
+## 🧪 Test-Protokoll für Agenten
+
+Jeder Agent, der an diesen TODOs arbeitet, sollte:
+
+1. **Vor Änderungen**: 
+   ```bash
+   cd /home/tobi/ryx-ai
+   git pull
+   find . -name __pycache__ -exec rm -rf {} + 2>/dev/null
+   ```
+
+2. **Nach Änderungen**:
+   ```bash
+   # Syntax-Check
+   python -m py_compile core/ryx_brain.py core/phases.py
+   
+   # Import-Check
+   python -c "from core.ryx_brain import RyxBrain; print('OK')"
+   
+   # Quick Smoke Test
+   ryx "was ist 2+2"
+   ryx starte ryxhub  # Nach TODO-001
+   ```
+
+3. **Commit-Format**:
+   ```
+   TODO-XXX: Kurze Beschreibung
+   
+   - Änderung 1
+   - Änderung 2
+   
+   Refs: RYX_PLAN.md #TODO-XXX
+   ```
