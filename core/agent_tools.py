@@ -5,6 +5,11 @@ Structured tools for controlled code editing.
 LLM can only use these tools - no free-form file writing.
 
 Inspired by Claude Code & Aider's tool-based approach.
+
+Now integrated with:
+- ryx_pkg/editing: DiffEditor for safe diff application
+- ryx_pkg/repo: FileSelector for finding relevant files
+- ryx_pkg/git: GitManager for status/commit
 """
 
 import os
@@ -12,6 +17,7 @@ import re
 import subprocess
 import shutil
 import difflib
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
@@ -19,6 +25,18 @@ from datetime import datetime
 from pathlib import Path
 
 from core.paths import get_data_dir
+
+logger = logging.getLogger(__name__)
+
+# Import Aider-based modules
+try:
+    from ryx_pkg.editing import DiffEditor, SearchReplace, EditValidator
+    from ryx_pkg.repo import FileSelector
+    from ryx_pkg.git import GitManager
+    AIDER_EDITING_AVAILABLE = True
+except ImportError as e:
+    logger.debug(f"Aider editing modules not available: {e}")
+    AIDER_EDITING_AVAILABLE = False
 
 
 @dataclass
@@ -224,7 +242,7 @@ class WriteFileTool(AgentTool):
 
 
 class ApplyDiffTool(AgentTool):
-    """Apply unified diff patch to a file"""
+    """Apply unified diff patch to a file - now uses DiffEditor from ryx_pkg"""
     
     name = "apply_diff"
     description = "Apply a unified diff patch to a file. This is the preferred way to make small changes."
@@ -232,6 +250,12 @@ class ApplyDiffTool(AgentTool):
     def __init__(self):
         self.backup_dir = get_data_dir() / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Use DiffEditor if available
+        if AIDER_EDITING_AVAILABLE:
+            self.diff_editor = DiffEditor(create_backups=True)
+        else:
+            self.diff_editor = None
     
     def execute(self, path: str, diff: str) -> ToolResult:
         path = os.path.expanduser(path)
@@ -239,6 +263,19 @@ class ApplyDiffTool(AgentTool):
         if not os.path.exists(path):
             return ToolResult(False, "", error=f"File not found: {path}")
         
+        # Use new DiffEditor if available
+        if self.diff_editor:
+            result = self.diff_editor.apply_diff(path, diff)
+            if result.success:
+                return ToolResult(
+                    True,
+                    f"✓ Patched: {path} ({result.hunks_applied} hunks)",
+                    data={"path": path, "backup": result.backup_path}
+                )
+            else:
+                return ToolResult(False, "", error=result.message)
+        
+        # Fallback to original implementation
         try:
             # Read current content
             with open(path, 'r') as f:
@@ -368,6 +405,146 @@ class DeleteFileTool(AgentTool):
                 data={"path": path, "backup": str(backup_path)}
             )
             
+        except Exception as e:
+            return ToolResult(False, "", error=str(e))
+
+
+class SearchReplaceTool(AgentTool):
+    """Search and replace in a file - uses ryx_pkg SearchReplace"""
+    
+    name = "search_replace"
+    description = "Find and replace text in a file. Supports fuzzy matching. Preferred for small text changes."
+    
+    def __init__(self):
+        if AIDER_EDITING_AVAILABLE:
+            self.editor = SearchReplace()
+        else:
+            self.editor = None
+    
+    def execute(self, path: str, search: str, replace: str, all_occurrences: bool = False) -> ToolResult:
+        path = os.path.expanduser(path)
+        
+        if not os.path.exists(path):
+            return ToolResult(False, "", error=f"File not found: {path}")
+        
+        if self.editor:
+            result = self.editor.replace_in_file(path, search, replace, all_occurrences)
+            if result.success:
+                return ToolResult(
+                    True,
+                    f"✓ Replaced in {path}: {result.replacements_made} change(s)",
+                    data={"path": path, "replacements": result.replacements_made}
+                )
+            else:
+                return ToolResult(False, "", error=result.message)
+        
+        # Fallback without ryx_pkg
+        try:
+            with open(path, 'r') as f:
+                content = f.read()
+            
+            if search not in content:
+                return ToolResult(False, "", error="Search text not found")
+            
+            if all_occurrences:
+                new_content = content.replace(search, replace)
+                count = content.count(search)
+            else:
+                new_content = content.replace(search, replace, 1)
+                count = 1
+            
+            with open(path, 'w') as f:
+                f.write(new_content)
+            
+            return ToolResult(True, f"✓ Replaced {count} occurrence(s)", data={"path": path})
+            
+        except Exception as e:
+            return ToolResult(False, "", error=str(e))
+
+
+class FindRelevantFilesTool(AgentTool):
+    """Find relevant files for a task - uses ryx_pkg FileSelector"""
+    
+    name = "find_relevant_files"
+    description = "Find files relevant to a task description. Uses intelligent file selection."
+    
+    def __init__(self):
+        if AIDER_EDITING_AVAILABLE:
+            self.selector = FileSelector()
+        else:
+            self.selector = None
+    
+    def execute(self, query: str, max_files: int = 10, extensions: List[str] = None) -> ToolResult:
+        if self.selector:
+            files = self.selector.find_files(query, max_files, extensions)
+            if files:
+                return ToolResult(
+                    True,
+                    f"Found {len(files)} relevant files:\n" + "\n".join(f"  - {f}" for f in files),
+                    data={"files": files}
+                )
+            else:
+                return ToolResult(True, "No relevant files found", data={"files": []})
+        
+        # Fallback - simple keyword search in filenames
+        import fnmatch
+        files = []
+        keywords = query.lower().split()
+        
+        for root, _, filenames in os.walk("."):
+            if any(skip in root for skip in ['.git', '__pycache__', 'node_modules', 'venv']):
+                continue
+            for f in filenames:
+                if any(kw in f.lower() for kw in keywords):
+                    files.append(os.path.join(root, f))
+                    if len(files) >= max_files:
+                        break
+        
+        return ToolResult(
+            True,
+            f"Found {len(files)} files:\n" + "\n".join(f"  - {f}" for f in files),
+            data={"files": files}
+        )
+
+
+class GitStatusTool(AgentTool):
+    """Get git repository status - uses ryx_pkg GitManager"""
+    
+    name = "git_status"
+    description = "Get the current git repository status including branch, modified files, and commit info."
+    
+    def __init__(self):
+        if AIDER_EDITING_AVAILABLE:
+            self.git = GitManager()
+        else:
+            self.git = None
+    
+    def execute(self) -> ToolResult:
+        if self.git and self.git.is_repo:
+            status = self.git.get_status()
+            formatted = self.git.format_status()
+            return ToolResult(
+                True,
+                formatted,
+                data={
+                    "branch": status.branch,
+                    "dirty": status.dirty,
+                    "modified": status.modified,
+                    "staged": status.staged,
+                    "untracked": status.untracked
+                }
+            )
+        
+        # Fallback
+        try:
+            result = subprocess.run(
+                ['git', 'status', '-s'],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                return ToolResult(True, result.stdout.strip() or "Clean")
+            else:
+                return ToolResult(False, "", error="Not a git repository")
         except Exception as e:
             return ToolResult(False, "", error=str(e))
 
@@ -535,6 +712,10 @@ class AgentToolRegistry:
             GitCommitTool(),
             GitRevertTool(),
             GitDiffTool(),
+            # New Aider-based tools
+            SearchReplaceTool(),
+            FindRelevantFilesTool(),
+            GitStatusTool(),
         ]
         
         for tool in default_tools:

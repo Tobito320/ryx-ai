@@ -9,12 +9,33 @@ Each phase has:
 - Dedicated prompt template
 - Clear inputs/outputs
 - Transition logic
+
+Now integrated with:
+- ryx_pkg/repo: Automatic file discovery (RepoExplorer)
+- ryx_pkg/git: Git integration (GitManager, GitSafety)
+- ryx_pkg/editing: Diff-based editing (DiffEditor)
+- ryx_pkg/testing: Test execution (TestRunner)
 """
 
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Import new Aider-based modules
+try:
+    from ryx_pkg.repo import RepoExplorer
+    from ryx_pkg.git import GitManager, GitSafety
+    from ryx_pkg.editing import DiffEditor, SearchReplace
+    from ryx_pkg.testing import TestRunner, detect_framework
+    AIDER_MODULES_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Aider-based modules not available: {e}")
+    AIDER_MODULES_AVAILABLE = False
 
 
 class Phase(Enum):
@@ -146,6 +167,7 @@ class AgentState:
     
     # Changes made
     changes: List[Change] = field(default_factory=list)
+    checkpoint_ids: List[str] = field(default_factory=list)
     
     # Verification
     test_output: str = ""
@@ -357,6 +379,12 @@ class PhaseExecutor:
     Executes agent phases with proper state management.
     Uses LLM for planning and agent tools for execution.
     Uses Rich UI for Claude CLI-style output.
+    
+    Now integrated with:
+    - RepoExplorer for automatic file discovery
+    - GitManager for commit/undo
+    - DiffEditor for safe editing
+    - TestRunner for verification
     """
     
     def __init__(self, brain, ui=None):
@@ -369,6 +397,34 @@ class PhaseExecutor:
             self.ui = ui
         self.state = AgentState()
         self._tools = None
+        
+        # Initialize Aider-based modules
+        self._init_aider_modules()
+    
+    def _init_aider_modules(self):
+        """Initialize the Aider-based infrastructure modules"""
+        if not AIDER_MODULES_AVAILABLE:
+            self.repo_explorer = None
+            self.git_manager = None
+            self.git_safety = None
+            self.diff_editor = None
+            self.test_runner = None
+            return
+        
+        try:
+            self.repo_explorer = RepoExplorer(verbose=False)
+            self.git_manager = GitManager()
+            self.git_safety = GitSafety(self.git_manager)
+            self.diff_editor = DiffEditor(create_backups=True)
+            self.test_runner = TestRunner()
+            logger.debug("Aider-based modules initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Aider modules: {e}")
+            self.repo_explorer = None
+            self.git_manager = None
+            self.git_safety = None
+            self.diff_editor = None
+            self.test_runner = None
     
     @property
     def tools(self):
@@ -402,10 +458,48 @@ class PhaseExecutor:
         return False
     
     def _execute_explore(self) -> bool:
-        """Explore phase: understand the codebase"""
+        """Explore phase: understand the codebase using RepoExplorer"""
         self.ui.phase_start("EXPLORE", "Scanning codebase...")
         
-        # Try semantic search first if available, fall back to keyword
+        # Use new RepoExplorer if available (Aider-based)
+        if self.repo_explorer:
+            try:
+                # Scan repository
+                stats = self.repo_explorer.scan()
+                self.ui.substep(f"Found {stats.total_files} files")
+                
+                # Find relevant files for the task
+                relevant = self.repo_explorer.find_for_task(self.state.task, max_files=15)
+                self.state.relevant_files = relevant
+                
+                # Get context for LLM
+                context = self.repo_explorer.get_context_for_llm(relevant, include_content=True)
+                self.state.context_summary = context
+                
+                self.ui.phase_done("EXPLORE", f"Found {len(relevant)} relevant files")
+                
+                # Show top files
+                if relevant[:3]:
+                    top = [f.split('/')[-1] for f in relevant[:3]]
+                    self.ui.substep(f"Top files: {', '.join(top)}")
+                
+                # Read the most relevant files to build context
+                self.state.context_files = []
+                for path in relevant[:5]:
+                    result = self.tools.execute("read_file", path=path)
+                    if result.success:
+                        self.state.context_files.append({
+                            "path": path,
+                            "content": result.output[:2000]
+                        })
+                
+                self.state.transition_to(Phase.PLAN)
+                return True
+                
+            except Exception as e:
+                logger.warning(f"RepoExplorer failed: {e}, using fallback")
+        
+        # Fallback: Try semantic search first if available, fall back to keyword
         try:
             from core.embeddings import get_semantic_search
             search = get_semantic_search()
@@ -734,19 +828,46 @@ Output ONLY the code. No explanations, no markdown fences."""
                     if not os.path.isabs(file_path):
                         file_path = os.path.join(os.getcwd(), file_path)
                     
-                    # Create checkpoint BEFORE writing (if file exists)
+                    # Check if file exists for diff
+                    old_content = ""
+                    if os.path.exists(file_path):
+                        try:
+                            with open(file_path, 'r') as f:
+                                old_content = f.read()
+                        except:
+                            pass
+                    
+                    # Show diff if modifying existing file
+                    if old_content and hasattr(self.ui, 'show_diff'):
+                        self.ui.show_diff(
+                            os.path.basename(file_path), 
+                            old_content.splitlines(), 
+                            code.splitlines()
+                        )
+                    
+                    # Create checkpoint
                     try:
                         from core.checkpoints import get_checkpoint_manager
                         cp_mgr = get_checkpoint_manager()
+                        from core.checkpoints import ChangeType
+                        
+                        action_name = "Modify" if os.path.exists(file_path) else "Create"
+                        cp_id = cp_mgr.start_checkpoint(
+                            name=f"{action_name} {os.path.basename(file_path)}",
+                            task_context=self.state.task
+                        )
+                        
                         if os.path.exists(file_path):
-                            cp_mgr.start_checkpoint(
-                                name=f"Modify {os.path.basename(file_path)}",
-                                task_context=self.state.task
-                            )
-                            cp_mgr.track_file(file_path)
-                            cp_mgr.commit_checkpoint()
-                    except Exception:
-                        pass  # Checkpoint is optional
+                            cp_mgr.track_modify(file_path, old_content, code)
+                        else:
+                            cp_mgr.track_create(file_path, code)
+                            
+                        cp_mgr.commit_checkpoint()
+                        if hasattr(self.state, 'checkpoint_ids'):
+                            self.state.checkpoint_ids.append(cp_id)
+                    except Exception as e:
+                        # self.ui.warn(f"Checkpoint failed: {e}")
+                        pass
                     
                     # Create directory if needed
                     dir_path = os.path.dirname(file_path)
@@ -774,8 +895,46 @@ Output ONLY the code. No explanations, no markdown fences."""
         
         return False
     
+    def _detect_test_command(self) -> Optional[str]:
+        """Detect test command based on project files - uses TestRunner if available"""
+        # Use new TestRunner if available
+        if self.test_runner:
+            framework = detect_framework()
+            if framework and framework.test_command:
+                return ' '.join(framework.test_command)
+        
+        # Fallback detection
+        if os.path.exists("package.json"):
+            return "npm test"
+        if os.path.exists("Cargo.toml"):
+            return "cargo test"
+        if os.path.exists("go.mod"):
+            return "go test ./..."
+        if os.path.exists("pytest.ini") or os.path.exists("pyproject.toml") or os.path.exists("requirements.txt"):
+            return "python -m pytest"
+        # Fallback for python
+        if any(f.endswith(".py") for f in os.listdir(".")):
+             return "python -m pytest"
+        return None
+
+    def _revert_changes(self):
+        """Revert all changes made in this session"""
+        if not hasattr(self.state, 'checkpoint_ids') or not self.state.checkpoint_ids:
+            return
+            
+        from core.checkpoints import get_checkpoint_manager
+        cp_mgr = get_checkpoint_manager()
+        
+        self.ui.warn(f"Reverting {len(self.state.checkpoint_ids)} changes...")
+        
+        # Rollback in reverse order
+        for cp_id in reversed(self.state.checkpoint_ids):
+            cp_mgr.rollback(cp_id)
+            
+        self.state.checkpoint_ids = []
+
     def _execute_verify(self) -> bool:
-        """Verify phase: check results using REASON model"""
+        """Verify phase: check results using TestRunner and REASON model"""
         # Get the REASON model for verification
         from core.model_router import get_router, ModelRole
         router = get_router()
@@ -787,20 +946,65 @@ Output ONLY the code. No explanations, no markdown fences."""
         has_changes = bool(self.state.changes)
         
         if has_changes:
-            # Run tests if available
-            self.ui.phase_start("VERIFY", "Running tests...")
-            test_result = self.tools.execute("run_command", command="python -m pytest tests/ -q 2>/dev/null || true", timeout=30)
-            if test_result.success:
+            # Use new TestRunner if available
+            if self.test_runner and self.test_runner.framework:
+                self.ui.phase_start("VERIFY", f"Running tests ({self.test_runner.framework})...")
+                
+                # Get changed files for targeted testing
+                changed_files = [c.file_path for c in self.state.changes]
+                test_result = self.test_runner.run_for_files(changed_files)
+                
                 self.state.test_output = test_result.output
-                if "failed" in test_result.output.lower():
-                    self.ui.phase_done("VERIFY", "Tests failed", success=False)
-                    self.state.verification_passed = False
-                else:
-                    self.ui.phase_done("VERIFY", "Tests passed")
+                
+                if test_result.success:
+                    self.ui.phase_done("VERIFY", test_result.summary)
                     self.state.verification_passed = True
+                    
+                    # Auto-commit if git is available
+                    if self.git_manager and self.git_manager.is_repo:
+                        commit_msg = f"ryx: {self.state.task[:50]}"
+                        commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
+                        if commit_hash:
+                            self.ui.substep(f"Committed: {commit_hash}")
+                else:
+                    self.ui.phase_done("VERIFY", f"Tests failed: {test_result.summary}", success=False)
+                    self.state.verification_passed = False
             else:
-                self.ui.phase_done("VERIFY", "No tests")
-                self.state.verification_passed = True  # No tests = pass
+                # Fallback to command-based testing
+                test_cmd = self._detect_test_command()
+                if test_cmd:
+                    self.ui.phase_start("VERIFY", f"Running tests ({test_cmd})...")
+                    test_result = self.tools.execute("run_command", command=f"{test_cmd} 2>/dev/null || true", timeout=30)
+                    if test_result.success:
+                        self.state.test_output = test_result.output
+                        if "failed" in test_result.output.lower() or "error" in test_result.output.lower():
+                            self.ui.phase_done("VERIFY", "Tests failed", success=False)
+                            self.state.verification_passed = False
+                        else:
+                            self.ui.phase_done("VERIFY", "Tests passed")
+                            self.state.verification_passed = True
+                            
+                            # Auto-commit if git is available
+                            if self.git_manager and self.git_manager.is_repo:
+                                changed_files = [c.file_path for c in self.state.changes]
+                                commit_msg = f"ryx: {self.state.task[:50]}"
+                                commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
+                                if commit_hash:
+                                    self.ui.substep(f"Committed: {commit_hash}")
+                    else:
+                        self.ui.phase_done("VERIFY", "Test execution failed", success=False)
+                        self.state.verification_passed = False
+                else:
+                    self.ui.phase_done("VERIFY", "No tests found")
+                    self.state.verification_passed = True  # No tests = pass
+                    
+                    # Auto-commit if git is available
+                    if self.git_manager and self.git_manager.is_repo:
+                        changed_files = [c.file_path for c in self.state.changes]
+                        commit_msg = f"ryx: {self.state.task[:50]}"
+                        commit_hash = self.git_manager.safe_commit(commit_msg, files=changed_files)
+                        if commit_hash:
+                            self.ui.substep(f"Committed: {commit_hash}")
         else:
             # No changes, just analysis
             self.ui.phase_done("VERIFY", "Analysis complete")
@@ -810,7 +1014,15 @@ Output ONLY the code. No explanations, no markdown fences."""
             self.state.transition_to(Phase.COMPLETE)
         else:
             self.ui.success("Verification failed", success=False)
+            
+            # Ask user if they want to revert?
+            # For now, just log it. Automatic revert might be too aggressive without user input.
+            # But the TODO said "Automatic rollback".
+            # Let's do it if we can retry.
+            
             if self.state.can_retry():
+                self.ui.warn("Rolling back changes to retry...")
+                self._revert_changes()
                 self.state.transition_to(Phase.PLAN)
             else:
                 self.state.transition_to(Phase.ERROR)
