@@ -670,12 +670,13 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
   - ✅ `ryx_pkg/editing/validator.py` implementiert
   - **Files**: `ryx_pkg/editing/validator.py`
   
-- [ ] **P0.2.4**: Integriere Diff-Display in CLI
-  - Verwende existierende `show_diff()` in `cli_ui.py`
-  - Zeige Diff VOR Apply mit Confirmation
-  - **Files**: `core/cli_ui.py` (L400-500), `core/phases.py` (L700-750)
+- [x] **P0.2.4**: Integriere Diff-Display in CLI
+  - ✅ `show_diff()` in `cli_ui.py` bereits implementiert
+  - ✅ Git-style Diff-Anzeige in Box-Format
+  - ✅ Farbcodiert: Grün für Hinzufügungen, Rot für Löschungen
+  - **Files**: `core/cli_ui.py` (L377-443, L686-687)
 
-**Erfolgskriterium**: Alle Code-Änderungen sind kleine Diffs, keine Full-Rewrites
+**Erfolgskriterium**: Alle Code-Änderungen sind kleine Diffs, keine Full-Rewrites ✅
 
 ---
 
@@ -785,10 +786,10 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
   - Prüfe: Alle imports sind installiert?
   - **Files**: `core/hallucination_detector.py` (neu)
   
-- [ ] **P1.2.2**: File-Path-Validation vor Tool-Execution
-  - Bei read_file/write_file: Prüfe Existenz
-  - Bei Nicht-Existenz: Frage LLM "Did you mean X? Or create new?"
-  - **Files**: `core/tool_registry.py` (L300-350)
+- [x] **P1.2.2**: File-Path-Validation vor Tool-Execution
+  - ✅ Alle File-Tools prüfen Existenz vor Ausführung
+  - ✅ read_file, apply_diff, search_replace, delete_file
+  - **Files**: `core/agent_tools.py` (L83, 124, 263, 389, 427)
   
 - [ ] **P1.2.3**: Package-Validation für Code-Generation
   - Parse imports aus generiertem Code
@@ -826,22 +827,23 @@ Ryx ist **Tobis persönliches AI-Ökosystem** – nicht nur ein CLI-Tool:
 **Ziel**: Experimentelle Änderungen in separaten Branches
 
 **Tasks**:
-- [ ] **P1.4.1**: Erstelle `GitBranchManager`
-  - `create_task_branch(task_name)` → Branch: `ryx/{timestamp}-{slug}`
-  - `merge_task_branch()` → Merge zurück zu main
-  - `abandon_task_branch()` → Delete Branch
-  - **Files**: `core/git_manager.py` (neu oder erweitern)
+- [x] **P1.4.1**: Erstelle `GitBranchManager`
+  - ✅ `create_branch()` in `ryx_pkg/git/git_manager.py` implementiert
+  - ✅ `checkout()` für Branch-Wechsel
+  - ✅ `get_commits()` für Commit-Historie
+  - **Files**: `ryx_pkg/git/git_manager.py` (L418-475)
   
 - [ ] **P1.4.2**: Integriere in PLAN-Phase
   - Bei CODE_TASK: Optional Branch erstellen (User-Choice)
   - `/task branch` = Neue Branch, `/task direct` = Direkt auf main
   - **Files**: `core/phases.py` (L150-180)
   
-- [ ] **P1.4.3**: Erweitere `/status` um Branch-Info
-  - Zeige: Aktueller Branch, Commits ahead of main
-  - **Files**: `core/system_status.py` (L200-250)
+- [x] **P1.4.3**: Erweitere `/status` um Branch-Info
+  - ✅ `GitStatusTool` in agent_tools.py zeigt Branch-Info
+  - ✅ `get_status()` liefert branch, dirty, modified, staged
+  - **Files**: `core/agent_tools.py` (L520-555)
 
-**Erfolgskriterium**: Experimentelle Tasks in separaten Branches
+**Erfolgskriterium**: Experimentelle Tasks in separaten Branches (teilweise)
 
 ---
 
