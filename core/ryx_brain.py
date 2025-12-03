@@ -10,6 +10,8 @@ Key principles:
 - Follow-up questions use conversation context
 - Action-oriented, not explanation-oriented
 - German/English bilingual
+
+Now with Tool-Only Mode for structured LLM outputs.
 """
 
 import os
@@ -18,6 +20,7 @@ import json
 import sqlite3
 import subprocess
 import hashlib
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any, Union
@@ -25,6 +28,18 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from core.paths import get_data_dir
+
+logger = logging.getLogger(__name__)
+
+# Import tool schema for Tool-Only Mode
+try:
+    from core.tool_schema import (
+        ToolCall, ToolCallSequence, get_parser, 
+        TOOL_ONLY_SYSTEM_PROMPT, get_tool_prompt
+    )
+    TOOL_SCHEMA_AVAILABLE = True
+except ImportError:
+    TOOL_SCHEMA_AVAILABLE = False
 
 
 class Intent(Enum):
@@ -1218,6 +1233,100 @@ ANFRAGE: {prompt}'''
         self.ctx.last_result = result.output
         
         return result.success, result.output
+    
+    def execute_with_tools(self, task: str, max_iterations: int = 10) -> Tuple[bool, str]:
+        """
+        Execute a task using Tool-Only Mode.
+        
+        The LLM generates structured tool calls, which are executed one by one.
+        Results are fed back to the LLM for the next action.
+        
+        Args:
+            task: The task description
+            max_iterations: Maximum number of tool call iterations
+            
+        Returns:
+            (success, result_message)
+        """
+        if not TOOL_SCHEMA_AVAILABLE:
+            return False, "Tool schema not available"
+        
+        from core.agent_tools import get_agent_tools
+        tools = get_agent_tools()
+        
+        # Get relevant files for context
+        context_files = []
+        try:
+            from ryx_pkg.repo import RepoExplorer
+            explorer = RepoExplorer(verbose=False)
+            context_files = explorer.find_for_task(task, max_files=10)
+        except Exception as e:
+            logger.debug(f"RepoExplorer not available: {e}")
+        
+        # Build initial context
+        context = ""
+        if context_files:
+            context = "Available files:\n" + "\n".join(f"  - {f}" for f in context_files)
+        
+        messages = []
+        results = []
+        
+        for iteration in range(max_iterations):
+            # Build prompt with history
+            if messages:
+                history = "\n\nPrevious actions:\n"
+                for msg in messages[-5:]:  # Last 5 messages
+                    history += f"  {msg}\n"
+                full_context = context + history
+            else:
+                full_context = context
+            
+            # Generate tool call
+            response = self.ollama.generate_tool_call(
+                task=task,
+                context=full_context,
+                available_files=context_files,
+                max_tokens=1500
+            )
+            
+            if response.error:
+                return False, f"LLM error: {response.error}"
+            
+            if not response.tool_calls:
+                # No valid tool calls - treat raw response as completion
+                return True, response.response
+            
+            # Execute each tool call
+            for tool_call in response.tool_calls:
+                if tool_call.tool == "complete":
+                    # Task completion signal
+                    final_message = tool_call.params.get("message", "Task completed")
+                    if results:
+                        return True, f"{final_message}\n\nActions taken:\n" + "\n".join(results)
+                    return True, final_message
+                
+                # Execute the tool
+                result = tools.execute(tool_call.tool, **tool_call.params)
+                
+                # Record result
+                if result.success:
+                    result_msg = f"✓ {tool_call.tool}: {result.output[:100]}"
+                else:
+                    result_msg = f"✗ {tool_call.tool}: {result.error or 'Failed'}"
+                
+                results.append(result_msg)
+                messages.append(f"{tool_call.tool}({tool_call.params}) -> {result_msg}")
+                
+                logger.debug(f"Tool call: {tool_call.tool} -> {result.success}")
+            
+            # Check if marked as complete
+            if response.is_complete:
+                if results:
+                    return True, "Task completed.\n\nActions:\n" + "\n".join(results)
+                return True, "Task completed"
+        
+        # Max iterations reached
+        return False, f"Max iterations ({max_iterations}) reached.\n\nActions so far:\n" + "\n".join(results)
     
     def _exec_open_file(self, plan: Plan) -> Tuple[bool, str]:
         path = plan.target
