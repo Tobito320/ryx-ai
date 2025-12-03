@@ -185,11 +185,25 @@ class SessionLoop:
             else:
                 self.cli.error(result)
         
-        # Store for history
-        history_result = result if result != "__STREAMED__" else "(streamed)"
+        # Store for history - for streamed responses, get the actual content from brain
+        if result == "__STREAMED__":
+            # Get the last assistant message from brain's recent messages
+            if self.brain._recent_messages:
+                for msg in reversed(self.brain._recent_messages):
+                    if msg.get('role') == 'assistant':
+                        history_result = msg.get('content', '(streamed)')
+                        break
+                else:
+                    history_result = "(streamed)"
+            else:
+                history_result = "(streamed)"
+        else:
+            history_result = result
+            
         self.history.append({'role': 'assistant', 'content': history_result, 'ts': datetime.now().isoformat()})
         
-        if history_result and history_result != "(streamed)":
+        # Don't add again if already added by _exec_chat
+        if result != "__STREAMED__" and history_result:
             self.brain.add_message('assistant', history_result[:500])
     
     def _slash_command(self, cmd: str):

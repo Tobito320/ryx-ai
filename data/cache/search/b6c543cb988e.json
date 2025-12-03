@@ -1,31 +1,31 @@
 {
-  "query": "was ist python",
+  "query": "was ist Python",
   "results": [
     {
       "title": "Python (Programmiersprache) - Wikipedia",
-      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.wikipedia.org%2Fwiki%2FPython_(Programmiersprache)&rut=50e20659b06fee43af39e382ae3a1d57154b4e1352c9303fdd9f21b9784a331b",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.wikipedia.org%2Fwiki%2FPython_(Programmiersprache)&rut=8aa6ee7d72c35e915a882e32eab439a8544a84340885c6b11a7b83f75f159b77",
       "content": "Pythonisteine universell nutzbare, h\u00f6here Programmiersprache, die mehrere Programmierparadigmen unterst\u00fctzt und eine dynamische Typisierung bietet. Sie wurde Anfang der 1990er Jahre von Guido van Rossum entwickelt und hat eine offene, gemeinschaftsbasierte Entwicklung."
     },
     {
       "title": "Was ist Python und wof\u00fcr wird es verwendet? Ein Leitfaden ... - Coursera",
-      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.coursera.org%2Fde%2DDE%2Farticles%2Fwhat%2Dis%2Dpython%2Dused%2Dfor%2Da%2Dbeginners%2Dguide%2Dto%2Dusing%2Dpython&rut=671817ad956ead2b4eb8d41840a33b73618393dd59c416f5c168c714b16f6017",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.coursera.org%2Fde%2DDE%2Farticles%2Fwhat%2Dis%2Dpython%2Dused%2Dfor%2Da%2Dbeginners%2Dguide%2Dto%2Dusing%2Dpython&rut=13984620a37a69257e08a7d2045283567508e6f5e817a55269d6b6de5aa8fc91",
       "content": "Pythonisteine der am weitesten verbreiteten Programmiersprachen. Erfahren Sie mehr dar\u00fcber, wie sie f\u00fcr alles vom maschinellen Lernen bis zur Erstellung von Websites und Softwaretests verwendet wird."
     },
     {
       "title": "Was ist Python? Definition, Einsatzfelder und Anwendung",
-      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.haufe%2Dakademie.de%2Fblog%2Fglossar%2Fpython%2F&rut=d53ce16c163d00fe7105f72d22a90a050b587d5fd27554972ee7e7a4b3f85bee",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.haufe%2Dakademie.de%2Fblog%2Fglossar%2Fpython%2F&rut=3db330c7c7e5ed8e58d59fb5f62fa727e53ca695931a07f4c4c4f38ce26b9e25",
       "content": "Lese die Einsatzfelder, Vorteile und Bedeutung vonPython- von Datenanalyse bis Automatisierung und KI, kurz und pr\u00e4gnant zusammengefasst."
     },
     {
-      "title": "Was ist Python und wof\u00fcr wird es verwendet?",
-      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.python%2D3.com%2F%3Fp%3D2344&rut=f5abd1d9cf7200e30bdebac2c1ae2b37999d0bbfaac95b4563265bad34fdc075",
-      "content": "WasistPython, f\u00fcr welche Zwecke und welche Aufgaben kann ich mitPythonausf\u00fchren? Im Gegensatz zu HTML, CSS und JavaScriptistPythoneine universelle, objektorientierte Programmiersprache, die von Guido van Rossum entwickelt wurde."
+      "title": "Was ist Python? - Python-Sprache erkl\u00e4rt - AWS",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Fde%2Fwhat%2Dis%2Fpython%2F&rut=84a64b28df6361c3d8f9ecff3baff188f066449e36cceb432fd6c998c97de3cc",
+      "content": "WasistPython?WasistPython?Pythonisteine Programmiersprache, die h\u00e4ufig in Webanwendungen, Softwareentwicklung, in der Datenwissenschaft und im Machine Learning (ML) verwendet wird. Entwickler benutzenPython, weil es effizient und leicht zu erlernenistund auf vielen verschiedenen Plattformen laufen kann."
     },
     {
-      "title": "Was ist Python? - Python-Sprache erkl\u00e4rt - AWS",
-      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Fde%2Fwhat%2Dis%2Fpython%2F&rut=eae32a0f2b5b24470f17798fba6339cc0ae663672a1aa748df6e32d7d98d9a2a",
-      "content": "WasistPython?WasistPython?Pythonisteine Programmiersprache, die h\u00e4ufig in Webanwendungen, Softwareentwicklung, in der Datenwissenschaft und im Machine Learning (ML) verwendet wird. Entwickler benutzenPython, weil es effizient und leicht zu erlernenistund auf vielen verschiedenen Plattformen laufen kann."
+      "title": "Was ist Python und wof\u00fcr wird es verwendet?",
+      "url": "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fde.python%2D3.com%2F%3Fp%3D2344&rut=f1082aa0c6bd8ed96f16fec305127efa3b7ff8bbbdc4468bd9eefbe311bb1472",
+      "content": "WasistPython, f\u00fcr welche Zwecke und welche Aufgaben kann ich mitPythonausf\u00fchren? Im Gegensatz zu HTML, CSS und JavaScriptistPythoneine universelle, objektorientierte Programmiersprache, die von Guido van Rossum entwickelt wurde."
     }
   ],
-  "timestamp": "2025-12-02T16:18:51.323489"
+  "timestamp": "2025-12-03T04:52:44.729294"
 }

@@ -401,19 +401,50 @@ class ModelManager:
     
     def find(self, query: str) -> Optional[str]:
         """Find model by natural language query"""
-        q = query.lower()
+        q = query.lower().strip()
         
-        # Direct match
+        # Remove common prefixes
+        for prefix in ['benutze', 'verwende', 'use', 'nutze', 'model', 'bitte', 'please']:
+            q = q.replace(prefix, '').strip()
+        
+        # Exact match first
         for model in self.available:
-            if q in model.lower():
+            if q == model.lower():
                 return model
+        
+        # Partial match
+        for model in self.available:
+            if q in model.lower() or model.lower() in q:
+                return model
+        
+        # Fuzzy match - handle "qwen2.5:7" -> "qwen2.5:7b"
+        for model in self.available:
+            model_base = model.lower().replace('b', '').replace('-', '').replace('_', '')
+            q_base = q.replace('b', '').replace('-', '').replace('_', '')
+            if q_base in model_base or model_base.startswith(q_base):
+                return model
+        
+        # Category match (fast, balanced, smart, precision)
+        categories = {
+            "fast": ["qwen2.5:1.5b", "qwen2.5:3b", "llama3.2:1b"],
+            "balanced": ["qwen2.5:7b", "mistral:7b"],
+            "smart": ["qwen2.5-coder:14b", "gpt-oss:20b"],
+            "precision": ["gpt-oss:20b"],
+        }
+        for cat, models in categories.items():
+            if cat in q:
+                for m in models:
+                    if m in self.available:
+                        return m
         
         # Aliases
         aliases = {
             "gpt": "gpt-oss:20b", "gpt oss": "gpt-oss:20b", "gpt 20": "gpt-oss:20b",
             "mistral": "mistral:7b", "qwen": "qwen2.5:3b", "qwen 3b": "qwen2.5:3b",
-            "qwen 7b": "qwen2.5:7b", "qwen coder": "qwen2.5-coder:14b",
+            "qwen 7": "qwen2.5:7b", "qwen 7b": "qwen2.5:7b", 
+            "qwen 1.5": "qwen2.5:1.5b", "qwen coder": "qwen2.5-coder:14b",
             "deepseek": "deepseek-coder:6.7b", "llama": "llama3.2:1b", "phi": "phi3:mini",
+            "coder": "qwen2.5-coder:14b", "14b": "qwen2.5-coder:14b",
         }
         
         for alias, model in aliases.items():
@@ -779,6 +810,20 @@ ANFRAGE: {prompt}'''
     def _resolve_from_knowledge(self, prompt: str) -> Optional[Plan]:
         """Try to resolve using knowledge base - no LLM needed"""
         p = prompt.lower()
+        
+        # Service status queries
+        service_words = ['service', 'status', 'dienst', 'ryxhub', 'hub']
+        status_words = ['status', 'running', 'läuft', 'aktiv', 'zeige', 'show']
+        if any(s in p for s in service_words) and any(st in p for st in status_words):
+            return Plan(intent=Intent.GET_INFO, target="service_status")
+        
+        # Start/Stop service
+        if any(w in p for w in ['starte', 'start', 'stoppe', 'stop']):
+            if any(s in p for s in ['ryxhub', 'hub', 'service']):
+                if any(w in p for w in ['stoppe', 'stop', 'beende']):
+                    return Plan(intent=Intent.STOP_SERVICE, target="ryxhub")
+                else:
+                    return Plan(intent=Intent.START_SERVICE, target="ryxhub")
         
         # Date/time queries
         date_words = ['date', 'time', 'datum', 'zeit', 'uhrzeit', 'today', 'heute', 'what day', 'welcher tag']
@@ -1676,6 +1721,32 @@ Sprache: Deutsch"""
                 return True, now.strftime("%A, %d. %B %Y - %H:%M Uhr")
             return True, now.strftime("%A, %B %d, %Y - %H:%M")
         
+        if info_type in ['service_status', 'status', 'services']:
+            from core.service_manager import ServiceManager
+            manager = ServiceManager()
+            status = manager.get_status()
+            
+            lines = ["🔍 Service Status:\n"]
+            for svc, info in status.items():
+                state = "🟢 Running" if info.get('running') else "🔴 Stopped"
+                lines.append(f"  {svc}: {state}")
+                if info.get('ports'):
+                    for port_info in info['ports']:
+                        lines.append(f"    └─ {port_info}")
+            
+            # Also show Ollama status
+            try:
+                import requests
+                resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+                if resp.status_code == 200:
+                    lines.append("  Ollama: 🟢 Running")
+                else:
+                    lines.append("  Ollama: 🔴 Error")
+            except:
+                lines.append("  Ollama: 🔴 Stopped")
+            
+            return True, "\n".join(lines)
+        
         return True, now.strftime("%Y-%m-%d %H:%M")
     
     def _exec_list_models(self, plan: Plan) -> Tuple[bool, str]:
@@ -1830,30 +1901,44 @@ Fasse die wichtigsten Informationen zusammen, statt nur Links zu zeigen."""
     
     def _should_search_first(self, query: str) -> bool:
         """Determine if we should search before answering"""
-        q = query.lower()
+        q = query.lower().strip()
         
-        # Search for factual questions about things we might not know
-        factual_indicators = [
-            'what is', 'was ist', 'how to', 'wie',
-            'explain', 'erkläre', 'tell me about', 'erzähl',
-            'latest', 'newest', 'current', 'aktuell',
-            'why does', 'warum', 'when did', 'wann',
-            'documentation', 'docs', 'tutorial',
-            'wer ist', 'who is',  # Questions about people
+        # Short conversational queries - NEVER search
+        short_greetings = [
+            'hi', 'hello', 'hallo', 'hey', 'wie gehts', 'wie geht', 
+            'how are you', 'whats up', 'was geht', 'yo', 'moin',
+            'guten tag', 'guten morgen', 'guten abend', 'good morning',
+            'danke', 'thanks', 'ok', 'okay', 'ja', 'nein', 'yes', 'no'
         ]
+        if q in short_greetings or any(q.startswith(g) for g in short_greetings):
+            return False
+        
+        # Very short queries without question words are conversational
+        if len(q) < 10:
+            return False
         
         # Don't search for personal/system questions
         personal_indicators = [
             'my', 'mein', 'config', 'file', 'datei',
             'open', 'öffne', 'find', 'finde', 'where',
-            'hi', 'hello', 'hallo', 'hey',  # Greetings
+        ]
+        if any(p in q for p in personal_indicators):
+            return False
+        
+        # Search for factual questions - needs enough context
+        factual_indicators = [
+            'what is', 'was ist', 'how to', 'how do i',
+            'explain', 'erkläre', 'tell me about', 'erzähl mir',
+            'latest', 'newest', 'current', 'aktuell',
+            'why does', 'warum funktioniert', 'when did', 'wann wurde',
+            'documentation', 'docs', 'tutorial',
+            'wer ist', 'who is',  # Questions about people
         ]
         
-        # Check if factual and not personal
-        is_factual = any(f in q for f in factual_indicators)
-        is_personal = any(p in q for p in personal_indicators)
+        # "wie" needs more context (avoid "wie gehts" matching)
+        has_wie = 'wie ' in q and len(q) > 20 and 'gehts' not in q and 'geht' not in q
         
-        return is_factual and not is_personal
+        return any(f in q for f in factual_indicators) or has_wie
     
     def _exec_confirm(self, plan: Plan) -> Tuple[bool, str]:
         self.ctx.awaiting_confirmation = True
