@@ -1,6 +1,6 @@
 /* styles.css */
 
-/* General Reset */
+/* Reset some default browser styles */
 * {
     margin: 0;
     padding: 0;
@@ -14,14 +14,12 @@ body {
     color: #333;
 }
 
-/* Container */
 .container {
     width: 80%;
-    margin: auto;
+    margin: 0 auto;
     overflow: hidden;
 }
 
-/* Header */
 header {
     background: #35424a;
     color: #fff;
@@ -34,7 +32,7 @@ header a {
     color: #fff;
     text-decoration: none;
     text-transform: uppercase;
-    font-size: 1.5em;
+    font-size: 16px;
 }
 
 header ul {
@@ -57,72 +55,75 @@ header nav {
     margin-top: 10px;
 }
 
-/* Main Area */
-.main {
-    flex-basis: 70%;
-    padding: 20px;
+header .highlight, header .current a {
+    color: #e8491d;
+    font-weight: bold;
 }
 
-/* Sidebar */
-.sidebar {
-    flex-basis: 30%;
-    background: #35424a;
-    color: #fff;
-    padding: 20px;
-    margin-top: 60px;
+header a:hover {
+    color: #ccc;
+    text-decoration: none;
 }
 
-.sidebar h3 {
+#showcase {
+    min-height: 400px;
+    background: url('../img/coffee.jpg') no-repeat center center;
+    background-size: cover;
+    text-align: center;
     color: #fff;
-    text-transform: uppercase;
-    font-size: 1.5em;
+    padding-top: 100px;
+}
+
+#showcase h1 {
+    font-size: 55px;
+    margin-bottom: 10px;
+}
+
+#showcase p {
+    font-size: 20px;
+}
+
+.navbar-light .navbar-brand {
+    color: #343a40;
 }
 
 /* Menu Styles */
 .menu-item {
-    background: #f4f4f9;
-    padding: 10px;
-    border-bottom: #ddd 1px solid;
-    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #ddd;
 }
 
-.menu-item h2 {
-    color: #333;
-    text-transform: uppercase;
-    font-size: 1.5em;
+.menu-item img {
+    max-width: 100px;
+    height: auto;
 }
 
-.menu-item p {
-    color: #666;
-}
-
-/* Reservation Form */
+/* Reservation Form Styles */
 .reservation-form {
     background: #fff;
     padding: 20px;
-    border-radius: 5px;
+    margin-top: 20px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-.reservation-form h2 {
-    color: #333;
-    text-transform: uppercase;
-    font-size: 1.5em;
-    margin-bottom: 20px;
 }
 
 .reservation-form label {
     display: block;
-    margin-bottom: 8px;
-    color: #333;
+    margin-bottom: 5px;
+    font-weight: bold;
 }
 
-.reservation-form input, .reservation-form select {
+.reservation-form input[type="text"],
+.reservation-form input[type="date"],
+.reservation-form input[type="time"],
+.reservation-form input[type="number"] {
     width: 100%;
-    padding: 10px;
+    padding: 8px;
     margin-bottom: 20px;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 4px;
 }
 
 .reservation-form button {
@@ -130,23 +131,31 @@ header nav {
     color: #fff;
     padding: 10px 20px;
     border: none;
-    border-radius: 5px;
+    border-radius: 4px;
     cursor: pointer;
-    text-transform: uppercase;
-    font-size: 1em;
 }
 
 .reservation-form button:hover {
-    background: #cc392b;
+    background: #cc3a23;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-    header ul {
-        display: none;
-    }
+/* Reservations Overview Styles */
+.reservations-overview {
+    margin-top: 20px;
+}
 
-    .sidebar {
-        margin-top: 0;
-    }
+.reservation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.reservation-item:last-child {
+    border-bottom: none;
+}
+
+.reservation-item span {
+    font-weight: bold;
 }

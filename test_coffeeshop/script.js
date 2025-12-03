@@ -1,108 +1,79 @@
 // script.js
 
 /**
- * Fetches reservations from localStorage and displays them on the page.
+ * Handles form submission and localStorage operations for a coffee shop reservation system.
  */
-async function fetchAndDisplayReservations() {
-  try {
-    // Retrieve reservations data from localStorage
-    const reservations = JSON.parse(localStorage.getItem('reservations')) || [];
 
-    // Get the container where reservations will be displayed
-    const reservationsContainer = document.getElementById('reservations-container');
+// Select DOM elements
+const reservationForm = document.getElementById('reservation-form');
+const reservationsList = document.getElementById('reservations-list');
 
-    // Clear any existing content in the container
-    reservationsContainer.innerHTML = '';
-
-    // Display each reservation
-    reservations.forEach(reservation => {
-      const reservationElement = document.createElement('div');
-      reservationElement.classList.add('reservation-item');
-      reservationElement.textContent = `Name: ${reservation.name}, Email: ${reservation.email}, Zeit: ${reservation.time}, Personenzahl: ${reservation.personenZahl}`;
-      reservationsContainer.appendChild(reservationElement);
-    });
-  } catch (error) {
-    console.error('Error fetching and displaying reservations:', error);
-  }
-}
+// Load existing reservations from localStorage on page load
+document.addEventListener('DOMContentLoaded', () => {
+  renderReservations();
+});
 
 /**
- * Validates the reservation form inputs.
- * @param {Object} formData - The form data to validate.
- * @returns {boolean} - True if valid, false otherwise.
- */
-function validateForm(formData) {
-  const { name, email, time, personenZahl } = formData;
-
-  // Basic validation checks
-  if (!name || !email || !time || personenZahl <= 0) {
-    alert('Bitte alle Felder korrekt ausfüllen.');
-    return false;
-  }
-
-  // Email format validation
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(email)) {
-    alert('Bitte eine gültige E-Mail-Adresse eingeben.');
-    return false;
-  }
-
-  // Time format validation (assuming HH:MM)
-  const timePattern = /^([01]?\d|2[0-3]):([0-5]?\d)$/;
-  if (!timePattern.test(time)) {
-    alert('Bitte eine gültige Zeit im Format HH:MM eingeben.');
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Handles the form submission.
- * @param {Event} event - The form submit event.
+ * Handles the submission of the reservation form.
+ * @param {Event} event - The form submission event.
  */
 function handleFormSubmit(event) {
   event.preventDefault();
 
-  // Get form elements
-  const nameInput = document.getElementById('name');
-  const emailInput = document.getElementById('email');
-  const timeInput = document.getElementById('time');
-  const personenZahlInput = document.getElementById('personenzahl');
-
   // Collect form data
-  const formData = {
-    name: nameInput.value.trim(),
-    email: emailInput.value.trim(),
-    time: timeInput.value,
-    personenZahl: parseInt(personenZahlInput.value, 10),
-  };
+  const formData = new FormData(reservationForm);
+  const reservationData = {};
 
-  // Validate form data
-  if (!validateForm(formData)) {
+  for (const [key, value] of formData.entries()) {
+    reservationData[key] = value;
+  }
+
+  // Validate the number of people
+  if (!reservationData.people || isNaN(reservationData.people) || reservationData.people <= 0) {
+    alert('Please enter a valid number of people.');
     return;
   }
 
-  // Add reservation to localStorage
-  const reservations = JSON.parse(localStorage.getItem('reservations')) || [];
-  reservations.push(formData);
-  localStorage.setItem('reservations', JSON.stringify(reservations));
+  // Save reservation to localStorage
+  saveReservation(reservationData);
 
-  // Clear form inputs
-  nameInput.value = '';
-  emailInput.value = '';
-  timeInput.value = '';
-  personenZahlInput.value = '';
-
-  // Fetch and display updated reservations
-  fetchAndDisplayReservations();
+  // Clear form and render reservations
+  reservationForm.reset();
+  renderReservations();
 }
 
-// Add event listener to the form
-document.addEventListener('DOMContentLoaded', () => {
-  const reservationForm = document.getElementById('reservation-form');
-  if (reservationForm) {
-    reservationForm.addEventListener('submit', handleFormSubmit);
-    fetchAndDisplayReservations(); // Fetch and display reservations on page load
-  }
-});
+/**
+ * Saves a reservation to localStorage.
+ * @param {Object} reservation - The reservation data.
+ */
+function saveReservation(reservation) {
+  let reservations = JSON.parse(localStorage.getItem('reservations')) || [];
+  reservations.push(reservation);
+  localStorage.setItem('reservations', JSON.stringify(reservations));
+}
+
+/**
+ * Renders all reservations from localStorage on the page.
+ */
+function renderReservations() {
+  const reservations = JSON.parse(localStorage.getItem('reservations')) || [];
+
+  // Clear existing reservations
+  reservationsList.innerHTML = '';
+
+  // Render each reservation
+  reservations.forEach((reservation, index) => {
+    const reservationElement = document.createElement('div');
+    reservationElement.classList.add('reservation-item');
+    reservationElement.innerHTML = `
+      <p><strong>Name:</strong> ${reservation.name}</p>
+      <p><strong>Date:</strong> ${reservation.date}</p>
+      <p><strong>Time:</strong> ${reservation.time}</p>
+      <p><strong>People:</strong> ${reservation.people}</p>
+    `;
+    reservationsList.appendChild(reservationElement);
+  });
+}
+
+// Add event listener to the reservation form
+reservationForm.addEventListener('submit', handleFormSubmit);

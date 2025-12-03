@@ -403,7 +403,7 @@ class PhaseExecutor:
     - TestRunner for verification
     """
     
-    def __init__(self, brain, ui=None):
+    def __init__(self, brain, ui=None, working_dir=None):
         self.brain = brain
         # Support both old printer and new ui parameter
         if ui is None:
@@ -413,6 +413,10 @@ class PhaseExecutor:
             self.ui = ui
         self.state = AgentState()
         self._tools = None
+        
+        # Track the working directory where ryx was started
+        # This ensures files are created in the right place
+        self.working_dir = working_dir or os.getcwd()
         
         # Initialize Aider-based modules
         self._init_aider_modules()
@@ -925,9 +929,9 @@ Output ONLY the code. No explanations, no markdown fences."""
                 # Create the file
                 try:
                     file_path = step.file_path
-                    # Handle relative paths
+                    # Handle relative paths - use executor's working_dir, not current dir
                     if not os.path.isabs(file_path):
-                        file_path = os.path.join(os.getcwd(), file_path)
+                        file_path = os.path.join(self.working_dir, file_path)
                     
                     # Check if file exists for diff
                     old_content = ""
@@ -978,6 +982,18 @@ Output ONLY the code. No explanations, no markdown fences."""
                     # Write the file
                     with open(file_path, 'w') as f:
                         f.write(code)
+                    
+                    # Validate file was written correctly
+                    if not os.path.exists(file_path):
+                        self.state.add_error(f"File {file_path} was not created")
+                        return False
+                    
+                    # Verify content matches what we wrote
+                    with open(file_path, 'r') as f:
+                        written_content = f.read()
+                    if written_content != code:
+                        self.state.add_error(f"File {file_path} content mismatch after write")
+                        return False
                     
                     # Track the change
                     self.state.add_change(
@@ -1255,9 +1271,62 @@ Output ONLY the code. No explanations, no markdown fences."""
         self.ui.error(f"Task failed: {error_msg}")
         return False
     
-    def run_to_completion(self) -> bool:
-        """Run all phases until complete or error"""
+    def _generate_auto_fix_prompt(self, issues: List[str]) -> str:
+        """
+        Generate an automatic fix prompt based on detected issues.
+        This enables autonomous self-healing without human intervention.
+        """
+        # Collect information about what went wrong
+        issue_descriptions = []
+        for issue in issues:
+            issue_descriptions.append(f"- {issue}")
+        
+        # Get list of created/modified files
+        changed_files = [c.file_path for c in self.state.changes] if self.state.changes else []
+        
+        prompt = f"""Fix the following issues in the code:
+
+Issues detected:
+{chr(10).join(issue_descriptions)}
+
+Files that were modified:
+{chr(10).join(f'- {f}' for f in changed_files)}
+
+Please fix all the issues. Do not create new files unless absolutely necessary.
+Focus on:
+1. Correcting any broken references or paths
+2. Fixing syntax errors
+3. Ensuring all files work together correctly
+4. Making sure the code actually runs
+"""
+        return prompt
+    
+    def run_to_completion(self, autonomous_retries: int = 3) -> bool:
+        """
+        Run all phases until complete or error.
+        
+        With autonomous_retries > 0, will automatically attempt to fix issues
+        without requiring human intervention.
+        """
+        auto_retry_count = 0
+        
         while self.state.phase not in [Phase.IDLE, Phase.ERROR, Phase.COMPLETE]:
             if not self.execute_phase():
+                # Check if we can do an autonomous retry
+                if auto_retry_count < autonomous_retries and self.state.phase == Phase.ERROR:
+                    auto_retry_count += 1
+                    self.ui.warn(f"Autonomous retry {auto_retry_count}/{autonomous_retries}...")
+                    
+                    # Generate fix prompt from errors
+                    fix_prompt = self._generate_auto_fix_prompt(self.state.errors)
+                    
+                    # Reset state for retry
+                    self.state.errors = []
+                    self.state.phase = Phase.EXPLORE
+                    self.state.task = fix_prompt
+                    self.state.plan = None
+                    
+                    continue
                 return False
+        
         return self.state.phase == Phase.COMPLETE

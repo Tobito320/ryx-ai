@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Coffee Shop</title>
-    <!-- Link to CSS file -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,22 +12,19 @@
     </header>
     <main>
         <section id="menu">
-            <h2>Menu</h2>
-            <!-- Menu items can be added here -->
+            <h2>Our Menu</h2>
             <ul>
-                <li>Coffee - €3.00</li>
-                <li>Tea - €2.50</li>
-                <li>Chocolate - €4.00</li>
+                <li>Coffee - $3.50</li>
+                <li>Tea - $2.50</li>
+                <li>Cake - $4.00</li>
+                <li>Pancakes - $5.00</li>
             </ul>
         </section>
         <section id="reservation">
-            <h2>Reservation Form</h2>
-            <form id="reservation-form">
+            <h2>Make a Reservation</h2>
+            <form id="reservationForm">
                 <label for="name">Name:</label>
                 <input type="text" id="name" name="name" required><br>
-
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" required><br>
 
                 <label for="date">Date:</label>
                 <input type="date" id="date" name="date" required><br>
@@ -36,17 +32,16 @@
                 <label for="time">Time:</label>
                 <input type="time" id="time" name="time" required><br>
 
-                <label for="personenzahl">Personenzahl:</label>
-                <input type="number" id="personenzahl" name="personenzahl" min="1" required><br>
+                <label for="people">Number of People:</label>
+                <input type="number" id="people" name="people" min="1" required><br>
 
                 <button type="submit">Reserve</button>
             </form>
         </section>
-        <section id="reservations-container">
-            <!-- Reservations will be displayed here -->
-        </section>
     </main>
-    <!-- Link to JavaScript file -->
+    <footer>
+        <p>&copy; 2023 Coffee Shop. All rights reserved.</p>
+    </footer>
     <script src="script.js"></script>
 </body>
 </html>

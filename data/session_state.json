@@ -1,0 +1,122 @@
+{
+  "history": [
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-03T14:02:15.569424"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?",
+      "ts": "2025-12-03T14:02:18.008315"
+    },
+    {
+      "role": "user",
+      "content": "was gehjt",
+      "ts": "2025-12-03T14:02:19.553187"
+    },
+    {
+      "role": "assistant",
+      "content": "Ich kenne keine Begriffe oder W\u00f6rter, die sich auf das \"was gehjt\" bezogen haben. M\u00f6chten Sie weitere Informationen?",
+      "ts": "2025-12-03T14:02:19.869070"
+    },
+    {
+      "role": "user",
+      "content": "wie gehts dor",
+      "ts": "2025-12-03T14:02:21.884095"
+    },
+    {
+      "role": "assistant",
+      "content": "Ich habs gut! Wie kann ich Ihnen heute weiter behilflich sein?",
+      "ts": "2025-12-03T14:02:22.116380"
+    },
+    {
+      "role": "user",
+      "content": "wie kannst du mir helfen",
+      "ts": "2025-12-03T14:02:27.593221"
+    },
+    {
+      "role": "assistant",
+      "content": "Ich kann dir bei vielen Dingen helfen, wie z.B.  Informationen finden, Aufgaben erledigen oder Ratschl\u00e4ge erhalten. Um genauere Hilfe zu bekommen, sag mir bitte, was ich f\u00fcr dich tun soll.",
+      "ts": "2025-12-03T14:02:32.107090"
+    },
+    {
+      "role": "user",
+      "content": "/model",
+      "ts": "2025-12-03T14:02:46.953854"
+    },
+    {
+      "role": "user",
+      "content": "/help",
+      "ts": "2025-12-03T14:03:31.404746"
+    },
+    {
+      "role": "user",
+      "content": "hyprland config",
+      "ts": "2025-12-03T14:03:35.441539"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
+      "ts": "2025-12-03T14:03:37.075536"
+    },
+    {
+      "role": "user",
+      "content": "can you tell me what keybinds we have in hyprland",
+      "ts": "2025-12-03T14:03:46.462026"
+    },
+    {
+      "role": "assistant",
+      "content": "In Hyprland, the keybinding options are configured using `~/.config/hypr/hyprland.conf`.  Commonly used commands include:\n\n* **`:`:**  for command-line interface (CLI) mode.\n* **`ctrl + alt + f1`:** for switching between screens.\n* **`ctrl + shift + h`:** to cycle through different modes, like fullscreen or normal. \n\n\nFor a comprehensive list of keybinds and their associated commands, you can consult the Hyprland documentation.",
+      "ts": "2025-12-03T14:03:47.465931"
+    },
+    {
+      "role": "user",
+      "content": "tell me what keybind i added inside of hyperland config",
+      "ts": "2025-12-03T14:04:08.119982"
+    },
+    {
+      "role": "assistant",
+      "content": "\u2705 Ge\u00f6ffnet: /home/tobi/.config/hypr/hyprland.conf",
+      "ts": "2025-12-03T14:04:09.394260"
+    },
+    {
+      "role": "user",
+      "content": "create login py",
+      "ts": "2025-12-03T14:04:28.615082"
+    },
+    {
+      "role": "assistant",
+      "content": "File not found: /home/tobi/.config/hypr/login.py",
+      "ts": "2025-12-03T14:04:28.903146"
+    },
+    {
+      "role": "user",
+      "content": "create login.py",
+      "ts": "2025-12-03T14:04:32.308042"
+    }
+  ],
+  "stats": {
+    "prompts": 11,
+    "actions": 8,
+    "files": 3,
+    "urls": 0,
+    "searches": 0,
+    "scrapes": 0
+  },
+  "precision_mode": false,
+  "browsing_enabled": true,
+  "context": {
+    "last_path": "/home/tobi/.config/hypr/hyprland.conf",
+    "last_result": "File not found: /home/tobi/.config/hypr/login.py",
+    "last_intent": "code_task",
+    "created_files": [
+      "login.py",
+      "login.py",
+      "login.py",
+      "ryx_main.py",
+      "test_login.py"
+    ]
+  },
+  "saved_at": "2025-12-03T14:06:58.724056"
+}

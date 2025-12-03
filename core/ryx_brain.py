@@ -627,13 +627,19 @@ ANFRAGE: {prompt}'''
         if re.search(file_create_pattern, p):
             return True
         
+        # Modify file patterns - these should be code tasks, not file opens
+        file_modify_pattern = r'(modifiziere|ändere|update|modify|change|fix)\s+\w+\.(py|js|ts|html|css|go|rs|java)'
+        if re.search(file_modify_pattern, p):
+            return True
+        
         # Coding task indicators - actions that modify code
         code_indicators = [
             'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
             'fix ', 'bug ', 'error in', 'refactor ', 'change the ', 'change code',
             'update the ', 'modify the ', 'edit the code', 'write a ', 'write code',
             'füge hinzu', 'erstelle', 'implementiere', 'baue',
-            'fixe', 'fehler', 'ändere den', 'aktualisiere',
+            'fixe', 'fehler', 'ändere den', 'aktualisiere', 'modifiziere',
+            'korrigiere', 'repariere', 'verbessere',  # German fix words
             'new function', 'new class', 'new method', 'new component',
             'new feature', 'new test', 'new style',
             'create function', 'create class', 'create module',
@@ -646,19 +652,19 @@ ANFRAGE: {prompt}'''
             'component', 'script', 'program', 'app', 'api',
             'handler', 'service', 'controller', 'model',
             'theme', 'style', 'color', 'css',  # UI/theme related
-            '.py', '.js', '.ts', '.tsx', '.rs', '.go',
-            'funktion', 'klasse', 'modul',
+            '.py', '.js', '.ts', '.tsx', '.rs', '.go', '.html', '.css',
+            'funktion', 'klasse', 'modul', 'datei',
         ]
         
         # Exclusions - simple file operations (not coding)
         simple_ops = [
             'open ', 'öffne ', 'show ', 'zeig ', 'find ', 'finde ',
-            'where ', 'wo ', 'config',  # Config is just opening files
+            'where ', 'wo ',
         ]
         
         has_code_indicator = any(i in p for i in code_indicators)
         has_code_context = any(c in p for c in code_context)
-        is_simple_op = any(p.startswith(s) or f' {s}' in p for s in simple_ops)
+        is_simple_op = any(p.startswith(s) for s in simple_ops)  # Only check start, not middle
         
         return has_code_indicator and (has_code_context or len(p) > 30) and not is_simple_op
     
@@ -1211,22 +1217,30 @@ ANFRAGE: {prompt}'''
         """
         Execute a coding task using the phase system.
         EXPLORE → PLAN → APPLY → VERIFY
+        
+        Uses autonomous retry mode for self-healing when issues are detected.
         """
         from core.phases import PhaseExecutor
+        import os
         try:
             from core.cli_ui import get_ui
         except ImportError:
             from core.rich_ui import get_ui
         
         ui = get_ui()
-        executor = PhaseExecutor(brain=self, ui=ui)
+        
+        # Get the working directory - this is where files should be created
+        working_dir = os.getcwd()
+        
+        executor = PhaseExecutor(brain=self, ui=ui, working_dir=working_dir)
         
         # Start the task
         task = plan.target or self.ctx.last_query
         executor.start(task)
         
-        # Run through all phases
-        success = executor.run_to_completion()
+        # Run through all phases with autonomous retry enabled
+        # This allows ryx to self-heal without human intervention
+        success = executor.run_to_completion(autonomous_retries=3)
         
         if success:
             # Summarize what was done
