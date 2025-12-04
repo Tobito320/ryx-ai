@@ -53,11 +53,10 @@ export function WorkflowCanvas() {
   };
 
   const handleAddNode = (nodeData: { type: string; name: string }) => {
-    // In a real implementation, this would add the node to the workflow
-    // For now, just show a success message
-    console.log("Adding node:", nodeData);
+    // TODO: Integrate with backend API to persist workflow nodes
+    // For now, show success feedback to user
     toast.success(`Node "${nodeData.name}" will be added to the workflow`, {
-      description: "Node management is coming soon!"
+      description: "Full workflow persistence coming soon!"
     });
   };
 

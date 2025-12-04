@@ -88,8 +88,8 @@ function RyxHubApp() {
         open={modelDialogOpen}
         onOpenChange={setModelDialogOpen}
         onModelUpdate={() => {
-          // Trigger refresh of models in context if needed
-          console.log("Model updated");
+          // TODO: Trigger models refresh in context when needed
+          // Currently models are statically loaded from context
         }}
       />
 

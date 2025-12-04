@@ -187,33 +187,52 @@ def scan_local_models() -> List[Dict[str, Any]]:
             size_path = os.path.join(VLLM_MODELS_DIR, size_dir)
             if not os.path.exists(size_path):
                 continue
-                
-            for category_dir in os.listdir(size_path):
-                category_path = os.path.join(size_path, category_dir)
-                if not os.path.isdir(category_path):
-                    continue
+            
+            # Use os.scandir for better performance
+            with os.scandir(size_path) as size_entries:
+                for category_entry in size_entries:
+                    if not category_entry.is_dir():
+                        continue
                     
-                for model_name in os.listdir(category_path):
-                    model_path = os.path.join(category_path, model_name)
-                    if os.path.isdir(model_path):
-                        # Check if it's a valid model directory (contains config.json or similar)
-                        config_exists = (
-                            os.path.exists(os.path.join(model_path, "config.json")) or
-                            os.path.exists(os.path.join(model_path, "pytorch_model.bin")) or
-                            os.path.exists(os.path.join(model_path, "model.safetensors")) or
-                            any(f.endswith('.safetensors') for f in os.listdir(model_path) if os.path.isfile(os.path.join(model_path, f)))
-                        )
-                        
-                        if config_exists:
-                            full_path = f"/models/{size_dir}/{category_dir}/{model_name}"
-                            models.append({
-                                "id": full_path,
-                                "name": model_name,
-                                "path": full_path,
-                                "size": size_dir,
-                                "category": category_dir,
-                                "status": "offline"  # Default, will be checked against loaded models
-                            })
+                    category_dir = category_entry.name
+                    category_path = category_entry.path
+                    
+                    with os.scandir(category_path) as model_entries:
+                        for model_entry in model_entries:
+                            if not model_entry.is_dir():
+                                continue
+                            
+                            model_name = model_entry.name
+                            model_path = model_entry.path
+                            
+                            # Check if it's a valid model directory (contains config.json or similar)
+                            config_exists = (
+                                os.path.exists(os.path.join(model_path, "config.json")) or
+                                os.path.exists(os.path.join(model_path, "pytorch_model.bin")) or
+                                os.path.exists(os.path.join(model_path, "model.safetensors"))
+                            )
+                            
+                            # Only check for .safetensors files if config not found
+                            if not config_exists:
+                                try:
+                                    with os.scandir(model_path) as files:
+                                        config_exists = any(
+                                            f.name.endswith('.safetensors') and f.is_file()
+                                            for f in files
+                                        )
+                                except (OSError, PermissionError):
+                                    continue
+                            
+                            if config_exists:
+                                full_path = f"/models/{size_dir}/{category_dir}/{model_name}"
+                                models.append({
+                                    "id": full_path,
+                                    "name": model_name,
+                                    "path": full_path,
+                                    "size": size_dir,
+                                    "category": category_dir,
+                                    "status": "offline"  # Default, will be checked against loaded models
+                                })
     except Exception as e:
         print(f"Error scanning models directory: {e}")
     
