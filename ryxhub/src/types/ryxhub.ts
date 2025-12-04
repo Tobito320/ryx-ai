@@ -17,6 +17,10 @@ export interface Message {
   content: string;
   timestamp: string;
   model?: string;
+  latency_ms?: number;
+  tokens_per_second?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
 }
 
 export interface Model {

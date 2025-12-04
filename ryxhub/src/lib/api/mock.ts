@@ -157,13 +157,16 @@ export const mockApi = {
 
   // ============ Chat ============
 
-  async sendMessage(sessionId: string, message: string): Promise<Message> {
+  async sendMessage(sessionId: string, message: string, model?: string): Promise<Message> {
     await delay(800 + Math.random() * 1200); // Simulate LLM response time
 
     const session = sessions.find((s) => s.id === sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
+
+    // Use specified model or session default
+    const usedModel = model || session.model;
 
     // Add user message
     const userMessage: Message = {
@@ -181,12 +184,19 @@ export const mockApi = {
       `I understand you're asking about "${message.slice(0, 30)}..."\n\nHere's my analysis:\n\n\`\`\`\nProcessing pipeline: completed\nConfidence: 0.94\nSources: 4 documents\n\`\`\`\n\nThe most relevant finding is that this relates to your existing workflow configuration. Should I make any adjustments?`,
     ];
 
+    const latencyMs = 800 + Math.random() * 1200;
+    const completionTokens = 50 + Math.floor(Math.random() * 150);
+
     const aiMessage: Message = {
       id: `msg-${++messageIdCounter}`,
       role: 'assistant',
       content: responses[Math.floor(Math.random() * responses.length)],
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      model: session.model,
+      model: usedModel,
+      latency_ms: latencyMs,
+      tokens_per_second: (completionTokens / latencyMs) * 1000,
+      prompt_tokens: 50 + Math.floor(Math.random() * 100),
+      completion_tokens: completionTokens,
     };
     session.messages.push(aiMessage);
     session.lastMessage = aiMessage.content.slice(0, 30) + '...';

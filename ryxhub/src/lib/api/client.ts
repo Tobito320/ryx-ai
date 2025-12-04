@@ -66,6 +66,10 @@ export interface Message {
   content: string;
   timestamp: string;
   model?: string;
+  latency_ms?: number;
+  tokens_per_second?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
 }
 
 export interface RAGStatus {
@@ -262,10 +266,10 @@ export const ryxApi = {
 
   // ============ Chat ============
 
-  async sendMessage(sessionId: string, message: string): Promise<Message> {
+  async sendMessage(sessionId: string, message: string, model?: string): Promise<Message> {
     return apiRequest<Message>(`/api/sessions/${sessionId}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ content: message }),
+      body: JSON.stringify({ content: message, model }),
     });
   },
 

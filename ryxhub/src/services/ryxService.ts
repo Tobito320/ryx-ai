@@ -84,7 +84,7 @@ function createRyxService(): RyxService {
       createSession: (data: { name: string; model: string }) => mockApi.createSession(data),
       getSession: (id: string) => mockApi.getSession(id),
       deleteSession: (id: string) => mockApi.deleteSession(id),
-      sendMessage: (sessionId: string, message: string) => mockApi.sendMessage(sessionId, message),
+      sendMessage: (sessionId: string, message: string, model?: string) => mockApi.sendMessage(sessionId, message, model),
       getStreamUrl: (sessionId: string) => `mock://stream/${sessionId}`,
       getRagStatus: () => mockApi.getRagStatus(),
       triggerRagSync: () => mockApi.triggerRagSync(),

@@ -1,27 +1,47 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, RotateCcw, Check, Loader2 } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, RotateCcw, Check, Loader2, Settings2, Zap, Clock, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
-import { useSendMessage } from "@/hooks/useRyxApi";
+import { useSendMessage, useModels } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
 
+interface MessageStats {
+  latency_ms?: number;
+  tokens_per_second?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+}
+
 export function ChatView() {
-  const { sessions, selectedSessionId, addMessageToSession } = useRyxHub();
+  const { sessions, selectedSessionId, addMessageToSession, models: contextModels } = useRyxHub();
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [lastStats, setLastStats] = useState<MessageStats | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const sendMessageMutation = useSendMessage();
+  const { data: apiModels } = useModels();
+  
+  // Use API models if available, otherwise fall back to context models
+  const availableModels = apiModels || contextModels;
 
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
   const messages = currentSession?.messages ?? [];
+  
+  // Set initial model from session
+  useEffect(() => {
+    if (currentSession && !selectedModel) {
+      setSelectedModel(currentSession.model);
+    }
+  }, [currentSession, selectedModel]);
 
   useEffect(() => {
-    // Scroll to bottom when messages change
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
@@ -33,36 +53,40 @@ export function ChatView() {
     const userMessage = input;
     setInput("");
 
-    // Add user message immediately
     addMessageToSession(selectedSessionId, {
       role: "user",
       content: userMessage,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });
 
-    // Show typing indicator
     setIsTyping(true);
+    setLastStats(null);
 
     try {
-      // Send message via API service
       const response = await sendMessageMutation.mutateAsync({
         sessionId: selectedSessionId,
         message: userMessage,
+        model: selectedModel || undefined,
       });
 
-      // Add AI response to session
+      // Store stats
+      setLastStats({
+        latency_ms: response.latency_ms,
+        tokens_per_second: response.tokens_per_second,
+        prompt_tokens: response.prompt_tokens,
+        completion_tokens: response.completion_tokens,
+      });
+
       addMessageToSession(selectedSessionId, {
         role: "assistant",
         content: response.content,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        model: response.model || currentSession?.model,
+        model: response.model || selectedModel || currentSession?.model,
       });
     } catch (error) {
-      // Handle API errors gracefully
       const errorMessage = error instanceof Error ? error.message : "Failed to get response";
       toast.error(`API Error: ${errorMessage}`);
 
-      // Add error message to chat
       addMessageToSession(selectedSessionId, {
         role: "assistant",
         content: `⚠️ **Connection Error**\n\nCouldn't reach the Ryx backend. Please check:\n- Is vLLM running on localhost:8420?\n- Is the model loaded?\n\n_Error: ${errorMessage}_`,
@@ -88,8 +112,9 @@ export function ChatView() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleClear = () => {
-    toast.info("Chat cleared (mock action)");
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    toast.success(`Switched to ${modelId.split('/').pop()}`);
   };
 
   if (!currentSession) {
@@ -108,7 +133,7 @@ export function ChatView() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Chat Header */}
+      {/* Chat Header with Model Selector */}
       <div className="px-6 py-4 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -118,15 +143,56 @@ export function ChatView() {
             <div>
               <h2 className="text-base font-semibold text-foreground">{currentSession.name}</h2>
               <p className="text-xs text-muted-foreground">
-                Using {currentSession.model} • RAG enabled • {messages.length} messages
+                {messages.length} messages
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleClear}>
-              <RotateCcw className="w-4 h-4 mr-1.5" />
-              Clear
-            </Button>
+          
+          <div className="flex items-center gap-3">
+            {/* Model Selector */}
+            <Select value={selectedModel || currentSession.model} onValueChange={handleModelChange}>
+              <SelectTrigger className="w-[200px] h-8 text-xs">
+                <Settings2 className="w-3 h-3 mr-1" />
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableModels.map((model) => (
+                  <SelectItem key={model.id} value={model.id} className="text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        "w-2 h-2 rounded-full",
+                        model.status === "online" ? "bg-green-500" : "bg-gray-400"
+                      )} />
+                      {model.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {/* Stats Display */}
+            {lastStats && (
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-full">
+                {lastStats.tokens_per_second && (
+                  <span className="flex items-center gap-1">
+                    <Zap className="w-3 h-3 text-yellow-500" />
+                    {lastStats.tokens_per_second.toFixed(1)} t/s
+                  </span>
+                )}
+                {lastStats.latency_ms && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {(lastStats.latency_ms / 1000).toFixed(1)}s
+                  </span>
+                )}
+                {lastStats.completion_tokens && (
+                  <span className="flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    {lastStats.completion_tokens} tokens
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

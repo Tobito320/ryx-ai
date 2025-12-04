@@ -57,7 +57,12 @@ class Supervisor:
     # Style-specific prompts
     STYLE_PROMPTS = {
         ResponseStyle.NORMAL: "Provide a balanced, helpful response.",
-        ResponseStyle.CONCISE: "Be extremely brief. Maximum 2-3 sentences. No fluff.",
+        ResponseStyle.CONCISE: """STRICT CONCISE MODE:
+- ONE sentence maximum for greetings and simple questions
+- NEVER write more than 2 sentences unless absolutely necessary
+- NO pleasantries, NO filler words, NO repetition
+- If user says "hello", respond with just "Hey!" or "Hi!" - nothing more
+- Get straight to the point. Less is more.""",
         ResponseStyle.EXPLANATORY: "Explain thoroughly with examples and context. Help the user understand deeply.",
         ResponseStyle.LEARNING: "Teach step-by-step. Assume the user wants to learn. Use analogies.",
         ResponseStyle.FORMAL: "Use professional, formal language. Be precise and structured."

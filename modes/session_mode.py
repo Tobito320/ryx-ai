@@ -263,6 +263,10 @@ class SessionMode:
             filename = parts[1] if len(parts) > 1 else "conversation.txt"
             self.save_conversation(filename)
         
+        elif cmd == '/sync':
+            name = ' '.join(parts[1:]) if len(parts) > 1 else None
+            self.sync_to_ryxhub(name)
+        
         else:
             print(f"\033[1;31m✗\033[0m Unknown command: {cmd}")
             print("  Type /help for available commands")
@@ -331,6 +335,7 @@ class SessionMode:
             ("/undo", "Undo last exchange"),
             ("/status", "Show session status"),
             ("/save [filename]", "Save conversation to file"),
+            ("/sync [name]", "Sync chat to RyxHub web UI"),
         ]
         
         for cmd, desc in commands:
@@ -367,6 +372,37 @@ class SessionMode:
                 f.write(f"## {role}\n\n{content}\n\n")
 
         print(f"\033[1;32m✓\033[0m Saved to: {output_path}")
+
+    def sync_to_ryxhub(self, name: str = None):
+        """Sync current conversation to RyxHub for web access"""
+        import requests
+        from datetime import datetime
+        
+        if not self.conversation_history:
+            print("\033[1;33m○\033[0m No conversation to sync")
+            return
+        
+        api_url = "http://localhost:8420/api/sessions/import"
+        
+        payload = {
+            "name": name or f"CLI Session - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            "messages": self.conversation_history,
+            "model": self.model_override or "auto"
+        }
+        
+        try:
+            response = requests.post(api_url, json=payload, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                print(f"\033[1;32m✓\033[0m Synced to RyxHub as: {data.get('name', 'Unknown')}")
+                print(f"  ID: {data.get('id')}")
+                print(f"  Open RyxHub at http://localhost:5173 to continue this chat")
+            else:
+                print(f"\033[1;31m✗\033[0m Failed to sync: HTTP {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            print("\033[1;31m✗\033[0m RyxHub API not running. Start with: docker compose -f docker/docker-compose.ryxhub.yml up -d")
+        except Exception as e:
+            print(f"\033[1;31m✗\033[0m Sync failed: {e}")
 
     def handle_v2_command(self, command: str):
         """Handle V2 system commands (::)"""

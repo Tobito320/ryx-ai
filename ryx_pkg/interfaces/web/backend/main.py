@@ -68,6 +68,10 @@ class MessageResponse(BaseModel):
     content: str
     timestamp: str
     model: Optional[str] = None
+    latency_ms: Optional[float] = None
+    tokens_per_second: Optional[float] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
 
 
 class ModelInfo(BaseModel):
@@ -132,8 +136,11 @@ class StatusResponse(BaseModel):
 
 
 # =============================================================================
-# In-memory state (for sessions, will be persisted later)
+# Session Persistence
 # =============================================================================
+
+SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", PROJECT_ROOT / "data" / "sessions"))
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 sessions: Dict[str, SessionInfo] = {}
 message_counter = 0
@@ -143,6 +150,50 @@ def get_next_message_id() -> str:
     global message_counter
     message_counter += 1
     return f"msg-{message_counter}"
+
+
+def save_session(session: SessionInfo) -> None:
+    """Persist session to disk."""
+    try:
+        session_file = SESSIONS_DIR / f"{session.id}.json"
+        with open(session_file, 'w') as f:
+            json.dump(session.dict(), f, indent=2, default=str)
+    except Exception as e:
+        print(f"Failed to save session {session.id}: {e}")
+
+
+def load_sessions() -> None:
+    """Load all sessions from disk on startup."""
+    global sessions, message_counter
+    try:
+        for session_file in SESSIONS_DIR.glob("*.json"):
+            try:
+                with open(session_file) as f:
+                    data = json.load(f)
+                    session = SessionInfo(**data)
+                    sessions[session.id] = session
+                    # Update message counter
+                    for msg in session.messages:
+                        if msg.get("id", "").startswith("msg-"):
+                            try:
+                                num = int(msg["id"].split("-")[1])
+                                message_counter = max(message_counter, num)
+                            except:
+                                pass
+            except Exception as e:
+                print(f"Failed to load session {session_file}: {e}")
+    except Exception as e:
+        print(f"Failed to scan sessions: {e}")
+
+
+def delete_session_file(session_id: str) -> None:
+    """Delete session file from disk."""
+    try:
+        session_file = SESSIONS_DIR / f"{session_id}.json"
+        if session_file.exists():
+            session_file.unlink()
+    except Exception as e:
+        print(f"Failed to delete session file {session_id}: {e}")
 
 
 # =============================================================================
@@ -276,14 +327,25 @@ async def vllm_chat(
                 data = await resp.json()
                 choice = data.get("choices", [{}])[0]
                 message = choice.get("message", {})
+                usage = data.get("usage", {})
 
                 latency_ms = (time.time() - start_time) * 1000
+                completion_tokens = usage.get("completion_tokens", 0)
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                
+                # Calculate tokens per second
+                tokens_per_second = 0.0
+                if latency_ms > 0 and completion_tokens > 0:
+                    tokens_per_second = (completion_tokens / latency_ms) * 1000
 
                 return {
                     "content": message.get("content", ""),
                     "model": model,
                     "latency_ms": latency_ms,
-                    "finish_reason": choice.get("finish_reason", "")
+                    "finish_reason": choice.get("finish_reason", ""),
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "tokens_per_second": tokens_per_second
                 }
     except asyncio.TimeoutError:
         return {"error": "Request timeout", "model": model}
@@ -351,6 +413,11 @@ async def lifespan(app: FastAPI):
     print(f"🚀 Ryx API starting on port {API_PORT}")
     print(f"📡 vLLM backend: {VLLM_BASE_URL}")
     print(f"🔍 SearXNG: {SEARXNG_URL}")
+    print(f"💾 Sessions dir: {SESSIONS_DIR}")
+
+    # Load persisted sessions
+    load_sessions()
+    print(f"📂 Loaded {len(sessions)} sessions")
 
     # Check vLLM connection
     health = await vllm_health_check()
@@ -361,7 +428,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
+    # Shutdown - save all sessions
+    for session in sessions.values():
+        save_session(session)
+    print(f"💾 Saved {len(sessions)} sessions")
     print("👋 Ryx API shutting down")
 
 
@@ -600,6 +670,7 @@ async def create_session(data: Dict[str, str]) -> SessionInfo:
         messages=[]
     )
     sessions[session_id] = session
+    save_session(session)
     return session
 
 
@@ -611,11 +682,30 @@ async def get_session(session_id: str) -> SessionInfo:
     return sessions[session_id]
 
 
+@app.patch("/api/sessions/{session_id}")
+async def update_session(session_id: str, data: Dict[str, Any]) -> SessionInfo:
+    """Update session properties (name, model, etc)."""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = sessions[session_id]
+    
+    # Update allowed fields
+    if "name" in data:
+        session.name = data["name"]
+    if "model" in data:
+        session.model = data["model"]
+    
+    save_session(session)
+    return session
+
+
 @app.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: str) -> Dict[str, str]:
     """Delete a session."""
     if session_id in sessions:
         del sessions[session_id]
+        delete_session_file(session_id)
     return {"status": "deleted"}
 
 
@@ -678,18 +768,31 @@ async def send_message(session_id: str, request: MessageRequest) -> MessageRespo
         "role": "assistant",
         "content": content,
         "timestamp": datetime.now().strftime("%H:%M"),
-        "model": model_used
+        "model": model_used,
+        "latency_ms": result.get("latency_ms"),
+        "tokens_per_second": result.get("tokens_per_second"),
     }
     session.messages.append(assistant_msg)
     session.lastMessage = content[:50] + "..." if len(content) > 50 else content
     session.timestamp = "just now"
+    
+    # Update model if switched mid-chat
+    if request.model and request.model != session.model:
+        session.model = request.model
+    
+    # Persist session
+    save_session(session)
 
     return MessageResponse(
         id=assistant_msg["id"],
         role="assistant",
         content=content,
         timestamp=assistant_msg["timestamp"],
-        model=model_used
+        model=model_used,
+        latency_ms=result.get("latency_ms"),
+        tokens_per_second=result.get("tokens_per_second"),
+        prompt_tokens=result.get("prompt_tokens"),
+        completion_tokens=result.get("completion_tokens")
     )
 
 
@@ -722,6 +825,49 @@ async def stream_chat(session_id: str, message: str, model: Optional[str] = None
         vllm_chat_stream(messages, model or session.model),
         media_type="text/event-stream"
     )
+
+
+@app.post("/api/sessions/import")
+async def import_cli_session(data: Dict[str, Any]) -> SessionInfo:
+    """
+    Import a CLI session (from ryx terminal) into RyxHub.
+    This enables syncing ryx CLI conversations to the web UI.
+    
+    Expected payload:
+    {
+        "name": "Session Name",
+        "messages": [{"role": "user/assistant", "content": "..."}, ...],
+        "model": "model-name"
+    }
+    """
+    session_id = f"cli-session-{int(time.time())}"
+    
+    # Convert messages to proper format
+    imported_messages = []
+    for msg in data.get("messages", []):
+        imported_messages.append({
+            "id": get_next_message_id(),
+            "role": msg.get("role", "user"),
+            "content": msg.get("content", ""),
+            "timestamp": msg.get("timestamp", datetime.now().strftime("%H:%M")),
+            "model": msg.get("model")
+        })
+    
+    session = SessionInfo(
+        id=session_id,
+        name=data.get("name", f"Imported from CLI - {datetime.now().strftime('%Y-%m-%d %H:%M')}"),
+        lastMessage=imported_messages[-1]["content"][:50] + "..." if imported_messages else "",
+        timestamp="just now",
+        isActive=False,
+        model=data.get("model", "default"),
+        agentId=f"cli-agent-{session_id}",
+        messages=imported_messages
+    )
+    
+    sessions[session_id] = session
+    save_session(session)
+    
+    return session
 
 
 # =============================================================================

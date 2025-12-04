@@ -1,0 +1,75 @@
+# RyxHub Full Stack - Everything needed to run RyxHub
+# This automatically starts SearXNG if not running
+# 
+# Usage:
+#   docker compose -f docker/docker-compose.ryxhub.yml up -d
+#
+# Prerequisites:
+#   - vLLM should be running on port 8001 (separate container)
+#   - Or use VLLM_BASE_URL to point to a different vLLM instance
+
+services:
+  # SearXNG - Web Search Engine
+  searxng:
+    image: searxng/searxng:latest
+    container_name: ryx-searxng
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    networks:
+      - ryxhub-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/ryxhub/Dockerfile.backend
+    container_name: ryx-hub-backend
+    ports:
+      - "8420:8420"
+    volumes:
+      - ../data:/app/data
+      - ../configs:/app/configs
+    environment:
+      - VLLM_BASE_URL=${VLLM_BASE_URL:-http://host.docker.internal:8001}
+      - SEARXNG_URL=http://searxng:8080
+      - RYX_API_PORT=8420
+      - SESSIONS_DIR=/app/data/sessions
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - searxng
+    restart: unless-stopped
+    networks:
+      - ryxhub-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ../ryxhub
+      dockerfile: ../docker/ryxhub/Dockerfile.frontend
+    container_name: ryx-hub-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_RYX_API_URL=http://localhost:8420
+      - VITE_USE_MOCK_API=false
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - ryxhub-network
+
+networks:
+  ryxhub-network:
+    driver: bridge

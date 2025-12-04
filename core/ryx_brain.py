@@ -1623,7 +1623,7 @@ Answer (be concise, 2-3 sentences max):"""
 
         # Apply response style
         style_adjustments = {
-            "concise": "Be extremely brief. 1-2 sentences max.",
+            "concise": "ONE sentence only. Essential facts only. No filler.",
             "explanatory": "Explain in detail with context and examples.",
             "learning": "Teach step-by-step, help the user understand.",
             "formal": "Use professional, formal language.",
@@ -2091,11 +2091,16 @@ Sprache: Deutsch"""
         # Build style-specific instructions
         style = getattr(self, 'response_style', 'normal')
         style_instructions = {
-            'normal': "Antworte klar und hilfreich.",
-            'concise': "Antworte SEHR KURZ - maximal 2 Sätze. Nur das Wichtigste.",
-            'explanatory': "Erkläre ausführlich mit Beispielen und Hintergrund.",
-            'learning': "Erkläre wie für einen Studenten - mit Kontext, Beispielen und Merkhilfen.",
-            'formal': "Antworte formal und professionell, wie in einer Dokumentation."
+            'normal': "Be clear and helpful. Keep responses focused.",
+            'concise': """STRICT CONCISE MODE:
+- ONE sentence maximum for greetings/simple questions
+- NEVER write more than 2-3 sentences unless asked
+- NO pleasantries, NO filler words, NO repetition
+- If user says "hello", just say "Hi!" or "Hey!" - nothing more
+- Get straight to the point. Less is more.""",
+            'explanatory': "Explain in detail with examples, context, and background information.",
+            'learning': "Teach step-by-step like for a student - with context, examples, and memory aids.",
+            'formal': "Respond formally and professionally, as in documentation."
         }
         style_hint = style_instructions.get(style, style_instructions['normal'])
         

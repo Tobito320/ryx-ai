@@ -19,8 +19,11 @@ COPY core/ ./core/
 COPY ryx_pkg/ ./ryx_pkg/
 COPY configs/ ./configs/
 
+# Create data directories
+RUN mkdir -p /app/data/sessions
+
 # Expose port
-EXPOSE 8001
+EXPOSE 8420
 
 # Start FastAPI
-CMD ["python", "-m", "uvicorn", "core.api:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["python", "-m", "uvicorn", "ryx_pkg.interfaces.web.backend.main:app", "--host", "0.0.0.0", "--port", "8420"]
