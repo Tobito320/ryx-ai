@@ -47,6 +47,7 @@ os.environ.setdefault('RYX_PROJECT_ROOT', str(PROJECT_ROOT))
 VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8001")
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8888")
 API_PORT = int(os.environ.get("RYX_API_PORT", "8420"))
+VLLM_MODELS_DIR = os.environ.get("VLLM_MODELS_DIR", "/home/tobi/vllm-models")
 
 
 # =============================================================================
@@ -171,6 +172,52 @@ async def vllm_list_models() -> List[str]:
                 return []
     except Exception:
         return []
+
+
+def scan_local_models() -> List[Dict[str, Any]]:
+    """Scan local models directory for available models."""
+    models = []
+    
+    if not os.path.exists(VLLM_MODELS_DIR):
+        return models
+    
+    try:
+        # Scan directory structure: /models/{size}/{category}/{model_name}
+        for size_dir in ["small", "medium", "large"]:
+            size_path = os.path.join(VLLM_MODELS_DIR, size_dir)
+            if not os.path.exists(size_path):
+                continue
+                
+            for category_dir in os.listdir(size_path):
+                category_path = os.path.join(size_path, category_dir)
+                if not os.path.isdir(category_path):
+                    continue
+                    
+                for model_name in os.listdir(category_path):
+                    model_path = os.path.join(category_path, model_name)
+                    if os.path.isdir(model_path):
+                        # Check if it's a valid model directory (contains config.json or similar)
+                        config_exists = (
+                            os.path.exists(os.path.join(model_path, "config.json")) or
+                            os.path.exists(os.path.join(model_path, "pytorch_model.bin")) or
+                            os.path.exists(os.path.join(model_path, "model.safetensors")) or
+                            any(f.endswith('.safetensors') for f in os.listdir(model_path) if os.path.isfile(os.path.join(model_path, f)))
+                        )
+                        
+                        if config_exists:
+                            full_path = f"/models/{size_dir}/{category_dir}/{model_name}"
+                            models.append({
+                                "id": full_path,
+                                "name": model_name,
+                                "path": full_path,
+                                "size": size_dir,
+                                "category": category_dir,
+                                "status": "offline"  # Default, will be checked against loaded models
+                            })
+    except Exception as e:
+        print(f"Error scanning models directory: {e}")
+    
+    return models
 
 
 async def vllm_chat(
@@ -354,42 +401,156 @@ async def get_status() -> StatusResponse:
 # =============================================================================
 
 @app.get("/api/models")
-async def list_models() -> Dict[str, List[ModelInfo]]:
-    """List available models from vLLM."""
-    model_ids = await vllm_list_models()
-
-    if not model_ids:
-        # Return default models if vLLM not available
-        return {"models": [
-            ModelInfo(id="default", name="Default Model", status="offline", provider="vLLM")
-        ]}
-
+async def list_models() -> Dict[str, Any]:
+    """List available models from vLLM and local directory."""
+    # Get currently loaded models from vLLM
+    loaded_model_ids = await vllm_list_models()
+    loaded_models_set = set(loaded_model_ids)
+    
+    # Scan local models directory
+    local_models = scan_local_models()
+    
+    # Combine and deduplicate
     models = []
-    for model_id in model_ids:
-        # Extract friendly name from path
-        name = model_id.split("/")[-1] if "/" in model_id else model_id
+    seen_ids = set()
+    
+    # First add loaded models
+    for model_id in loaded_model_ids:
+        if model_id not in seen_ids:
+            name = model_id.split("/")[-1] if "/" in model_id else model_id
+            models.append(ModelInfo(
+                id=model_id,
+                name=name,
+                status="online",
+                provider="vLLM"
+            ))
+            seen_ids.add(model_id)
+    
+    # Then add local models not yet loaded
+    for local_model in local_models:
+        model_id = local_model["id"]
+        if model_id not in seen_ids:
+            status = "online" if model_id in loaded_models_set else "offline"
+            models.append(ModelInfo(
+                id=model_id,
+                name=local_model["name"],
+                status=status,
+                provider="vLLM"
+            ))
+            seen_ids.add(model_id)
+    
+    # If no models found, return a default message
+    if not models:
         models.append(ModelInfo(
-            id=model_id,
-            name=name,
-            status="online",
+            id="no-models", 
+            name="No Models Found", 
+            status="offline", 
             provider="vLLM"
         ))
-
-    return {"models": models}
+    
+    return {
+        "models": models,
+        "loaded_count": len(loaded_model_ids),
+        "available_count": len(local_models)
+    }
 
 
 @app.post("/api/models/load")
 async def load_model(data: Dict[str, str]) -> Dict[str, Any]:
-    """Load a model (vLLM manages this automatically)."""
+    """
+    Load a model in vLLM.
+    
+    Note: vLLM typically loads one model at startup via docker-compose.
+    To switch models, you need to restart the vLLM container with a different model.
+    This endpoint checks if the requested model is already loaded.
+    """
     model_id = data.get("model_id")
-    return {"success": True, "message": f"Model {model_id} is managed by vLLM"}
+    
+    if not model_id:
+        return {"success": False, "message": "model_id is required"}
+    
+    # Check if model is already loaded
+    loaded_models = await vllm_list_models()
+    
+    if model_id in loaded_models:
+        return {
+            "success": True, 
+            "message": f"Model {model_id} is already loaded",
+            "status": "connected"
+        }
+    
+    # Check if model exists locally
+    local_models = scan_local_models()
+    model_exists = any(m["id"] == model_id for m in local_models)
+    
+    if not model_exists:
+        return {
+            "success": False,
+            "message": f"Model {model_id} not found in local directory",
+            "status": "not_found"
+        }
+    
+    return {
+        "success": False,
+        "message": f"To load {model_id}, restart vLLM container with this model. vLLM supports one model at a time.",
+        "status": "requires_restart",
+        "instructions": f"Update docker-compose.yml to use: --model {model_id}"
+    }
 
 
 @app.post("/api/models/unload")
 async def unload_model(data: Dict[str, str]) -> Dict[str, Any]:
-    """Unload a model (vLLM manages this automatically)."""
+    """
+    Unload a model from vLLM.
+    
+    Note: vLLM doesn't support dynamic unloading. 
+    The model stays loaded until the container is stopped.
+    """
     model_id = data.get("model_id")
-    return {"success": True, "message": f"Model {model_id} unload requested"}
+    
+    if not model_id:
+        return {"success": False, "message": "model_id is required"}
+    
+    return {
+        "success": False,
+        "message": f"vLLM doesn't support dynamic unloading. Stop the vLLM container to unload {model_id}",
+        "status": "not_supported"
+    }
+
+
+@app.get("/api/models/{model_id}/status")
+async def get_model_status(model_id: str) -> Dict[str, Any]:
+    """Get the status of a specific model."""
+    loaded_models = await vllm_list_models()
+    
+    is_loaded = model_id in loaded_models
+    
+    if is_loaded:
+        return {
+            "id": model_id,
+            "status": "online",
+            "loaded": True,
+            "message": "Model is loaded and ready"
+        }
+    
+    # Check if it exists locally
+    local_models = scan_local_models()
+    exists_locally = any(m["id"] == model_id for m in local_models)
+    
+    if exists_locally:
+        return {
+            "id": model_id,
+            "status": "offline",
+            "loaded": False,
+            "message": "Model is available but not loaded"
+        }
+    
+    return {
+        "id": model_id,
+        "status": "not_found",
+        "loaded": False,
+        "message": "Model not found"
+    }
 
 
 # =============================================================================
@@ -593,6 +754,72 @@ async def search_rag(data: Dict[str, Any]) -> Dict[str, Any]:
         return {"results": results, "total": len(results)}
     except Exception:
         return {"results": [], "total": 0}
+
+
+# =============================================================================
+# SearXNG Endpoints
+# =============================================================================
+
+async def searxng_health_check() -> Dict[str, Any]:
+    """Check SearXNG server health."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(f"{SEARXNG_URL}") as resp:
+                if resp.status == 200:
+                    return {"healthy": True, "status": "online"}
+                return {"healthy": False, "status": f"HTTP {resp.status}"}
+    except Exception as e:
+        return {"healthy": False, "status": str(e)}
+
+
+@app.get("/api/searxng/status")
+async def get_searxng_status() -> Dict[str, Any]:
+    """Get SearXNG service status."""
+    health = await searxng_health_check()
+    return {
+        "url": SEARXNG_URL,
+        "healthy": health["healthy"],
+        "status": health["status"],
+        "message": "SearXNG is online" if health["healthy"] else f"SearXNG is offline: {health['status']}"
+    }
+
+
+@app.post("/api/searxng/search")
+async def searxng_search(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Search via SearXNG."""
+    query = data.get("query", "")
+    
+    if not query:
+        return {"results": [], "error": "Query is required"}
+    
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+            params = {
+                "q": query,
+                "format": "json",
+                "language": "en"
+            }
+            
+            async with session.get(f"{SEARXNG_URL}/search", params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    results = data.get("results", [])
+                    return {
+                        "results": results[:10],  # Top 10 results
+                        "total": len(results),
+                        "query": query
+                    }
+                else:
+                    error_text = await resp.text()
+                    return {
+                        "results": [],
+                        "error": f"SearXNG returned status {resp.status}: {error_text}"
+                    }
+    except Exception as e:
+        return {
+            "results": [],
+            "error": f"Failed to search: {str(e)}"
+        }
 
 
 # =============================================================================

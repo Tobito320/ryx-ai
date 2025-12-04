@@ -127,7 +127,12 @@ export function LeftSidebar() {
                     </div>
                   </button>
                 ))}
-                <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-foreground">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full justify-start text-muted-foreground hover:text-foreground"
+                  onClick={() => window.dispatchEvent(new CustomEvent('new-session-click'))}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   New Session
                 </Button>
@@ -155,16 +160,17 @@ export function LeftSidebar() {
             {expandedSections.models && (
               <div className="space-y-1">
                 {models.map((model) => (
-                  <div
+                  <button
                     key={model.id}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                    onClick={() => window.dispatchEvent(new CustomEvent('model-click', { detail: model }))}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors w-full cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
                       <Circle className={cn("w-2 h-2 fill-current", getStatusColor(model.status))} />
-                      <span className="text-sm text-foreground">{model.name}</span>
+                      <span className="text-sm text-foreground truncate">{model.name}</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground">{model.provider}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
