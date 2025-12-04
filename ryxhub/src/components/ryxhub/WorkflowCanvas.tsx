@@ -1,9 +1,11 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Zap, Bot, Wrench, Database, Plus, Play, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
+import { AddNodeDialog } from "@/components/ryxhub/AddNodeDialog";
 import type { WorkflowNode } from "@/types/ryxhub";
+import { toast } from "sonner";
 
 const nodeIcons = {
   trigger: Zap,
@@ -36,6 +38,8 @@ export function WorkflowCanvas() {
     toggleWorkflowRunning,
   } = useRyxHub();
 
+  const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
+
   const getNodePosition = useCallback(
     (nodeId: string) => {
       const node = workflowNodes.find((n) => n.id === nodeId);
@@ -46,6 +50,15 @@ export function WorkflowCanvas() {
 
   const handleNodeClick = (node: WorkflowNode) => {
     selectNode(node.id === selectedNodeId ? null : node.id);
+  };
+
+  const handleAddNode = (nodeData: { type: string; name: string }) => {
+    // In a real implementation, this would add the node to the workflow
+    // For now, just show a success message
+    console.log("Adding node:", nodeData);
+    toast.success(`Node "${nodeData.name}" will be added to the workflow`, {
+      description: "Node management is coming soon!"
+    });
   };
 
   const runningCount = workflowNodes.filter((n) => n.status === "running").length;
@@ -64,7 +77,11 @@ export function WorkflowCanvas() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm">
+            <Button 
+              variant="secondary" 
+              size="sm"
+              onClick={() => setAddNodeDialogOpen(true)}
+            >
               <Plus className="w-4 h-4 mr-1.5" />
               Add Node
             </Button>
@@ -208,6 +225,13 @@ export function WorkflowCanvas() {
           Click a node to inspect • {selectedNodeId ? "Node selected" : "No selection"}
         </span>
       </div>
+
+      {/* Dialogs */}
+      <AddNodeDialog
+        open={addNodeDialogOpen}
+        onOpenChange={setAddNodeDialogOpen}
+        onNodeAdd={handleAddNode}
+      />
     </div>
   );
 }
