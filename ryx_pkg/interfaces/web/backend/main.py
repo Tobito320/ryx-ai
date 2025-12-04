@@ -1,19 +1,26 @@
 """
 Ryx AI - FastAPI Backend
-REST and WebSocket API for the Ryx AI web interface
+REST and WebSocket API for RyxHub web interface.
+
+Connects directly to vLLM for inference.
+All Ollama references removed - this is a vLLM-only system.
 """
 
 import sys
 import os
 import time
+import asyncio
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import aiohttp
 
 # Setup project root for imports
 def _setup_project_root() -> Path:
@@ -34,94 +41,262 @@ os.environ.setdefault('RYX_PROJECT_ROOT', str(PROJECT_ROOT))
 
 
 # =============================================================================
+# Configuration
+# =============================================================================
+
+VLLM_BASE_URL = os.environ.get("VLLM_BASE_URL", "http://localhost:8001")
+SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8888")
+API_PORT = int(os.environ.get("RYX_API_PORT", "8420"))
+
+
+# =============================================================================
 # Pydantic Models
 # =============================================================================
 
-class ChatRequest(BaseModel):
-    """Request model for chat endpoint."""
-    message: str
+class MessageRequest(BaseModel):
+    """Request model for sending a message."""
+    content: str
     model: Optional[str] = None
     stream: bool = False
 
 
-class SettingsRequest(BaseModel):
-    """Request model for settings endpoint."""
-    theme: Optional[str] = None
-    default_model: Optional[str] = None
-    auto_scroll: Optional[bool] = None
+class MessageResponse(BaseModel):
+    """Response from chat."""
+    id: str
+    role: str
+    content: str
+    timestamp: str
+    model: Optional[str] = None
 
 
 class ModelInfo(BaseModel):
     """Information about an available model."""
     id: str
     name: str
-    size: str
-    available: bool
+    status: str = "online"
+    provider: str = "vLLM"
 
 
-class ModelsResponse(BaseModel):
-    """Response model for models list endpoint."""
-    models: List[ModelInfo]
-
-
-class ChatResponse(BaseModel):
-    """Response model for chat endpoint."""
-    response: str
-    model_used: str
-    latency_ms: float
-
-
-class HistoryItem(BaseModel):
-    """Single item in conversation history."""
+class SessionInfo(BaseModel):
+    """Session information."""
     id: str
-    timestamp: datetime
-    user_message: str
-    assistant_response: str
-    model_used: str
+    name: str
+    lastMessage: str
+    timestamp: str
+    isActive: bool = False
+    model: str
+    agentId: str
+    messages: List[Dict[str, Any]] = []
 
 
-class HistoryResponse(BaseModel):
-    """Response model for history endpoint."""
-    items: List[HistoryItem]
-    total: int
-
-
-class StatusResponse(BaseModel):
-    """Generic status response."""
-    status: str
-    message: Optional[str] = None
+class RAGStatus(BaseModel):
+    """RAG index status."""
+    indexed: int
+    pending: int
+    lastSync: str
+    status: str = "idle"
 
 
 class WorkflowInfo(BaseModel):
-    """Information about a workflow."""
+    """Workflow information."""
+    id: str
     name: str
-    icon: str
-    description: str
-    category: str
+    status: str = "idle"
+    lastRun: str
 
 
-class WorkflowListResponse(BaseModel):
-    """Response model for workflow list endpoint."""
-    workflows: List[WorkflowInfo]
+class AgentInfo(BaseModel):
+    """Agent information."""
+    id: str
+    name: str
+    status: str = "idle"
+    model: str
 
 
-class ExecuteRequest(BaseModel):
-    """Request model for execute endpoint."""
-    command: str
-    model: Optional[str] = None
+class HealthResponse(BaseModel):
+    """Health check response."""
+    status: str
+    version: str
+    uptime: int
+    vllm_status: str
 
 
-class ServiceRequest(BaseModel):
-    """Request model for service management."""
-    service: str
+class StatusResponse(BaseModel):
+    """System status response."""
+    models_loaded: int
+    active_sessions: int
+    gpu_memory_used: float
+    gpu_memory_total: float
+    vllm_workers: int
 
 
-class ServiceStatusResponse(BaseModel):
-    """Response model for service status."""
-    service: str
-    running: bool
-    ports: List[str]
-    pids: Optional[Dict[str, int]] = None
+# =============================================================================
+# In-memory state (for sessions, will be persisted later)
+# =============================================================================
+
+sessions: Dict[str, SessionInfo] = {}
+message_counter = 0
+
+
+def get_next_message_id() -> str:
+    global message_counter
+    message_counter += 1
+    return f"msg-{message_counter}"
+
+
+# =============================================================================
+# vLLM Client Helper
+# =============================================================================
+
+async def vllm_health_check() -> Dict[str, Any]:
+    """Check vLLM server health."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(f"{VLLM_BASE_URL}/health") as resp:
+                if resp.status == 200:
+                    return {"healthy": True, "status": "online"}
+                return {"healthy": False, "status": f"HTTP {resp.status}"}
+    except Exception as e:
+        return {"healthy": False, "status": str(e)}
+
+
+async def vllm_list_models() -> List[str]:
+    """List models available in vLLM."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+            async with session.get(f"{VLLM_BASE_URL}/v1/models") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return [m["id"] for m in data.get("data", [])]
+                return []
+    except Exception:
+        return []
+
+
+async def vllm_chat(
+    messages: List[Dict[str, str]],
+    model: Optional[str] = None,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+    stream: bool = False
+) -> Dict[str, Any]:
+    """Send chat completion request to vLLM."""
+    # If no model specified, try to get the first available
+    if not model:
+        models = await vllm_list_models()
+        model = models[0] if models else "/models/medium/general/qwen2.5-7b-gptq"
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": stream
+    }
+
+    start_time = time.time()
+
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
+            async with session.post(
+                f"{VLLM_BASE_URL}/v1/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            ) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    return {"error": f"vLLM error: {error_text}", "model": model}
+
+                data = await resp.json()
+                choice = data.get("choices", [{}])[0]
+                message = choice.get("message", {})
+
+                latency_ms = (time.time() - start_time) * 1000
+
+                return {
+                    "content": message.get("content", ""),
+                    "model": model,
+                    "latency_ms": latency_ms,
+                    "finish_reason": choice.get("finish_reason", "")
+                }
+    except asyncio.TimeoutError:
+        return {"error": "Request timeout", "model": model}
+    except Exception as e:
+        return {"error": str(e), "model": model}
+
+
+async def vllm_chat_stream(
+    messages: List[Dict[str, str]],
+    model: Optional[str] = None,
+    temperature: float = 0.7,
+    max_tokens: int = 2048
+):
+    """Stream chat completion from vLLM."""
+    if not model:
+        models = await vllm_list_models()
+        model = models[0] if models else "/models/medium/general/qwen2.5-7b-gptq"
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True
+    }
+
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
+            async with session.post(
+                f"{VLLM_BASE_URL}/v1/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            ) as resp:
+                if resp.status != 200:
+                    yield f"data: {json.dumps({'error': 'vLLM error'})}\n\n"
+                    return
+
+                async for line in resp.content:
+                    line_text = line.decode('utf-8').strip()
+                    if line_text.startswith("data: "):
+                        data = line_text[6:]
+                        if data == "[DONE]":
+                            yield "data: [DONE]\n\n"
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield f"data: {json.dumps({'content': content, 'model': model})}\n\n"
+                        except json.JSONDecodeError:
+                            continue
+    except Exception as e:
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+
+# =============================================================================
+# Application Lifespan
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    # Startup
+    print(f"🚀 Ryx API starting on port {API_PORT}")
+    print(f"📡 vLLM backend: {VLLM_BASE_URL}")
+    print(f"🔍 SearXNG: {SEARXNG_URL}")
+
+    # Check vLLM connection
+    health = await vllm_health_check()
+    if health["healthy"]:
+        print("✅ vLLM connection: OK")
+    else:
+        print(f"⚠️  vLLM connection: {health['status']}")
+
+    yield
+
+    # Shutdown
+    print("👋 Ryx API shutting down")
 
 
 # =============================================================================
@@ -130,13 +305,12 @@ class ServiceStatusResponse(BaseModel):
 
 app = FastAPI(
     title="Ryx AI API",
-    version="2.0.0",
-    description="REST and WebSocket API for Ryx AI - N8N-style workflow interface"
+    version="2.1.0",
+    description="REST and WebSocket API for RyxHub - vLLM backend",
+    lifespan=lifespan
 )
 
-# CORS middleware for development
-# NOTE: Allowing all origins for development only.
-# In production, restrict to specific frontend origins.
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -147,607 +321,532 @@ app.add_middleware(
 
 
 # =============================================================================
-# Workflow Templates
+# Health & Status Endpoints
 # =============================================================================
 
-WORKFLOW_TEMPLATES = [
-    WorkflowInfo(
-        name="Search",
-        icon="🔍",
-        description="Web search with SearxNG",
-        category="Research"
-    ),
-    WorkflowInfo(
-        name="Code Help",
-        icon="💻",
-        description="Get coding assistance",
-        category="Development"
-    ),
-    WorkflowInfo(
-        name="File Mgmt",
-        icon="📁",
-        description="Find and open files",
-        category="System"
-    ),
-    WorkflowInfo(
-        name="Browse",
-        icon="🌐",
-        description="Browse and scrape web pages",
-        category="Research"
-    ),
-    WorkflowInfo(
-        name="Chat",
-        icon="💬",
-        description="General conversation",
-        category="Chat"
-    ),
-]
+@app.get("/api/health")
+async def health_check() -> HealthResponse:
+    """Health check endpoint."""
+    vllm_health = await vllm_health_check()
+    return HealthResponse(
+        status="healthy" if vllm_health["healthy"] else "degraded",
+        version="2.1.0",
+        uptime=int(time.time()),
+        vllm_status=vllm_health["status"]
+    )
+
+
+@app.get("/api/status")
+async def get_status() -> StatusResponse:
+    """Get system status."""
+    models = await vllm_list_models()
+    return StatusResponse(
+        models_loaded=len(models),
+        active_sessions=len([s for s in sessions.values() if s.isActive]),
+        gpu_memory_used=8.5,  # TODO: Get real GPU stats
+        gpu_memory_total=16.0,
+        vllm_workers=1
+    )
 
 
 # =============================================================================
-# REST Endpoints
+# Model Endpoints
 # =============================================================================
 
-@app.get("/api/models", response_model=ModelsResponse)
-async def get_models() -> ModelsResponse:
-    """
-    Get list of available LLM models.
+@app.get("/api/models")
+async def list_models() -> Dict[str, List[ModelInfo]]:
+    """List available models from vLLM."""
+    model_ids = await vllm_list_models()
 
-    Returns:
-        ModelsResponse with list of available models
-    """
-    try:
-        from core.ollama_client import OllamaClient
-        client = OllamaClient()
-        model_names = client.list_models()
-        
-        models = [
-            ModelInfo(
-                id=name,
-                name=name.split(':')[0] if ':' in name else name,
-                size=name.split(':')[1] if ':' in name else "latest",
-                available=True
-            )
-            for name in model_names
-        ]
-        return ModelsResponse(models=models)
-    except Exception:
-        # Return empty list if Ollama is not available
-        return ModelsResponse(models=[])
+    if not model_ids:
+        # Return default models if vLLM not available
+        return {"models": [
+            ModelInfo(id="default", name="Default Model", status="offline", provider="vLLM")
+        ]}
+
+    models = []
+    for model_id in model_ids:
+        # Extract friendly name from path
+        name = model_id.split("/")[-1] if "/" in model_id else model_id
+        models.append(ModelInfo(
+            id=model_id,
+            name=name,
+            status="online",
+            provider="vLLM"
+        ))
+
+    return {"models": models}
 
 
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
-    """
-    Send a chat message and receive a response.
+@app.post("/api/models/load")
+async def load_model(data: Dict[str, str]) -> Dict[str, Any]:
+    """Load a model (vLLM manages this automatically)."""
+    model_id = data.get("model_id")
+    return {"success": True, "message": f"Model {model_id} is managed by vLLM"}
 
-    Args:
-        request: ChatRequest with message and optional model
 
-    Returns:
-        ChatResponse with AI response
-    """
-    start_time = time.time()
-    model_name = request.model or "mistral:7b"
-    
-    try:
-        from core.ollama_client import OllamaClient
-        client = OllamaClient()
-        
-        result = client.generate(
-            prompt=request.message,
-            model=model_name,
-            system="You are Ryx, a helpful AI assistant.",
-            max_tokens=2048
+@app.post("/api/models/unload")
+async def unload_model(data: Dict[str, str]) -> Dict[str, Any]:
+    """Unload a model (vLLM manages this automatically)."""
+    model_id = data.get("model_id")
+    return {"success": True, "message": f"Model {model_id} unload requested"}
+
+
+# =============================================================================
+# Session Endpoints
+# =============================================================================
+
+@app.get("/api/sessions")
+async def list_sessions() -> Dict[str, List[Dict[str, Any]]]:
+    """List all sessions."""
+    return {"sessions": [s.dict() for s in sessions.values()]}
+
+
+@app.post("/api/sessions")
+async def create_session(data: Dict[str, str]) -> SessionInfo:
+    """Create a new session."""
+    session_id = f"session-{int(time.time())}"
+    models = await vllm_list_models()
+    model = data.get("model") or (models[0] if models else "default")
+
+    session = SessionInfo(
+        id=session_id,
+        name=data.get("name", "New Session"),
+        lastMessage="",
+        timestamp="just now",
+        isActive=True,
+        model=model,
+        agentId=f"agent-{session_id}",
+        messages=[]
+    )
+    sessions[session_id] = session
+    return session
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str) -> SessionInfo:
+    """Get session by ID."""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return sessions[session_id]
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str) -> Dict[str, str]:
+    """Delete a session."""
+    if session_id in sessions:
+        del sessions[session_id]
+    return {"status": "deleted"}
+
+
+# =============================================================================
+# Chat/Message Endpoints
+# =============================================================================
+
+@app.post("/api/sessions/{session_id}/messages")
+async def send_message(session_id: str, request: MessageRequest) -> MessageResponse:
+    """Send a message and get AI response."""
+    # Get or create session
+    if session_id not in sessions:
+        # Auto-create session
+        models = await vllm_list_models()
+        model = request.model or (models[0] if models else "default")
+        sessions[session_id] = SessionInfo(
+            id=session_id,
+            name="Chat Session",
+            lastMessage="",
+            timestamp="just now",
+            isActive=True,
+            model=model,
+            agentId=f"agent-{session_id}",
+            messages=[]
         )
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        if result.error:
-            return ChatResponse(
-                response=f"Error: {result.error}",
-                model_used=model_name,
-                latency_ms=latency_ms
-            )
-        
-        return ChatResponse(
-            response=result.response,
-            model_used=result.model,
-            latency_ms=latency_ms
+
+    session = sessions[session_id]
+
+    # Add user message to history
+    user_msg = {
+        "id": get_next_message_id(),
+        "role": "user",
+        "content": request.content,
+        "timestamp": datetime.now().strftime("%H:%M")
+    }
+    session.messages.append(user_msg)
+
+    # Build messages for vLLM
+    messages = [{"role": "system", "content": "You are Ryx, a helpful AI assistant running on vLLM. Be concise and helpful."}]
+    for msg in session.messages[-10:]:  # Last 10 messages for context
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
+    # Get response from vLLM
+    result = await vllm_chat(
+        messages=messages,
+        model=request.model or session.model,
+        max_tokens=2048
+    )
+
+    if "error" in result:
+        content = f"⚠️ Error: {result['error']}\n\nPlease check if vLLM is running on {VLLM_BASE_URL}"
+        model_used = "System"
+    else:
+        content = result["content"]
+        model_used = result["model"]
+
+    # Add assistant response to history
+    assistant_msg = {
+        "id": get_next_message_id(),
+        "role": "assistant",
+        "content": content,
+        "timestamp": datetime.now().strftime("%H:%M"),
+        "model": model_used
+    }
+    session.messages.append(assistant_msg)
+    session.lastMessage = content[:50] + "..." if len(content) > 50 else content
+    session.timestamp = "just now"
+
+    return MessageResponse(
+        id=assistant_msg["id"],
+        role="assistant",
+        content=content,
+        timestamp=assistant_msg["timestamp"],
+        model=model_used
+    )
+
+
+@app.get("/api/sessions/{session_id}/stream")
+async def stream_chat(session_id: str, message: str, model: Optional[str] = None):
+    """Stream chat response using SSE."""
+    if session_id not in sessions:
+        models = await vllm_list_models()
+        m = model or (models[0] if models else "default")
+        sessions[session_id] = SessionInfo(
+            id=session_id,
+            name="Stream Session",
+            lastMessage="",
+            timestamp="just now",
+            isActive=True,
+            model=m,
+            agentId=f"agent-{session_id}",
+            messages=[]
         )
-    except Exception as e:
-        latency_ms = (time.time() - start_time) * 1000
-        return ChatResponse(
-            response=f"Error connecting to Ollama: {str(e)}",
-            model_used=model_name,
-            latency_ms=latency_ms
-        )
+
+    session = sessions[session_id]
+
+    # Build messages
+    messages = [{"role": "system", "content": "You are Ryx, a helpful AI assistant."}]
+    for msg in session.messages[-10:]:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": message})
+
+    return StreamingResponse(
+        vllm_chat_stream(messages, model or session.model),
+        media_type="text/event-stream"
+    )
 
 
-@app.get("/api/history", response_model=HistoryResponse)
-async def get_history(
-    limit: int = Query(default=50, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0)
-) -> HistoryResponse:
-    """
-    Get conversation history.
+# =============================================================================
+# RAG Endpoints
+# =============================================================================
 
-    Args:
-        limit: Maximum number of items to return
-        offset: Number of items to skip
-
-    Returns:
-        HistoryResponse with conversation history
-    """
-    try:
-        from core.paths import get_data_dir
-        import json
-        
-        history_file = get_data_dir() / "session_state.json"
-        
-        if not history_file.exists():
-            return HistoryResponse(items=[], total=0)
-        
-        with open(history_file, 'r') as f:
-            data = json.load(f)
-        
-        conversation_history = data.get('conversation_history', [])
-        total = len(conversation_history)
-        
-        # Apply pagination
-        paginated = conversation_history[offset:offset + limit]
-        
-        items = []
-        for i, entry in enumerate(paginated):
-            # Create HistoryItem from conversation history
-            if entry.get('role') == 'user':
-                # Find corresponding assistant response
-                assistant_response = ""
-                if i + 1 < len(paginated) and paginated[i + 1].get('role') == 'assistant':
-                    assistant_response = paginated[i + 1].get('content', '')
-                
-                items.append(HistoryItem(
-                    id=f"msg-{offset + i}",
-                    timestamp=datetime.fromisoformat(data.get('saved_at', datetime.now().isoformat())),
-                    user_message=entry.get('content', ''),
-                    assistant_response=assistant_response,
-                    model_used=data.get('current_tier', 'balanced')
-                ))
-        
-        return HistoryResponse(items=items, total=total)
-    except Exception:
-        return HistoryResponse(items=[], total=0)
-
-
-@app.post("/api/settings", response_model=StatusResponse)
-async def update_settings(request: SettingsRequest) -> StatusResponse:
-    """
-    Update user settings.
-
-    Args:
-        request: SettingsRequest with settings to update
-
-    Returns:
-        StatusResponse indicating success/failure
-    """
-    try:
-        from core.paths import get_config_dir
-        import json
-        
-        config_file = get_config_dir() / "ryx_config.json"
-        
-        # Load existing config or create new
-        config = {}
-        if config_file.exists():
-            with open(config_file, 'r') as f:
-                config = json.load(f)
-        
-        # Update settings
-        if request.theme:
-            config.setdefault('ui', {})['theme'] = request.theme
-        if request.default_model:
-            config['default_model'] = request.default_model
-        if request.auto_scroll is not None:
-            config.setdefault('ui', {})['auto_scroll'] = request.auto_scroll
-        
-        # Save config
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_file, 'w') as f:
-            json.dump(config, f, indent=2)
-        
-        return StatusResponse(status="ok", message="Settings updated successfully")
-    except Exception as e:
-        return StatusResponse(status="error", message=f"Failed to update settings: {str(e)}")
-
-
-@app.post("/api/workflows/list", response_model=WorkflowListResponse)
-async def list_workflows() -> WorkflowListResponse:
-    """
-    Get list of available workflow templates.
-
-    Returns:
-        WorkflowListResponse with list of workflow templates
-    """
-    return WorkflowListResponse(workflows=WORKFLOW_TEMPLATES)
-
-
-@app.post("/api/execute")
-async def execute_command(request: ExecuteRequest) -> Dict[str, Any]:
-    """
-    Execute a command and return results.
-    For streaming updates, use the WebSocket endpoint.
-
-    Args:
-        request: ExecuteRequest with command to execute
-
-    Returns:
-        Dict with execution results
-    """
-    start_time = time.time()
-    steps = []
-    
-    try:
-        # Step 1: Parse intent
-        step_start = time.time()
-        from core.intent_classifier import IntentClassifier
-        classifier = IntentClassifier()
-        intent = classifier.classify(request.command, {})
-        step_latency = (time.time() - step_start) * 1000
-        steps.append({
-            "step": 1,
-            "action": "Parse Intent",
-            "status": "complete",
-            "latency_ms": round(step_latency, 2),
-            "data": {"intent": intent.intent_type.value if intent else "unknown"}
-        })
-        
-        # Step 2: Route to model
-        step_start = time.time()
-        from core.model_router import ModelRouter
-        router = ModelRouter()
-        model = router.get_model()
-        step_latency = (time.time() - step_start) * 1000
-        steps.append({
-            "step": 2,
-            "action": "Select Model",
-            "status": "complete",
-            "latency_ms": round(step_latency, 2),
-            "data": {"model": model.name}
-        })
-        
-        # Step 3: Generate response
-        step_start = time.time()
-        from core.ollama_client import OllamaClient
-        client = OllamaClient()
-        result = client.generate(
-            prompt=request.command,
-            model=request.model or model.name,
-            system="You are Ryx, a helpful AI assistant.",
-            max_tokens=2048
-        )
-        step_latency = (time.time() - step_start) * 1000
-        steps.append({
-            "step": 3,
-            "action": "Generate Response",
-            "status": "complete" if not result.error else "error",
-            "latency_ms": round(step_latency, 2),
-            "data": {"error": result.error} if result.error else {}
-        })
-        
-        total_latency = (time.time() - start_time) * 1000
-        
-        return {
-            "status": "completed" if not result.error else "error",
-            "command": request.command,
-            "steps": steps,
-            "result": result.response if not result.error else result.error,
-            "total_latency_ms": round(total_latency, 2)
-        }
-        
-    except Exception as e:
-        total_latency = (time.time() - start_time) * 1000
-        return {
-            "status": "error",
-            "command": request.command,
-            "steps": steps,
-            "result": f"Error: {str(e)}",
-            "total_latency_ms": round(total_latency, 2)
-        }
-
-
-@app.post("/api/results/cache")
-async def get_cached_results(
-    limit: int = Query(default=10, ge=1, le=100)
-) -> Dict[str, Any]:
-    """
-    Get recently cached results for fast repeat queries.
-
-    Args:
-        limit: Maximum number of cached results to return
-
-    Returns:
-        Dict with cached results
-    """
+@app.get("/api/rag/status")
+async def get_rag_status() -> RAGStatus:
+    """Get RAG index status."""
     try:
         from core.rag_system import RAGSystem
         rag = RAGSystem()
-        
-        # Get cached responses from RAG system
-        cached = rag.get_recent_responses(limit=limit)
+        stats = rag.get_stats() if hasattr(rag, 'get_stats') else {}
         rag.close()
-        
-        return {
-            "cached_results": cached,
-            "total": len(cached)
-        }
+        return RAGStatus(
+            indexed=stats.get("indexed", 0),
+            pending=stats.get("pending", 0),
+            lastSync=stats.get("last_sync", "never"),
+            status=stats.get("status", "idle")
+        )
     except Exception:
-        # Return empty if RAG system not available
-        return {
-            "cached_results": [],
-            "total": 0
-        }
+        return RAGStatus(indexed=0, pending=0, lastSync="never", status="unavailable")
 
 
-@app.post("/api/service/start")
-async def start_service(request: ServiceRequest) -> ServiceStatusResponse:
-    """
-    Start a service.
+@app.post("/api/rag/sync")
+async def trigger_rag_sync() -> Dict[str, Any]:
+    """Trigger RAG sync."""
+    try:
+        from core.rag_system import RAGSystem
+        rag = RAGSystem()
+        result = rag.sync() if hasattr(rag, 'sync') else {"queued": 0}
+        rag.close()
+        return {"success": True, "queued_files": result.get("queued", 0)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
-    Args:
-        request: ServiceRequest with service name
 
-    Returns:
-        ServiceStatusResponse with service status
-    """
-    # Import here to avoid circular imports
-    import sys
-    import os
-    from pathlib import Path
-
-    # Find project root by looking for marker files
-    def find_project_root(start_path: Path) -> Path:
-        """Find project root by looking for pyproject.toml or core/ directory"""
-        current = start_path
-        for _ in range(10):  # Limit search depth
-            if (current / "pyproject.toml").exists() or (current / "core").is_dir():
-                return current
-            parent = current.parent
-            if parent == current:  # Reached filesystem root
-                break
-            current = parent
-        # Fallback to calculated path
-        return start_path.parent.parent.parent.parent.parent
-
-    project_root = find_project_root(Path(__file__).resolve().parent)
-    sys.path.insert(0, str(project_root))
-    os.environ.setdefault('RYX_PROJECT_ROOT', str(project_root))
+@app.post("/api/rag/search")
+async def search_rag(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Search RAG index."""
+    query = data.get("query", "")
+    top_k = data.get("top_k", 5)
 
     try:
-        from core.service_manager import ServiceManager
-        manager = ServiceManager()
-
-        if request.service.lower() in ['ryxhub', 'hub']:
-            result = manager.start_ryxhub()
-            if result['success']:
-                return ServiceStatusResponse(
-                    service="RyxHub",
-                    running=True,
-                    ports=result.get('info', []),
-                    pids=result.get('pids')
-                )
-            else:
-                raise HTTPException(status_code=500, detail=result.get('error', 'Failed to start'))
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown service: {request.service}")
-    except ImportError as e:
-        raise HTTPException(status_code=500, detail=f"Service manager not available: {e}")
-
-
-@app.post("/api/service/stop")
-async def stop_service(request: ServiceRequest) -> ServiceStatusResponse:
-    """
-    Stop a service.
-
-    Args:
-        request: ServiceRequest with service name
-
-    Returns:
-        ServiceStatusResponse with service status
-    """
-    import sys
-    import os
-    from pathlib import Path
-
-    # Reuse project root finder
-    def find_project_root(start_path: Path) -> Path:
-        current = start_path
-        for _ in range(10):
-            if (current / "pyproject.toml").exists() or (current / "core").is_dir():
-                return current
-            parent = current.parent
-            if parent == current:
-                break
-            current = parent
-        return start_path.parent.parent.parent.parent.parent
-
-    project_root = find_project_root(Path(__file__).resolve().parent)
-    sys.path.insert(0, str(project_root))
-    os.environ.setdefault('RYX_PROJECT_ROOT', str(project_root))
-
-    try:
-        from core.service_manager import ServiceManager
-        manager = ServiceManager()
-
-        if request.service.lower() in ['ryxhub', 'hub']:
-            result = manager.stop_ryxhub()
-            if result['success']:
-                return ServiceStatusResponse(
-                    service="RyxHub",
-                    running=False,
-                    ports=[],
-                    pids=None
-                )
-            else:
-                raise HTTPException(status_code=500, detail=result.get('error', 'Failed to stop'))
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown service: {request.service}")
-    except ImportError as e:
-        raise HTTPException(status_code=500, detail=f"Service manager not available: {e}")
-
-
-@app.get("/api/service/status")
-async def get_service_status() -> Dict[str, ServiceStatusResponse]:
-    """
-    Get status of all services.
-
-    Returns:
-        Dict with service status for each service
-    """
-    import sys
-    import os
-    from pathlib import Path
-
-    # Reuse project root finder
-    def find_project_root(start_path: Path) -> Path:
-        current = start_path
-        for _ in range(10):
-            if (current / "pyproject.toml").exists() or (current / "core").is_dir():
-                return current
-            parent = current.parent
-            if parent == current:
-                break
-            current = parent
-        return start_path.parent.parent.parent.parent.parent
-
-    project_root = find_project_root(Path(__file__).resolve().parent)
-    sys.path.insert(0, str(project_root))
-    os.environ.setdefault('RYX_PROJECT_ROOT', str(project_root))
-
-    try:
-        from core.service_manager import ServiceManager
-        manager = ServiceManager()
-        status = manager.get_status()
-
-        result = {}
-        for service_name, info in status.items():
-            result[service_name] = ServiceStatusResponse(
-                service=service_name,
-                running=info.get('running', False),
-                ports=info.get('ports', []),
-                pids=info.get('pids')
-            )
-        return result
-    except ImportError:
-        return {
-            "RyxHub": ServiceStatusResponse(
-                service="RyxHub",
-                running=False,
-                ports=[],
-                pids=None
-            )
-        }
+        from core.rag_system import RAGSystem
+        rag = RAGSystem()
+        results = rag.search(query, top_k=top_k) if hasattr(rag, 'search') else []
+        rag.close()
+        return {"results": results, "total": len(results)}
+    except Exception:
+        return {"results": [], "total": 0}
 
 
 # =============================================================================
-# WebSocket Endpoint
+# Workflow Endpoints
 # =============================================================================
 
-@app.websocket("/api/workflow/stream")
-async def workflow_stream(websocket: WebSocket) -> None:
-    """
-    WebSocket endpoint for streaming workflow events.
+@app.get("/api/workflows")
+async def list_workflows() -> Dict[str, List[WorkflowInfo]]:
+    """List available workflows."""
+    # TODO: Load from workflow storage
+    return {"workflows": [
+        WorkflowInfo(id="wf-1", name="PR Review", status="idle", lastRun="2h ago"),
+        WorkflowInfo(id="wf-2", name="Code Analysis", status="idle", lastRun="4h ago"),
+    ]}
 
-    Protocol:
-        Client sends: {"action": "execute_workflow", "input": "...", "model": "..."}
-        Server sends: WorkflowEvent objects as JSON
-    """
-    await websocket.accept()
-    try:
-        while True:
-            try:
-                data = await websocket.receive_json()
-            except Exception:
-                # Handle invalid JSON
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Invalid JSON data"
-                })
-                continue
 
-            # Handle workflow execution
-            if data.get("action") == "execute_workflow":
-                command = data.get("input", "")
+@app.get("/api/workflows/{workflow_id}")
+async def get_workflow(workflow_id: str) -> Dict[str, Any]:
+    """Get workflow details."""
+    # TODO: Load workflow from storage
+    return {
+        "id": workflow_id,
+        "name": "Sample Workflow",
+        "status": "idle",
+        "lastRun": "never",
+        "nodes": [],
+        "connections": []
+    }
 
-                # Send step_start events
-                await websocket.send_json({
-                    "type": "step_start",
-                    "step": 1,
-                    "action": "Parsing command",
-                    "timestamp": datetime.now().isoformat()
-                })
-                await asyncio.sleep(0.1)
 
-                await websocket.send_json({
-                    "type": "step_complete",
-                    "step": 1,
-                    "latency_ms": 50,
-                    "result": "Command parsed"
-                })
+@app.post("/api/workflows/{workflow_id}/run")
+async def run_workflow(workflow_id: str) -> Dict[str, Any]:
+    """Run a workflow."""
+    return {"success": True, "run_id": f"run-{int(time.time())}"}
 
-                await websocket.send_json({
-                    "type": "step_start",
-                    "step": 2,
-                    "action": "Executing",
-                    "timestamp": datetime.now().isoformat()
-                })
-                await asyncio.sleep(0.2)
 
-                await websocket.send_json({
-                    "type": "step_complete",
-                    "step": 2,
-                    "latency_ms": 200,
-                    "result": f"Executed: {command}"
-                })
+@app.post("/api/workflows/{workflow_id}/pause")
+async def pause_workflow(workflow_id: str) -> Dict[str, str]:
+    """Pause a running workflow."""
+    return {"status": "paused"}
 
-                await websocket.send_json({
-                    "type": "task_complete",
-                    "total_latency_ms": 250,
-                    "results": [f"Result for: {command}"]
-                })
-            else:
-                await websocket.send_json({
-                    "type": "acknowledged",
-                    "data": data
-                })
-    except WebSocketDisconnect:
-        pass
 
+# =============================================================================
+# Agent Endpoints
+# =============================================================================
+
+@app.get("/api/agents")
+async def list_agents() -> Dict[str, List[AgentInfo]]:
+    """List available agents."""
+    models = await vllm_list_models()
+    default_model = models[0] if models else "default"
+
+    return {"agents": [
+        AgentInfo(id="agent-1", name="Code Analyzer", status="active", model=default_model),
+        AgentInfo(id="agent-2", name="Research Agent", status="idle", model=default_model),
+    ]}
+
+
+@app.get("/api/agents/{agent_id}/logs")
+async def get_agent_logs(agent_id: str, lines: int = 50) -> Dict[str, List[Dict[str, str]]]:
+    """Get agent logs."""
+    return {"logs": [
+        {"time": "10:00:00", "level": "info", "message": f"Agent {agent_id} initialized"},
+        {"time": "10:00:01", "level": "info", "message": "Ready to process requests"},
+    ]}
+
+
+# =============================================================================
+# Tool Endpoints
+# =============================================================================
+
+@app.get("/api/tools")
+async def list_tools() -> Dict[str, List[Dict[str, Any]]]:
+    """List available tools."""
+    return {"tools": [
+        {"id": "rag-search", "name": "RAG Search", "description": "Search knowledge base", "parameters": {}},
+        {"id": "web-search", "name": "Web Search", "description": "Search the web via SearXNG", "parameters": {}},
+        {"id": "code-exec", "name": "Code Executor", "description": "Execute code safely", "parameters": {}},
+    ]}
+
+
+@app.post("/api/tools/{tool_name}/dry-run")
+async def tool_dry_run(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Dry run a tool."""
+    return {"result": {"tool": tool_name, "params": params, "dry_run": True}}
+
+
+# =============================================================================
+# WebSocket Endpoints
+# =============================================================================
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    """
-    General WebSocket endpoint for real-time updates.
-    """
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket for real-time updates and streaming chat."""
     await websocket.accept()
+
+    try:
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "connected",
+            "message": "Connected to Ryx API",
+            "vllm_status": (await vllm_health_check())["status"]
+        })
+
+        while True:
+            data = await websocket.receive_json()
+            action = data.get("action")
+
+            if action == "chat":
+                # Stream chat response
+                session_id = data.get("session_id", "ws-session")
+                message = data.get("message", "")
+                model = data.get("model")
+
+                messages = [
+                    {"role": "system", "content": "You are Ryx, a helpful AI assistant."},
+                    {"role": "user", "content": message}
+                ]
+
+                full_response = ""
+                async for chunk in vllm_chat_stream(messages, model):
+                    if chunk.startswith("data: "):
+                        chunk_data = chunk[6:].strip()
+                        if chunk_data and chunk_data != "[DONE]":
+                            try:
+                                parsed = json.loads(chunk_data)
+                                if "content" in parsed:
+                                    full_response += parsed["content"]
+                                    await websocket.send_json({
+                                        "type": "token",
+                                        "content": parsed["content"],
+                                        "model": parsed.get("model")
+                                    })
+                            except json.JSONDecodeError:
+                                pass
+
+                await websocket.send_json({
+                    "type": "complete",
+                    "content": full_response,
+                    "model": model
+                })
+
+            elif action == "ping":
+                await websocket.send_json({"type": "pong"})
+
+            elif action == "status":
+                health = await vllm_health_check()
+                models = await vllm_list_models()
+                await websocket.send_json({
+                    "type": "status",
+                    "vllm_healthy": health["healthy"],
+                    "models": models
+                })
+
+            else:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Unknown action: {action}"
+                })
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except:
+            pass
+
+
+@app.websocket("/api/workflow/stream")
+async def workflow_stream(websocket: WebSocket):
+    """WebSocket for workflow execution streaming."""
+    await websocket.accept()
+
     try:
         while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Message received: {data}")
+            data = await websocket.receive_json()
+
+            if data.get("action") == "execute_workflow":
+                workflow_id = data.get("workflow_id")
+
+                # Simulate workflow steps
+                steps = ["Parsing input", "Loading context", "Processing", "Generating output"]
+
+                for i, step in enumerate(steps, 1):
+                    await websocket.send_json({
+                        "type": "step_start",
+                        "step": i,
+                        "action": step,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    await asyncio.sleep(0.5)
+                    await websocket.send_json({
+                        "type": "step_complete",
+                        "step": i,
+                        "latency_ms": 100 + i * 50
+                    })
+
+                await websocket.send_json({
+                    "type": "workflow_complete",
+                    "workflow_id": workflow_id,
+                    "total_latency_ms": 500
+                })
+            else:
+                await websocket.send_json({"type": "acknowledged", "data": data})
+
     except WebSocketDisconnect:
         pass
 
 
 # =============================================================================
-# Health Check
+# Service Management Endpoints
 # =============================================================================
 
-@app.get("/health")
-@app.get("/api/health")
-async def health_check() -> dict:
-    """Health check endpoint."""
-    return {"status": "healthy", "version": "2.0.0"}
+@app.post("/api/services/start")
+async def start_service(data: Dict[str, str]) -> Dict[str, Any]:
+    """Start a service."""
+    service = data.get("service", "").lower()
 
+    try:
+        from core.docker_services import start_service as docker_start
+        result = docker_start(service)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/services/stop")
+async def stop_service(data: Dict[str, str]) -> Dict[str, Any]:
+    """Stop a service."""
+    service = data.get("service", "").lower()
+
+    try:
+        from core.docker_services import stop_service as docker_stop
+        result = docker_stop(service)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/services/status")
+async def get_services_status() -> Dict[str, Any]:
+    """Get status of all services."""
+    try:
+        from core.docker_services import service_status
+        return service_status()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# Entry Point
+# =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=API_PORT)

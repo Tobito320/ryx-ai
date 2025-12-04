@@ -70,10 +70,10 @@ SERVICES: Dict[str, ServiceConfig] = {
         name="ryxhub",
         container_name="ryx-hub",
         compose_file="docker/ryxhub/docker-compose.yml",
-        ports=["5173:5173", "8000:8000"],
+        ports=["5173:5173", "8420:8420"],
         health_url="http://localhost:5173",
         health_timeout=30,
-        description="Ryx Web UI Dashboard"
+        description="Ryx Web UI Dashboard (Frontend: 5173, API: 8420)"
     ),
     
     "searxng": ServiceConfig(
