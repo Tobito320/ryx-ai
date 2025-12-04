@@ -1,0 +1,20 @@
+{
+  "history": [],
+  "stats": {
+    "prompts": 0,
+    "actions": 0,
+    "files": 0,
+    "urls": 0,
+    "searches": 0,
+    "scrapes": 0
+  },
+  "precision_mode": false,
+  "browsing_enabled": true,
+  "context": {
+    "last_path": "",
+    "last_result": "",
+    "last_intent": null,
+    "created_files": []
+  },
+  "saved_at": "2025-12-04T01:33:23.489451"
+}
