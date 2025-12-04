@@ -1,6 +1,10 @@
 #!/bin/bash
 # Ryx AI - Main executable
-# Usage: ryx [prompt] or just ryx for interactive session
+# Usage: ryx [command] [args]
+#   ryx              - Start interactive CLI
+#   ryx ryxhub       - Start RyxHub web interface
+#   ryx status       - Show service status
+#   ryx stop         - Stop all services
 
 PROJECT_ROOT="/home/tobi/ryx-ai"
 VLLM_CONTAINER="ryx-vllm"
@@ -10,50 +14,34 @@ SEARXNG_CONTAINER="ryx-searxng"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Check if Docker is running
-check_docker() {
+# Check if Docker is running, start if not
+ensure_docker() {
+    if docker info &>/dev/null; then
+        return 0
+    fi
+    echo -e "${YELLOW}Starting Docker...${NC}"
+    sudo systemctl start docker 2>/dev/null
+    sleep 2
     if ! docker info &>/dev/null; then
-        echo -e "${RED}Docker not running. Start with: sudo systemctl start docker${NC}"
+        echo -e "${RED}Docker failed to start${NC}"
         exit 1
     fi
 }
 
-# Start vLLM container
+# Start vLLM via docker-compose (uses compose config for proper setup)
 start_vllm() {
     if docker ps --format '{{.Names}}' | grep -q "^${VLLM_CONTAINER}$"; then
-        # Check if API responds
         if curl -s http://localhost:8001/v1/models &>/dev/null; then
-            return 0  # Already running and ready
+            return 0
         fi
     fi
     
     echo -e "${YELLOW}Starting vLLM...${NC}"
+    docker compose -f "$PROJECT_ROOT/docker/vllm/docker-compose.yml" up -d 2>/dev/null
     
-    # Stop if exists but not running
-    docker rm -f "$VLLM_CONTAINER" 2>/dev/null
-    
-    docker run -d \
-        --name "$VLLM_CONTAINER" \
-        --device /dev/kfd \
-        --device /dev/dri \
-        --group-add video \
-        --group-add render \
-        --ipc=host \
-        -v /home/tobi/vllm-models:/models:ro \
-        -p 8001:8000 \
-        --restart unless-stopped \
-        rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702 \
-        python3 -m vllm.entrypoints.openai.api_server \
-        --model /models/medium/general/qwen2.5-7b-gptq \
-        --quantization gptq \
-        --max-model-len 8192 \
-        --gpu-memory-utilization 0.7 \
-        --host 0.0.0.0 \
-        &>/dev/null
-    
-    # Wait for ready (model compilation takes ~60s first time)
     echo -n "Waiting for vLLM"
     for i in {1..90}; do
         if curl -s http://localhost:8001/v1/models &>/dev/null; then
@@ -63,8 +51,8 @@ start_vllm() {
         echo -n "."
         sleep 2
     done
-    echo -e " ${RED}timeout${NC}"
-    return 1
+    echo -e " ${YELLOW}starting in background${NC}"
+    return 0
 }
 
 # Start SearXNG container
@@ -75,79 +63,151 @@ start_searxng() {
     
     echo -e "${YELLOW}Starting SearXNG...${NC}"
     docker rm -f "$SEARXNG_CONTAINER" 2>/dev/null
-    
-    docker run -d \
-        --name "$SEARXNG_CONTAINER" \
-        -p 8888:8080 \
-        --restart unless-stopped \
-        searxng/searxng:latest \
-        &>/dev/null
-    
-    sleep 3
-    echo -e "${GREEN}SearXNG ready${NC}"
+    docker run -d --name "$SEARXNG_CONTAINER" -p 8888:8080 --restart unless-stopped searxng/searxng:latest &>/dev/null
+    sleep 2
 }
 
 # Stop all Ryx services
 stop_services() {
     echo -e "${YELLOW}Stopping Ryx services...${NC}"
+    
+    # Stop RyxHub processes
+    [ -f "$PROJECT_ROOT/data/ryxhub_api.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_api.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_api.pid"
+    [ -f "$PROJECT_ROOT/data/ryxhub_frontend.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_frontend.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_frontend.pid"
+    
+    # Stop containers
     docker stop "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
     docker rm "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
     echo -e "${GREEN}Stopped${NC}"
 }
 
-# Cleanup old Docker images
-cleanup_docker() {
-    echo -e "${YELLOW}Cleaning up Docker...${NC}"
-    docker system prune -f
-    docker image prune -f
-    echo -e "${GREEN}Cleaned${NC}"
-}
-
 # Show status
 show_status() {
-    echo "Ryx Services:"
+    echo -e "${CYAN}Ryx Services:${NC}"
+    
+    # vLLM
     if docker ps --format '{{.Names}}' | grep -q "^${VLLM_CONTAINER}$"; then
-        echo -e "  vLLM:    ${GREEN}running${NC}"
+        if curl -s http://localhost:8001/v1/models &>/dev/null; then
+            echo -e "  vLLM:       ${GREEN}running${NC} (port 8001)"
+        else
+            echo -e "  vLLM:       ${YELLOW}starting${NC}"
+        fi
     else
-        echo -e "  vLLM:    ${RED}stopped${NC}"
+        echo -e "  vLLM:       ${RED}stopped${NC}"
     fi
+    
+    # SearXNG
     if docker ps --format '{{.Names}}' | grep -q "^${SEARXNG_CONTAINER}$"; then
-        echo -e "  SearXNG: ${GREEN}running${NC}"
+        echo -e "  SearXNG:    ${GREEN}running${NC} (port 8888)"
     else
-        echo -e "  SearXNG: ${RED}stopped${NC}"
+        echo -e "  SearXNG:    ${RED}stopped${NC}"
     fi
+    
+    # RyxHub API
+    if curl -s http://localhost:8420/api/health &>/dev/null; then
+        echo -e "  RyxHub API: ${GREEN}running${NC} (port 8420)"
+    else
+        echo -e "  RyxHub API: ${RED}stopped${NC}"
+    fi
+    
+    # RyxHub Frontend (port 8080 per vite.config.ts)
+    if curl -s http://localhost:8080 &>/dev/null; then
+        echo -e "  RyxHub Web: ${GREEN}running${NC} (port 8080)"
+    else
+        echo -e "  RyxHub Web: ${RED}stopped${NC}"
+    fi
+}
+
+# Start RyxHub web interface
+start_ryxhub() {
+    echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║         Starting RyxHub               ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
+    
+    ensure_docker
+    start_vllm
+    start_searxng
+    
+    # Start API if not running
+    if ! curl -s http://localhost:8420/api/health &>/dev/null; then
+        echo -e "${YELLOW}Starting RyxHub API...${NC}"
+        cd "$PROJECT_ROOT"
+        [ -d "venv" ] && source venv/bin/activate
+        
+        VLLM_BASE_URL="http://localhost:8001" \
+        SEARXNG_URL="http://localhost:8888" \
+        python -m uvicorn ryx_pkg.interfaces.web.backend.main:app \
+            --host 0.0.0.0 --port 8420 --reload \
+            > "$PROJECT_ROOT/data/ryxhub_api.log" 2>&1 &
+        echo $! > "$PROJECT_ROOT/data/ryxhub_api.pid"
+        sleep 3
+    fi
+    
+    # Start frontend if not running (port 8080 per vite.config.ts)
+    if ! curl -s http://localhost:8080 &>/dev/null; then
+        echo -e "${YELLOW}Starting RyxHub Frontend...${NC}"
+        cd "$PROJECT_ROOT/ryxhub"
+        [ ! -d "node_modules" ] && npm install --silent
+        
+        VITE_RYX_API_URL="http://localhost:8420" \
+        VITE_USE_MOCK_API="false" \
+        npm run dev -- --host > "$PROJECT_ROOT/data/ryxhub_frontend.log" 2>&1 &
+        echo $! > "$PROJECT_ROOT/data/ryxhub_frontend.pid"
+        sleep 3
+    fi
+    
+    echo -e "\n${GREEN}RyxHub ready: ${CYAN}http://localhost:8080${NC}"
+    
+    # Open browser
+    xdg-open "http://localhost:8080" 2>/dev/null &
 }
 
 # Handle commands
 case "$1" in
-    stop)
-        stop_services
+    ryxhub|hub|open|start)
+        start_ryxhub
         exit 0
         ;;
-    cleanup)
-        cleanup_docker
+    stop)
+        stop_services
         exit 0
         ;;
     status)
         show_status
         exit 0
         ;;
+    cleanup)
+        echo -e "${YELLOW}Cleaning up Docker...${NC}"
+        docker system prune -f && docker image prune -f
+        echo -e "${GREEN}Done${NC}"
+        exit 0
+        ;;
     restart)
         stop_services
         sleep 2
         ;;
+    help|--help|-h)
+        echo "Ryx AI - Terminal assistant"
+        echo ""
+        echo "Usage: ryx [command]"
+        echo ""
+        echo "Commands:"
+        echo "  (none)    Start interactive CLI"
+        echo "  ryxhub    Start RyxHub web interface"
+        echo "  status    Show service status"
+        echo "  stop      Stop all services"
+        echo "  restart   Restart all services"
+        echo "  cleanup   Clean Docker resources"
+        exit 0
+        ;;
 esac
 
-# Start services
-check_docker
+# Start base services for CLI
+ensure_docker
 start_vllm
 start_searxng
 
-# Activate venv if exists
-if [ -d "$PROJECT_ROOT/venv" ]; then
-    source "$PROJECT_ROOT/venv/bin/activate"
-fi
-
-# Run main
+# Activate venv and run CLI
+[ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"
 cd "$PROJECT_ROOT"
 exec python3 ryx_main.py "$@"
