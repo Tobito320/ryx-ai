@@ -218,18 +218,22 @@ export const ryxApi = {
     return response.models || [];
   },
 
-  async loadModel(modelId: string): Promise<{ success: boolean }> {
-    return apiRequest<{ success: boolean }>('/api/models/load', {
+  async loadModel(modelId: string): Promise<{ success: boolean; message?: string; status?: string }> {
+    return apiRequest<{ success: boolean; message?: string; status?: string }>('/api/models/load', {
       method: 'POST',
       body: JSON.stringify({ model_id: modelId }),
     });
   },
 
-  async unloadModel(modelId: string): Promise<{ success: boolean }> {
-    return apiRequest<{ success: boolean }>('/api/models/unload', {
+  async unloadModel(modelId: string): Promise<{ success: boolean; message?: string }> {
+    return apiRequest<{ success: boolean; message?: string }>('/api/models/unload', {
       method: 'POST',
       body: JSON.stringify({ model_id: modelId }),
     });
+  },
+
+  async getModelStatus(modelId: string): Promise<{ id: string; status: string; loaded: boolean; message: string }> {
+    return apiRequest<{ id: string; status: string; loaded: boolean; message: string }>(`/api/models/${modelId}/status`);
   },
 
   // ============ Sessions ============
@@ -339,6 +343,19 @@ export const ryxApi = {
     return apiRequest<{ result: unknown }>(`/api/tools/${toolName}/dry-run`, {
       method: 'POST',
       body: JSON.stringify(params),
+    });
+  },
+
+  // ============ SearXNG ============
+
+  async getSearxngStatus(): Promise<{ healthy: boolean; status: string; message: string }> {
+    return apiRequest<{ healthy: boolean; status: string; message: string }>('/api/searxng/status');
+  },
+
+  async searxngSearch(query: string): Promise<{ results: Array<{ title: string; url: string; content: string }>; total: number }> {
+    return apiRequest<{ results: Array<{ title: string; url: string; content: string }>; total: number }>('/api/searxng/search', {
+      method: 'POST',
+      body: JSON.stringify({ query }),
     });
   },
 };

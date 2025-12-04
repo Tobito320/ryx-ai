@@ -2,6 +2,7 @@ import { Bot, Zap, Database, Activity, TrendingUp, Clock, CheckCircle, AlertTria
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useRyxHub } from "@/context/RyxHubContext";
+import { SearxngStatus } from "@/components/ryxhub/SearxngStatus";
 import { mockDashboardStats, mockRecentActivity, mockTopWorkflows } from "@/data/mockData";
 
 export function DashboardView() {
@@ -93,9 +94,9 @@ export function DashboardView() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Recent Activity */}
-          <Card className="border-border bg-card/50 backdrop-blur-sm">
+          <Card className="border-border bg-card/50 backdrop-blur-sm lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
@@ -120,6 +121,11 @@ export function DashboardView() {
             </CardContent>
           </Card>
 
+          {/* SearXNG Status */}
+          <SearxngStatus />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Workflows */}
           <Card className="border-border bg-card/50 backdrop-blur-sm">
             <CardHeader className="pb-3">

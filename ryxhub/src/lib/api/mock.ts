@@ -73,22 +73,46 @@ export const mockApi = {
     return [...mockModels];
   },
 
-  async loadModel(modelId: string): Promise<{ success: boolean }> {
+  async loadModel(modelId: string): Promise<{ success: boolean; message?: string; status?: string }> {
     await delay(1500); // Simulate loading time
     const model = mockModels.find((m) => m.id === modelId);
     if (model) {
+      if (model.status === 'online') {
+        return { success: true, message: 'Model already loaded', status: 'connected' };
+      }
       model.status = 'online';
+      return { success: true, message: 'Model loaded successfully', status: 'connected' };
     }
-    return { success: true };
+    return { success: false, message: 'Model not found', status: 'not_found' };
   },
 
-  async unloadModel(modelId: string): Promise<{ success: boolean }> {
+  async unloadModel(modelId: string): Promise<{ success: boolean; message?: string }> {
     await delay(500);
     const model = mockModels.find((m) => m.id === modelId);
     if (model) {
       model.status = 'offline';
+      return { success: true, message: 'Model unloaded successfully' };
     }
-    return { success: true };
+    return { success: false, message: 'Model not found' };
+  },
+
+  async getModelStatus(modelId: string): Promise<{ id: string; status: string; loaded: boolean; message: string }> {
+    await randomDelay();
+    const model = mockModels.find((m) => m.id === modelId);
+    if (model) {
+      return {
+        id: modelId,
+        status: model.status,
+        loaded: model.status === 'online',
+        message: model.status === 'online' ? 'Model is loaded and ready' : 'Model is available but not loaded'
+      };
+    }
+    return {
+      id: modelId,
+      status: 'not_found',
+      loaded: false,
+      message: 'Model not found'
+    };
   },
 
   // ============ Sessions ============
@@ -329,6 +353,41 @@ export const mockApi = {
         would_execute: true,
         estimated_duration: '0.5s',
       },
+    };
+  },
+
+  // ============ SearXNG ============
+
+  async getSearxngStatus(): Promise<{ healthy: boolean; status: string; message: string }> {
+    await randomDelay();
+    return {
+      healthy: true,
+      status: 'online',
+      message: 'SearXNG is online'
+    };
+  },
+
+  async searxngSearch(query: string): Promise<{ results: Array<{ title: string; url: string; content: string }>; total: number }> {
+    await delay(800); // Simulate search time
+    return {
+      results: [
+        {
+          title: `Search result for "${query}" - Wikipedia`,
+          url: 'https://en.wikipedia.org/wiki/' + query.replace(/\s/g, '_'),
+          content: `This is a comprehensive article about ${query}. It covers the history, key concepts, and applications...`
+        },
+        {
+          title: `${query} - Documentation`,
+          url: 'https://docs.example.com/' + query.toLowerCase(),
+          content: `Official documentation for ${query}. Learn about the API, configuration, and best practices...`
+        },
+        {
+          title: `Stack Overflow - Questions about ${query}`,
+          url: 'https://stackoverflow.com/questions/tagged/' + query.toLowerCase(),
+          content: `Find answers to common questions about ${query} from the developer community...`
+        }
+      ],
+      total: 3
     };
   },
 };

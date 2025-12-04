@@ -34,6 +34,7 @@ export interface RyxService {
   listModels: typeof ryxApi.listModels;
   loadModel: typeof ryxApi.loadModel;
   unloadModel: typeof ryxApi.unloadModel;
+  getModelStatus: typeof ryxApi.getModelStatus;
   
   // Sessions
   listSessions: typeof ryxApi.listSessions;
@@ -63,6 +64,10 @@ export interface RyxService {
   // Tools
   listTools: typeof ryxApi.listTools;
   executeToolDry: typeof ryxApi.executeToolDry;
+  
+  // SearXNG
+  getSearxngStatus: typeof ryxApi.getSearxngStatus;
+  searxngSearch: typeof ryxApi.searxngSearch;
 }
 
 // Create the service with fallback logic
@@ -74,6 +79,7 @@ function createRyxService(): RyxService {
       listModels: () => mockApi.listModels(),
       loadModel: (id: string) => mockApi.loadModel(id),
       unloadModel: (id: string) => mockApi.unloadModel(id),
+      getModelStatus: (id: string) => mockApi.getModelStatus(id),
       listSessions: () => mockApi.listSessions(),
       createSession: (data: { name: string; model: string }) => mockApi.createSession(data),
       getSession: (id: string) => mockApi.getSession(id),
@@ -91,6 +97,8 @@ function createRyxService(): RyxService {
       getAgentLogs: (id: string, lines?: number) => mockApi.getAgentLogs(id, lines),
       listTools: () => mockApi.listTools(),
       executeToolDry: (name: string, params: Record<string, unknown>) => mockApi.executeToolDry(name, params),
+      getSearxngStatus: () => mockApi.getSearxngStatus(),
+      searxngSearch: (query: string) => mockApi.searxngSearch(query),
     };
   }
   
