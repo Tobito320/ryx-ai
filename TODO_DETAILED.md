@@ -1,6 +1,28 @@
 # RYX AI - Detailed TODO List
 *Generated: 2025-12-05*
-*For GitHub Agents: Each task should be a separate PR*
+*For GitHub Agents: Each task should be a separate PR. Work directly in the repository.*
+
+---
+
+## 📍 Repository Structure for Agents
+
+```
+/home/tobi/ryx-ai/
+├── core/                    # Python CLI core
+│   ├── tui.py              # Terminal UI (prompt_toolkit)
+│   ├── session_loop.py     # Main session handler
+│   ├── ryx_brain.py        # AI brain/reasoning
+│   ├── council/            # Multi-agent supervisor
+│   └── model_router.py     # Model selection
+├── ryxhub/                  # React frontend
+│   ├── src/components/     # UI components
+│   ├── src/hooks/          # API hooks
+│   └── src/context/        # State management
+├── ryx_pkg/interfaces/web/  # FastAPI backend
+│   └── backend/main.py     # API endpoints
+├── docker/                  # Container configs
+└── configs/                 # Configuration files
+```
 
 ---
 
@@ -424,8 +446,515 @@ POST /api/workflows/:id/run   - Execute workflow
 # Stats
 GET  /api/stats/dashboard     - Dashboard stats
 GET  /api/activity/recent     - Recent activity log
+
+# Git Integration
+GET  /api/git/status          - Repository status
+GET  /api/git/diff            - Current changes
+POST /api/git/commit          - Create commit
+GET  /api/git/branches        - List branches
+POST /api/git/pr              - Create PR
+
+# MCP (Model Context Protocol)
+GET  /api/mcp/servers         - List configured MCP servers
+POST /api/mcp/connect         - Connect to MCP server
+GET  /api/mcp/tools           - Available tools from servers
 ```
 
 ---
 
-*Last updated: 2025-12-05 02:18 UTC*
+## 🚀 NEW FEATURES - Inspired by Copilot CLI & Claude Code
+
+### Git Integration (Like Copilot CLI)
+
+#### 49. `/git status` Command
+- **Feature**: Show git status in chat
+- **File**: `core/session_loop.py`
+- **Implementation**: Parse `git status --porcelain` output
+- **Display**: Colored file lists (green=staged, red=modified)
+
+#### 50. `/git diff` Command
+- **Feature**: Show current diff with syntax highlighting
+- **File**: `core/session_loop.py`
+- **Implementation**: Run `git diff`, highlight with pygments
+- **Also**: Support `/git diff <file>` for specific files
+
+#### 51. `/git commit` Command
+- **Feature**: AI-generated commit message
+- **Flow**: 
+  1. Show staged changes
+  2. Generate commit message from diff
+  3. User approves or edits
+  4. Execute commit
+- **Backend**: Use LLM to summarize changes
+
+#### 52. `/git pr` Command
+- **Feature**: Create PR from current branch
+- **Integration**: Use `gh` CLI if available
+- **Generate**: PR title and description from commits
+- **Preview**: Show PR before creating
+
+#### 53. `/git blame` Command
+- **Feature**: Show blame for file/line
+- **Use case**: "Who wrote this code?"
+- **Display**: Author, date, commit message
+
+#### 54. Git Context Awareness
+- **Feature**: Auto-detect git repo on startup
+- **Show**: Branch name in prompt (already done)
+- **Add**: Show uncommitted changes count
+- **Add**: Show behind/ahead of remote
+
+---
+
+### MCP Server Support (Like Copilot CLI)
+
+#### 55. MCP Server Configuration
+- **Feature**: Support Model Context Protocol servers
+- **Config file**: `~/.ryx/mcp-config.json`
+- **Format**:
+```json
+{
+  "servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@anthropics/mcp-filesystem"]
+    }
+  }
+}
+```
+
+#### 56. `/mcp connect` Command
+- **Feature**: Connect to configured MCP server
+- **List**: Available servers from config
+- **Status**: Show connected servers
+
+#### 57. MCP Tool Discovery
+- **Feature**: Discover tools from connected servers
+- **Display**: Available tools and their descriptions
+- **Invoke**: Call tools from chat
+
+#### 58. Built-in MCP Servers
+- **Filesystem**: Read/write files
+- **Git**: Git operations
+- **Web**: Fetch URLs
+- **Database**: Query databases
+
+---
+
+### Custom Slash Commands (Like Claude Code)
+
+#### 59. User-Defined Commands
+- **Feature**: Custom slash commands from markdown files
+- **Location**: `.ryx/commands/` in project or `~/.ryx/commands/` global
+- **Format**: Markdown files with frontmatter
+```markdown
+---
+name: review
+description: Review code for issues
+---
+Review this code for:
+1. Security vulnerabilities
+2. Performance issues
+3. Best practices violations
+
+$ARGUMENTS
+```
+
+#### 60. Command Arguments
+- **Feature**: Pass arguments to custom commands
+- **Syntax**: `/review src/main.py` → `$ARGUMENTS` = `src/main.py`
+- **Also**: Support `$FILE`, `$SELECTION` variables
+
+#### 61. Project-Specific Commands
+- **Feature**: Commands scoped to project
+- **Location**: `.ryx/commands/` in repo root
+- **Use case**: Team-shared coding standards
+
+#### 62. Command Marketplace/Sharing
+- **Feature**: Share commands via RyxHub
+- **Browse**: Popular community commands
+- **Install**: One-click add to project
+
+---
+
+### Agent System (Like Claude Code /agents)
+
+#### 63. Sub-Agent Support
+- **Feature**: Spawn specialized agents for tasks
+- **Command**: `/agent code-review`, `/agent security`, `/agent docs`
+- **Parallel**: Run multiple agents simultaneously
+- **Aggregate**: Combine agent outputs
+
+#### 64. Agent Definitions
+- **Feature**: Define custom agents
+- **Config**: `.ryx/agents/` directory
+- **Properties**: System prompt, model, tools, temperature
+
+#### 65. Agent Memory
+- **Feature**: Persistent agent memory across sessions
+- **Store**: Key facts learned during interactions
+- **Recall**: Reference previous context
+
+---
+
+### Code Actions (Like Copilot CLI)
+
+#### 66. `/explain` Command
+- **Feature**: Explain selected code or file
+- **Input**: File path or piped code
+- **Output**: Line-by-line explanation
+- **Levels**: Simple, detailed, expert
+
+#### 67. `/refactor` Command  
+- **Feature**: Suggest refactoring improvements
+- **Detect**: Code smells, anti-patterns
+- **Show**: Before/after diff
+- **Apply**: One-click apply changes
+
+#### 68. `/test` Command
+- **Feature**: Generate unit tests
+- **Detect**: Testing framework (pytest, jest, etc.)
+- **Create**: Test file with cases
+- **Cover**: Edge cases, error handling
+
+#### 69. `/debug` Command
+- **Feature**: Analyze error and suggest fixes
+- **Input**: Paste error message
+- **Output**: Explanation + fix suggestions
+- **Apply**: Auto-fix if possible
+
+#### 70. `/fix` Command Enhancement
+- **Current**: Partially implemented
+- **Add**: Parse error from last command
+- **Add**: Show diff before applying
+- **Add**: Rollback capability
+
+#### 71. `/docs` Command
+- **Feature**: Generate documentation
+- **Types**: README, API docs, inline comments
+- **Format**: Markdown, JSDoc, docstrings
+- **Update**: Keep docs in sync with code
+
+---
+
+### Session Management (Like Claude Code)
+
+#### 72. `/compact` Command
+- **Feature**: Summarize and compact conversation
+- **Reduce**: Token count while keeping context
+- **Show**: Summary of what was compacted
+- **Use case**: Long sessions hitting context limit
+
+#### 73. `/context` Command
+- **Feature**: Show current context usage
+- **Display**: Token count, percentage of limit
+- **List**: Loaded files, RAG chunks
+- **Clear**: Option to clear specific items
+
+#### 74. `/cost` Command
+- **Feature**: Show session cost/usage
+- **Track**: Tokens used, API calls
+- **Estimate**: Cost if using paid API
+- **Export**: Usage report
+
+#### 75. `/export` Command
+- **Feature**: Export conversation
+- **Formats**: Markdown, JSON, HTML
+- **Options**: With/without system messages
+- **Destination**: File or clipboard
+
+#### 76. Session Checkpoints
+- **Feature**: Save named checkpoints
+- **Command**: `/checkpoint save "before refactor"`
+- **Restore**: `/checkpoint restore "before refactor"`
+- **List**: `/checkpoints` to see all
+
+---
+
+### IDE Integration
+
+#### 77. VS Code Extension
+- **Feature**: Ryx sidebar in VS Code
+- **Show**: Chat history, sessions
+- **Actions**: Send selection to Ryx
+- **Sync**: With CLI sessions
+
+#### 78. Neovim Plugin
+- **Feature**: Ryx integration for Neovim
+- **Keybinds**: Send buffer/selection to Ryx
+- **Float**: Response in floating window
+- **Complete**: AI code completion
+
+#### 79. Cursor-Style Inline
+- **Feature**: Inline AI suggestions in editor
+- **Trigger**: Tab to accept
+- **Show**: Ghost text completion
+- **Multi-line**: Full function generation
+
+---
+
+### Security Features
+
+#### 80. `/security-review` Command
+- **Feature**: Security audit of codebase
+- **Check**: Common vulnerabilities (OWASP)
+- **Report**: Severity levels, fix suggestions
+- **CI**: Run in CI pipeline
+
+#### 81. Secrets Detection
+- **Feature**: Detect hardcoded secrets
+- **Scan**: API keys, passwords, tokens
+- **Block**: Prevent committing secrets
+- **Replace**: Suggest env variable usage
+
+#### 82. Permission System
+- **Feature**: Approve actions before execution
+- **Levels**: Auto, ask, deny per action type
+- **Trust**: Remember decisions per project
+- **Audit**: Log all executed actions
+
+---
+
+### Performance & Monitoring
+
+#### 83. `/benchmark` Command
+- **Feature**: Benchmark model performance
+- **Test**: Response time, tokens/s
+- **Compare**: Different models
+- **Report**: Performance summary
+
+#### 84. Background Tasks
+- **Feature**: Long-running tasks in background
+- **Command**: `/bashes` to list running tasks
+- **Stream**: Output to separate pane
+- **Kill**: Terminate background task
+
+#### 85. Health Check
+- **Feature**: `/doctor` command
+- **Check**: vLLM status, SearXNG, disk space
+- **Fix**: Suggest solutions for issues
+- **Report**: System health summary
+
+---
+
+### Collaboration Features
+
+#### 86. Share Session Link
+- **Feature**: Share conversation via link
+- **Generate**: Unique URL for session
+- **Access**: View-only or editable
+- **Expire**: Optional expiration
+
+#### 87. Team Workspaces
+- **Feature**: Shared sessions in RyxHub
+- **Invite**: Team members to workspace
+- **Share**: Workflows, prompts, agents
+- **Audit**: Activity log
+
+#### 88. PR Comments Integration
+- **Feature**: Comment on PRs with AI assistance
+- **Command**: `/pr-comment <pr_number>`
+- **Suggest**: Review comments
+- **Post**: Comment directly to GitHub
+
+---
+
+### Advanced Features
+
+#### 89. Multiline Input
+- **Feature**: Write prompts across multiple lines
+- **Trigger**: Shift+Enter for new line
+- **Submit**: Enter on empty line
+- **Paste**: Support multi-line paste
+
+#### 90. Output Styles
+- **Feature**: `/output-style` command
+- **Modes**: Normal, compact, verbose, JSON
+- **Persist**: Remember preference
+- **Toggle**: Quick switch hotkey
+
+#### 91. Vim Mode
+- **Feature**: Vim keybindings in input
+- **Command**: `/vim` to toggle
+- **Support**: Basic motions, editing
+- **Status**: Show mode in prompt
+
+#### 92. Hooks System
+- **Feature**: Run code on events
+- **Events**: Before/after response, on error
+- **Use case**: Auto-format code, log to file
+- **Config**: `.ryx/hooks/` directory
+
+#### 93. Plugin System
+- **Feature**: Extend Ryx with plugins
+- **Install**: `/plugin install <name>`
+- **List**: `/plugins` to see installed
+- **Create**: Plugin development guide
+
+---
+
+## 📋 Files Needing Cleanup
+
+### Remove/Refactor These Files
+- `ryxhub/src/data/mockData.ts` - Replace with real API calls
+- `core/cli_ui.py` - Deprecated, TUI replaces it
+- `modes/session_mode.py` - Check if still used
+- `test_backend_api.py` - Update or remove outdated tests
+
+### Config Files Missing
+- `configs/styles.yaml` - Styles hardcoded in Python
+- `configs/models.yaml` - Model configs scattered in code
+- `configs/workflows.yaml` - No workflow persistence
+
+---
+
+## ⚡ Quick Wins (15 min each)
+
+1. [ ] Fix scroll keybindings to actually scroll
+2. [ ] Add more greeting patterns to concise mode
+3. [ ] Remove mock data imports from DashboardView
+4. [ ] Add session delete button
+5. [ ] Add session rename on double-click
+6. [ ] Show actual vLLM model from /v1/models endpoint
+7. [ ] Add toast notification when model switch fails
+8. [ ] Add loading spinner to model load button
+9. [ ] Show tok/s in chat message stats
+10. [ ] Add `/save` command skeleton
+11. [ ] Add `/git status` basic implementation
+12. [ ] Add `/explain` for file explanation
+13. [ ] Add `/doctor` health check
+14. [ ] Add context percentage calculation
+15. [ ] Add multiline input (Shift+Enter)
+
+---
+
+## 🎯 Priority Order for GitHub Agents
+
+### Sprint 1: Core Functionality (Week 1)
+1. Fix scrolling in TUI
+2. Model loading with progress bar
+3. Session persistence (localStorage first)
+4. Remove all mock data usage
+5. Basic `/git status` and `/git diff`
+
+### Sprint 2: RAG System (Week 2)
+6. RAG status endpoint
+7. Document upload UI
+8. RAG search interface
+9. Index management
+10. Vector store optimization
+
+### Sprint 3: Workflow Engine (Week 3)
+11. Workflow save/load
+12. Node drag-and-drop
+13. Connection creation
+14. Basic workflow execution
+15. Workflow templates
+
+### Sprint 4: Git Integration (Week 4)
+16. `/git commit` with AI message
+17. `/git pr` create PR
+18. Git context in prompt
+19. Branch management
+20. Conflict resolution helper
+
+### Sprint 5: Advanced CLI (Week 5)
+21. Custom slash commands
+22. MCP server support
+23. `/explain`, `/refactor`, `/test`
+24. Session checkpoints
+25. Export/import sessions
+
+### Sprint 6: Polish & Collaboration (Week 6)
+26. CLI-RyxHub session sync
+27. Token/s display
+28. Syntax highlighting
+29. VS Code extension basics
+30. Security review feature
+
+---
+
+## 🔧 Backend Endpoints Needed
+
+```
+# Models
+GET  /api/models              - List all models
+POST /api/models/load         - Load/swap model (with progress)
+GET  /api/models/active       - Currently loaded model
+
+# Sessions
+GET  /api/sessions            - List sessions
+POST /api/sessions            - Create session
+GET  /api/sessions/:id        - Get session with messages
+PUT  /api/sessions/:id        - Update session (rename)
+DELETE /api/sessions/:id      - Delete session
+POST /api/sessions/:id/messages - Add message
+POST /api/sessions/:id/export - Export session
+
+# RAG
+GET  /api/rag/status          - Index stats
+POST /api/rag/upload          - Upload document
+GET  /api/rag/documents       - List indexed docs
+DELETE /api/rag/documents/:id - Remove document
+POST /api/rag/search          - Search index
+
+# Workflows
+GET  /api/workflows           - List workflows
+POST /api/workflows           - Create workflow
+GET  /api/workflows/:id       - Get workflow
+PUT  /api/workflows/:id       - Update workflow
+DELETE /api/workflows/:id     - Delete workflow
+POST /api/workflows/:id/run   - Execute workflow
+
+# Stats
+GET  /api/stats/dashboard     - Dashboard stats
+GET  /api/activity/recent     - Recent activity log
+GET  /api/stats/usage         - Token usage stats
+
+# Git Integration
+GET  /api/git/status          - Repository status
+GET  /api/git/diff            - Current changes
+POST /api/git/commit          - Create commit
+GET  /api/git/branches        - List branches
+POST /api/git/pr              - Create PR
+
+# MCP (Model Context Protocol)
+GET  /api/mcp/servers         - List configured MCP servers
+POST /api/mcp/connect         - Connect to MCP server
+GET  /api/mcp/tools           - Available tools from servers
+
+# Commands
+GET  /api/commands            - List custom commands
+POST /api/commands            - Create custom command
+GET  /api/commands/marketplace - Browse shared commands
+
+# Health
+GET  /api/health              - System health check
+GET  /api/health/vllm         - vLLM status
+GET  /api/health/searxng      - SearXNG status
+```
+
+---
+
+## 🏗️ Architecture Notes for Agents
+
+### CLI Flow
+```
+User Input → TUI → SessionLoop → Brain/Supervisor → LLM → Response → TUI
+```
+
+### RyxHub Flow
+```
+React UI → API Hooks → FastAPI Backend → vLLM/Services → Response
+```
+
+### Key Integration Points
+- `core/session_loop.py` - Add new slash commands here
+- `ryx_pkg/interfaces/web/backend/main.py` - Add API endpoints here
+- `ryxhub/src/hooks/useRyxApi.ts` - Add React Query hooks here
+- `core/tui.py` - Modify UI behavior here
+
+---
+
+*Last updated: 2025-12-05 02:22 UTC*
+*Total tasks: 93*
