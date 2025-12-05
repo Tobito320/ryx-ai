@@ -187,6 +187,31 @@ class ChatMessage:
     is_streaming: bool = False
 
 
+class TUIConsole:
+    """
+    Mock console that redirects print() calls to the TUI chat.
+    Prevents direct stdout writes that break the fullscreen layout.
+    """
+    
+    def __init__(self, tui: 'FullscreenTUI'):
+        self._tui = tui
+    
+    def print(self, *args, **kwargs):
+        """Redirect print to TUI system message"""
+        # Convert args to string, strip rich markup
+        text = ' '.join(str(a) for a in args)
+        # Remove rich markup like [accent bold], [/], etc.
+        import re
+        text = re.sub(r'\[/?[^\]]+\]', '', text)
+        text = text.strip()
+        if text:
+            self._tui.add_system(text, 'info')
+    
+    def log(self, *args, **kwargs):
+        """Redirect log to TUI"""
+        self.print(*args, **kwargs)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fullscreen TUI
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -230,6 +255,9 @@ class FullscreenTUI:
 
         # Input history
         self._history = self._get_history()
+        
+        # Mock console that redirects to TUI (prevents stdout breaks)
+        self.console = TUIConsole(self)
 
         # Build the UI
         self._build_ui()
@@ -998,13 +1026,8 @@ class TUI(FullscreenTUI):
     def __init__(self):
         super().__init__()
         self._welcome_shown = False
-
-        # For Rich console fallback (some methods might need it)
-        try:
-            from rich.console import Console
-            self.console = Console(highlight=False)
-        except ImportError:
-            self.console = None
+        # console is already set by FullscreenTUI to TUIConsole
+        # Don't override it with rich.Console!
 
     @property
     def history(self):
