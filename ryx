@@ -239,10 +239,15 @@ case "$1" in
             sleep 2
             start_ryxhub
             exit 0
+        elif [ "$2" = "all" ]; then
+            full_restart
+            exit 0
+        else
+            echo -e "${YELLOW}Usage:${NC}"
+            echo "  ryx restart ryxhub  - Restart RyxHub only"
+            echo "  ryx restart all     - Full restart (vLLM + everything)"
+            exit 1
         fi
-        # Full restart - everything
-        full_restart
-        exit 0
         ;;
     help|--help|-h)
         echo "Ryx AI - Terminal assistant"
@@ -254,7 +259,7 @@ case "$1" in
         echo "  ryxhub           Start RyxHub web interface"
         echo "  ryxhub restart   Restart RyxHub services"
         echo "  restart ryxhub   Restart RyxHub services"
-        echo "  restart          Full restart (vLLM + all services)"
+        echo "  restart all      Full restart (vLLM + all services)"
         echo "  status           Show service status"
         echo "  stop             Stop RyxHub services"
         echo "  cleanup          Clean Docker resources"
