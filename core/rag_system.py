@@ -26,7 +26,23 @@ class RAGSystem:
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
 
+        self._init_db()  # Initialize database tables
         self._load_hot_cache()
+    
+    def _init_db(self):
+        """Initialize database tables if they don't exist"""
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quick_responses (
+                prompt_hash TEXT PRIMARY KEY,
+                prompt TEXT NOT NULL,
+                response TEXT NOT NULL,
+                model_used TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                last_used INTEGER NOT NULL,
+                use_count INTEGER DEFAULT 1
+            )
+        """)
+        self.conn.commit()
     
     def _load_hot_cache(self):
         """Load frequently accessed items into memory"""

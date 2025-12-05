@@ -141,7 +141,7 @@ class TestHealthMonitor:
 
         monitor = HealthMonitor()
         assert monitor is not None
-        assert monitor.ollama_url == "http://localhost:11434"
+        assert monitor.vllm_url == "http://localhost:8001"  # Updated from ollama_url to vllm_url
 
     def test_health_checks(self):
         """Test running health checks"""
@@ -150,7 +150,7 @@ class TestHealthMonitor:
         monitor = HealthMonitor()
         checks = monitor.run_health_checks()
 
-        assert "ollama" in checks, "Should check Ollama"
+        assert "vllm" in checks, "Should check vLLM"  # Updated from ollama to vllm
         assert "database" in checks, "Should check database"
         assert "disk" in checks, "Should check disk"
         assert "memory" in checks, "Should check memory"
