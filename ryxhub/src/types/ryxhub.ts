@@ -85,7 +85,7 @@ export interface Workflow {
   status: "idle" | "running" | "paused";
 }
 
-export type ViewMode = "dashboard" | "chat" | "workflow" | "settings";
+export type ViewMode = "dashboard" | "chat" | "workflow" | "council" | "settings";
 
 // Helper to extract model name from path
 export function getModelDisplayName(modelPath: string): string {
