@@ -55,15 +55,15 @@ start_vllm() {
     return 0
 }
 
-# Start SearXNG container
+# Start SearXNG container with proper config
 start_searxng() {
     if docker ps --format '{{.Names}}' | grep -q "^${SEARXNG_CONTAINER}$"; then
         return 0
     fi
     
     echo -e "${YELLOW}Starting SearXNG...${NC}"
-    docker rm -f "$SEARXNG_CONTAINER" 2>/dev/null
-    docker run -d --name "$SEARXNG_CONTAINER" -p 8888:8080 --restart unless-stopped searxng/searxng:latest &>/dev/null
+    cd "$PROJECT_ROOT/docker/searxng"
+    docker compose up -d 2>/dev/null
     sleep 2
 }
 
@@ -75,9 +75,12 @@ stop_services() {
     [ -f "$PROJECT_ROOT/data/ryxhub_api.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_api.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_api.pid"
     [ -f "$PROJECT_ROOT/data/ryxhub_frontend.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_frontend.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_frontend.pid"
     
-    # Stop containers
-    docker stop "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
-    docker rm "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
+    # Kill any remaining processes on ports
+    fuser -k 8420/tcp 2>/dev/null
+    fuser -k 5173/tcp 2>/dev/null
+    
+    # Stop containers (but don't remove vLLM - takes too long to restart)
+    docker stop "$SEARXNG_CONTAINER" 2>/dev/null
     echo -e "${GREEN}Stopped${NC}"
 }
 
@@ -110,9 +113,9 @@ show_status() {
         echo -e "  RyxHub API: ${RED}stopped${NC}"
     fi
     
-    # RyxHub Frontend (port 8080 per vite.config.ts)
-    if curl -s http://localhost:8080 &>/dev/null; then
-        echo -e "  RyxHub Web: ${GREEN}running${NC} (port 8080)"
+    # RyxHub Frontend
+    if curl -s http://localhost:5173 &>/dev/null; then
+        echo -e "  RyxHub Web: ${GREEN}running${NC} (port 5173)"
     else
         echo -e "  RyxHub Web: ${RED}stopped${NC}"
     fi
@@ -136,35 +139,36 @@ start_ryxhub() {
         
         VLLM_BASE_URL="http://localhost:8001" \
         SEARXNG_URL="http://localhost:8888" \
-        python -m uvicorn ryx_pkg.interfaces.web.backend.main:app \
-            --host 0.0.0.0 --port 8420 --reload \
+        SESSIONS_DIR="$PROJECT_ROOT/data/sessions" \
+        nohup python -m uvicorn ryx_pkg.interfaces.web.backend.main:app \
+            --host 0.0.0.0 --port 8420 \
             > "$PROJECT_ROOT/data/ryxhub_api.log" 2>&1 &
         echo $! > "$PROJECT_ROOT/data/ryxhub_api.pid"
-        sleep 3
+        sleep 2
     fi
     
-    # Start frontend if not running (port 8080 per vite.config.ts)
-    if ! curl -s http://localhost:8080 &>/dev/null; then
+    # Start frontend if not running
+    if ! curl -s http://localhost:5173 &>/dev/null; then
         echo -e "${YELLOW}Starting RyxHub Frontend...${NC}"
         cd "$PROJECT_ROOT/ryxhub"
         [ ! -d "node_modules" ] && npm install --silent
         
         VITE_RYX_API_URL="http://localhost:8420" \
         VITE_USE_MOCK_API="false" \
-        npm run dev -- --host > "$PROJECT_ROOT/data/ryxhub_frontend.log" 2>&1 &
+        nohup npm run dev -- --host 0.0.0.0 > "$PROJECT_ROOT/data/ryxhub_frontend.log" 2>&1 &
         echo $! > "$PROJECT_ROOT/data/ryxhub_frontend.pid"
         sleep 3
     fi
     
-    echo -e "\n${GREEN}RyxHub ready: ${CYAN}http://localhost:8080${NC}"
+    echo -e "\n${GREEN}RyxHub ready: ${CYAN}http://localhost:5173${NC}"
     
     # Open browser
-    xdg-open "http://localhost:8080" 2>/dev/null &
+    xdg-open "http://localhost:5173" 2>/dev/null &
 }
 
 # Handle commands
 case "$1" in
-    ryxhub|hub|open|start)
+    ryxhub|hub|web)
         start_ryxhub
         exit 0
         ;;
