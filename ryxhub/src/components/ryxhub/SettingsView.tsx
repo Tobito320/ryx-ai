@@ -256,10 +256,10 @@ export function SettingsView() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Cpu className="w-5 h-5" />
-              Available Models
+              Available Models ({models?.length || 0} total, {models?.filter(m => m.status === "online").length || 0} loaded)
             </CardTitle>
             <CardDescription>
-              Manage loaded models. Note: vLLM loads one model at startup. To switch, restart vLLM with a different model.
+              vLLM currently loads one model at startup. To switch models, restart the vLLM container with: <code className="text-xs bg-muted px-1 py-0.5 rounded">docker-compose restart vllm</code> and update the MODEL environment variable.
             </CardDescription>
           </CardHeader>
           <CardContent>

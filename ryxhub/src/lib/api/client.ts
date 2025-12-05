@@ -291,23 +291,38 @@ export const ryxApi = {
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         // vLLM returns OpenAI format: { data: [{ id: "model-name", ... }] }
         if (data.data && Array.isArray(data.data)) {
-          return data.data.map((m: { id: string }) => ({
-            id: m.id,
-            name: m.id.split('/').pop() || m.id,
-            status: 'online' as const,
-            provider: 'vLLM',
-          }));
+          return data.data.map((m: { id: string }) => {
+            // Extract a friendly name from the model ID
+            const parts = m.id.split('/');
+            const lastName = parts[parts.length - 1];
+            // Clean up the name - remove common suffixes and make it readable
+            const friendlyName = lastName
+              .replace(/-gptq$/i, '')
+              .replace(/-awq$/i, '')
+              .replace(/-gguf$/i, '')
+              .replace(/\./g, ' ')
+              .split('-')
+              .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+              .join(' ');
+
+            return {
+              id: m.id,
+              name: friendlyName || m.id,
+              status: 'online' as const,
+              provider: 'vLLM',
+            };
+          });
         }
       }
     } catch (error) {
       console.warn('vLLM not available:', error);
     }
-    
+
     // Return empty array if vLLM is not running
     return [];
   },
@@ -402,29 +417,51 @@ export const ryxApi = {
   // ============ Chat ============
 
   async sendMessage(
-    sessionId: string, 
-    message: string, 
+    sessionId: string,
+    message: string,
     model?: string,
     history?: Array<{ role: "user" | "assistant"; content: string }>,
     tools?: string[]
   ): Promise<Message> {
     const startTime = Date.now();
     const modelToUse = model || '/models/medium/general/qwen2.5-7b-gptq';
-    
+
+    // Check if we need to search before responding
+    let searchResults = '';
+    const needsWebSearch = tools?.includes('websearch') && this.shouldSearch(message);
+
+    if (needsWebSearch) {
+      try {
+        const searchQuery = this.extractSearchQuery(message);
+        const results = await this.searxngSearch(searchQuery);
+        if (results.results.length > 0) {
+          searchResults = '\n\n**Web Search Results for "' + searchQuery + '":**\n' +
+            results.results.slice(0, 5).map((r, i) =>
+              `${i + 1}. **${r.title}**\n   ${r.content}\n   Source: ${r.url}`
+            ).join('\n\n');
+        }
+      } catch (error) {
+        console.warn('Search failed:', error);
+      }
+    }
+
     // Build messages array with history
     const systemMessage = {
       role: 'system',
-      content: `You are Ryx AI, an intelligent local AI assistant. Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. You are helpful, accurate, and concise.${tools?.includes('websearch') ? ' You can search the web if needed.' : ''}${tools?.includes('rag') ? ' You have access to a knowledge base.' : ''}`,
+      content: `You are Ryx AI, an intelligent local AI assistant. Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. You are helpful, accurate, and concise.${tools?.includes('websearch') ? ' When answering questions about current events, recent information, or facts you are uncertain about, web search results will be provided to you.' : ''}${tools?.includes('rag') ? ' You have access to a knowledge base.' : ''}`,
     };
-    
+
     const conversationMessages = history?.map(m => ({ role: m.role, content: m.content })) || [];
-    conversationMessages.push({ role: 'user', content: message });
-    
+
+    // Add user message with search results if available
+    const userMessageContent = searchResults ? message + searchResults : message;
+    conversationMessages.push({ role: 'user', content: userMessageContent });
+
     const allMessages = [systemMessage, ...conversationMessages];
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT);
-    
+
     try {
       const response = await fetch(`${VLLM_API_URL}/v1/chat/completions`, {
         method: 'POST',
@@ -437,20 +474,20 @@ export const ryxApi = {
           temperature: 0.7,
         }),
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         const error = await response.text();
         throw new RyxApiError(`vLLM error: ${error}`, response.status);
       }
-      
+
       const data = await response.json();
       const latencyMs = Date.now() - startTime;
       const content = data.choices?.[0]?.message?.content || 'No response from model';
       const completionTokens = data.usage?.completion_tokens || 0;
       const promptTokens = data.usage?.prompt_tokens || 0;
-      
+
       return {
         id: `msg-${Date.now()}`,
         role: 'assistant',
@@ -464,9 +501,9 @@ export const ryxApi = {
       };
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error instanceof RyxApiError) throw error;
-      
+
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           throw new RyxApiError('Request timed out', undefined, 'TIMEOUT');
@@ -479,6 +516,28 @@ export const ryxApi = {
       }
       throw new RyxApiError('Unknown error occurred', undefined, 'UNKNOWN');
     }
+  },
+
+  // Helper to determine if a query needs web search
+  shouldSearch(message: string): boolean {
+    const searchKeywords = [
+      'who is', 'what is', 'when did', 'where is', 'why did',
+      'current', 'latest', 'recent', 'today', 'news',
+      'president', 'weather', 'price', 'stock',
+      'how to', 'search for', 'find', 'look up'
+    ];
+    const lowerMessage = message.toLowerCase();
+    return searchKeywords.some(keyword => lowerMessage.includes(keyword));
+  },
+
+  // Extract search query from user message
+  extractSearchQuery(message: string): string {
+    // Remove common question words and clean up
+    return message
+      .replace(/^(what|who|when|where|why|how|is|are|was|were|does|did|can|could|would|should)\s+/i, '')
+      .replace(/\?$/g, '')
+      .trim()
+      .slice(0, 200); // Limit query length
   },
 
   getStreamUrl(sessionId: string): string {

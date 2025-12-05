@@ -325,8 +325,15 @@ start_ryxhub() {
 case "$1" in
     ryxhub|hub|web)
         if [ "$2" = "restart" ]; then
-            echo -e "${YELLOW}Restarting RyxHub...${NC}"
+            echo -e "${YELLOW}Restarting RyxHub (with full rebuild)...${NC}"
             stop_services
+
+            # Force rebuild frontend
+            echo -e "${CYAN}Rebuilding frontend...${NC}"
+            cd "$PROJECT_ROOT/ryxhub"
+            rm -rf .vite dist node_modules/.vite 2>/dev/null
+            npm run build 2>&1 | grep -E "(built|error|warning)" || echo "Build complete"
+
             sleep 2
             start_ryxhub
         else
@@ -356,8 +363,15 @@ case "$1" in
         ;;
     restart)
         if [ "$2" = "ryxhub" ]; then
-            echo -e "${YELLOW}Restarting RyxHub...${NC}"
+            echo -e "${YELLOW}Restarting RyxHub (with full rebuild)...${NC}"
             stop_services
+
+            # Force rebuild frontend
+            echo -e "${CYAN}Rebuilding frontend...${NC}"
+            cd "$PROJECT_ROOT/ryxhub"
+            rm -rf .vite dist node_modules/.vite 2>/dev/null
+            npm run build 2>&1 | grep -E "(built|error|warning)" || echo "Build complete"
+
             sleep 2
             start_ryxhub
             exit 0
@@ -366,7 +380,7 @@ case "$1" in
             exit 0
         else
             echo -e "${YELLOW}Usage:${NC}"
-            echo "  ryx restart ryxhub  - Restart RyxHub only"
+            echo "  ryx restart ryxhub  - Restart RyxHub with fresh build"
             echo "  ryx restart all     - Full restart (vLLM + everything)"
             exit 1
         fi
@@ -379,8 +393,8 @@ case "$1" in
         echo "Commands:"
         echo "  (none)           Start interactive CLI"
         echo "  ryxhub           Start RyxHub web interface"
-        echo "  ryxhub restart   Restart RyxHub services"
-        echo "  restart ryxhub   Restart RyxHub services"
+        echo "  ryxhub restart   Restart RyxHub with fresh build"
+        echo "  restart ryxhub   Restart RyxHub with fresh build"
         echo "  restart all      Full restart (vLLM + all services)"
         echo "  status           Show service status"
         echo "  stop             Stop RyxHub services (keeps vLLM running)"

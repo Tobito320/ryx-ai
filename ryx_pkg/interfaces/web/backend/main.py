@@ -22,6 +22,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import aiohttp
 
+# Import model router for multi-instance support
+try:
+    from core.model_router import router as model_router
+    MULTI_MODEL_ENABLED = True
+except ImportError:
+    MULTI_MODEL_ENABLED = False
+    print("⚠️  Model router not available - using single instance mode")
+
 # Setup project root for imports
 def _setup_project_root() -> Path:
     """Find and setup project root for core module imports."""
@@ -80,6 +88,9 @@ class ModelInfo(BaseModel):
     name: str
     status: str = "online"
     provider: str = "vLLM"
+    path: Optional[str] = None
+    size: Optional[str] = None
+    category: Optional[str] = None
 
 
 class SessionInfo(BaseModel):
@@ -367,11 +378,21 @@ async def vllm_chat(
     max_tokens: int = 2048,
     stream: bool = False
 ) -> Dict[str, Any]:
-    """Send chat completion request to vLLM."""
+    """Send chat completion request to vLLM (routes to correct instance if multi-model)."""
     # If no model specified, try to get the first available
     if not model:
-        models = await vllm_list_models()
-        model = models[0] if models else "/models/medium/general/qwen2.5-7b-gptq"
+        if MULTI_MODEL_ENABLED:
+            model = model_router.default_instance
+        else:
+            models = await vllm_list_models()
+            model = models[0] if models else "/models/medium/general/qwen2.5-7b-gptq"
+
+    # Determine the base URL
+    if MULTI_MODEL_ENABLED:
+        instance = model_router.get_instance(model)
+        base_url = instance.base_url
+    else:
+        base_url = VLLM_BASE_URL
 
     payload = {
         "model": model,
@@ -386,7 +407,7 @@ async def vllm_chat(
     try:
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
             async with session.post(
-                f"{VLLM_BASE_URL}/v1/chat/completions",
+                f"{base_url}/v1/chat/completions",
                 json=payload,
                 headers={"Content-Type": "application/json"}
             ) as resp:
@@ -402,7 +423,7 @@ async def vllm_chat(
                 latency_ms = (time.time() - start_time) * 1000
                 completion_tokens = usage.get("completion_tokens", 0)
                 prompt_tokens = usage.get("prompt_tokens", 0)
-                
+
                 # Calculate tokens per second
                 tokens_per_second = 0.0
                 if latency_ms > 0 and completion_tokens > 0:
@@ -760,99 +781,160 @@ async def get_vllm_metrics_endpoint() -> Dict[str, Any]:
 @app.get("/api/models")
 async def list_models() -> Dict[str, Any]:
     """List available models from vLLM and local directory."""
-    # Get currently loaded models from vLLM
-    loaded_model_ids = await vllm_list_models()
-    loaded_models_set = set(loaded_model_ids)
-    
-    # Scan local models directory
-    local_models = scan_local_models()
-    
-    # Combine and deduplicate
-    models = []
-    seen_ids = set()
-    
-    # First add loaded models
-    for model_id in loaded_model_ids:
-        if model_id not in seen_ids:
-            name = model_id.split("/")[-1] if "/" in model_id else model_id
+    if MULTI_MODEL_ENABLED:
+        # Use model router to check all instances
+        health_status = await model_router.check_all_health()
+        router_instances = model_router.list_models()
+
+        models = []
+        loaded_count = 0
+
+        for instance in router_instances:
+            is_online = health_status.get(instance.model_id, False)
+            if is_online:
+                loaded_count += 1
+
             models.append(ModelInfo(
-                id=model_id,
-                name=name,
-                status="online",
+                id=instance.model_id,
+                name=instance.name,
+                status="online" if is_online else "offline",
+                provider="vLLM",
+                path=instance.model_id,
+                size=instance.size,
+                category=instance.category
+            ))
+
+        # Also scan for other local models not in router config
+        local_models = scan_local_models()
+        seen_ids = {m.id for m in models}
+
+        for local_model in local_models:
+            if local_model["id"] not in seen_ids:
+                models.append(ModelInfo(
+                    id=local_model["id"],
+                    name=local_model["name"],
+                    status="offline",
+                    provider="vLLM",
+                    path=local_model.get("path"),
+                    size=local_model.get("size"),
+                    category=local_model.get("category")
+                ))
+
+        return {
+            "models": models,
+            "loaded_count": loaded_count,
+            "available_count": len(models),
+            "multi_model_enabled": True
+        }
+    else:
+        # Fallback to single instance mode
+        loaded_model_ids = await vllm_list_models()
+        loaded_models_set = set(loaded_model_ids)
+
+        # Scan local models directory
+        local_models = scan_local_models()
+
+        # Combine and deduplicate
+        models = []
+        seen_ids = set()
+
+        # First add loaded models
+        for model_id in loaded_model_ids:
+            if model_id not in seen_ids:
+                name = model_id.split("/")[-1] if "/" in model_id else model_id
+                # Extract size and category from path if available
+                path_parts = model_id.split("/")
+                size = path_parts[2] if len(path_parts) > 2 else None
+                category = path_parts[3] if len(path_parts) > 3 else None
+                models.append(ModelInfo(
+                    id=model_id,
+                    name=name,
+                    status="online",
+                    provider="vLLM",
+                    path=model_id,
+                    size=size,
+                    category=category
+                ))
+                seen_ids.add(model_id)
+
+        # Then add local models not yet loaded
+        for local_model in local_models:
+            model_id = local_model["id"]
+            if model_id not in seen_ids:
+                status = "online" if model_id in loaded_models_set else "offline"
+                models.append(ModelInfo(
+                    id=model_id,
+                    name=local_model["name"],
+                    status=status,
+                    provider="vLLM",
+                    path=local_model.get("path"),
+                    size=local_model.get("size"),
+                    category=local_model.get("category")
+                ))
+                seen_ids.add(model_id)
+
+        # If no models found, return a default message
+        if not models:
+            models.append(ModelInfo(
+                id="no-models",
+                name="No Models Found",
+                status="offline",
                 provider="vLLM"
             ))
-            seen_ids.add(model_id)
-    
-    # Then add local models not yet loaded
-    for local_model in local_models:
-        model_id = local_model["id"]
-        if model_id not in seen_ids:
-            status = "online" if model_id in loaded_models_set else "offline"
-            models.append(ModelInfo(
-                id=model_id,
-                name=local_model["name"],
-                status=status,
-                provider="vLLM"
-            ))
-            seen_ids.add(model_id)
-    
-    # If no models found, return a default message
-    if not models:
-        models.append(ModelInfo(
-            id="no-models", 
-            name="No Models Found", 
-            status="offline", 
-            provider="vLLM"
-        ))
-    
-    return {
-        "models": models,
-        "loaded_count": len(loaded_model_ids),
-        "available_count": len(local_models)
-    }
+
+        return {
+            "models": models,
+            "loaded_count": len(loaded_model_ids),
+            "available_count": len(local_models),
+            "multi_model_enabled": False
+        }
 
 
 @app.post("/api/models/load")
 async def load_model(data: Dict[str, str]) -> Dict[str, Any]:
     """
     Load a model in vLLM.
-    
-    Note: vLLM typically loads one model at startup via docker-compose.
-    To switch models, you need to restart the vLLM container with a different model.
-    This endpoint checks if the requested model is already loaded.
+
+    With multi-model mode: Starts the corresponding vLLM instance.
+    With single-model mode: Requires container restart.
     """
     model_id = data.get("model_id")
-    
+
     if not model_id:
         return {"success": False, "message": "model_id is required"}
-    
-    # Check if model is already loaded
-    loaded_models = await vllm_list_models()
-    
-    if model_id in loaded_models:
-        return {
-            "success": True, 
-            "message": f"Model {model_id} is already loaded",
-            "status": "connected"
-        }
-    
-    # Check if model exists locally
-    local_models = scan_local_models()
-    model_exists = any(m["id"] == model_id for m in local_models)
-    
-    if not model_exists:
+
+    if MULTI_MODEL_ENABLED:
+        # Use model router to start instance
+        result = await model_router.start_instance(model_id)
+        return result
+    else:
+        # Single instance mode - check if model is already loaded
+        loaded_models = await vllm_list_models()
+
+        if model_id in loaded_models:
+            return {
+                "success": True,
+                "message": f"Model {model_id} is already loaded",
+                "status": "connected"
+            }
+
+        # Check if model exists locally
+        local_models = scan_local_models()
+        model_exists = any(m["id"] == model_id for m in local_models)
+
+        if not model_exists:
+            return {
+                "success": False,
+                "message": f"Model {model_id} not found in local directory",
+                "status": "not_found"
+            }
+
         return {
             "success": False,
-            "message": f"Model {model_id} not found in local directory",
-            "status": "not_found"
+            "message": f"To load {model_id}, restart vLLM container with this model. Enable multi-model mode for dynamic switching.",
+            "status": "requires_restart",
+            "instructions": f"docker-compose -f docker/vllm/model-router.yml up -d"
         }
-    
-    return {
-        "success": False,
-        "message": f"To load {model_id}, restart vLLM container with this model. vLLM supports one model at a time.",
-        "status": "requires_restart",
-        "instructions": f"Update docker-compose.yml to use: --model {model_id}"
-    }
 
 
 @app.post("/api/models/unload")

@@ -20,8 +20,8 @@ export const API_ENDPOINTS = {
   recentActivity: `${API_BASE_URL}/api/activity/recent`,
   topWorkflows: `${API_BASE_URL}/api/workflows/top`,
   
-  // Models (vLLM OpenAI-compatible API)
-  models: `${VLLM_API_URL}/v1/models`,
+  // Models (via backend for enriched status info)
+  models: `${API_BASE_URL}/api/models`,
   completions: `${VLLM_API_URL}/v1/chat/completions`,
   
   // Sessions

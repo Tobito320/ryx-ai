@@ -41,11 +41,18 @@ export function useModels() {
 
 export function useLoadModel() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (modelId: string) => ryxService.loadModel(modelId),
-    onSuccess: (_, modelId) => {
-      toast.success(`Model ${modelId} loaded`);
+    onSuccess: (data, modelId) => {
+      if (data.status === 'requires_restart') {
+        toast.info(`To load ${modelId.split('/').pop()}, restart vLLM with this model`, {
+          description: 'vLLM loads one model at startup. Update docker-compose.yml MODEL variable and restart.',
+          duration: 8000,
+        });
+      } else {
+        toast.success(`Model ${modelId.split('/').pop()} loaded`);
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.models });
     },
     onError: (error: Error) => {

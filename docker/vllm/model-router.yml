@@ -1,0 +1,106 @@
+# Multi-Model vLLM Configuration
+# Run multiple vLLM instances, one per model
+# Each instance gets its own port and can handle concurrent requests
+
+version: '3.8'
+
+services:
+  # Medium General Model - Primary (Port 8001)
+  vllm-medium-general:
+    image: vllm/vllm-openai:latest
+    container_name: ryx-vllm-medium-general
+    environment:
+      - MODEL=/models/medium/general/qwen2.5-7b-gptq
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - /home/tobi/vllm-models:/models:ro
+    ports:
+      - "8001:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      --model /models/medium/general/qwen2.5-7b-gptq
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.4
+      --max-model-len 4096
+      --trust-remote-code
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Medium Coding Model (Port 8002)
+  vllm-medium-coding:
+    image: vllm/vllm-openai:latest
+    container_name: ryx-vllm-medium-coding
+    environment:
+      - MODEL=/models/medium/coding/qwen2.5-coder-7b-gptq
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - /home/tobi/vllm-models:/models:ro
+    ports:
+      - "8002:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      --model /models/medium/coding/qwen2.5-coder-7b-gptq
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.4
+      --max-model-len 4096
+      --trust-remote-code
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Small General Model (Port 8003)
+  vllm-small-general:
+    image: vllm/vllm-openai:latest
+    container_name: ryx-vllm-small-general
+    environment:
+      - MODEL=/models/small/general/qwen2.5-3b
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - /home/tobi/vllm-models:/models:ro
+    ports:
+      - "8003:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: >
+      --model /models/small/general/qwen2.5-3b
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.3
+      --max-model-len 4096
+      --trust-remote-code
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  default:
+    name: ryx-network
