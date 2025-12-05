@@ -614,13 +614,14 @@ async def get_dashboard_stats() -> Dict[str, Any]:
     # Get RAG documents count
     rag_status = await get_rag_status_data()
     
-    # Count API calls from activity log
-    api_calls = sum(1 for a in activity_log if a.get("type") == "info")
+    # Count total activity events (as proxy for API calls)
+    # In production, this should track actual API request counts
+    api_calls = len(activity_log)
     
     return {
         "activeAgents": {
             "value": active_agents,
-            "change": f"+{active_agents - 1} today" if active_agents > 1 else "+0 today"
+            "change": "+0 today"  # Would need historical tracking to show real change
         },
         "workflowsRunning": {
             "value": running_workflows,
@@ -1218,16 +1219,19 @@ async def trigger_rag_sync() -> Dict[str, Any]:
 
 
 @app.post("/api/rag/upload")
-async def upload_rag_documents(files: List[Any] = None) -> Dict[str, Any]:
-    """Upload documents to RAG index."""
+async def upload_rag_documents() -> Dict[str, Any]:
+    """Upload documents to RAG index.
+    
+    Note: This endpoint is a placeholder for future implementation.
+    In a real implementation, this would:
+    1. Accept multipart/form-data file uploads
+    2. Save uploaded files to a staging directory
+    3. Queue them for processing and embedding
+    4. Add to vector store
+    """
     try:
-        # In a real implementation, this would:
-        # 1. Save uploaded files to a staging directory
-        # 2. Queue them for processing and embedding
-        # 3. Add to vector store
-        # For now, return a success message
-        log_activity("info", f"Documents uploaded for RAG indexing")
-        return {"success": True, "message": "Files queued for indexing", "count": 0}
+        log_activity("info", "Document upload requested (endpoint not fully implemented)")
+        return {"success": True, "message": "Upload endpoint ready for implementation", "count": 0}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

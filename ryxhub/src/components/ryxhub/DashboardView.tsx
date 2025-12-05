@@ -5,6 +5,7 @@ import { useRyxHub } from "@/context/RyxHubContext";
 import { SearxngStatus } from "@/components/ryxhub/SearxngStatus";
 import { useEffect, useState } from "react";
 import { ryxService } from "@/services/ryxService";
+import { API_ENDPOINTS, POLLING_INTERVALS } from "@/config";
 
 export function DashboardView() {
   const { models, ragStatus, workflowNodes } = useRyxHub();
@@ -17,21 +18,21 @@ export function DashboardView() {
     const fetchDashboardData = async () => {
       try {
         // Fetch stats
-        const statsResponse = await fetch('http://localhost:8420/api/stats/dashboard');
+        const statsResponse = await fetch(API_ENDPOINTS.dashboardStats);
         if (statsResponse.ok) {
           const data = await statsResponse.json();
           setDashboardStats(data);
         }
 
         // Fetch activity
-        const activityResponse = await fetch('http://localhost:8420/api/activity/recent?limit=5');
+        const activityResponse = await fetch(`${API_ENDPOINTS.recentActivity}?limit=5`);
         if (activityResponse.ok) {
           const data = await activityResponse.json();
           setRecentActivity(data.activities || []);
         }
 
         // Fetch top workflows
-        const workflowsResponse = await fetch('http://localhost:8420/api/workflows/top?limit=4');
+        const workflowsResponse = await fetch(`${API_ENDPOINTS.topWorkflows}?limit=4`);
         if (workflowsResponse.ok) {
           const data = await workflowsResponse.json();
           setTopWorkflows(data.workflows || []);
@@ -42,8 +43,7 @@ export function DashboardView() {
     };
 
     fetchDashboardData();
-    // Refresh every 10 seconds
-    const interval = setInterval(fetchDashboardData, 10000);
+    const interval = setInterval(fetchDashboardData, POLLING_INTERVALS.dashboard);
     return () => clearInterval(interval);
   }, []);
 

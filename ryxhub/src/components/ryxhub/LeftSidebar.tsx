@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { toast } from "sonner";
+import { API_ENDPOINTS } from "@/config";
 
 export function LeftSidebar() {
   const { sessions, selectedSessionId, selectSession, models, ragStatus, setActiveView, deleteSession, renameSession } = useRyxHub();
@@ -100,7 +101,7 @@ export function LeftSidebar() {
   const handleExportSession = async (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const response = await fetch(`http://localhost:8420/api/sessions/${sessionId}/export?format=markdown`);
+      const response = await fetch(API_ENDPOINTS.sessionExport(sessionId, 'markdown'));
       if (response.ok) {
         const data = await response.json();
         // Create download link

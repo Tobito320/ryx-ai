@@ -7,6 +7,7 @@ import {
   mockWorkflowNodes,
   mockConnections,
 } from "@/data/mockData";
+import { API_ENDPOINTS } from "@/config";
 
 interface RyxHubContextType {
   // View state
@@ -142,7 +143,7 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
 
   const deleteSession = useCallback(async (sessionId: string) => {
     try {
-      const response = await fetch(`http://localhost:8420/api/sessions/${sessionId}`, {
+      const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
         method: 'DELETE',
       });
       
@@ -160,7 +161,7 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
 
   const renameSession = useCallback(async (sessionId: string, newName: string) => {
     try {
-      const response = await fetch(`http://localhost:8420/api/sessions/${sessionId}`, {
+      const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

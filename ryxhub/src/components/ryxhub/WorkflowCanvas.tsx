@@ -7,6 +7,14 @@ import { AddNodeDialog } from "@/components/ryxhub/AddNodeDialog";
 import type { WorkflowNode } from "@/types/ryxhub";
 import { toast } from "sonner";
 
+// Node positioning constants
+const NODE_POSITION = {
+  BASE_X: 100,
+  BASE_Y: 100,
+  RANDOM_X_RANGE: 400,
+  RANDOM_Y_RANGE: 300,
+};
+
 const nodeIcons = {
   trigger: Zap,
   agent: Bot,
@@ -60,8 +68,8 @@ export function WorkflowCanvas() {
         id: `node-${Date.now()}`,
         type: nodeData.type as "trigger" | "agent" | "tool" | "output",
         name: nodeData.name,
-        x: 100 + Math.random() * 400,
-        y: 100 + Math.random() * 300,
+        x: NODE_POSITION.BASE_X + Math.random() * NODE_POSITION.RANDOM_X_RANGE,
+        y: NODE_POSITION.BASE_Y + Math.random() * NODE_POSITION.RANDOM_Y_RANGE,
         status: "idle" as const,
         config: {},
         logs: [

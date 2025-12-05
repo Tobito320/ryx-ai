@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useRyxHub } from "@/context/RyxHubContext";
+import { API_ENDPOINTS } from "@/config";
 
 interface RAGDocument {
   id: string;
@@ -41,7 +42,7 @@ export function RAGManagement() {
         formData.append('files', files[i]);
       }
 
-      const response = await fetch('http://localhost:8420/api/rag/upload', {
+      const response = await fetch(API_ENDPOINTS.ragUpload, {
         method: 'POST',
         body: formData,
       });
@@ -66,7 +67,7 @@ export function RAGManagement() {
 
     setIsSearching(true);
     try {
-      const response = await fetch('http://localhost:8420/api/rag/search', {
+      const response = await fetch(API_ENDPOINTS.ragSearch, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +98,7 @@ export function RAGManagement() {
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-      const response = await fetch('http://localhost:8420/api/rag/sync', {
+      const response = await fetch(API_ENDPOINTS.ragSync, {
         method: 'POST',
       });
 
