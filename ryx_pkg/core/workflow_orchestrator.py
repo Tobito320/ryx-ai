@@ -517,32 +517,12 @@ class WorkflowExecutor:
 
         # Call LLM for response generation
         try:
-            # Import OllamaClient here to avoid circular imports
-            import sys
-            import os
-            from pathlib import Path
+            from core.vllm_client import VLLMClient
             
-            # Ensure project root is in path
-            current = Path(__file__).resolve().parent
-            for _ in range(10):
-                if (current / "pyproject.toml").exists() or (current / "core").is_dir():
-                    break
-                current = current.parent
-            sys.path.insert(0, str(current))
-            
-            from core.ollama_client import OllamaClient
-            
-            client = OllamaClient()
-            system_prompt = (
-                "You are Ryx, a helpful AI assistant. "
-                "Provide concise, accurate responses."
-            )
-            
+            client = VLLMClient()
             result = client.generate(
                 prompt=prompt,
-                model=state.selected_model,
-                system=system_prompt,
-                max_tokens=2048
+                model=state.selected_model
             )
             
             if result.error:

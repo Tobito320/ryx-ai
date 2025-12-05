@@ -4,7 +4,10 @@
 #   ryx              - Start interactive CLI
 #   ryx ryxhub       - Start RyxHub web interface
 #   ryx status       - Show service status
-#   ryx stop         - Stop all services
+#   ryx stop         - Stop RyxHub services (keeps vLLM)
+#   ryx stop all     - Stop ALL services (keeps Docker images)
+#   ryx cleanup      - Light cleanup (free RAM, keeps images)
+#   ryx cleanup all  - Full cleanup (removes Docker images)
 
 PROJECT_ROOT="/home/tobi/ryx-ai"
 VLLM_CONTAINER="ryx-vllm"
@@ -82,6 +85,119 @@ stop_services() {
     # Stop containers (but don't remove vLLM - takes too long to restart)
     docker stop "$SEARXNG_CONTAINER" 2>/dev/null
     echo -e "${GREEN}Stopped${NC}"
+}
+
+# Stop everything including vLLM (but keep containers/images intact)
+stop_all() {
+    echo -e "${RED}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${RED}║         STOPPING ALL SERVICES         ║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════╝${NC}"
+    
+    # Stop RyxHub processes
+    echo -e "${YELLOW}Stopping RyxHub processes...${NC}"
+    [ -f "$PROJECT_ROOT/data/ryxhub_api.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_api.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_api.pid"
+    [ -f "$PROJECT_ROOT/data/ryxhub_frontend.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_frontend.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_frontend.pid"
+    fuser -k 8420/tcp 2>/dev/null
+    fuser -k 8080/tcp 2>/dev/null
+    
+    # Kill any python/node processes from ryx
+    pkill -f "uvicorn ryx_pkg" 2>/dev/null
+    pkill -f "vite.*ryxhub" 2>/dev/null
+    
+    # Stop all ryx containers (but don't remove them)
+    echo -e "${YELLOW}Stopping containers...${NC}"
+    docker stop "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
+    
+    echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║         ALL SERVICES STOPPED          ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
+    echo -e "  Containers stopped (preserved for fast restart)"
+    echo -e "  Docker images intact"
+    echo -e "\n${CYAN}Run 'ryx' to restart services${NC}"
+}
+
+# Light cleanup - remove temporary stuff, free RAM (keeps images)
+cleanup_light() {
+    echo -e "${YELLOW}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║         CLEANUP (Light)               ║${NC}"
+    echo -e "${YELLOW}╚═══════════════════════════════════════╝${NC}"
+    
+    # Clean dangling images and build cache
+    echo -e "${YELLOW}Cleaning Docker build cache...${NC}"
+    docker system prune -f 2>/dev/null
+    
+    # Clean up any orphaned containers
+    echo -e "${YELLOW}Removing stopped containers...${NC}"
+    docker container prune -f 2>/dev/null
+    
+    # Drop filesystem caches to reclaim memory
+    echo -e "${YELLOW}Freeing cached memory...${NC}"
+    sudo sync 2>/dev/null
+    sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null
+    
+    # Clean Python cache
+    echo -e "${YELLOW}Cleaning Python cache...${NC}"
+    find "$PROJECT_ROOT" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+    find "$PROJECT_ROOT" -type f -name "*.pyc" -delete 2>/dev/null
+    
+    echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║         CLEANUP COMPLETE              ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
+    echo -e "  Build cache cleared"
+    echo -e "  Memory caches freed"
+    echo -e "  Docker images preserved (fast restart)"
+}
+
+# Full cleanup - remove everything including Docker images (requires rebuild)
+cleanup_all() {
+    echo -e "${RED}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${RED}║       CLEANUP ALL (Full Reset)        ║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════╝${NC}"
+    echo -e "${RED}Warning: This will remove Docker images!${NC}"
+    echo -e "${RED}Services will need to be rebuilt on next start.${NC}"
+    echo ""
+    
+    # First stop everything
+    echo -e "${YELLOW}Stopping all services...${NC}"
+    [ -f "$PROJECT_ROOT/data/ryxhub_api.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_api.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_api.pid"
+    [ -f "$PROJECT_ROOT/data/ryxhub_frontend.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_frontend.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_frontend.pid"
+    fuser -k 8420/tcp 2>/dev/null
+    fuser -k 8080/tcp 2>/dev/null
+    pkill -f "uvicorn ryx_pkg" 2>/dev/null
+    pkill -f "vite.*ryxhub" 2>/dev/null
+    
+    # Stop and REMOVE all ryx containers
+    echo -e "${YELLOW}Stopping and removing containers...${NC}"
+    docker stop "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
+    docker rm -f "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
+    
+    # Remove ryx-related Docker images
+    echo -e "${YELLOW}Removing Docker images...${NC}"
+    docker rmi vllm/vllm-openai 2>/dev/null
+    docker rmi searxng/searxng 2>/dev/null
+    
+    # Clean up Docker system completely
+    echo -e "${YELLOW}Cleaning Docker system...${NC}"
+    docker system prune -af 2>/dev/null
+    docker volume prune -f 2>/dev/null
+    
+    # Drop filesystem caches to reclaim memory
+    echo -e "${YELLOW}Freeing cached memory...${NC}"
+    sudo sync 2>/dev/null
+    sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null
+    
+    # Clean Python cache
+    echo -e "${YELLOW}Cleaning Python cache...${NC}"
+    find "$PROJECT_ROOT" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+    find "$PROJECT_ROOT" -type f -name "*.pyc" -delete 2>/dev/null
+    
+    echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║       FULL CLEANUP COMPLETE           ║${NC}"
+    echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
+    echo -e "  All containers removed"
+    echo -e "  Docker images removed"
+    echo -e "  Memory caches cleared"
+    echo -e "\n${CYAN}Note: Run 'ryx' to restart (will re-pull images)${NC}"
 }
 
 # Full restart - stops everything including vLLM
@@ -219,7 +335,11 @@ case "$1" in
         exit 0
         ;;
     stop)
-        stop_services
+        if [ "$2" = "all" ]; then
+            stop_all
+        else
+            stop_services
+        fi
         exit 0
         ;;
     status)
@@ -227,9 +347,11 @@ case "$1" in
         exit 0
         ;;
     cleanup)
-        echo -e "${YELLOW}Cleaning up Docker...${NC}"
-        docker system prune -f && docker image prune -f
-        echo -e "${GREEN}Done${NC}"
+        if [ "$2" = "all" ]; then
+            cleanup_all
+        else
+            cleanup_light
+        fi
         exit 0
         ;;
     restart)
@@ -261,8 +383,10 @@ case "$1" in
         echo "  restart ryxhub   Restart RyxHub services"
         echo "  restart all      Full restart (vLLM + all services)"
         echo "  status           Show service status"
-        echo "  stop             Stop RyxHub services"
-        echo "  cleanup          Clean Docker resources"
+        echo "  stop             Stop RyxHub services (keeps vLLM running)"
+        echo "  stop all         Stop ALL services including vLLM (keeps images)"
+        echo "  cleanup          Light cleanup - free RAM, clear caches (keeps images)"
+        echo "  cleanup all      Full cleanup - remove Docker images (requires rebuild)"
         exit 0
         ;;
 esac

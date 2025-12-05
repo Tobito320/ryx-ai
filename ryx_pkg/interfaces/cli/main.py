@@ -115,50 +115,20 @@ def main(
     if prompt:
         # Execute single prompt
         try:
-            from core.ollama_client import OllamaClient
-            from core.model_router import ModelRouter, ModelTier
+            from core.vllm_client import VLLMClient
             
-            router = ModelRouter()
-            
-            # Determine model based on mode
-            if code:
-                tier = ModelTier.POWERFUL
-                system_prompt = "You are Ryx, a coding assistant. Provide concise, accurate code."
-            elif chat:
-                tier = ModelTier.BALANCED
-                system_prompt = "You are Ryx, a helpful conversational AI assistant."
-            elif dev:
-                tier = ModelTier.POWERFUL
-                system_prompt = "You are Ryx, a developer assistant. Include debug details."
-            else:
-                tier = ModelTier.BALANCED
-                system_prompt = "You are Ryx, a helpful AI assistant."
-            
-            selected_model = model if model else router.get_model(tier).name
-            
-            if not quiet:
-                console.print(f"[purple]🟣 Using model: {selected_model}[/purple]")
-            
-            client = OllamaClient()
+            client = VLLMClient()
             
             if stream:
                 # Streaming response
                 if not quiet:
                     console.print("[cyan]Response:[/cyan]")
-                for chunk in client.generate_stream(
-                    prompt=prompt,
-                    model=selected_model,
-                    system=system_prompt
-                ):
+                for chunk in client.generate_stream(prompt=prompt):
                     console.print(chunk, end="")
                 console.print()
             else:
                 # Non-streaming response
-                result = client.generate(
-                    prompt=prompt,
-                    model=selected_model,
-                    system=system_prompt
-                )
+                result = client.generate(prompt=prompt)
                 
                 if result.error:
                     console.print(f"[red]Error: {result.error}[/red]")
@@ -175,7 +145,7 @@ def main(
                         console.print(f"\n[cyan]{result.response}[/cyan]\n")
                         
         except ImportError as e:
-            console.print(f"[red]Error: Core modules not available: {e}[/red]")
+            console.print(f"[red]Error: vLLM client not available: {e}[/red]")
         except Exception as e:
             console.print(f"[red]Error executing prompt: {e}[/red]")
     else:
@@ -197,8 +167,8 @@ def main(
             console.print("[yellow]Using basic prompt mode.[/yellow]\n")
             
             try:
-                from core.ollama_client import OllamaClient
-                client = OllamaClient()
+                from core.vllm_client import VLLMClient
+                client = VLLMClient()
                 
                 while True:
                     try:
@@ -207,10 +177,7 @@ def main(
                             console.print("[cyan]Goodbye![/cyan]")
                             break
                         
-                        result = client.generate(
-                            prompt=user_input,
-                            system="You are Ryx, a helpful AI assistant."
-                        )
+                        result = client.generate(prompt=user_input)
                         
                         if result.error:
                             console.print(f"[red]Error: {result.error}[/red]")
@@ -373,7 +340,7 @@ def history(
 def models(
     refresh: bool = typer.Option(
         False, "--refresh",
-        help="Refresh model list from Ollama"
+        help="Refresh model list from vLLM"
     ),
 ):
     """
@@ -381,45 +348,30 @@ def models(
 
     Examples:
         ryx models            # List cached models
-        ryx models --refresh  # Refresh from Ollama
+        ryx models --refresh  # Refresh from vLLM
     """
     try:
-        from core.ollama_client import OllamaClient
-        from core.model_router import ModelRouter
+        from core.vllm_client import VLLMClient
         
         if refresh:
-            console.print("[cyan]Refreshing model list from Ollama...[/cyan]")
+            console.print("[cyan]Refreshing model list from vLLM...[/cyan]")
         
-        client = OllamaClient()
+        client = VLLMClient()
         available_models = client.list_models()
-        
-        router = ModelRouter()
-        configured_models = router.list_models()
         
         table = Table(title="[purple]Available Models[/purple]")
         table.add_column("Model", style="cyan")
-        table.add_column("Tier", style="green")
         table.add_column("Status")
         
-        # Show configured models
-        for model in configured_models:
-            name = model.get('name', model.get('model', 'unknown'))
-            tier = model.get('tier', 'balanced')
-            is_available = name in available_models
-            status = "[green]✓ Available[/green]" if is_available else "[yellow]○ Not installed[/yellow]"
-            table.add_row(name, tier, status)
-        
-        # Show additional models from Ollama not in config
-        for model_name in available_models:
-            if not any(m.get('name', m.get('model', '')) == model_name for m in configured_models):
-                table.add_row(model_name, "custom", "[green]✓ Available[/green]")
+        for model in available_models:
+            table.add_row(model, "[green]✓ Available[/green]")
         
         console.print(table)
-        console.print(f"\n[dim]{len(available_models)} models installed[/dim]")
+        console.print(f"\n[dim]{len(available_models)} models available[/dim]")
         
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        console.print("[yellow]Tip: Make sure Ollama is running (ollama serve)[/yellow]")
+        console.print("[yellow]Tip: Make sure vLLM server is running (vllm serve)[/yellow]")
 
 
 @app.command()
@@ -442,24 +394,24 @@ def status():
     except ImportError:
         # Fallback to basic status
         try:
-            from core.ollama_client import OllamaClient
+            from core.vllm_client import VLLMClient
             
             console.print(Panel(
                 "[bold purple]Ryx AI Status[/bold purple]",
                 border_style="purple"
             ))
             
-            client = OllamaClient()
+            client = VLLMClient()
             health = client.health_check()
             
             if health.get('status') == 'healthy':
-                console.print(f"[green]●[/green] Ollama: [green]Online[/green]")
+                console.print(f"[green]●[/green] vLLM: [green]Online[/green]")
                 console.print(f"  URL: {health.get('base_url')}")
-                console.print(f"  Models: {health.get('models_available', 0)} installed")
+                console.print(f"  Models: {health.get('models_available', 0)} available")
             else:
-                console.print(f"[red]●[/red] Ollama: [red]Offline[/red]")
+                console.print(f"[red]●[/red] vLLM: [red]Offline[/red]")
                 console.print(f"  Error: {health.get('error', 'Connection failed')}")
-                console.print("[yellow]Tip: Start Ollama with 'ollama serve'[/yellow]")
+                console.print("[yellow]Tip: Start vLLM with 'vllm serve'[/yellow]")
                 
         except Exception as e:
             console.print(f"[red]Error checking status: {e}[/red]")

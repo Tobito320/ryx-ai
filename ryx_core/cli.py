@@ -161,23 +161,21 @@ def models_cmd():
     
     try:
         import requests
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
+        resp = requests.get("http://localhost:8001/v1/models", timeout=5)
         if resp.ok:
-            models_data = resp.json().get("models", [])
+            models_data = resp.json().get("data", [])
             for model in models_data:
-                name = model.get("name", "unknown")
-                size = f"{model.get('size', 0) / 1e9:.1f} GB"
-                modified = model.get("modified_at", "unknown")[:10]
-                table.add_row(name, size, modified)
+                name = model.get("id", "unknown")
+                table.add_row(name, "-", "-")
             
             if not models_data:
-                console.print("[yellow]No models installed[/yellow]")
-                console.print("[dim]Install with: ollama pull qwen2.5-coder:14b[/dim]")
+                console.print("[yellow]No models available[/yellow]")
+                console.print("[dim]Install with: vllm serve <model>[/dim]")
         else:
             console.print("[red]Failed to fetch models[/red]")
     except Exception as e:
-        console.print(f"[red]Error connecting to Ollama: {e}[/red]")
-        console.print("[dim]Make sure Ollama is running: ollama serve[/dim]")
+        console.print(f"[red]Error connecting to vLLM: {e}[/red]")
+        console.print("[dim]Make sure vLLM is running: vllm serve[/dim]")
         return
     
     console.print()
