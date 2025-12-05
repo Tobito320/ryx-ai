@@ -14,11 +14,13 @@ import ReactFlow, {
   MiniMap,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { Zap, Bot, Wrench, Database, Plus, Play, Pause, Trash2 } from "lucide-react";
+import { Zap, Bot, Wrench, Database, Plus, Play, Pause, Trash2, BookTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { AddNodeDialog } from "@/components/ryxhub/AddNodeDialog";
+import { NodeConfigDialog } from "@/components/ryxhub/NodeConfigDialog";
+import { WorkflowTemplates } from "@/components/ryxhub/WorkflowTemplates";
 import type { WorkflowNode as RyxWorkflowNode } from "@/types/ryxhub";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,7 +49,7 @@ const statusColors = {
 };
 
 // Custom Node Component
-function CustomNode({ data }: { data: RyxWorkflowNode }) {
+function CustomNode({ data }: { data: RyxWorkflowNode & { onDoubleClick: (node: RyxWorkflowNode) => void } }) {
   const Icon = nodeIcons[data.type];
   const colors = nodeColors[data.type];
   const { selectNode, selectedNodeId } = useRyxHub();
@@ -56,6 +58,7 @@ function CustomNode({ data }: { data: RyxWorkflowNode }) {
   return (
     <div
       onClick={() => selectNode(data.id)}
+      onDoubleClick={() => data.onDoubleClick(data)}
       className={cn(
         "px-4 py-3 rounded-lg border-2 bg-card transition-all cursor-pointer min-w-[160px]",
         colors.border,
@@ -102,7 +105,15 @@ export function WorkflowCanvasEnhanced() {
   } = useRyxHub();
 
   const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
+  const [configNodeDialogOpen, setConfigNodeDialogOpen] = useState(false);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
+  const [selectedConfigNode, setSelectedConfigNode] = useState<RyxWorkflowNode | null>(null);
   const [executionLogs, setExecutionLogs] = useState<string[]>([]);
+
+  const handleNodeDoubleClick = useCallback((node: RyxWorkflowNode) => {
+    setSelectedConfigNode(node);
+    setConfigNodeDialogOpen(true);
+  }, []);
 
   // Convert RYX nodes to ReactFlow nodes
   const [nodes, setNodes] = useState<Node[]>(
@@ -110,7 +121,7 @@ export function WorkflowCanvasEnhanced() {
       id: node.id,
       type: "custom",
       position: { x: node.x, y: node.y },
-      data: node,
+      data: { ...node, onDoubleClick: handleNodeDoubleClick },
     }))
   );
 
@@ -133,10 +144,10 @@ export function WorkflowCanvasEnhanced() {
         id: node.id,
         type: "custom",
         position: { x: node.x, y: node.y },
-        data: node,
+        data: { ...node, onDoubleClick: handleNodeDoubleClick },
       }))
     );
-  }, [workflowNodes]);
+  }, [workflowNodes, handleNodeDoubleClick]);
 
   // Update edge animation when workflow is running
   useMemo(() => {
@@ -257,6 +268,46 @@ export function WorkflowCanvasEnhanced() {
     toast.success("Canvas cleared");
   };
 
+  const handleSaveNodeConfig = (nodeId: string, config: Record<string, unknown>) => {
+    // Update node configuration in state
+    // In a real implementation, this would update the backend
+    toast.success("Node configuration updated");
+    
+    // TODO: Update backend
+    // await fetch(`http://localhost:8420/api/workflows/nodes/${nodeId}`, {
+    //   method: 'PUT',
+    //   body: JSON.stringify({ config })
+    // });
+  };
+
+  const handleSelectTemplate = (template: any) => {
+    // Load template nodes and connections
+    const templateNodes = template.nodes.map((node: any) => ({
+      ...node,
+      logs: [],
+      runs: [],
+    }));
+
+    templateNodes.forEach((node: RyxWorkflowNode) => {
+      addWorkflowNode(node);
+    });
+
+    // Add connections
+    template.connections.forEach((conn: any) => {
+      const newEdge = {
+        id: conn.id,
+        source: conn.from,
+        target: conn.to,
+        type: "smoothstep",
+        animated: false,
+        style: { stroke: "hsl(var(--primary))", strokeWidth: 2 },
+      };
+      setEdges((eds) => [...eds, newEdge]);
+    });
+
+    toast.success(`Template "${template.name}" loaded successfully`);
+  };
+
   return (
     <div className="flex h-full">
       {/* Main Canvas */}
@@ -284,6 +335,15 @@ export function WorkflowCanvasEnhanced() {
 
         {/* Floating Toolbar */}
         <div className="absolute top-4 left-4 flex items-center gap-2 bg-card/80 backdrop-blur-sm border border-border rounded-lg p-2 shadow-lg">
+          <Button
+            size="sm"
+            onClick={() => setTemplatesDialogOpen(true)}
+            variant="outline"
+            className="gap-2"
+          >
+            <BookTemplate className="w-4 h-4" />
+            Templates
+          </Button>
           <Button
             size="sm"
             onClick={() => setAddNodeDialogOpen(true)}
@@ -349,11 +409,26 @@ export function WorkflowCanvasEnhanced() {
         </CardContent>
       </Card>
 
+      {/* Workflow Templates Dialog */}
+      <WorkflowTemplates
+        open={templatesDialogOpen}
+        onOpenChange={setTemplatesDialogOpen}
+        onSelectTemplate={handleSelectTemplate}
+      />
+
       {/* Add Node Dialog */}
       <AddNodeDialog
         open={addNodeDialogOpen}
         onOpenChange={setAddNodeDialogOpen}
         onAddNode={handleAddNode}
+      />
+
+      {/* Node Configuration Dialog */}
+      <NodeConfigDialog
+        node={selectedConfigNode}
+        open={configNodeDialogOpen}
+        onOpenChange={setConfigNodeDialogOpen}
+        onSave={handleSaveNodeConfig}
       />
     </div>
   );
