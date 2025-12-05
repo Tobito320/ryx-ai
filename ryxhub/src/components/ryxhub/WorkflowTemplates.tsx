@@ -56,8 +56,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 100,
         status: "idle",
         config: {
-          model: "qwen2.5-coder:14b",
-          prompt: "Review this code for quality issues, code smells, and improvement suggestions",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Review this code for quality issues, code smells, and improvement suggestions. Check for: naming conventions, code duplication, complexity, error handling, and performance issues.",
         },
       },
       {
@@ -68,8 +68,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 250,
         status: "idle",
         config: {
-          model: "deepseek-coder-v2:16b",
-          prompt: "Check this code for security vulnerabilities and potential exploits",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Analyze this code for security vulnerabilities including: SQL injection, XSS, CSRF, hardcoded secrets, insecure authentication, and OWASP Top 10 issues. Provide severity ratings and fix recommendations.",
         },
       },
       {
@@ -142,8 +142,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 200,
         status: "idle",
         config: {
-          model: "qwen2.5-coder:14b",
-          prompt: "Generate comprehensive API documentation from the provided code",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Generate comprehensive API documentation from the provided code. Include: function signatures, parameters, return types, usage examples, and any important notes about behavior or limitations.",
         },
       },
       {
@@ -215,8 +215,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 225,
         status: "idle",
         config: {
-          model: "mistral:7b",
-          prompt: "Synthesize research findings into a comprehensive summary with sources",
+          model: "/models/medium/general/qwen2.5-7b-gptq",
+          prompt: "Synthesize all research findings into a comprehensive summary. Organize by themes, cite all sources, highlight key insights, note conflicting information, and suggest areas for further research.",
         },
       },
       {
@@ -273,8 +273,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 200,
         status: "idle",
         config: {
-          model: "qwen2.5-coder:14b",
-          prompt: "Transform and clean the data according to specified rules",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Transform and clean the data: normalize formats, handle missing values, remove duplicates, validate data types, and apply business rules. Document all transformations applied.",
         },
       },
       {
@@ -327,8 +327,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 150,
         status: "idle",
         config: {
-          model: "deepseek-coder-v2:16b",
-          prompt: "Analyze code for security vulnerabilities and exploits",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Perform deep security analysis: scan for OWASP Top 10 vulnerabilities, check for exposed secrets, review authentication/authorization logic, and identify potential attack vectors.",
         },
       },
       {
@@ -339,8 +339,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 250,
         status: "idle",
         config: {
-          model: "qwen2.5-coder:14b",
-          prompt: "Generate secure code fixes for identified vulnerabilities",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Generate secure code fixes for each identified vulnerability. Provide: the fix code, explanation of why it's more secure, and any additional security recommendations.",
         },
       },
       {
@@ -394,8 +394,8 @@ export const workflowTemplates: WorkflowTemplate[] = [
         y: 200,
         status: "idle",
         config: {
-          model: "qwen2.5-coder:14b",
-          prompt: "Generate comprehensive unit tests with edge cases and mocks",
+          model: "/models/medium/coding/qwen2.5-coder-7b-gptq",
+          prompt: "Generate comprehensive unit tests: cover happy paths, edge cases, error conditions, and boundary values. Include mocks for external dependencies and clear test descriptions.",
         },
       },
       {

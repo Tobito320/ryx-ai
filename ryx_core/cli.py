@@ -113,17 +113,18 @@ def status_cmd():
     table.add_column("Status", style="green")
     table.add_column("Details", style="dim")
     
-    # Check Ollama
+    # Check vLLM (primary LLM backend)
     try:
         import requests
-        resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+        resp = requests.get("http://localhost:8001/v1/models", timeout=2)
         if resp.ok:
-            models = resp.json().get("models", [])
-            table.add_row("Ollama", "✅ Running", f"{len(models)} models available")
+            models = resp.json().get("data", [])
+            model_name = models[0].get("id", "unknown").split('/')[-1] if models else "none"
+            table.add_row("vLLM", "✅ Running", f"Model: {model_name}")
         else:
-            table.add_row("Ollama", "⚠️ Degraded", "API not responding properly")
+            table.add_row("vLLM", "⚠️ Degraded", "API not responding properly")
     except Exception:
-        table.add_row("Ollama", "❌ Offline", "Not reachable at localhost:11434")
+        table.add_row("vLLM", "❌ Offline", "Not reachable at localhost:8001")
     
     # Check data directories
     data_dir = PROJECT_ROOT / "data"

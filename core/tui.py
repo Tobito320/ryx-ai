@@ -517,26 +517,55 @@ class FullscreenTUI:
             full_screen=True,
             mouse_support=True,
         )
-        
-        # Track scroll position
+
+        # Track scroll position manually for proper scrolling
         self._scroll_offset = 0
+        self._max_scroll = 0
 
     def _scroll_chat(self, lines: int):
         """Scroll the chat window by specified lines"""
-        # ScrollablePane handles its own scrolling, but we can trigger it
-        # by invalidating after adjusting internal state
+        # Calculate total content height based on messages
+        total_lines = sum(
+            len(msg.content.split('\n')) + 2  # +2 for label and spacing
+            for msg in self.messages
+        ) if self.messages else 0
+
+        # Get visible height (approximate - terminal height minus bottom section)
+        try:
+            visible_height = shutil.get_terminal_size().lines - 8  # 8 lines for bottom section
+        except:
+            visible_height = 20
+
+        # Update scroll offset
+        self._max_scroll = max(0, total_lines - visible_height)
+        self._scroll_offset = max(0, min(self._max_scroll, self._scroll_offset + lines))
+
+        # Access the ScrollablePane's internal scroll state
+        if hasattr(self.chat_window, 'vertical_scroll'):
+            self.chat_window.vertical_scroll = self._scroll_offset
+
         self._invalidate()
-    
+
     def _scroll_to_bottom(self):
         """Scroll chat to bottom - called after adding new messages"""
-        # The ScrollablePane's scroll_offsets can be adjusted via the window
-        # For prompt_toolkit, we need to access the scrollable pane's internal state
+        # Calculate total content height
+        total_lines = sum(
+            len(msg.content.split('\n')) + 2
+            for msg in self.messages
+        ) if self.messages else 0
+
         try:
-            if hasattr(self.chat_window, 'scroll_offsets'):
-                # Set scroll to maximum (will be clamped to actual max)
-                self.chat_window.scroll_offsets = (999999, 0)
+            visible_height = shutil.get_terminal_size().lines - 8
         except:
-            pass
+            visible_height = 20
+
+        self._max_scroll = max(0, total_lines - visible_height)
+        self._scroll_offset = self._max_scroll
+
+        # Set ScrollablePane scroll position
+        if hasattr(self.chat_window, 'vertical_scroll'):
+            self.chat_window.vertical_scroll = self._scroll_offset
+
         self._invalidate()
 
     def _invalidate(self):

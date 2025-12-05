@@ -29,6 +29,14 @@ from core.ryx_brain import RyxBrain, Plan, Intent, get_brain
 from core.llm_backend import get_backend
 from core.model_router import ModelRouter
 
+# Self-healing and self-improvement system
+try:
+    from core.self_healer import SelfHealer, run_self_healing
+    from core.self_improve import SelfAnalyzer, SelfImprover
+    HAS_SELF_HEALING = True
+except ImportError:
+    HAS_SELF_HEALING = False
+
 # Supervisor for intelligent dispatch
 try:
     from core.council.supervisor import get_supervisor, Supervisor, ResponseStyle
@@ -183,6 +191,11 @@ class SessionLoop:
             '/benchmark': 'Run benchmark',
             '/sync': 'Sync session to RyxHub',
             '/share': 'Export session to file',
+
+            # Self-healing & Self-improvement
+            '/heal': 'Run self-healing on knowledge base',
+            '/improve': 'Analyze codebase for improvements',
+            '/doctor': 'Run health check and diagnostics',
         }
         
         def completer(text, state):
@@ -514,6 +527,11 @@ class SessionLoop:
             'benchmark': lambda: self._benchmark(args),
             'sync': lambda: self._sync_to_ryxhub(args),
             'share': lambda: self._share(args),
+
+            # Self-healing & Self-improvement
+            'heal': lambda: self._heal(args),
+            'improve': lambda: self._improve(args),
+            'doctor': self._doctor,
         }
         
         handler = cmds.get(command)
@@ -896,7 +914,219 @@ class SessionLoop:
                 self.cli.error(f"Cleanup failed: {result.stderr}")
         except Exception as e:
             self.cli.error(f"Cleanup error: {e}")
-    
+
+    def _heal(self, args: str):
+        """
+        Run self-healing on knowledge base.
+
+        Shows progress in chat as it analyzes and cleans cached data.
+        """
+        if not HAS_SELF_HEALING:
+            self.cli.warn("Self-healing module not available")
+            return
+
+        aggressive = args.lower().strip() == "aggressive" if args else False
+
+        self.cli.step_start("Self-healing knowledge base")
+
+        try:
+            healer = SelfHealer()
+
+            # Show progress updates
+            self.cli.thinking("Analyzing knowledge stores...")
+            result = healer.heal(aggressive=aggressive)
+
+            # Display results in chat
+            lines = ["Self-Healing Complete", ""]
+            lines.append(result.summary)
+            lines.append("")
+
+            if result.details:
+                lines.append("Details:")
+                for detail in result.details:
+                    lines.append(f"  {detail}")
+
+            lines.append("")
+            lines.append(f"Reviewed: {result.entries_reviewed}")
+            lines.append(f"Removed: {result.entries_removed}")
+            if result.space_freed_kb > 0:
+                lines.append(f"Space freed: {result.space_freed_kb:.1f} KB")
+
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system('\n'.join(lines), "success" if result.entries_removed > 0 else "info")
+            else:
+                self.cli.console.print('\n'.join(lines))
+
+            self.cli.step_done("Self-healing", f"{result.entries_removed} entries cleaned")
+
+        except Exception as e:
+            self.cli.step_fail("Self-healing failed", str(e))
+
+    def _improve(self, args: str):
+        """
+        Analyze codebase for improvements.
+
+        Shows improvement suggestions in chat.
+        """
+        if not HAS_SELF_HEALING:
+            self.cli.warn("Self-improvement module not available")
+            return
+
+        self.cli.step_start("Analyzing codebase")
+
+        try:
+            analyzer = SelfAnalyzer()
+
+            if args.lower().strip() == "plan":
+                # Generate full improvement plan
+                self.cli.thinking("Generating improvement plan...")
+                plan = analyzer.generate_improvement_plan()
+
+                # Show preview in chat
+                preview = plan[:1500] + "..." if len(plan) > 1500 else plan
+                if hasattr(self.cli, 'add_system'):
+                    self.cli.add_system(preview, "info")
+                else:
+                    self.cli.console.print(preview)
+
+                self.cli.step_done("Analysis complete", "Full plan saved to data/improvement_plan.md")
+            else:
+                # Quick analysis
+                self.cli.thinking("Running quick analysis...")
+                analysis = analyzer.analyze_codebase()
+
+                lines = ["Codebase Analysis", ""]
+                lines.append(f"Files analyzed: {len(analysis.get('files_analyzed', []))}")
+                lines.append(f"Issues found: {len(analysis.get('issues', []))}")
+                lines.append(f"Suggestions: {len(analysis.get('suggestions', []))}")
+
+                # Show top issues
+                issues = analysis.get('issues', [])[:5]
+                if issues:
+                    lines.append("")
+                    lines.append("Top Issues:")
+                    for issue in issues:
+                        msg = issue.get('message', 'Unknown')[:60]
+                        lines.append(f"  - {msg}")
+
+                # Show top suggestions
+                suggestions = analysis.get('suggestions', [])[:3]
+                if suggestions:
+                    lines.append("")
+                    lines.append("Suggestions:")
+                    for sug in suggestions:
+                        msg = sug.get('message', 'Unknown')[:60]
+                        lines.append(f"  - {msg}")
+
+                lines.append("")
+                lines.append("Use /improve plan for full analysis")
+
+                if hasattr(self.cli, 'add_system'):
+                    self.cli.add_system('\n'.join(lines), "info")
+                else:
+                    self.cli.console.print('\n'.join(lines))
+
+                self.cli.step_done("Analysis complete", f"{len(issues)} issues found")
+
+        except Exception as e:
+            self.cli.step_fail("Analysis failed", str(e))
+
+    def _doctor(self):
+        """
+        Run comprehensive health check and diagnostics.
+
+        Checks: vLLM, SearXNG, disk space, databases, and runs self-healing.
+        """
+        import requests
+        import shutil
+
+        self.cli.step_start("Running diagnostics")
+
+        checks = []
+
+        # Check vLLM
+        try:
+            vllm_url = os.environ.get('VLLM_BASE_URL', 'http://localhost:8001')
+            resp = requests.get(f"{vllm_url}/v1/models", timeout=5)
+            if resp.status_code == 200:
+                models = resp.json().get("data", [])
+                model_name = models[0].get("id", "unknown").split('/')[-1] if models else "none"
+                checks.append(("vLLM", "OK", f"Running - {model_name}"))
+            else:
+                checks.append(("vLLM", "WARN", f"HTTP {resp.status_code}"))
+        except requests.exceptions.ConnectionError:
+            checks.append(("vLLM", "FAIL", "Not running"))
+        except Exception as e:
+            checks.append(("vLLM", "FAIL", str(e)[:40]))
+
+        # Check SearXNG
+        try:
+            searxng_url = os.environ.get('SEARXNG_URL', 'http://localhost:8888')
+            resp = requests.get(f"{searxng_url}/healthz", timeout=3)
+            if resp.status_code == 200:
+                checks.append(("SearXNG", "OK", "Running"))
+            else:
+                checks.append(("SearXNG", "WARN", f"HTTP {resp.status_code}"))
+        except requests.exceptions.ConnectionError:
+            checks.append(("SearXNG", "WARN", "Not running (optional)"))
+        except:
+            checks.append(("SearXNG", "WARN", "Not available"))
+
+        # Check disk space
+        try:
+            total, used, free = shutil.disk_usage("/")
+            free_gb = free / (1024**3)
+            if free_gb > 10:
+                checks.append(("Disk", "OK", f"{free_gb:.1f} GB free"))
+            elif free_gb > 5:
+                checks.append(("Disk", "WARN", f"{free_gb:.1f} GB free"))
+            else:
+                checks.append(("Disk", "FAIL", f"{free_gb:.1f} GB free - low!"))
+        except:
+            checks.append(("Disk", "WARN", "Could not check"))
+
+        # Check data directory
+        data_dir = get_data_dir()
+        if data_dir.exists():
+            db_count = len(list(data_dir.glob("*.db")))
+            checks.append(("Data Dir", "OK", f"{db_count} databases"))
+        else:
+            checks.append(("Data Dir", "WARN", "Not found"))
+
+        # Check self-healing availability
+        if HAS_SELF_HEALING:
+            checks.append(("Self-Healing", "OK", "Available"))
+        else:
+            checks.append(("Self-Healing", "WARN", "Module not found"))
+
+        # Format results
+        lines = ["System Diagnostics", ""]
+        for name, status, detail in checks:
+            icon = "✓" if status == "OK" else ("⚠" if status == "WARN" else "✗")
+            lines.append(f"  {icon} {name}: {detail}")
+
+        # Summary
+        ok_count = sum(1 for _, s, _ in checks if s == "OK")
+        warn_count = sum(1 for _, s, _ in checks if s == "WARN")
+        fail_count = sum(1 for _, s, _ in checks if s == "FAIL")
+
+        lines.append("")
+        lines.append(f"Summary: {ok_count} OK, {warn_count} warnings, {fail_count} failures")
+
+        if fail_count > 0:
+            lines.append("")
+            lines.append("Recommendations:")
+            if any(n == "vLLM" and s == "FAIL" for n, s, _ in checks):
+                lines.append("  - Start vLLM: ryx start vllm")
+
+        if hasattr(self.cli, 'add_system'):
+            style = "success" if fail_count == 0 else ("warning" if warn_count > 0 else "error")
+            self.cli.add_system('\n'.join(lines), style)
+        else:
+            self.cli.console.print('\n'.join(lines))
+
+        self.cli.step_done("Diagnostics complete", f"{ok_count}/{len(checks)} checks passed")
+
     def _usage(self):
         """Display usage metrics"""
         duration = datetime.now() - self.session_start
