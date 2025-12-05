@@ -207,43 +207,57 @@ class SessionLoop:
         readline.parse_and_bind('tab: complete')
     
     def _setup_signals(self):
+        """Setup signal handlers - only for non-TUI mode"""
         import time
-        
+
+        # Skip signal setup if using fullscreen TUI (it handles its own signals)
+        if hasattr(self.cli, '_is_streaming'):
+            return  # TUI handles Ctrl+C internally
+
         def handler(sig, frame):
             now = time.time()
-            
+
             # Double Ctrl+C within 1 second = exit
             if now - self._last_ctrl_c < 1.0:
                 print("\n")
                 self._save()
                 sys.exit(0)
-            
+
             # Single Ctrl+C = interrupt current operation
             self._last_ctrl_c = now
             self._interrupt_pending = True
             print("\n[Ctrl+C to exit]")
-        
+
         signal.signal(signal.SIGINT, handler)
-    
+
     def run(self):
-        """Main loop - with bottom bar layout"""
+        """Main loop - fullscreen TUI mode"""
         self._show_welcome()
         self._health_check()
         self._restore()
-        
+
         while self.running:
             try:
                 user_input = self.cli.prompt()
-                
-                if not user_input.strip():
+
+                if not user_input or not user_input.strip():
                     continue
-                
+
+                # Check for quit command
+                if user_input.strip() in ['/quit', '/exit', '/q']:
+                    self._save()
+                    self.running = False
+                    break
+
+                # Add user message to TUI chat (if fullscreen TUI)
+                if hasattr(self.cli, 'add_user'):
+                    self.cli.add_user(user_input.strip())
+
                 self._process(user_input.strip())
-                # Single footer (bottom hints) after handling input
+                # Update footer state
                 self.cli.footer(msgs=len(self.history))
-                
+
             except KeyboardInterrupt:
-                print()
                 self._save()
                 break
             except Exception as e:
@@ -500,24 +514,31 @@ class SessionLoop:
     def _clear(self):
         self.history = []
         self.brain.ctx = type(self.brain.ctx)()
+        # Clear TUI messages if using fullscreen TUI
+        if hasattr(self.cli, 'clear'):
+            self.cli.clear()
         self.cli.success("Cleared")
-    
+
     def _status(self):
         duration = datetime.now() - self.session_start
         minutes = int(duration.total_seconds() / 60)
-        
+
         precision = "ON" if self.brain.precision_mode else "OFF"
         browsing = "ON" if self.brain.browsing_enabled else "OFF"
-        
-        self.cli.console.print(f"""
-[accent bold]Status[/]
+
+        status_text = f"""Status
   Precision: {precision}
   Browsing: {browsing}
   Messages: {len(self.history)}
   Duration: {minutes}min
   Prompts: {self.stats['prompts']}
-  Searches: {self.stats['searches']}
-""")
+  Searches: {self.stats['searches']}"""
+
+        # Use TUI info method or console
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system(status_text.strip(), "info")
+        elif hasattr(self.cli, 'console'):
+            self.cli.console.print(status_text)
     
     def _models(self):
         plan = Plan(intent=Intent.LIST_MODELS)

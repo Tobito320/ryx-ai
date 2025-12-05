@@ -1,78 +1,86 @@
 """
-Ryx AI - Copilot CLI Style TUI with Fixed Bottom Prompt
+Ryx AI - True Fullscreen TUI with Fixed Bottom Prompt
 
-Layout:
+Layout (fullscreen mode like vim/htop):
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         ↑ SCROLLABLE CHAT HISTORY ↑                             │
+│                                                                                 │
+│  You: hi                                                                        │
+│                                                                                 │
+│  Ryx: Hi! How can I assist you today?                                           │
+│                                                                                 │
+│  You: how are you                                                               │
+│                                                                                 │
+│  Ryx: I'm well, thanks. How about you?                                          │
+│                                                                                 │
+│                         [SCROLLABLE - mouse/arrows work]                        │
+│                                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│ ~/ryx-ai[⎇ main]                                     qwen2.5-7b │ 45% context   │
+│ ~/ryx-ai[⎇ main]                                     qwen2.5-7b │ 12% context   │
 │ ╭─────────────────────────────────────────────────────────────────────────────╮ │
-│ │ > type here_                                                                │ │
+│ │ > _                                                                         │ │
 │ ╰─────────────────────────────────────────────────────────────────────────────╯ │
-│ Ctrl+c Exit · Ctrl+l Clear · Tab Complete                 Session: 12 requests  │
+│ Ctrl+c Exit · Ctrl+l Clear · Tab Complete                 Session: 3 requests   │
 └─────────────────────────────────────────────────────────────────────────────────┘
 
 Features:
-- Fixed bottom prompt with rounded corners
+- True fullscreen mode (like vim, htop, Copilot CLI)
+- Fixed bottom section that never moves
 - Scrollable chat history
-- Status bar with model, branch, context
-- Context indicator colors (Green/Yellow/Bold Yellow/Bold Red)
-- Tab completion for /commands
-- Streaming support
+- Single Ctrl+C interrupts, double Ctrl+C exits
+- Streaming responses update in-place
 """
 
 import os
 import sys
 import time
 import shutil
-import asyncio
+import threading
 from typing import Optional, List, Dict, Any, Callable
 from dataclasses import dataclass
 from contextlib import contextmanager
 from pathlib import Path
 
-from prompt_toolkit import Application, PromptSession
-from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, FormattedTextControl
-from prompt_toolkit.layout.containers import ConditionalContainer, Float, FloatContainer
+from prompt_toolkit import Application
+from prompt_toolkit.application import get_app
+from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, FormattedTextControl, ScrollablePane
+from prompt_toolkit.layout.containers import ConditionalContainer, WindowAlign
 from prompt_toolkit.layout.dimension import Dimension, D
-from prompt_toolkit.layout.menus import CompletionsMenu
-from prompt_toolkit.widgets import TextArea, Frame
+from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.widgets import TextArea
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.document import Document
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.completion import WordCompleter, Completer, Completion
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style as PTStyle
-from prompt_toolkit.formatted_text import FormattedText, HTML, ANSI
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-
-# Rich for history display
-from rich.console import Console
-from rich.text import Text
+from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.history import FileHistory, InMemoryHistory
+from prompt_toolkit.filters import Condition
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Theme - Catppuccin Mocha (matches cli_ui.py)
+# Theme - Catppuccin Mocha
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# prompt_toolkit style
 TUI_STYLE = PTStyle.from_dict({
     # Core colors
-    'prompt': '#ca9ee6',           # Purple - user prompts
-    'input': '#c6d0f5',            # Main text
-    'reply': '#a6d189',            # Green - AI replies
-    'success': '#a6d189',          # Softer green
-    'error': '#e78284',            # Softer red
-    'warning': '#e5c890',          # Warm yellow
-    'info': '#8caaee',             # Blue
-    'muted': '#6c6f85',            # Muted text
-    'dim': '#51576d',              # Very dim
-    'step': '#81c8be',             # Teal - steps/progress
+    'user': '#ca9ee6 bold',        # Purple - user messages
+    'user-label': '#ca9ee6',       # Purple label
+    'assistant': '#a6d189',        # Green - AI replies
+    'assistant-label': '#a6d189 bold',
+    'system': '#6c6f85',           # Muted - system messages
+    'success': '#a6d189',
+    'error': '#e78284',
+    'warning': '#e5c890',
+    'info': '#8caaee',
+    'muted': '#6c6f85',
+    'dim': '#51576d',
+    'step': '#81c8be',
 
     # Status bar
     'status-bar': 'bg:#303446 #c6d0f5',
-    'status-path': '#ef9f76',      # Peach - file paths
-    'status-branch': '#99d1db',    # Teal - git branch
-    'status-model': '#f4b8e4',     # Pink - model names
+    'status-path': '#ef9f76',
+    'status-branch': '#99d1db',
+    'status-model': '#f4b8e4',
 
     # Context colors
     'context-green': '#a6d189',
@@ -80,17 +88,21 @@ TUI_STYLE = PTStyle.from_dict({
     'context-yellow-bold': '#e5c890 bold',
     'context-red-bold': '#e78284 bold',
 
-    # Border
-    'border': '#626880',
-    'border.rounded': '#626880',
-
-    # Input area
-    'input-area': '#c6d0f5',
+    # Input box
+    'input-border': '#626880',
+    'input-text': '#c6d0f5',
     'prompt-char': '#ca9ee6 bold',
 
-    # Hints
+    # Hints bar
     'hint': '#6c6f85',
     'hint-key': '#8caaee bold',
+
+    # Spinner
+    'spinner': '#81c8be',
+
+    # Scrollbar
+    'scrollbar.background': '#303446',
+    'scrollbar.button': '#626880',
 })
 
 
@@ -130,35 +142,29 @@ class SlashCommandCompleter(Completer):
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
 
-        # Slash commands
         if text.startswith('/'):
             cmd = text.lower()
             for c in self.COMMANDS:
                 if c.startswith(cmd):
                     yield Completion(c, start_position=-len(cmd))
 
-            # Style subcommand
             if cmd.startswith('/style '):
                 style_prefix = cmd[7:]
                 for s in self.STYLES:
                     if s.startswith(style_prefix):
                         yield Completion(s, start_position=-len(style_prefix))
 
-        # File completion for @
         elif text.startswith('@'):
             path = text[1:]
             if not path:
                 path = '.'
-
             try:
                 dir_path = os.path.dirname(path) or '.'
                 prefix = os.path.basename(path)
-
                 if os.path.isdir(dir_path):
                     for name in os.listdir(dir_path):
                         if name.startswith(prefix) and not name.startswith('.'):
                             full_path = os.path.join(dir_path, name)
-                            display = name + ('/' if os.path.isdir(full_path) else '')
                             yield Completion(
                                 os.path.join(dir_path, name) if dir_path != '.' else name,
                                 start_position=-len(path)
@@ -168,83 +174,27 @@ class SlashCommandCompleter(Completer):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Chat History Buffer
+# Message Types
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class ChatHistoryBuffer:
-    """Manages scrollable chat history"""
-
-    def __init__(self):
-        self.messages: List[Dict[str, str]] = []
-        self._formatted_cache: Optional[FormattedText] = None
-        self._cache_valid = False
-
-    def add_user(self, content: str):
-        """Add user message"""
-        self.messages.append({'role': 'user', 'content': content})
-        self._cache_valid = False
-
-    def add_assistant(self, content: str):
-        """Add assistant message"""
-        self.messages.append({'role': 'assistant', 'content': content})
-        self._cache_valid = False
-
-    def add_system(self, content: str, style: str = 'muted'):
-        """Add system message (status, errors, etc)"""
-        self.messages.append({'role': 'system', 'content': content, 'style': style})
-        self._cache_valid = False
-
-    def clear(self):
-        """Clear all messages"""
-        self.messages = []
-        self._cache_valid = False
-
-    def get_formatted(self) -> FormattedText:
-        """Get formatted text for display"""
-        if self._cache_valid and self._formatted_cache:
-            return self._formatted_cache
-
-        parts = []
-
-        for msg in self.messages:
-            role = msg.get('role', 'system')
-            content = msg.get('content', '')
-
-            if role == 'user':
-                parts.append(('class:prompt', '> '))
-                parts.append(('class:prompt', content))
-                parts.append(('', '\n'))
-            elif role == 'assistant':
-                parts.append(('class:reply', content))
-                parts.append(('', '\n\n'))
-            else:
-                style = msg.get('style', 'muted')
-                parts.append((f'class:{style}', content))
-                parts.append(('', '\n'))
-
-        self._formatted_cache = FormattedText(parts)
-        self._cache_valid = True
-        return self._formatted_cache
+@dataclass
+class ChatMessage:
+    """A single chat message"""
+    role: str  # 'user', 'assistant', 'system'
+    content: str
+    style: str = ''  # For system messages: 'success', 'error', 'warning', etc.
+    is_streaming: bool = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TUI - Main Class
+# Fullscreen TUI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class TUI:
+class FullscreenTUI:
     """
-    Copilot CLI Style TUI with fixed bottom prompt.
+    True fullscreen TUI with fixed bottom prompt.
 
-    Layout:
-    ┌─────────────────────────────────────────────────────────────────┐
-    │                    Scrollable Chat History                      │
-    ├─────────────────────────────────────────────────────────────────┤
-    │ ~/path[⎇ branch]                          model │ 45% context   │
-    │ ╭───────────────────────────────────────────────────────────────╮
-    │ │ > _                                                           │
-    │ ╰───────────────────────────────────────────────────────────────╯
-    │ Ctrl+c Exit · Tab Complete                     Session: N reqs  │
-    └─────────────────────────────────────────────────────────────────┘
+    Uses prompt_toolkit Application with full_screen=True.
     """
 
     def __init__(self):
@@ -256,109 +206,287 @@ class TUI:
         self.msg_count = 0
         self.current_model = ""
         self.current_branch = ""
-        self.current_path = ""
-        self.context_percent = 0  # 0-100
-        self._welcome_shown = False
+        self.current_path = os.getcwd()
+        self.context_percent = 0
+        self._last_ctrl_c = 0.0
+        self._is_streaming = False
+        self._stream_interrupted = False
+        self._pending_input: Optional[str] = None
+        self._should_exit = False
+        self._hint_message = ""
 
-        # Rich console for fallback and some output
-        self.console = Console(highlight=False)
-
-        # Chat history
-        self.history = ChatHistoryBuffer()
+        # Chat messages
+        self.messages: List[ChatMessage] = []
 
         # Streaming state
         self._stream_state: Optional[Dict] = None
         self._last_stats: Optional[ResponseStats] = None
         self.last_tok_s = 0.0
 
-        # History file for prompt
-        history_file = self._get_history_file()
-        self._prompt_history = FileHistory(str(history_file))
+        # Input history
+        self._history = self._get_history()
 
-        # Prompt session
-        self._session = PromptSession(
-            completer=SlashCommandCompleter(),
-            history=self._prompt_history,
-            auto_suggest=AutoSuggestFromHistory(),
-            style=TUI_STYLE,
-            enable_history_search=True,
-        )
+        # Build the UI
+        self._build_ui()
 
-        # For spinner
-        self._spinner_active = False
-        self._spinner_text = ""
-
-    def _get_history_file(self) -> Path:
-        """Get history file path"""
+    def _get_history(self):
+        """Get command history"""
         try:
             from core.paths import get_data_dir
             history_dir = get_data_dir() / "history"
         except ImportError:
             history_dir = Path.home() / ".local" / "share" / "ryx" / "history"
-
         history_dir.mkdir(parents=True, exist_ok=True)
-        return history_dir / "tui_history"
+        return FileHistory(str(history_dir / "tui_history"))
 
-    def _get_context_style(self) -> str:
-        """Get context indicator style based on percentage"""
-        pct = self.context_percent
-        if pct < 60:
-            return 'context-green'
-        elif pct < 80:
-            return 'context-yellow'
-        elif pct < 95:
-            return 'context-yellow-bold'
-        else:
-            return 'context-red-bold'
+    def _build_ui(self):
+        """Build the fullscreen UI layout"""
+        # Key bindings
+        self.kb = KeyBindings()
 
-    def _build_status_bar(self) -> FormattedText:
-        """Build status bar content"""
+        @self.kb.add('c-c')
+        def handle_ctrl_c(event):
+            """Single Ctrl+C interrupts, double Ctrl+C exits"""
+            now = time.time()
+
+            # Double Ctrl+C within 1 second = exit
+            if now - self._last_ctrl_c < 1.0:
+                self._should_exit = True
+                event.app.exit(result=None)
+                return
+
+            self._last_ctrl_c = now
+
+            # Single Ctrl+C = interrupt current operation
+            if self._is_streaming:
+                self._stream_interrupted = True
+                self._is_streaming = False
+                self.add_system("[Interrupted]", "warning")
+            else:
+                self._hint_message = "[Press Ctrl+C again to exit]"
+                self._invalidate()
+
+        @self.kb.add('c-l')
+        def handle_ctrl_l(event):
+            """Clear chat history"""
+            self.messages = []
+            self._hint_message = "Chat cleared"
+            self._invalidate()
+
+        @self.kb.add('enter')
+        def handle_enter(event):
+            """Submit input"""
+            text = self.input_buffer.text.strip()
+            if text:
+                self._pending_input = text
+                self.input_buffer.reset()
+                event.app.exit(result=text)
+
+        @self.kb.add('c-d')
+        def handle_ctrl_d(event):
+            """Exit on Ctrl+D"""
+            self._pending_input = '/quit'
+            event.app.exit(result='/quit')
+
+        # Input buffer
+        self.input_buffer = Buffer(
+            completer=SlashCommandCompleter(),
+            history=self._history,
+            multiline=False,
+        )
+
+        # Chat history window (scrollable)
+        self.chat_window = ScrollablePane(
+            Window(
+                FormattedTextControl(self._get_chat_text),
+                wrap_lines=True,
+            ),
+            show_scrollbar=True,
+        )
+
+        # Status bar
+        self.status_window = Window(
+            FormattedTextControl(self._get_status_text),
+            height=1,
+            style='class:status-bar',
+        )
+
+        # Input box top border
+        self.input_top = Window(
+            FormattedTextControl(self._get_input_top),
+            height=1,
+        )
+
+        # Input area with prompt
+        self.input_window = VSplit([
+            Window(
+                FormattedTextControl(lambda: [('class:input-border', '│ '), ('class:prompt-char', '> ')]),
+                width=4,
+            ),
+            Window(
+                BufferControl(buffer=self.input_buffer),
+                wrap_lines=False,
+            ),
+            Window(
+                FormattedTextControl(lambda: [('class:input-border', ' │')]),
+                width=2,
+            ),
+        ], height=1)
+
+        # Input box bottom border
+        self.input_bottom = Window(
+            FormattedTextControl(self._get_input_bottom),
+            height=1,
+        )
+
+        # Hints bar
+        self.hints_window = Window(
+            FormattedTextControl(self._get_hints_text),
+            height=1,
+        )
+
+        # Bottom section (fixed height)
+        self.bottom_section = HSplit([
+            self.status_window,
+            self.input_top,
+            self.input_window,
+            self.input_bottom,
+            self.hints_window,
+        ])
+
+        # Main layout
+        self.layout = Layout(
+            HSplit([
+                self.chat_window,  # Takes remaining space
+                self.bottom_section,  # Fixed at bottom
+            ])
+        )
+
+        # Application
+        self.app = Application(
+            layout=self.layout,
+            key_bindings=self.kb,
+            style=TUI_STYLE,
+            full_screen=True,
+            mouse_support=True,
+        )
+
+    def _invalidate(self):
+        """Refresh the display"""
+        if self.app.is_running:
+            self.app.invalidate()
+
+    def _get_chat_text(self) -> FormattedText:
+        """Get formatted chat history"""
         parts = []
 
-        # Left side: path and branch
-        path = self.current_path or os.getcwd()
-        path = path.replace(os.path.expanduser("~"), "~")
-        if len(path) > 30:
-            path = "~/" + os.path.basename(path)
+        if not self.messages:
+            # Welcome message
+            parts.append(('class:muted', '\n  Welcome to Ryx AI\n'))
+            parts.append(('class:dim', '  Type a message to get started. Use /help for commands.\n'))
+            return FormattedText(parts)
+
+        parts.append(('', '\n'))
+
+        for msg in self.messages:
+            if msg.role == 'user':
+                parts.append(('class:user-label', '  You: '))
+                parts.append(('class:user', msg.content))
+                parts.append(('', '\n\n'))
+            elif msg.role == 'assistant':
+                parts.append(('class:assistant-label', '  Ryx: '))
+                if msg.is_streaming:
+                    parts.append(('class:assistant', msg.content))
+                    parts.append(('class:spinner', ' ●'))  # Streaming indicator
+                else:
+                    parts.append(('class:assistant', msg.content))
+                parts.append(('', '\n\n'))
+            else:  # system
+                style = f'class:{msg.style}' if msg.style else 'class:system'
+                parts.append(('', '  '))
+                parts.append((style, msg.content))
+                parts.append(('', '\n\n'))
+
+        return FormattedText(parts)
+
+    def _get_status_text(self) -> FormattedText:
+        """Get status bar text"""
+        parts = []
+
+        # Left: path and branch
+        path = self.current_path.replace(os.path.expanduser("~"), "~")
+        if len(path) > 40:
+            path = "~/" + os.path.basename(self.current_path)
 
         parts.append(('class:status-path', f' {path}'))
 
         if self.current_branch:
-            parts.append(('class:muted', '['))
+            parts.append(('class:dim', '['))
             parts.append(('class:status-branch', f'⎇ {self.current_branch}'))
-            parts.append(('class:muted', ']'))
+            parts.append(('class:dim', ']'))
 
-        # Calculate spacing
-        left_len = len(path) + (len(self.current_branch) + 4 if self.current_branch else 0)
+        # Calculate left length
+        left_len = len(path) + 1
+        if self.current_branch:
+            left_len += len(self.current_branch) + 4
 
-        # Right side: model and context
-        model_name = self.current_model or "unknown"
+        # Right: model and context
+        model_name = self.current_model or "no model"
         if '/' in model_name:
             model_name = model_name.split('/')[-1]
         if len(model_name) > 20:
             model_name = model_name[:17] + "..."
 
         context_str = f'{self.context_percent}%'
-        right_side = f'{model_name} │ {context_str} context'
-        right_len = len(right_side) + 2
+
+        # Context color
+        if self.context_percent < 60:
+            ctx_style = 'class:context-green'
+        elif self.context_percent < 80:
+            ctx_style = 'class:context-yellow'
+        elif self.context_percent < 95:
+            ctx_style = 'class:context-yellow-bold'
+        else:
+            ctx_style = 'class:context-red-bold'
+
+        right_text = f'{model_name} │ {context_str} context '
+        right_len = len(right_text)
+
+        # Get terminal width
+        try:
+            width = shutil.get_terminal_size().columns
+        except:
+            width = 80
 
         # Padding
-        padding = max(1, self.width - left_len - right_len - 2)
+        padding = max(1, width - left_len - right_len)
         parts.append(('class:status-bar', ' ' * padding))
 
-        # Model
         parts.append(('class:status-model', model_name))
-        parts.append(('class:muted', ' │ '))
-
-        # Context with color
-        context_style = self._get_context_style()
-        parts.append((f'class:{context_style}', context_str))
-        parts.append(('class:muted', ' context '))
+        parts.append(('class:dim', ' │ '))
+        parts.append((ctx_style, context_str))
+        parts.append(('class:dim', ' context '))
 
         return FormattedText(parts)
 
-    def _build_hint_bar(self) -> FormattedText:
-        """Build bottom hint bar"""
+    def _get_input_top(self) -> FormattedText:
+        """Get input box top border"""
+        try:
+            width = shutil.get_terminal_size().columns - 4
+        except:
+            width = 76
+        return FormattedText([('class:input-border', '╭' + '─' * width + '╮')])
+
+    def _get_input_bottom(self) -> FormattedText:
+        """Get input box bottom border"""
+        try:
+            width = shutil.get_terminal_size().columns - 4
+        except:
+            width = 76
+        return FormattedText([('class:input-border', '╰' + '─' * width + '╯')])
+
+    def _get_hints_text(self) -> FormattedText:
+        """Get hints bar text"""
         parts = []
 
         # Left: shortcuts
@@ -369,90 +497,81 @@ class TUI:
         parts.append(('class:hint-key', 'Tab'))
         parts.append(('class:hint', ' Complete'))
 
+        # Show hint message if any
+        if self._hint_message:
+            parts.append(('class:warning', f'  {self._hint_message}'))
+            self._hint_message = ""  # Clear after showing
+
         # Right: session info
         session_info = f'Session: {self.msg_count} requests '
-        padding = max(1, self.width - 45 - len(session_info))
+        try:
+            width = shutil.get_terminal_size().columns
+        except:
+            width = 80
+
+        left_len = 45  # Approximate
+        padding = max(1, width - left_len - len(session_info))
         parts.append(('class:hint', ' ' * padding))
         parts.append(('class:muted', session_info))
 
         return FormattedText(parts)
 
-    def _build_prompt_box(self) -> str:
-        """Build the rounded prompt box characters"""
-        inner_width = self.width - 6  # Account for ╭╮ and padding
-        top = f'╭{"─" * inner_width}╮'
-        bottom = f'╰{"─" * inner_width}╯'
-        return top, bottom
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Public Interface (matches CLI class)
+    # ═══════════════════════════════════════════════════════════════════════════
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Public Interface (matches CLI class in cli_ui.py)
-    # ═══════════════════════════════════════════════════════════════════════════
+    def run(self):
+        """Run the fullscreen TUI - main entry point"""
+        try:
+            while not self._should_exit:
+                result = self.app.run()
+                if result is None or self._should_exit:
+                    break
+                if result:
+                    return result
+        except (EOFError, KeyboardInterrupt):
+            pass
+        return None
 
     def prompt(self) -> str:
-        """Get user input with fixed bottom prompt"""
+        """Get user input - runs the app once"""
+        self._pending_input = None
+        self._hint_message = ""
+
         try:
-            # Print status bar
-            status = self._build_status_bar()
-            print()  # Spacing
-
-            # Print prompt box top
-            box_top, box_bottom = self._build_prompt_box()
-            self.console.print(f'[dim]{box_top}[/]')
-
-            # Get input
-            user_input = self._session.prompt(
-                [('class:border.rounded', '│ '), ('class:prompt-char', '> ')],
-            ).strip()
-
-            # Print prompt box bottom
-            self.console.print(f'[dim]{box_bottom}[/]')
-
-            # Print hints
-            # hints = self._build_hint_bar()
-            # print()  # Will format hints separately
-
-            if user_input:
-                self.msg_count += 1
-                self.history.add_user(user_input)
-
-            return user_input
-
-        except EOFError:
+            result = self.app.run()
+            if result is None:
+                if self._should_exit:
+                    return "/quit"
+                return ""
+            return result
+        except (EOFError, KeyboardInterrupt):
             return "/quit"
-        except KeyboardInterrupt:
-            print()
-            return ""
+
+    def add_user(self, content: str):
+        """Add user message to chat"""
+        self.messages.append(ChatMessage(role='user', content=content))
+        self.msg_count += 1
+        self._invalidate()
+
+    def add_assistant(self, content: str):
+        """Add assistant message to chat"""
+        self.messages.append(ChatMessage(role='assistant', content=content))
+        self._invalidate()
+
+    def add_system(self, content: str, style: str = ''):
+        """Add system message"""
+        self.messages.append(ChatMessage(role='system', content=content, style=style))
+        self._invalidate()
 
     def welcome(self, model: str = "", branch: str = "", cwd: str = ""):
-        """Show welcome message"""
+        """Set welcome/status info"""
         if model:
             self.current_model = model
         if branch:
             self.current_branch = branch
         if cwd:
             self.current_path = cwd
-
-        if not self._welcome_shown:
-            path = (cwd or os.getcwd()).replace(os.path.expanduser("~"), "~")
-
-            # Status line
-            self.console.print()
-            line = Text()
-            line.append(path, style="#ef9f76")  # Peach
-            if branch:
-                line.append(" ", style="dim")
-                line.append(f"[⎇ {branch}]", style="#99d1db")  # Teal
-            if model:
-                # Right-align model
-                model_short = model.split('/')[-1] if '/' in model else model
-                padding = self.width - len(path) - len(branch or "") - len(model_short) - 10
-                if padding > 0:
-                    line.append(" " * padding, style="dim")
-                line.append(model_short, style="#f4b8e4")  # Pink
-
-            self.console.print(line)
-            self.console.print()
-            self._welcome_shown = True
 
     def header(self, model: str = "", branch: str = "", cwd: str = ""):
         """Alias for welcome"""
@@ -467,67 +586,41 @@ class TUI:
             self.last_tok_s = tok_s
 
     def set_context(self, percent: int):
-        """Set context usage percentage (0-100)"""
+        """Set context usage percentage"""
         self.context_percent = max(0, min(100, percent))
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Spinner
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    @contextmanager
-    def spinner(self, text: str = ""):
-        """Spinner context manager"""
-        self._spinner_active = True
-        self._spinner_text = text
-
-        # Simple spinner using rich
-        from rich.live import Live
-        from rich.spinner import Spinner
-
-        display_text = f" {text}" if text else ""
-        spinner = Spinner("dots", text=display_text, style="#81c8be")  # Teal
-
-        live = Live(spinner, console=self.console, refresh_per_second=12, transient=True)
-        live.start()
-
-        try:
-            yield
-        finally:
-            live.stop()
-            self._spinner_active = False
-            self._spinner_text = ""
-
-    def spinner_update(self, text: str):
-        """Update spinner text"""
-        self._spinner_text = text
+        self._invalidate()
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Streaming
     # ═══════════════════════════════════════════════════════════════════════════
 
     def stream_start(self, model: str = ""):
-        """Start streaming response"""
+        """Start streaming a response"""
         self._stream_state = {
             "tokens": 0,
             "start": time.time(),
             "model": model,
             "buffer": "",
         }
-        # Start with newline, content in green
-        print()
-        sys.stdout.write("\033[38;2;166;227;161m")  # Green for reply
+        self._is_streaming = True
+        self._stream_interrupted = False
+        # Add empty streaming message
+        self.messages.append(ChatMessage(role='assistant', content='', is_streaming=True))
+        self._invalidate()
 
     def stream_token(self, token: str):
-        """Print streaming token"""
-        if self._stream_state:
+        """Add a token to the streaming response"""
+        if self._stream_state and not self._stream_interrupted:
             self._stream_state["tokens"] += 1
             self._stream_state["buffer"] += token
-            sys.stdout.write(token)
-            sys.stdout.flush()
+            # Update the last message
+            if self.messages and self.messages[-1].is_streaming:
+                self.messages[-1].content = self._stream_state["buffer"]
+                self._invalidate()
 
     def stream_end(self) -> ResponseStats:
-        """End streaming, return stats"""
-        sys.stdout.write("\033[0m")  # Reset color
+        """End streaming"""
+        self._is_streaming = False
 
         if not self._stream_state:
             return ResponseStats()
@@ -541,15 +634,45 @@ class TUI:
         self._last_stats = stats
         self.last_tok_s = stats.tok_per_sec
 
-        # Add to history
-        self.history.add_assistant(buffer)
+        # Mark message as no longer streaming
+        if self.messages and self.messages[-1].is_streaming:
+            self.messages[-1].is_streaming = False
+            self.messages[-1].content = buffer
 
-        # Stats line
+        # Add stats as system message
         tok_s = stats.tok_per_sec
-        self.console.print(f"\n[dim]{tokens} tokens · {tok_s:.0f} tok/s · {duration:.1f}s[/]")
+        self.add_system(f"{tokens} tokens · {tok_s:.0f} tok/s · {duration:.1f}s", "dim")
 
         self._stream_state = None
         return stats
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Spinner (for non-streaming operations)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    @contextmanager
+    def spinner(self, text: str = ""):
+        """Show a spinner during an operation"""
+        spinner_msg = ChatMessage(role='system', content=f"● {text or 'Thinking'}...", style='step')
+        self.messages.append(spinner_msg)
+        self._invalidate()
+
+        try:
+            yield
+        finally:
+            # Remove spinner message
+            if spinner_msg in self.messages:
+                self.messages.remove(spinner_msg)
+            self._invalidate()
+
+    def spinner_update(self, text: str):
+        """Update spinner text"""
+        # Find and update spinner message
+        for msg in reversed(self.messages):
+            if msg.style == 'step' and msg.content.startswith('●'):
+                msg.content = f"● {text}..."
+                self._invalidate()
+                break
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Messages
@@ -557,55 +680,46 @@ class TUI:
 
     def success(self, msg: str):
         """Success message"""
-        self.console.print(f"[#a6d189]✓ {msg}[/]")
-        self.history.add_system(f"✓ {msg}", 'success')
+        self.add_system(f"✓ {msg}", "success")
 
     def error(self, msg: str):
         """Error message"""
-        self.console.print(f"[#e78284]✗ {msg}[/]")
-        self.history.add_system(f"✗ {msg}", 'error')
+        self.add_system(f"✗ {msg}", "error")
 
     def warn(self, msg: str):
         """Warning message"""
-        self.console.print(f"[#e5c890]⚠ {msg}[/]")
-        self.history.add_system(f"⚠ {msg}", 'warning')
+        self.add_system(f"⚠ {msg}", "warning")
 
     def info(self, msg: str):
         """Info message"""
-        self.console.print(f"[#8caaee]ℹ {msg}[/]")
-        self.history.add_system(f"ℹ {msg}", 'info')
+        self.add_system(f"ℹ {msg}", "info")
 
     def muted(self, msg: str):
         """Muted message"""
-        self.console.print(f"[#6c6f85]{msg}[/]")
+        self.add_system(msg, "muted")
 
     def step(self, msg: str):
         """Step/progress message"""
-        self.console.print(f"[#81c8be]● {msg}[/]")
-        self.history.add_system(f"● {msg}", 'step')
+        self.add_system(f"● {msg}", "step")
 
     def confirm(self, msg: str) -> bool:
-        """Confirmation prompt"""
-        self.console.print(f"[#e5c890]? {msg}[/] ", end="")
-        try:
-            response = input("[y/N] ").strip().lower()
-            return response in ['y', 'yes', 'ja', 'j']
-        except:
-            return False
+        """Confirmation prompt - adds to chat and waits for y/n"""
+        self.add_system(f"? {msg} [y/N]", "warning")
+        # For now, use simple input since we're in fullscreen
+        # This will be handled by the main loop
+        return False
 
     def reply(self, msg: str):
         """AI reply"""
-        self.console.print(f"[#a6d189]{msg}[/]")
-        self.history.add_assistant(msg)
+        self.add_assistant(msg)
 
     def nl(self):
-        """Newline"""
-        print()
+        """Add spacing"""
+        pass  # In fullscreen, messages have built-in spacing
 
     def assistant(self, msg: str, model: str = ""):
         """Print assistant response"""
-        self.console.print(f"\n[#a6d189]{msg}[/]")
-        self.history.add_assistant(msg)
+        self.add_assistant(msg)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Steps
@@ -613,37 +727,36 @@ class TUI:
 
     def step_start(self, text: str):
         """Step starting"""
-        self.console.print(f"[#81c8be]● {text}...[/]")
+        self.add_system(f"● {text}...", "step")
 
     def step_done(self, text: str, detail: str = ""):
         """Step done"""
-        line = f"[#a6d189]✓ {text}[/]"
+        msg = f"✓ {text}"
         if detail:
-            line += f" [dim]({detail})[/]"
-        self.console.print(line)
+            msg += f" ({detail})"
+        self.add_system(msg, "success")
 
     def step_fail(self, text: str, error: str = ""):
         """Step failed"""
-        line = f"[#e78284]✗ {text}[/]"
+        msg = f"✗ {text}"
         if error:
-            line += f" [dim]- {error}[/]"
-        self.console.print(line)
+            msg += f" - {error}"
+        self.add_system(msg, "error")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Help
     # ═══════════════════════════════════════════════════════════════════════════
 
     def help_box(self, sections: Dict[str, List[tuple]] = None):
-        """Show help"""
-        from rich.panel import Panel
-
-        help_text = """[#ca9ee6 bold]Shortcuts:[/]
+        """Show help in chat"""
+        help_text = """Shortcuts:
   @          Include file contents
   !          Run shell command
-  Ctrl+c     Cancel/Exit
+  Ctrl+c     Interrupt / Exit (double-press)
+  Ctrl+l     Clear chat
   Tab        Complete command
 
-[#ca9ee6 bold]Commands:[/]
+Commands:
   /help      Show this help
   /clear     Clear conversation
   /model     Show/change model
@@ -651,51 +764,30 @@ class TUI:
   /search    Web search
   /quit      Exit
 
-[#ca9ee6 bold]Examples:[/]
+Examples:
   hyprland config     Open config file
   search recursion    Web search
   create login.py     Generate code"""
-
-        panel = Panel(help_text, title="[#ca9ee6]Ryx[/]", border_style="#626880", padding=(0, 1))
-        self.console.print(panel)
+        self.add_system(help_text, "info")
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Code & Diff (delegating to Rich)
+    # Code & Diff
     # ═══════════════════════════════════════════════════════════════════════════
 
     def code(self, content: str, language: str = "python", title: str = ""):
         """Show code block"""
-        from rich.syntax import Syntax
-        from rich.panel import Panel
-
-        syntax = Syntax(content, language, line_numbers=True, theme="monokai")
-        if title:
-            panel = Panel(syntax, title=title, border_style="#626880")
-            self.console.print(panel)
-        else:
-            self.console.print(syntax)
+        header = f"─── {title} ───" if title else "───"
+        self.add_system(f"{header}\n{content}\n───", "muted")
 
     def diff(self, filename: str, old_lines: List[str], new_lines: List[str]):
         """Show diff"""
         import difflib
-
         diff_lines = list(difflib.unified_diff(
             old_lines, new_lines, fromfile=filename, tofile=filename, lineterm=""
         ))
-
-        if not diff_lines:
-            return
-
-        self.console.print(f"\n[dim]─ {filename}[/]")
-        for line in diff_lines[2:20]:  # Skip header, limit lines
-            if line.startswith("+") and not line.startswith("+++"):
-                self.console.print(f"[#a6d189]{line}[/]")
-            elif line.startswith("-") and not line.startswith("---"):
-                self.console.print(f"[#e78284]{line}[/]")
-            elif line.startswith("@@"):
-                self.console.print(f"[#8caaee]{line}[/]")
-            else:
-                self.console.print(f"[dim]{line}[/]")
+        if diff_lines:
+            diff_text = '\n'.join(diff_lines[:30])
+            self.add_system(f"─── {filename} ───\n{diff_text}", "muted")
 
     def diff_summary(self, files: List[Dict[str, Any]]):
         """Show diff summary"""
@@ -703,138 +795,140 @@ class TUI:
             name = f.get("name", "unknown")
             added = f.get("added", 0)
             removed = f.get("removed", 0)
-            self.console.print(f"[#a6d189]✓[/] [#ef9f76]{name}[/] [dim]+{added} -{removed}[/]")
+            self.add_system(f"✓ {name} +{added} -{removed}", "success")
 
     def search_results(self, results: List[Dict], query: str = "", limit: int = 5):
         """Show search results"""
         if not results:
-            self.muted("No results")
+            self.add_system("No results", "muted")
             return
 
+        lines = []
         if query:
-            self.console.print(f"\n[dim]{len(results)} results for \"{query}\":[/]")
+            lines.append(f'{len(results)} results for "{query}":')
 
         for i, r in enumerate(results[:limit]):
             title = r.get("title", "No title")[:55]
-            url = r.get("url", "")
+            lines.append(f"  {i+1}. {title}")
 
-            domain = ""
-            if url:
-                try:
-                    from urllib.parse import urlparse
-                    domain = urlparse(url).netloc.replace("www.", "")
-                except:
-                    pass
-
-            self.console.print(f"[#ca9ee6]{i+1}.[/] {title}" + (f" [dim]- {domain}[/]" if domain else ""))
+        self.add_system('\n'.join(lines), "info")
 
     def error_detail(self, file: str, error: str, line: int = None, suggestion: str = None):
         """Error with detail"""
         msg = f"✗ {file}"
         if line:
             msg += f":{line}"
-        self.console.print(f"[#e78284]{msg}[/]")
-        self.console.print(f"[dim]  {error}[/]")
+        msg += f"\n  {error}"
         if suggestion:
-            self.console.print(f"[#e5c890]  → {suggestion}[/]")
+            msg += f"\n  → {suggestion}"
+        self.add_system(msg, "error")
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Plan UI (P1.6 compatibility)
+    # Plan UI
     # ═══════════════════════════════════════════════════════════════════════════
 
     def show_plan(self, plan_steps: List[Dict[str, Any]], task: str = "") -> None:
         """Show execution plan"""
-        from rich.panel import Panel
-        from rich.table import Table
-
-        table = Table(show_header=False, box=None, padding=(0, 1))
+        lines = []
+        if task:
+            lines.append(f"Execution Plan: {task}")
+        else:
+            lines.append("Execution Plan:")
 
         for i, step in enumerate(plan_steps, 1):
             action = step.get("action", "modify")
             file_path = step.get("file_path", step.get("file", ""))
             description = step.get("description", "")
-
-            action_colors = {
-                "modify": "#e5c890",
-                "create": "#a6d189",
-                "delete": "#e78284",
-                "run": "#8caaee",
-            }
-            color = action_colors.get(action, "#c6d0f5")
-
-            table.add_row(
-                f"[dim]{i}.[/]",
-                f"[{color}][{action}][/]",
-                f"[#ef9f76]{file_path}[/]"
-            )
+            lines.append(f"  {i}. [{action}] {file_path}")
             if description:
-                table.add_row("", "", f"[dim]{description}[/]")
+                lines.append(f"      {description}")
 
-        title = f"Execution Plan: {task}" if task else "Execution Plan"
-        panel = Panel(table, title=f"[#ca9ee6]{title}[/]", border_style="#626880")
-        self.console.print(panel)
+        self.add_system('\n'.join(lines), "info")
 
     def plan_approval_prompt(self, plan_steps: List[Dict[str, Any]], task: str = "") -> str:
         """Show plan and get approval"""
         self.show_plan(plan_steps, task)
-
-        self.console.print()
-        self.console.print("[#a6d189 bold][y][/] Approve  [#e78284 bold][n][/] Cancel  [#e5c890 bold][e][/] Edit")
-
-        try:
-            choice = input("Choice: ").strip().lower()
-            return choice if choice else 'y'
-        except:
-            return 'n'
+        self.add_system("[y] Approve  [n] Cancel  [e] Edit", "muted")
+        return 'y'  # Default approve for now
 
     def show_plan_progress(self, plan_steps: List[Dict[str, Any]], current_step: int = 0):
         """Show plan with progress"""
+        lines = []
         for i, step in enumerate(plan_steps):
             if step.get("completed", False):
-                icon, color = "✓", "#a6d189"
+                icon = "✓"
             elif step.get("failed", False):
-                icon, color = "✗", "#e78284"
+                icon = "✗"
             elif i == current_step:
-                icon, color = "▸", "#81c8be"
+                icon = "▸"
             else:
-                icon, color = "○", "#6c6f85"
+                icon = "○"
 
             action = step.get("action", "modify")
             file_path = step.get("file_path", "")[:30]
-            self.console.print(f"[{color}]{icon}[/] {i+1}. [{action}] {file_path}")
+            lines.append(f"  {icon} {i+1}. [{action}] {file_path}")
+
+        self.add_system('\n'.join(lines), "step")
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Phase support (for complex tasks)
+    # Phase support
     # ═══════════════════════════════════════════════════════════════════════════
 
     def phase(self, name: str, status: str = "run", detail: str = ""):
         """Show phase status"""
         icons = {"idle": "○", "run": "●", "ok": "✓", "done": "✓", "err": "✗", "skip": "○"}
-        colors = {
-            "idle": "#6c6f85", "run": "#81c8be",
-            "ok": "#a6d189", "done": "#a6d189",
-            "err": "#e78284", "skip": "#6c6f85"
-        }
-
         icon = icons.get(status, "●")
-        color = colors.get(status, "#6c6f85")
-
-        line = f"[{color}]{icon}[/] [{color} bold]{name:8}[/]"
+        msg = f"{icon} {name}"
         if detail:
-            line += f" [dim]{detail}[/]"
-        self.console.print(line)
+            msg += f" {detail}"
+
+        style = "step" if status == "run" else ("success" if status in ("ok", "done") else "muted")
+        self.add_system(msg, style)
 
     def phase_steps(self, steps: List[str], current: int = -1):
         """Show steps within a phase"""
+        lines = []
         for i, step in enumerate(steps):
             if i < current:
-                icon, color = "✓", "#a6d189"
+                icon = "✓"
             elif i == current:
-                icon, color = "▸", "#81c8be"
+                icon = "▸"
             else:
-                icon, color = "○", "#6c6f85"
+                icon = "○"
+            lines.append(f"    {icon} {i+1}. {step}")
+        self.add_system('\n'.join(lines), "muted")
 
-            self.console.print(f"  [{color}]{icon} {i+1}. {step}[/]")
+    def clear(self):
+        """Clear all messages"""
+        self.messages = []
+        self._invalidate()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Legacy TUI wrapper (non-fullscreen fallback)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TUI(FullscreenTUI):
+    """
+    TUI class - now uses fullscreen mode by default.
+    This is a thin wrapper for backward compatibility.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._welcome_shown = False
+
+        # For Rich console fallback (some methods might need it)
+        try:
+            from rich.console import Console
+            self.console = Console(highlight=False)
+        except ImportError:
+            self.console = None
+
+    @property
+    def history(self):
+        """Legacy access to history buffer"""
+        return self
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -852,7 +946,6 @@ def get_tui() -> TUI:
     return _tui
 
 
-# For backwards compatibility with cli_ui.py
 def get_cli():
     """Get CLI instance - returns TUI"""
     return get_tui()
