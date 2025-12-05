@@ -7,6 +7,7 @@ import {
   mockWorkflowNodes,
   mockConnections,
 } from "@/data/mockData";
+import { API_ENDPOINTS } from "@/config";
 
 interface RyxHubContextType {
   // View state
@@ -18,6 +19,8 @@ interface RyxHubContextType {
   selectedSessionId: string | null;
   selectSession: (id: string) => void;
   addMessageToSession: (sessionId: string, message: Omit<Message, "id">) => void;
+  deleteSession: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, newName: string) => Promise<void>;
 
   // Models
   models: Model[];
@@ -32,6 +35,7 @@ interface RyxHubContextType {
   selectNode: (id: string | null) => void;
   isWorkflowRunning: boolean;
   toggleWorkflowRunning: () => void;
+  addWorkflowNode: (node: WorkflowNode) => void;
 }
 
 const RyxHubContext = createContext<RyxHubContextType | null>(null);
@@ -72,10 +76,28 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
   const [ragStatus] = useState<RAGStatus>(mockRAGStatus);
 
   // Workflow state
-  const [workflowNodes] = useState<WorkflowNode[]>(mockWorkflowNodes);
-  const [connections] = useState<Connection[]>(mockConnections);
+  const [workflowNodes, setWorkflowNodes] = useState<WorkflowNode[]>(mockWorkflowNodes);
+  const [connections, setConnections] = useState<Connection[]>(mockConnections);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isWorkflowRunning, setIsWorkflowRunning] = useState(true);
+  const [isWorkflowRunning, setIsWorkflowRunning] = useState(false);
+
+  // Fetch workflows from API
+  useEffect(() => {
+    const fetchWorkflows = async () => {
+      try {
+        const response = await fetch('http://localhost:8420/api/workflows');
+        if (response.ok) {
+          const data = await response.json();
+          // For now, keep using mock workflow nodes until we implement
+          // full workflow canvas with backend persistence
+          console.log('Workflows loaded:', data.workflows);
+        }
+      } catch (error) {
+        console.warn('Failed to fetch workflows, using mock data');
+      }
+    };
+    fetchWorkflows();
+  }, []);
 
   const selectSession = useCallback((id: string) => {
     setSelectedSessionId(id);
@@ -115,6 +137,50 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     setIsWorkflowRunning((prev) => !prev);
   }, []);
 
+  const addWorkflowNode = useCallback((node: WorkflowNode) => {
+    setWorkflowNodes((prev) => [...prev, node]);
+  }, []);
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        if (selectedSessionId === sessionId) {
+          setSelectedSessionId(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+      throw error;
+    }
+  }, [selectedSessionId]);
+
+  const renameSession = useCallback(async (sessionId: string, newName: string) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+      
+      if (response.ok) {
+        const updated = await response.json();
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+      throw error;
+    }
+  }, []);
+
   return (
     <RyxHubContext.Provider
       value={{
@@ -124,6 +190,8 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         selectedSessionId,
         selectSession,
         addMessageToSession,
+        deleteSession,
+        renameSession,
         models,
         ragStatus,
         workflowNodes,
@@ -132,6 +200,7 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         selectNode,
         isWorkflowRunning,
         toggleWorkflowRunning,
+        addWorkflowNode,
       }}
     >
       {children}

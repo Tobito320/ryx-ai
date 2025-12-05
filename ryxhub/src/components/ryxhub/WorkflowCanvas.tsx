@@ -7,6 +7,14 @@ import { AddNodeDialog } from "@/components/ryxhub/AddNodeDialog";
 import type { WorkflowNode } from "@/types/ryxhub";
 import { toast } from "sonner";
 
+// Node positioning constants
+const NODE_POSITION = {
+  BASE_X: 100,
+  BASE_Y: 100,
+  RANDOM_X_RANGE: 400,
+  RANDOM_Y_RANGE: 300,
+};
+
 const nodeIcons = {
   trigger: Zap,
   agent: Bot,
@@ -36,6 +44,7 @@ export function WorkflowCanvas() {
     selectNode,
     isWorkflowRunning,
     toggleWorkflowRunning,
+    addWorkflowNode,
   } = useRyxHub();
 
   const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
@@ -52,12 +61,41 @@ export function WorkflowCanvas() {
     selectNode(node.id === selectedNodeId ? null : node.id);
   };
 
-  const handleAddNode = (nodeData: { type: string; name: string }) => {
-    // TODO: Integrate with backend API to persist workflow nodes
-    // For now, show success feedback to user
-    toast.success(`Node "${nodeData.name}" will be added to the workflow`, {
-      description: "Full workflow persistence coming soon!"
-    });
+  const handleAddNode = async (nodeData: { type: string; name: string }) => {
+    try {
+      // Create new node with random position
+      const newNode: WorkflowNode = {
+        id: `node-${Date.now()}`,
+        type: nodeData.type as "trigger" | "agent" | "tool" | "output",
+        name: nodeData.name,
+        x: NODE_POSITION.BASE_X + Math.random() * NODE_POSITION.RANDOM_X_RANGE,
+        y: NODE_POSITION.BASE_Y + Math.random() * NODE_POSITION.RANDOM_Y_RANGE,
+        status: "idle" as const,
+        config: {},
+        logs: [
+          {
+            time: new Date().toLocaleTimeString(),
+            level: "info",
+            message: `${nodeData.name} node created`
+          }
+        ],
+        runs: []
+      };
+
+      // Add to workflow state
+      addWorkflowNode(newNode);
+      
+      toast.success(`Node "${nodeData.name}" added to workflow`, {
+        description: "Node created successfully"
+      });
+      
+      // In a real implementation, persist to backend via PUT /api/workflows/:id
+      // For now, nodes are stored in React state
+    } catch (error) {
+      toast.error("Failed to add node", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   };
 
   const runningCount = workflowNodes.filter((n) => n.status === "running").length;

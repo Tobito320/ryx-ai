@@ -146,6 +146,75 @@ sessions: Dict[str, SessionInfo] = {}
 message_counter = 0
 
 
+# =============================================================================
+# Workflow Persistence
+# =============================================================================
+
+WORKFLOWS_DIR = Path(os.environ.get("WORKFLOWS_DIR", PROJECT_ROOT / "data" / "workflows"))
+WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
+
+workflows: Dict[str, Dict[str, Any]] = {}
+workflow_runs: Dict[str, Dict[str, Any]] = {}
+
+
+def save_workflow(workflow: Dict[str, Any]) -> None:
+    """Persist workflow to disk."""
+    try:
+        workflow_file = WORKFLOWS_DIR / f"{workflow['id']}.json"
+        with open(workflow_file, 'w') as f:
+            json.dump(workflow, f, indent=2, default=str)
+    except Exception as e:
+        print(f"Failed to save workflow {workflow['id']}: {e}")
+
+
+def load_workflows() -> None:
+    """Load all workflows from disk on startup."""
+    global workflows
+    try:
+        for workflow_file in WORKFLOWS_DIR.glob("*.json"):
+            try:
+                with open(workflow_file) as f:
+                    data = json.load(f)
+                    workflows[data['id']] = data
+            except Exception as e:
+                print(f"Failed to load workflow {workflow_file}: {e}")
+    except Exception as e:
+        print(f"Failed to scan workflows: {e}")
+
+
+def delete_workflow_file(workflow_id: str) -> None:
+    """Delete workflow file from disk."""
+    try:
+        workflow_file = WORKFLOWS_DIR / f"{workflow_id}.json"
+        if workflow_file.exists():
+            workflow_file.unlink()
+    except Exception as e:
+        print(f"Failed to delete workflow file {workflow_id}: {e}")
+
+
+# =============================================================================
+# Activity Log
+# =============================================================================
+
+activity_log: List[Dict[str, Any]] = []
+MAX_ACTIVITY_LOG = 100
+
+
+def log_activity(activity_type: str, message: str) -> None:
+    """Log an activity event."""
+    global activity_log
+    activity_log.insert(0, {
+        "id": len(activity_log) + 1,
+        "type": activity_type,
+        "message": message,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "timestamp": datetime.now().isoformat()
+    })
+    # Keep only the last MAX_ACTIVITY_LOG items
+    if len(activity_log) > MAX_ACTIVITY_LOG:
+        activity_log = activity_log[:MAX_ACTIVITY_LOG]
+
+
 def get_next_message_id() -> str:
     global message_counter
     message_counter += 1
@@ -419,6 +488,10 @@ async def lifespan(app: FastAPI):
     load_sessions()
     print(f"📂 Loaded {len(sessions)} sessions")
 
+    # Load persisted workflows
+    load_workflows()
+    print(f"🔄 Loaded {len(workflows)} workflows")
+
     # Check vLLM connection
     health = await vllm_health_check()
     if health["healthy"]:
@@ -526,6 +599,71 @@ async def get_vllm_metrics() -> Dict[str, Any]:
                 return metrics
     except Exception:
         return {}
+
+
+@app.get("/api/stats/dashboard")
+async def get_dashboard_stats() -> Dict[str, Any]:
+    """Get dashboard statistics."""
+    models = await vllm_list_models()
+    active_agents = len(models)
+    
+    # Count running workflows
+    running_workflows = sum(1 for wf in workflows.values() if wf.get("status") == "running")
+    queued_workflows = sum(1 for wf in workflows.values() if wf.get("status") == "queued")
+    
+    # Get RAG documents count
+    rag_status = await get_rag_status_data()
+    
+    # Count total activity events (as proxy for API calls)
+    # In production, this should track actual API request counts
+    api_calls = len(activity_log)
+    
+    return {
+        "activeAgents": {
+            "value": active_agents,
+            "change": "+0 today"  # Would need historical tracking to show real change
+        },
+        "workflowsRunning": {
+            "value": running_workflows,
+            "queued": queued_workflows
+        },
+        "ragDocuments": {
+            "value": rag_status["indexed"],
+            "pending": rag_status["pending"]
+        },
+        "apiCalls": {
+            "value": f"{api_calls / 1000:.1f}K" if api_calls > 1000 else str(api_calls),
+            "period": "Last 24h"
+        }
+    }
+
+
+@app.get("/api/activity/recent")
+async def get_recent_activity(limit: int = Query(default=10, le=100)) -> Dict[str, List[Dict[str, Any]]]:
+    """Get recent activity log."""
+    return {"activities": activity_log[:limit]}
+
+
+@app.get("/api/workflows/top")
+async def get_top_workflows(limit: int = Query(default=5, le=20)) -> Dict[str, List[Dict[str, Any]]]:
+    """Get top workflows by run count."""
+    # Calculate workflow stats
+    workflow_stats = []
+    for wf_id, wf in workflows.items():
+        runs = wf.get("runs", [])
+        total_runs = len(runs)
+        successful_runs = sum(1 for r in runs if r.get("status") == "success")
+        success_rate = int((successful_runs / total_runs * 100)) if total_runs > 0 else 0
+        
+        workflow_stats.append({
+            "name": wf.get("name", wf_id),
+            "runs": total_runs,
+            "successRate": success_rate
+        })
+    
+    # Sort by runs and take top N
+    workflow_stats.sort(key=lambda x: x["runs"], reverse=True)
+    return {"workflows": workflow_stats[:limit]}
 
 
 @app.get("/api/metrics/vllm")
@@ -804,6 +942,7 @@ async def create_session(data: Dict[str, str]) -> SessionInfo:
     )
     sessions[session_id] = session
     save_session(session)
+    log_activity("success", f"Session '{session.name}' created")
     return session
 
 
@@ -837,9 +976,44 @@ async def update_session(session_id: str, data: Dict[str, Any]) -> SessionInfo:
 async def delete_session(session_id: str) -> Dict[str, str]:
     """Delete a session."""
     if session_id in sessions:
+        session_name = sessions[session_id].name
         del sessions[session_id]
         delete_session_file(session_id)
+        log_activity("warning", f"Session '{session_name}' deleted")
     return {"status": "deleted"}
+
+
+@app.get("/api/sessions/{session_id}/export")
+async def export_session(session_id: str, format: str = Query(default="json")) -> Dict[str, Any]:
+    """Export a session in various formats."""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = sessions[session_id]
+    
+    if format == "markdown":
+        # Convert session to markdown
+        md_content = f"# {session.name}\n\n"
+        md_content += f"**Model:** {session.model}\n"
+        md_content += f"**Date:** {session.timestamp}\n\n"
+        md_content += "---\n\n"
+        
+        for msg in session.messages:
+            role = "**User:**" if msg["role"] == "user" else "**Assistant:**"
+            md_content += f"{role}\n{msg['content']}\n\n"
+        
+        return {
+            "format": "markdown",
+            "content": md_content,
+            "filename": f"{session.name.replace(' ', '_')}.md"
+        }
+    
+    # Default: JSON format
+    return {
+        "format": "json",
+        "content": session.dict(),
+        "filename": f"{session.name.replace(' ', '_')}.json"
+    }
 
 
 # =============================================================================
@@ -1007,22 +1181,28 @@ async def import_cli_session(data: Dict[str, Any]) -> SessionInfo:
 # RAG Endpoints
 # =============================================================================
 
-@app.get("/api/rag/status")
-async def get_rag_status() -> RAGStatus:
-    """Get RAG index status."""
+async def get_rag_status_data() -> Dict[str, Any]:
+    """Get RAG status as dictionary (internal helper)."""
     try:
         from core.rag_system import RAGSystem
         rag = RAGSystem()
         stats = rag.get_stats() if hasattr(rag, 'get_stats') else {}
         rag.close()
-        return RAGStatus(
-            indexed=stats.get("indexed", 0),
-            pending=stats.get("pending", 0),
-            lastSync=stats.get("last_sync", "never"),
-            status=stats.get("status", "idle")
-        )
+        return {
+            "indexed": stats.get("indexed", 0),
+            "pending": stats.get("pending", 0),
+            "lastSync": stats.get("last_sync", "never"),
+            "status": stats.get("status", "idle")
+        }
     except Exception:
-        return RAGStatus(indexed=0, pending=0, lastSync="never", status="unavailable")
+        return {"indexed": 0, "pending": 0, "lastSync": "never", "status": "unavailable"}
+
+
+@app.get("/api/rag/status")
+async def get_rag_status() -> RAGStatus:
+    """Get RAG index status."""
+    data = await get_rag_status_data()
+    return RAGStatus(**data)
 
 
 @app.post("/api/rag/sync")
@@ -1038,6 +1218,24 @@ async def trigger_rag_sync() -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@app.post("/api/rag/upload")
+async def upload_rag_documents() -> Dict[str, Any]:
+    """Upload documents to RAG index.
+    
+    Note: This endpoint is a placeholder for future implementation.
+    In a real implementation, this would:
+    1. Accept multipart/form-data file uploads
+    2. Save uploaded files to a staging directory
+    3. Queue them for processing and embedding
+    4. Add to vector store
+    """
+    try:
+        log_activity("info", "Document upload requested (endpoint not fully implemented)")
+        return {"success": True, "message": "Upload endpoint ready for implementation", "count": 0}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/rag/search")
 async def search_rag(data: Dict[str, Any]) -> Dict[str, Any]:
     """Search RAG index."""
@@ -1049,6 +1247,7 @@ async def search_rag(data: Dict[str, Any]) -> Dict[str, Any]:
         rag = RAGSystem()
         results = rag.search(query, top_k=top_k) if hasattr(rag, 'search') else []
         rag.close()
+        log_activity("info", f"RAG search: '{query[:50]}'")
         return {"results": results, "total": len(results)}
     except Exception:
         return {"results": [], "total": 0}
@@ -1124,39 +1323,158 @@ async def searxng_search(data: Dict[str, Any]) -> Dict[str, Any]:
 # Workflow Endpoints
 # =============================================================================
 
+class WorkflowRequest(BaseModel):
+    """Request model for creating/updating workflow."""
+    name: str
+    nodes: List[Dict[str, Any]] = []
+    connections: List[Dict[str, Any]] = []
+    status: str = "idle"
+
+
 @app.get("/api/workflows")
-async def list_workflows() -> Dict[str, List[WorkflowInfo]]:
+async def list_workflows() -> Dict[str, List[Dict[str, Any]]]:
     """List available workflows."""
-    # TODO: Load from workflow storage
-    return {"workflows": [
-        WorkflowInfo(id="wf-1", name="PR Review", status="idle", lastRun="2h ago"),
-        WorkflowInfo(id="wf-2", name="Code Analysis", status="idle", lastRun="4h ago"),
-    ]}
+    workflow_list = []
+    for wf_id, wf in workflows.items():
+        last_run = "never"
+        runs = wf.get("runs", [])
+        if runs:
+            # Get the most recent run
+            last_run_time = runs[-1].get("timestamp", "never")
+            try:
+                run_dt = datetime.fromisoformat(last_run_time)
+                diff = datetime.now() - run_dt
+                if diff.seconds < 60:
+                    last_run = "just now"
+                elif diff.seconds < 3600:
+                    last_run = f"{diff.seconds // 60}m ago"
+                elif diff.total_seconds() < 86400:
+                    last_run = f"{int(diff.total_seconds() // 3600)}h ago"
+                else:
+                    last_run = f"{diff.days}d ago"
+            except:
+                pass
+        
+        workflow_list.append({
+            "id": wf_id,
+            "name": wf.get("name", wf_id),
+            "status": wf.get("status", "idle"),
+            "lastRun": last_run,
+            "nodeCount": len(wf.get("nodes", [])),
+            "connectionCount": len(wf.get("connections", []))
+        })
+    
+    return {"workflows": workflow_list}
+
+
+@app.post("/api/workflows")
+async def create_workflow(workflow: WorkflowRequest) -> Dict[str, Any]:
+    """Create a new workflow."""
+    workflow_id = f"wf-{int(time.time())}"
+    workflow_data = {
+        "id": workflow_id,
+        "name": workflow.name,
+        "nodes": workflow.nodes,
+        "connections": workflow.connections,
+        "status": workflow.status,
+        "created": datetime.now().isoformat(),
+        "updated": datetime.now().isoformat(),
+        "runs": []
+    }
+    
+    workflows[workflow_id] = workflow_data
+    save_workflow(workflow_data)
+    log_activity("success", f"Workflow '{workflow.name}' created")
+    
+    return {"success": True, "workflow": workflow_data}
 
 
 @app.get("/api/workflows/{workflow_id}")
 async def get_workflow(workflow_id: str) -> Dict[str, Any]:
     """Get workflow details."""
-    # TODO: Load workflow from storage
-    return {
-        "id": workflow_id,
-        "name": "Sample Workflow",
-        "status": "idle",
-        "lastRun": "never",
-        "nodes": [],
-        "connections": []
-    }
+    if workflow_id not in workflows:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    return workflows[workflow_id]
+
+
+@app.put("/api/workflows/{workflow_id}")
+async def update_workflow(workflow_id: str, workflow: WorkflowRequest) -> Dict[str, Any]:
+    """Update an existing workflow."""
+    if workflow_id not in workflows:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    existing = workflows[workflow_id]
+    existing.update({
+        "name": workflow.name,
+        "nodes": workflow.nodes,
+        "connections": workflow.connections,
+        "status": workflow.status,
+        "updated": datetime.now().isoformat()
+    })
+    
+    workflows[workflow_id] = existing
+    save_workflow(existing)
+    log_activity("info", f"Workflow '{workflow.name}' updated")
+    
+    return {"success": True, "workflow": existing}
+
+
+@app.delete("/api/workflows/{workflow_id}")
+async def delete_workflow(workflow_id: str) -> Dict[str, bool]:
+    """Delete a workflow."""
+    if workflow_id not in workflows:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    workflow_name = workflows[workflow_id].get("name", workflow_id)
+    del workflows[workflow_id]
+    delete_workflow_file(workflow_id)
+    log_activity("warning", f"Workflow '{workflow_name}' deleted")
+    
+    return {"success": True}
 
 
 @app.post("/api/workflows/{workflow_id}/run")
 async def run_workflow(workflow_id: str) -> Dict[str, Any]:
     """Run a workflow."""
-    return {"success": True, "run_id": f"run-{int(time.time())}"}
+    if workflow_id not in workflows:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    workflow = workflows[workflow_id]
+    run_id = f"run-{workflow_id}-{int(time.time())}"
+    
+    # Create run record
+    run_record = {
+        "id": run_id,
+        "status": "running",
+        "timestamp": datetime.now().isoformat(),
+        "startTime": datetime.now().isoformat()
+    }
+    
+    if "runs" not in workflow:
+        workflow["runs"] = []
+    workflow["runs"].append(run_record)
+    workflow["status"] = "running"
+    
+    save_workflow(workflow)
+    log_activity("info", f"Workflow '{workflow.get('name')}' started")
+    
+    # In a real implementation, this would trigger actual workflow execution
+    # For now, we'll just mark it as running
+    return {"success": True, "run_id": run_id, "status": "running"}
 
 
 @app.post("/api/workflows/{workflow_id}/pause")
 async def pause_workflow(workflow_id: str) -> Dict[str, str]:
     """Pause a running workflow."""
+    if workflow_id not in workflows:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    workflow = workflows[workflow_id]
+    workflow["status"] = "paused"
+    save_workflow(workflow)
+    log_activity("warning", f"Workflow '{workflow.get('name')}' paused")
+    
     return {"status": "paused"}
 
 

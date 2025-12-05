@@ -9,15 +9,27 @@ import {
   Circle,
   Zap,
   Search,
+  MoreVertical,
+  Trash2,
+  Edit,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useRyxHub } from "@/context/RyxHubContext";
+import { toast } from "sonner";
+import { API_ENDPOINTS } from "@/config";
 
 export function LeftSidebar() {
-  const { sessions, selectedSessionId, selectSession, models, ragStatus, setActiveView } = useRyxHub();
+  const { sessions, selectedSessionId, selectSession, models, ragStatus, setActiveView, deleteSession, renameSession } = useRyxHub();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     sessions: true,
@@ -25,6 +37,8 @@ export function LeftSidebar() {
     rag: true,
     shortcuts: true,
   });
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -48,6 +62,63 @@ export function LeftSidebar() {
   const handleSessionClick = (sessionId: string) => {
     selectSession(sessionId);
     setActiveView("chat");
+  };
+
+  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    try {
+      await deleteSession(sessionId);
+      toast.success(`Session "${session.name}" deleted`);
+    } catch (error) {
+      toast.error("Failed to delete session");
+    }
+  };
+
+  const handleRenameStart = (sessionId: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingSessionId(sessionId);
+    setRenameValue(currentName);
+  };
+
+  const handleRenameSubmit = async (sessionId: string) => {
+    if (!renameValue.trim()) {
+      setRenamingSessionId(null);
+      return;
+    }
+
+    try {
+      await renameSession(sessionId, renameValue);
+      toast.success("Session renamed");
+      setRenamingSessionId(null);
+    } catch (error) {
+      toast.error("Failed to rename session");
+    }
+  };
+
+  const handleExportSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(API_ENDPOINTS.sessionExport(sessionId, 'markdown'));
+      if (response.ok) {
+        const data = await response.json();
+        // Create download link
+        const blob = new Blob([data.content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success("Session exported");
+      }
+    } catch (error) {
+      toast.error("Failed to export session");
+    }
   };
 
   return (
@@ -99,33 +170,83 @@ export function LeftSidebar() {
             {expandedSections.sessions && (
               <div className="space-y-1">
                 {filteredSessions.map((session) => (
-                  <button
+                  <div
                     key={session.id}
-                    onClick={() => handleSessionClick(session.id)}
                     className={cn(
-                      "w-full p-2.5 rounded-lg text-left transition-all",
+                      "relative group w-full p-2.5 rounded-lg transition-all",
                       session.id === selectedSessionId
                         ? "bg-primary/10 border border-primary/30"
                         : "hover:bg-muted/50 border border-transparent"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground truncate">
-                        {session.name}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {session.timestamp}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">
-                      {session.lastMessage}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        {session.model}
-                      </span>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => handleSessionClick(session.id)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-center justify-between">
+                        {renamingSessionId === session.id ? (
+                          <Input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={() => handleRenameSubmit(session.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRenameSubmit(session.id);
+                              if (e.key === 'Escape') setRenamingSessionId(null);
+                            }}
+                            className="h-6 text-sm"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {session.name}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">
+                            {session.timestamp}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => handleRenameStart(session.id, session.name, e)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => handleExportSession(session.id, e)}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Export
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={(e) => handleDeleteSession(session.id, e)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {session.lastMessage}
+                      </p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          {session.model}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
                 ))}
                 <Button 
                   variant="ghost" 

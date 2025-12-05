@@ -3,10 +3,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { SearxngStatus } from "@/components/ryxhub/SearxngStatus";
-import { mockDashboardStats, mockRecentActivity, mockTopWorkflows } from "@/data/mockData";
+import { useEffect, useState } from "react";
+import { ryxService } from "@/services/ryxService";
+import { API_ENDPOINTS, POLLING_INTERVALS } from "@/config";
 
 export function DashboardView() {
   const { models, ragStatus, workflowNodes } = useRyxHub();
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [topWorkflows, setTopWorkflows] = useState<any[]>([]);
+
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch stats
+        const statsResponse = await fetch(API_ENDPOINTS.dashboardStats);
+        if (statsResponse.ok) {
+          const data = await statsResponse.json();
+          setDashboardStats(data);
+        }
+
+        // Fetch activity
+        const activityResponse = await fetch(`${API_ENDPOINTS.recentActivity}?limit=5`);
+        if (activityResponse.ok) {
+          const data = await activityResponse.json();
+          setRecentActivity(data.activities || []);
+        }
+
+        // Fetch top workflows
+        const workflowsResponse = await fetch(`${API_ENDPOINTS.topWorkflows}?limit=4`);
+        if (workflowsResponse.ok) {
+          const data = await workflowsResponse.json();
+          setTopWorkflows(data.workflows || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      }
+    };
+
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, POLLING_INTERVALS.dashboard);
+    return () => clearInterval(interval);
+  }, []);
 
   // Calculate live stats from context
   const activeAgentsCount = models.filter((m) => m.status === "online").length;
@@ -15,32 +54,32 @@ export function DashboardView() {
   const stats = [
     {
       title: "Active Agents",
-      value: String(activeAgentsCount),
-      change: mockDashboardStats.activeAgents.change,
+      value: dashboardStats?.activeAgents?.value?.toString() || String(activeAgentsCount),
+      change: dashboardStats?.activeAgents?.change || "+0 today",
       icon: Bot,
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
     {
       title: "Workflows Running",
-      value: String(runningWorkflows),
-      change: `${mockDashboardStats.workflowsRunning.queued} queued`,
+      value: dashboardStats?.workflowsRunning?.value?.toString() || String(runningWorkflows),
+      change: `${dashboardStats?.workflowsRunning?.queued || 0} queued`,
       icon: Zap,
       color: "text-[hsl(var(--warning))]",
       bgColor: "bg-[hsl(var(--warning))]/10",
     },
     {
       title: "RAG Documents",
-      value: ragStatus.indexed.toLocaleString(),
-      change: `+${ragStatus.pending} pending`,
+      value: (dashboardStats?.ragDocuments?.value || ragStatus.indexed).toLocaleString(),
+      change: `+${dashboardStats?.ragDocuments?.pending || ragStatus.pending} pending`,
       icon: Database,
       color: "text-accent",
       bgColor: "bg-accent/10",
     },
     {
       title: "API Calls",
-      value: mockDashboardStats.apiCalls.value,
-      change: mockDashboardStats.apiCalls.period,
+      value: dashboardStats?.apiCalls?.value || "0",
+      change: dashboardStats?.apiCalls?.period || "Last 24h",
       icon: Activity,
       color: "text-[hsl(var(--success))]",
       bgColor: "bg-[hsl(var(--success))]/10",
@@ -105,18 +144,24 @@ export function DashboardView() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {mockRecentActivity.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors"
-                  >
-                    {getActivityIcon(activity.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">{activity.message}</p>
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      {getActivityIcon(activity.type)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{activity.message}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground shrink-0">{activity.time}</span>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No recent activity</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -136,17 +181,24 @@ export function DashboardView() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockTopWorkflows.map((workflow) => (
-                  <div key={workflow.name} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">{workflow.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {workflow.runs} runs • {workflow.successRate}% success
-                      </span>
+                {topWorkflows.length > 0 ? (
+                  topWorkflows.map((workflow) => (
+                    <div key={workflow.name} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">{workflow.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {workflow.runs} runs • {workflow.successRate}% success
+                        </span>
+                      </div>
+                      <Progress value={workflow.successRate} className="h-2" />
                     </div>
-                    <Progress value={workflow.successRate} className="h-2" />
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No workflows yet</p>
+                    <p className="text-xs mt-1">Create your first workflow to get started</p>
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
