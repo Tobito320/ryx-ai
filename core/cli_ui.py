@@ -98,17 +98,14 @@ class ResponseStats:
 
 class CLI:
     """
-    Fancy minimal CLI - no box, just beautiful colors.
+    Fancy minimal CLI with Copilot-style bottom prompt box.
     
     Layout:
-    ~/path (branch)                                              model
-    ──────────────────────────────────────────────────────────────────
-    > prompt here
-    
-    [response in green]
-    
-    ──────────────────────────────────────────────────────────────────
-    > next prompt
+    ~/repo[⎇ branch]                        model │ 45% context
+    ╭─────────────────────────────────────────────────────────────╮
+    │ > prompt here                                               │
+    ╰─────────────────────────────────────────────────────────────╯
+    Ctrl+c Exit · Tab Complete                    Session: 5 requests
     """
     
     def __init__(self):
@@ -127,33 +124,128 @@ class CLI:
         self.current_model = ""
         self.current_branch = ""
         self.current_path = ""
+        self.context_percent = 0
+        self.session_requests = 0
         self._welcome_shown = False
+        
+        # Get git info
+        self._update_git_info()
+    
+    def _update_git_info(self):
+        """Get git repo and branch info."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ['git', 'rev-parse', '--show-toplevel'],
+                capture_output=True, text=True, timeout=1
+            )
+            if result.returncode == 0:
+                self.current_path = "~/" + os.path.basename(result.stdout.strip())
+                
+                result = subprocess.run(
+                    ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                    capture_output=True, text=True, timeout=1
+                )
+                if result.returncode == 0:
+                    self.current_branch = result.stdout.strip()
+        except:
+            pass
+        
+        if not self.current_path:
+            cwd = os.getcwd()
+            home = os.path.expanduser("~")
+            self.current_path = cwd.replace(home, "~") if cwd.startswith(home) else cwd
+    
+    def _get_context_indicator(self) -> str:
+        """Get context percentage with color coding."""
+        pct = self.context_percent
+        if pct >= 95:
+            return f"[bold red]Truncated[/]"
+        elif pct >= 80:
+            return f"[bold yellow]{pct}%[/]"
+        elif pct >= 60:
+            return f"[yellow]{pct}%[/]"
+        else:
+            return f"[green]{pct}%[/]"
+    
+    def set_context_percent(self, percent: int):
+        """Update context usage percentage."""
+        self.context_percent = min(100, max(0, percent))
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # Prompt - Simple and beautiful
+    # Prompt - Beautiful boxed input with status
     # ═══════════════════════════════════════════════════════════════════════════
     
     def prompt(self) -> str:
-        """Simple prompt - just > with purple color, nothing else"""
-        prompt_c = "\033[38;2;202;158;230m"   # Purple
-        reset = "\033[0m"
+        """Copilot CLI style prompt with rounded box"""
+        # Build the prompt box
+        box_width = min(self.width - 4, 80)
+        inner_width = box_width - 4
         
+        # Header line: git info left, model + context right
+        git_info = f"{self.current_path}[⎇ {self.current_branch}]" if self.current_branch else self.current_path
+        model_info = f"{self.current_model} │ {self._get_context_indicator()}" if self.current_model else ""
+        
+        # Colors
+        cyan = "\033[36m"
+        green = "\033[32m"
+        yellow = "\033[33m"
+        red = "\033[31m"
+        dim = "\033[2m"
+        bold = "\033[1m"
+        reset = "\033[0m"
+        purple = "\033[38;2;202;158;230m"
+        
+        # Context color
+        pct = self.context_percent
+        if pct >= 95:
+            ctx_color = f"{bold}{red}"
+            ctx_text = "Truncated"
+        elif pct >= 80:
+            ctx_color = f"{bold}{yellow}"
+            ctx_text = f"{pct}%"
+        elif pct >= 60:
+            ctx_color = yellow
+            ctx_text = f"{pct}%"
+        else:
+            ctx_color = green
+            ctx_text = f"{pct}%"
+        
+        # Print header
+        header_left = f"{cyan}{git_info}{reset}"
+        header_right = f"{green}{self.current_model}{reset} │ {ctx_color}{ctx_text}{reset}" if self.current_model else ""
+        
+        # Calculate spacing
+        left_len = len(git_info)
+        right_len = len(self.current_model) + 3 + len(ctx_text) if self.current_model else 0
+        spacing = box_width - left_len - right_len - 2
+        
+        print(f"\n{header_left}{' ' * max(1, spacing)}{header_right}")
+        
+        # Box top
+        print(f"{dim}╭{'─' * box_width}╮{reset}")
+        
+        # Input line
         try:
-            user_input = input(f"{prompt_c}>{reset} ").strip()
-            self.msg_count += 1
-            return user_input
+            user_input = input(f"{dim}│{reset} {purple}>{reset} ").strip()
         except EOFError:
+            print(f"{dim}╰{'─' * box_width}╯{reset}")
             return "/quit"
         except KeyboardInterrupt:
-            print()
+            print(f"\n{dim}╰{'─' * box_width}╯{reset}")
             return ""
-            self.msg_count += 1
-            return user_input
-        except EOFError:
-            return "/quit"
-        except KeyboardInterrupt:
-            print()
-            return ""
+        
+        # Box bottom
+        print(f"{dim}╰{'─' * box_width}╯{reset}")
+        
+        # Footer: shortcuts left, session info right
+        self.session_requests += 1
+        footer_left = f"{dim}Ctrl+c{reset} Exit · {dim}Tab{reset} Complete"
+        footer_right = f"Session: {self.session_requests} requests"
+        print(f"{footer_left}{' ' * max(1, box_width - 30 - len(footer_right))}{dim}{footer_right}{reset}")
+        
+        self.msg_count += 1
+        return user_input
     
     # ═══════════════════════════════════════════════════════════════════════════
     # Welcome - Just show once at start

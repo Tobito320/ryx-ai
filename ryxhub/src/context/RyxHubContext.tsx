@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import type { Session, Model, RAGStatus, WorkflowNode, Connection, ViewMode, Message } from "@/types/ryxhub";
 import {
   mockSessions,
@@ -44,8 +44,29 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>(mockSessions);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>("session-1");
 
-  // Models state
-  const [models] = useState<Model[]>(mockModels);
+  // Models state - fetch from API
+  const [models, setModels] = useState<Model[]>(mockModels);
+  
+  // Fetch models from API on mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const response = await fetch('http://localhost:8420/api/models');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.models) {
+            setModels(data.models);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to fetch models, using mock data');
+      }
+    };
+    fetchModels();
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchModels, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // RAG state
   const [ragStatus] = useState<RAGStatus>(mockRAGStatus);

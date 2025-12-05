@@ -237,7 +237,8 @@ export const ryxApi = {
   },
 
   async getModelStatus(modelId: string): Promise<{ id: string; status: string; loaded: boolean; message: string }> {
-    return apiRequest<{ id: string; status: string; loaded: boolean; message: string }>(`/api/models/${modelId}/status`);
+    const encodedId = encodeURIComponent(modelId);
+    return apiRequest<{ id: string; status: string; loaded: boolean; message: string }>(`/api/models/${encodedId}/status`);
   },
 
   // ============ Sessions ============

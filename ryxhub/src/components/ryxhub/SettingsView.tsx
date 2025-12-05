@@ -69,7 +69,7 @@ export function SettingsView() {
     fetchMetrics();
     
     if (autoRefresh) {
-      const interval = setInterval(fetchMetrics, 5000);
+      const interval = setInterval(fetchMetrics, 2000); // 2 second refresh
       return () => clearInterval(interval);
     }
   }, [autoRefresh]);

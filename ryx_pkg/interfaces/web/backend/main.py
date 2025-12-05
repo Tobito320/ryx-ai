@@ -736,9 +736,13 @@ async def unload_model(data: Dict[str, str]) -> Dict[str, Any]:
     }
 
 
-@app.get("/api/models/{model_id}/status")
+@app.get("/api/models/{model_id:path}/status")
 async def get_model_status(model_id: str) -> Dict[str, Any]:
     """Get the status of a specific model."""
+    # URL decode the model_id
+    from urllib.parse import unquote
+    model_id = unquote(model_id)
+    
     loaded_models = await vllm_list_models()
     
     is_loaded = model_id in loaded_models
