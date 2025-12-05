@@ -68,13 +68,14 @@ TUI_STYLE = PTStyle.from_dict({
     'assistant': '#a6d189',        # Green - AI replies
     'assistant-label': '#a6d189 bold',
     'system': '#6c6f85',           # Muted - system messages
-    'success': '#a6d189',
-    'error': '#e78284',
-    'warning': '#e5c890',
-    'info': '#8caaee',
+    'success': '#a6d189',          # Green dot - completed
+    'error': '#e78284',            # Red dot - failed
+    'warning': '#e5c890',          # Yellow dot - warning
+    'info': '#8caaee',             # Blue dot - info
+    'thinking': '#e5c890 italic',  # Yellow dot - thinking/planning
+    'step': '#81c8be',             # Cyan dot - in progress
     'muted': '#6c6f85',
     'dim': '#51576d',
-    'step': '#81c8be',
 
     # Status bar
     'status-bar': 'bg:#303446 #c6d0f5',
@@ -298,12 +299,32 @@ class FullscreenTUI:
                     self._hint_message = "Processing..."
                     self._invalidate()
                     
-                    # Run in background thread
+                    # Run in background thread with stderr capture
                     import threading
+                    import io
+                    import sys
+                    import logging
+                    
                     def process():
+                        # Suppress logging output that would break TUI
+                        old_stderr = sys.stderr
+                        sys.stderr = io.StringIO()
+                        
+                        # Also suppress specific loggers
+                        searxng_logger = logging.getLogger('core.council.searxng')
+                        old_level = searxng_logger.level
+                        searxng_logger.setLevel(logging.CRITICAL)
+                        
                         try:
                             self._on_submit(text)
+                        except Exception as e:
+                            # Show error in TUI
+                            self.add_system(f"Error: {e}", "error")
                         finally:
+                            # Restore stderr and logger
+                            sys.stderr = old_stderr
+                            searxng_logger.setLevel(old_level)
+                            
                             self._is_processing = False
                             self._hint_message = ""
                             self._invalidate()
@@ -758,26 +779,50 @@ class FullscreenTUI:
         self.add_assistant(msg)
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Steps
+    # Thinking Steps (colored status dots)
     # ═══════════════════════════════════════════════════════════════════════════
 
+    def thinking(self, text: str):
+        """Show thinking/planning step (yellow dot)"""
+        self.add_system(f"● {text}", "thinking")
+        self._invalidate()
+
     def step_start(self, text: str):
-        """Step starting"""
-        self.add_system(f"● {text}...", "step")
+        """Step starting (cyan dot, animated feel)"""
+        self.add_system(f"◐ {text}...", "step")
+        self._invalidate()
 
     def step_done(self, text: str, detail: str = ""):
-        """Step done"""
-        msg = f"✓ {text}"
+        """Step completed successfully (green dot)"""
+        msg = f"● {text}"
         if detail:
-            msg += f" ({detail})"
+            msg += f"\n   └ {detail}"
         self.add_system(msg, "success")
+        self._invalidate()
 
     def step_fail(self, text: str, error: str = ""):
-        """Step failed"""
-        msg = f"✗ {text}"
+        """Step failed (red dot)"""
+        msg = f"● {text}"
         if error:
-            msg += f" - {error}"
+            msg += f"\n   └ {error}"
         self.add_system(msg, "error")
+        self._invalidate()
+    
+    def step_info(self, text: str, detail: str = ""):
+        """Info step (blue dot)"""
+        msg = f"● {text}"
+        if detail:
+            msg += f"\n   └ {detail}"
+        self.add_system(msg, "info")
+        self._invalidate()
+    
+    def step_warn(self, text: str, detail: str = ""):
+        """Warning step (yellow dot)"""
+        msg = f"● {text}"
+        if detail:
+            msg += f"\n   └ {detail}"
+        self.add_system(msg, "warning")
+        self._invalidate()
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Help

@@ -373,8 +373,12 @@ class SessionLoop:
         
         if self.supervisor:
             try:
+                if hasattr(self.cli, 'thinking'):
+                    self.cli.thinking("Analyzing query")
                 result = self._supervisor_dispatch(user_input)
                 if result and result.strip():
+                    if hasattr(self.cli, 'step_done'):
+                        self.cli.step_done("Response ready")
                     self.cli.assistant(result)
                     self.history.append({'role': 'assistant', 'content': result, 'ts': datetime.now().isoformat()})
                     self.brain.add_message('assistant', result[:500])
@@ -384,17 +388,23 @@ class SessionLoop:
             except Exception as e:
                 # Fallback to brain on supervisor error
                 if "connect" not in str(e).lower():
-                    self.cli.warn(f"Supervisor error: {e}")
+                    if hasattr(self.cli, 'step_warn'):
+                        self.cli.step_warn("Supervisor unavailable, using fallback")
         
         # ─────────────────────────────────────────────────────────────
         # FALLBACK: Use brain directly
         # ─────────────────────────────────────────────────────────────
         
         # Understand the input
-        with self.cli.spinner():
-            plan = self.brain.understand(user_input)
+        if hasattr(self.cli, 'step_start'):
+            self.cli.step_start("Understanding")
+        plan = self.brain.understand(user_input)
+        if hasattr(self.cli, 'step_done'):
+            self.cli.step_done("Understood", f"intent: {plan.intent.value}")
         
         # Execute
+        if hasattr(self.cli, 'step_start'):
+            self.cli.step_start("Executing")
         success, result = self.brain.execute(plan)
         
         # Always sync sources from brain context (search can happen in CHAT too)
@@ -1059,17 +1069,26 @@ class SessionLoop:
                     break
         
         # Run async supervisor in sync context
+        # Create a new event loop for this thread if needed
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         
-        # Show spinner while processing
-        with self.cli.spinner():
+        # Show thinking step
+        if hasattr(self.cli, 'thinking'):
+            self.cli.thinking("Processing query")
+        
+        try:
             result = loop.run_until_complete(
                 self.supervisor.handle_query(user_input, style=style, context=context)
             )
+        except Exception as e:
+            # Show error in TUI instead of printing to stderr
+            if hasattr(self.cli, 'step_fail'):
+                self.cli.step_fail("Query failed", str(e))
+            return None
         
         if not result:
             return None

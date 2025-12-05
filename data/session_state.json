@@ -44,14 +44,64 @@
       "role": "user",
       "content": "test",
       "ts": "2025-12-05T02:32:20.272001"
+    },
+    {
+      "role": "user",
+      "content": "h",
+      "ts": "2025-12-05T02:33:14.890966"
+    },
+    {
+      "role": "assistant",
+      "content": "The specific information you're looking for isn't clear. Are you seeking general advice on searching the internet, or do you need help with a particular topic or question? [5]",
+      "ts": "2025-12-05T02:33:18.285159"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-05T02:50:37.821536"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! How can I assist you today? [1][2]",
+      "ts": "2025-12-05T02:50:40.296064"
+    },
+    {
+      "role": "user",
+      "content": "how are a",
+      "ts": "2025-12-05T02:50:42.498023"
+    },
+    {
+      "role": "assistant",
+      "content": "No specific information available. [1]",
+      "ts": "2025-12-05T02:50:42.942148"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "ts": "2025-12-05T02:50:47.601779"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! Can you provide more details about the test you need help with? [1]",
+      "ts": "2025-12-05T02:50:48.095452"
+    },
+    {
+      "role": "user",
+      "content": "whats going on",
+      "ts": "2025-12-05T02:50:53.413496"
+    },
+    {
+      "role": "assistant",
+      "content": "No information available to determine current events. [1]",
+      "ts": "2025-12-05T02:50:53.841236"
     }
   ],
   "stats": {
-    "prompts": 1,
-    "actions": 0,
+    "prompts": 4,
+    "actions": 4,
     "files": 0,
     "urls": 0,
-    "searches": 0,
+    "searches": 4,
     "scrapes": 0
   },
   "precision_mode": false,
@@ -62,5 +112,5 @@
     "last_intent": null,
     "created_files": []
   },
-  "saved_at": "2025-12-05T02:32:20.557742"
+  "saved_at": "2025-12-05T02:51:04.139372"
 }
