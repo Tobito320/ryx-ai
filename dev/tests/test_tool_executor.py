@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 
-from ryx.core.tool_executor import (
+from ryx_pkg.core.tool_executor import (
     ToolExecutor,
     ToolResult,
     ToolFileNotFoundError,
@@ -15,10 +15,9 @@ from ryx.core.tool_executor import (
     ToolExecutionError,
     ToolValidationError,
 )
-from ryx.core.permission_manager import (
+from core.permissions import (
     PermissionManager,
     PermissionLevel,
-    set_permission_manager,
 )
 
 

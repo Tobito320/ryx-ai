@@ -162,7 +162,7 @@ class SessionMode:
                 })
                 
                 # Cache response
-                self.rag.cache_response(prompt, ai_text, response["model"])
+                self.rag.cache_response(prompt, ai_text, result.model if hasattr(result, 'model') else 'unknown')
                 
                 # Parse commands
                 commands = self.executor.parse_commands(ai_text)
