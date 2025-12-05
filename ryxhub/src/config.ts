@@ -23,8 +23,15 @@ export const API_ENDPOINTS = {
   // Sessions
   sessions: `${API_BASE_URL}/api/sessions`,
   sessionById: (id: string) => `${API_BASE_URL}/api/sessions/${id}`,
-  sessionExport: (id: string, format = 'markdown') => 
+  sessionMessages: (id: string) => `${API_BASE_URL}/api/sessions/${id}/messages`,
+  sessionTools: (id: string) => `${API_BASE_URL}/api/sessions/${id}/tools`,
+  sessionExport: (id: string, format = 'markdown') =>
     `${API_BASE_URL}/api/sessions/${id}/export?format=${format}`,
+
+  // Tools
+  tools: `${API_BASE_URL}/api/tools`,
+  searxngStatus: `${API_BASE_URL}/api/searxng/status`,
+  searxngSearch: `${API_BASE_URL}/api/searxng/search`,
   
   // Workflows
   workflows: `${API_BASE_URL}/api/workflows`,

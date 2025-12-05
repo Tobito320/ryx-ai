@@ -1,13 +1,13 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 import type { Session, Model, RAGStatus, WorkflowNode, Connection, ViewMode, Message } from "@/types/ryxhub";
 import {
-  mockSessions,
   mockModels,
-  mockRAGStatus,
   mockWorkflowNodes,
   mockConnections,
 } from "@/data/mockData";
 import { API_ENDPOINTS } from "@/config";
+import type { ToolConfig } from "@/components/ryxhub/ToolsPanel";
+import { defaultTools } from "@/components/ryxhub/ToolsPanel";
 
 interface RyxHubContextType {
   // View state
@@ -18,15 +18,22 @@ interface RyxHubContextType {
   sessions: Session[];
   selectedSessionId: string | null;
   selectSession: (id: string) => void;
+  createSession: (name: string, model?: string) => Promise<Session | null>;
   addMessageToSession: (sessionId: string, message: Omit<Message, "id">) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, newName: string) => Promise<void>;
+  refreshSessions: () => Promise<void>;
 
   // Models
   models: Model[];
 
   // RAG
   ragStatus: RAGStatus;
+  refreshRAGStatus: () => Promise<void>;
+
+  // Tools
+  tools: ToolConfig[];
+  toggleTool: (toolId: string, enabled: boolean) => void;
 
   // Workflow
   workflowNodes: WorkflowNode[];
@@ -36,6 +43,7 @@ interface RyxHubContextType {
   isWorkflowRunning: boolean;
   toggleWorkflowRunning: () => void;
   addWorkflowNode: (node: WorkflowNode) => void;
+  runWorkflow: (workflowId: string) => Promise<void>;
 }
 
 const RyxHubContext = createContext<RyxHubContextType | null>(null);
@@ -44,18 +52,61 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
   // View state
   const [activeView, setActiveView] = useState<ViewMode>("dashboard");
 
-  // Sessions state
-  const [sessions, setSessions] = useState<Session[]>(mockSessions);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>("session-1");
+  // Sessions state - initialize empty, fetch from API
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   // Models state - fetch from API
   const [models, setModels] = useState<Model[]>(mockModels);
-  
+
+  // Tools state
+  const [tools, setTools] = useState<ToolConfig[]>(defaultTools);
+
+  // RAG state
+  const [ragStatus, setRAGStatus] = useState<RAGStatus>({
+    indexed: 0,
+    pending: 0,
+    lastSync: "never",
+    status: "idle",
+  });
+
+  // Fetch sessions from API on mount
+  const refreshSessions = useCallback(async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.sessions);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.sessions && data.sessions.length > 0) {
+          setSessions(data.sessions);
+          // Auto-select first session if none selected
+          if (!selectedSessionId) {
+            setSelectedSessionId(data.sessions[0].id);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch sessions:', error);
+    }
+  }, [selectedSessionId]);
+
+  // Fetch RAG status
+  const refreshRAGStatus = useCallback(async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.ragStatus);
+      if (response.ok) {
+        const data = await response.json();
+        setRAGStatus(data);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch RAG status:', error);
+    }
+  }, []);
+
   // Fetch models from API on mount
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const response = await fetch('http://localhost:8420/api/models');
+        const response = await fetch(API_ENDPOINTS.models);
         if (response.ok) {
           const data = await response.json();
           if (data.models) {
@@ -67,13 +118,12 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
       }
     };
     fetchModels();
+    refreshSessions();
+    refreshRAGStatus();
     // Refresh every 10 seconds
     const interval = setInterval(fetchModels, 10000);
     return () => clearInterval(interval);
-  }, []);
-
-  // RAG state
-  const [ragStatus] = useState<RAGStatus>(mockRAGStatus);
+  }, [refreshSessions, refreshRAGStatus]);
 
   // Workflow state
   const [workflowNodes, setWorkflowNodes] = useState<WorkflowNode[]>(mockWorkflowNodes);
@@ -85,15 +135,13 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const fetchWorkflows = async () => {
       try {
-        const response = await fetch('http://localhost:8420/api/workflows');
+        const response = await fetch(API_ENDPOINTS.workflows);
         if (response.ok) {
           const data = await response.json();
-          // For now, keep using mock workflow nodes until we implement
-          // full workflow canvas with backend persistence
-          console.log('Workflows loaded:', data.workflows);
+          console.log('Workflows loaded:', data.workflows?.length || 0);
         }
       } catch (error) {
-        console.warn('Failed to fetch workflows, using mock data');
+        console.warn('Failed to fetch workflows');
       }
     };
     fetchWorkflows();
@@ -139,6 +187,67 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
 
   const addWorkflowNode = useCallback((node: WorkflowNode) => {
     setWorkflowNodes((prev) => [...prev, node]);
+  }, []);
+
+  const createSession = useCallback(async (name: string, model?: string): Promise<Session | null> => {
+    try {
+      const response = await fetch(API_ENDPOINTS.sessions, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, model }),
+      });
+
+      if (response.ok) {
+        const newSession = await response.json();
+        setSessions((prev) => [newSession, ...prev]);
+        setSelectedSessionId(newSession.id);
+        return newSession;
+      }
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    }
+    return null;
+  }, []);
+
+  const toggleTool = useCallback((toolId: string, enabled: boolean) => {
+    setTools((prev) =>
+      prev.map((tool) =>
+        tool.id === toolId ? { ...tool, enabled } : tool
+      )
+    );
+
+    // Persist tool state to backend if session is selected
+    if (selectedSessionId) {
+      fetch(API_ENDPOINTS.sessionTools(selectedSessionId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolId, enabled }),
+      }).catch((err) => console.warn('Failed to persist tool state:', err));
+    }
+  }, [selectedSessionId]);
+
+  const runWorkflow = useCallback(async (workflowId: string) => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.workflowById(workflowId)}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setIsWorkflowRunning(true);
+        console.log('Workflow started:', result);
+
+        // Update node statuses as workflow runs
+        if (result.runId) {
+          // Could connect to WebSocket here for real-time updates
+          console.log('Run ID:', result.runId);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to run workflow:', error);
+    }
   }, []);
 
   const deleteSession = useCallback(async (sessionId: string) => {
@@ -189,11 +298,16 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         sessions,
         selectedSessionId,
         selectSession,
+        createSession,
         addMessageToSession,
         deleteSession,
         renameSession,
+        refreshSessions,
         models,
         ragStatus,
+        refreshRAGStatus,
+        tools,
+        toggleTool,
         workflowNodes,
         connections,
         selectedNodeId,
@@ -201,6 +315,7 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         isWorkflowRunning,
         toggleWorkflowRunning,
         addWorkflowNode,
+        runWorkflow,
       }}
     >
       {children}

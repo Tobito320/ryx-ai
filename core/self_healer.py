@@ -282,7 +282,7 @@ Entries to review:
         
         response = llm.generate(
             prompt=prompt,
-            model="qwen2.5-coder:14b",  # Use capable model for cleanup decisions
+            model="/models/medium/coding/qwen2.5-coder-7b-gptq",  # Use capable model for cleanup decisions
             system="You are a data curator. Return ONLY valid JSON, no explanation.",
             max_tokens=500
         )
