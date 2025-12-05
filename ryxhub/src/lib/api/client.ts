@@ -265,6 +265,20 @@ export const ryxApi = {
     });
   },
 
+  async updateSessionTools(
+    sessionId: string,
+    toolId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; sessionId: string; tools: Record<string, boolean> }> {
+    return apiRequest<{ success: boolean; sessionId: string; tools: Record<string, boolean> }>(
+      `/api/sessions/${sessionId}/tools`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ toolId, enabled }),
+      }
+    );
+  },
+
   // ============ Chat ============
 
   async sendMessage(sessionId: string, message: string, model?: string): Promise<Message> {
@@ -318,6 +332,82 @@ export const ryxApi = {
     await apiRequest<void>(`/api/workflows/${workflowId}/pause`, {
       method: 'POST',
     });
+  },
+
+  // WebSocket connections for workflows
+  connectWorkflowStream(
+    runId: string,
+    onMessage: (data: unknown) => void,
+    onError?: (error: Event) => void
+  ): WebSocket {
+    const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    const ws = new WebSocket(`${wsUrl}/ws/workflows/${runId}`);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onMessage(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      if (onError) onError(event);
+    };
+
+    return ws;
+  },
+
+  connectWorkflowLogsStream(
+    runId: string,
+    onLog: (log: unknown) => void,
+    onError?: (error: Event) => void
+  ): WebSocket {
+    const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    const ws = new WebSocket(`${wsUrl}/ws/workflows/${runId}/logs`);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onLog(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      if (onError) onError(event);
+    };
+
+    return ws;
+  },
+
+  connectScrapingStream(
+    toolId: string,
+    onProgress: (progress: unknown) => void,
+    onError?: (error: Event) => void
+  ): WebSocket {
+    const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+    const ws = new WebSocket(`${wsUrl}/ws/scraping/${toolId}`);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onProgress(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      if (onError) onError(event);
+    };
+
+    return ws;
   },
 
   // ============ Agents ============

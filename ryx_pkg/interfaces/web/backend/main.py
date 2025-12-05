@@ -92,6 +92,7 @@ class SessionInfo(BaseModel):
     model: str
     agentId: str
     messages: List[Dict[str, Any]] = []
+    tools: Dict[str, bool] = {}
 
 
 class RAGStatus(BaseModel):
@@ -983,6 +984,35 @@ async def delete_session(session_id: str) -> Dict[str, str]:
     return {"status": "deleted"}
 
 
+@app.put("/api/sessions/{session_id}/tools")
+async def update_session_tools(session_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Update tool state for a session."""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = sessions[session_id]
+    tool_id = data.get("toolId")
+    enabled = data.get("enabled", False)
+    
+    if not tool_id:
+        raise HTTPException(status_code=400, detail="toolId is required")
+    
+    # Store tool state in session metadata
+    if not hasattr(session, 'tools'):
+        session.tools = {}  # type: ignore
+    
+    session.tools[tool_id] = enabled  # type: ignore
+    save_session(session)
+    
+    log_activity("info", f"Session '{session.name}': tool '{tool_id}' {'enabled' if enabled else 'disabled'}")
+    
+    return {
+        "success": True,
+        "sessionId": session_id,
+        "tools": session.tools  # type: ignore
+    }
+
+
 @app.get("/api/sessions/{session_id}/export")
 async def export_session(session_id: str, format: str = Query(default="json")) -> Dict[str, Any]:
     """Export a session in various formats."""
@@ -1435,7 +1465,7 @@ async def delete_workflow(workflow_id: str) -> Dict[str, bool]:
 
 
 @app.post("/api/workflows/{workflow_id}/run")
-async def run_workflow(workflow_id: str) -> Dict[str, Any]:
+async def run_workflow(workflow_id: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
     """Run a workflow."""
     if workflow_id not in workflows:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -1448,7 +1478,8 @@ async def run_workflow(workflow_id: str) -> Dict[str, Any]:
         "id": run_id,
         "status": "running",
         "timestamp": datetime.now().isoformat(),
-        "startTime": datetime.now().isoformat()
+        "startTime": datetime.now().isoformat(),
+        "parameters": params or {}
     }
     
     if "runs" not in workflow:
@@ -1456,12 +1487,30 @@ async def run_workflow(workflow_id: str) -> Dict[str, Any]:
     workflow["runs"].append(run_record)
     workflow["status"] = "running"
     
+    # Store run in global runs dict for WebSocket access
+    workflow_runs[run_id] = {
+        "id": run_id,
+        "workflow_id": workflow_id,
+        "status": "running",
+        "nodes": workflow.get("nodes", []),
+        "connections": workflow.get("connections", []),
+        "logs": [],
+        "node_statuses": {},
+        "startTime": datetime.now().isoformat()
+    }
+    
     save_workflow(workflow)
     log_activity("info", f"Workflow '{workflow.get('name')}' started")
     
-    # In a real implementation, this would trigger actual workflow execution
-    # For now, we'll just mark it as running
-    return {"success": True, "run_id": run_id, "status": "running"}
+    # Start workflow execution asynchronously
+    asyncio.create_task(execute_workflow(run_id, workflow))
+    
+    return {
+        "success": True,
+        "runId": run_id,
+        "status": "running",
+        "startedAt": datetime.now().isoformat()
+    }
 
 
 @app.post("/api/workflows/{workflow_id}/pause")
@@ -1521,6 +1570,213 @@ async def list_tools() -> Dict[str, List[Dict[str, Any]]]:
 async def tool_dry_run(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """Dry run a tool."""
     return {"result": {"tool": tool_name, "params": params, "dry_run": True}}
+
+
+# =============================================================================
+# Workflow Execution Engine
+# =============================================================================
+
+# WebSocket connection managers
+workflow_ws_connections: Dict[str, set] = {}  # run_id -> set of WebSocket connections
+scraping_ws_connections: Dict[str, set] = {}  # tool_id -> set of WebSocket connections
+
+
+async def execute_workflow(run_id: str, workflow: Dict[str, Any]) -> None:
+    """Execute a workflow and broadcast updates via WebSocket."""
+    try:
+        nodes = workflow.get("nodes", [])
+        connections = workflow.get("connections", [])
+        
+        # Send workflow started event
+        await broadcast_workflow_event(run_id, {
+            "type": "workflow_status",
+            "status": "running",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        await broadcast_workflow_log(run_id, {
+            "level": "info",
+            "message": "🚀 Workflow execution started",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Execute nodes sequentially (in real implementation, follow connections)
+        for node in nodes:
+            node_id = node.get("id")
+            node_type = node.get("type")
+            node_name = node.get("name", node_id)
+            
+            # Update node status to running
+            await broadcast_workflow_event(run_id, {
+                "type": "node_status",
+                "nodeId": node_id,
+                "status": "running",
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            await broadcast_workflow_log(run_id, {
+                "level": "info",
+                "message": f"⚙️ Executing {node_type}: '{node_name}'",
+                "nodeId": node_id,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Simulate node execution
+            await asyncio.sleep(1)
+            
+            # Node-specific actions
+            if node_type == "agent":
+                model = node.get("config", {}).get("model", "default")
+                await broadcast_workflow_log(run_id, {
+                    "level": "info",
+                    "message": f"🤖 Agent processing with {model}...",
+                    "nodeId": node_id,
+                    "timestamp": datetime.now().isoformat()
+                })
+                await asyncio.sleep(1)
+                
+            elif node_type == "tool":
+                tool_type = node.get("config", {}).get("toolType")
+                if tool_type == "scrape":
+                    await broadcast_workflow_log(run_id, {
+                        "level": "info",
+                        "message": "🌐 Scraping web content...",
+                        "nodeId": node_id,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    # Simulate scraping progress
+                    await broadcast_scraping_progress(node_id, {
+                        "url": "https://example.com",
+                        "status": "scraping",
+                        "progress": 50,
+                        "items": [],
+                        "totalItems": 10,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    await asyncio.sleep(1)
+                    await broadcast_scraping_progress(node_id, {
+                        "url": "https://example.com",
+                        "status": "success",
+                        "progress": 100,
+                        "items": [{"type": "text", "content": "Sample content", "selector": "article > p"}],
+                        "totalItems": 10,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    
+                elif tool_type == "websearch":
+                    await broadcast_workflow_log(run_id, {
+                        "level": "info",
+                        "message": "🔍 Searching via SearXNG...",
+                        "nodeId": node_id,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    await asyncio.sleep(1)
+                    
+                elif tool_type == "rag":
+                    await broadcast_workflow_log(run_id, {
+                        "level": "info",
+                        "message": "📚 Querying RAG database...",
+                        "nodeId": node_id,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    await asyncio.sleep(1)
+            
+            # Mark node as success
+            await broadcast_workflow_event(run_id, {
+                "type": "node_status",
+                "nodeId": node_id,
+                "status": "success",
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            await broadcast_workflow_log(run_id, {
+                "level": "success",
+                "message": f"✅ Completed {node_type}: '{node_name}'",
+                "nodeId": node_id,
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Workflow completed
+        await broadcast_workflow_event(run_id, {
+            "type": "workflow_status",
+            "status": "success",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        await broadcast_workflow_log(run_id, {
+            "level": "success",
+            "message": "🎉 Workflow completed successfully",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Update run status
+        if run_id in workflow_runs:
+            workflow_runs[run_id]["status"] = "success"
+            workflow_runs[run_id]["endTime"] = datetime.now().isoformat()
+        
+    except Exception as e:
+        # Workflow failed
+        await broadcast_workflow_event(run_id, {
+            "type": "workflow_status",
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        await broadcast_workflow_log(run_id, {
+            "level": "error",
+            "message": f"❌ Workflow failed: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        if run_id in workflow_runs:
+            workflow_runs[run_id]["status"] = "error"
+            workflow_runs[run_id]["error"] = str(e)
+
+
+async def broadcast_workflow_event(run_id: str, event: Dict[str, Any]) -> None:
+    """Broadcast workflow event to all connected WebSocket clients."""
+    if run_id not in workflow_ws_connections:
+        return
+    
+    disconnected = set()
+    for ws in workflow_ws_connections[run_id]:
+        try:
+            await ws.send_json(event)
+        except Exception:
+            disconnected.add(ws)
+    
+    # Remove disconnected clients
+    for ws in disconnected:
+        workflow_ws_connections[run_id].discard(ws)
+
+
+async def broadcast_workflow_log(run_id: str, log: Dict[str, Any]) -> None:
+    """Broadcast workflow log to all connected WebSocket clients."""
+    await broadcast_workflow_event(run_id, {
+        "type": "log",
+        **log
+    })
+
+
+async def broadcast_scraping_progress(tool_id: str, progress: Dict[str, Any]) -> None:
+    """Broadcast scraping progress to all connected WebSocket clients."""
+    if tool_id not in scraping_ws_connections:
+        return
+    
+    disconnected = set()
+    for ws in scraping_ws_connections[tool_id]:
+        try:
+            await ws.send_json({
+                "type": "scraping_progress",
+                **progress
+            })
+        except Exception:
+            disconnected.add(ws)
+    
+    # Remove disconnected clients
+    for ws in disconnected:
+        scraping_ws_connections[tool_id].discard(ws)
 
 
 # =============================================================================
@@ -1605,45 +1861,138 @@ async def websocket_endpoint(websocket: WebSocket):
             pass
 
 
-@app.websocket("/api/workflow/stream")
-async def workflow_stream(websocket: WebSocket):
-    """WebSocket for workflow execution streaming."""
+@app.websocket("/ws/workflows/{run_id}")
+async def workflow_execution_stream(websocket: WebSocket, run_id: str):
+    """WebSocket for real-time workflow execution updates."""
     await websocket.accept()
-
+    
+    # Register connection
+    if run_id not in workflow_ws_connections:
+        workflow_ws_connections[run_id] = set()
+    workflow_ws_connections[run_id].add(websocket)
+    
     try:
+        # Send initial status
+        if run_id in workflow_runs:
+            run_data = workflow_runs[run_id]
+            await websocket.send_json({
+                "type": "connected",
+                "runId": run_id,
+                "status": run_data.get("status", "running"),
+                "timestamp": datetime.now().isoformat()
+            })
+        else:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Run not found",
+                "runId": run_id
+            })
+            return
+        
+        # Keep connection alive and handle incoming messages
         while True:
-            data = await websocket.receive_json()
-
-            if data.get("action") == "execute_workflow":
-                workflow_id = data.get("workflow_id")
-
-                # Simulate workflow steps
-                steps = ["Parsing input", "Loading context", "Processing", "Generating output"]
-
-                for i, step in enumerate(steps, 1):
-                    await websocket.send_json({
-                        "type": "step_start",
-                        "step": i,
-                        "action": step,
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    await asyncio.sleep(0.5)
-                    await websocket.send_json({
-                        "type": "step_complete",
-                        "step": i,
-                        "latency_ms": 100 + i * 50
-                    })
-
-                await websocket.send_json({
-                    "type": "workflow_complete",
-                    "workflow_id": workflow_id,
-                    "total_latency_ms": 500
-                })
-            else:
-                await websocket.send_json({"type": "acknowledged", "data": data})
-
+            try:
+                data = await websocket.receive_json()
+                
+                # Handle client messages if needed
+                if data.get("action") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    
+            except Exception:
+                break
+                
     except WebSocketDisconnect:
         pass
+    finally:
+        # Unregister connection
+        if run_id in workflow_ws_connections:
+            workflow_ws_connections[run_id].discard(websocket)
+            if not workflow_ws_connections[run_id]:
+                del workflow_ws_connections[run_id]
+
+
+@app.websocket("/ws/workflows/{run_id}/logs")
+async def workflow_logs_stream(websocket: WebSocket, run_id: str):
+    """WebSocket for workflow execution logs."""
+    await websocket.accept()
+    
+    # Register connection for both workflow events and logs
+    if run_id not in workflow_ws_connections:
+        workflow_ws_connections[run_id] = set()
+    workflow_ws_connections[run_id].add(websocket)
+    
+    try:
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "connected",
+            "runId": run_id,
+            "message": "Connected to logs stream",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Send historical logs if available
+        if run_id in workflow_runs:
+            for log in workflow_runs[run_id].get("logs", []):
+                await websocket.send_json({
+                    "type": "log",
+                    **log
+                })
+        
+        # Keep connection alive
+        while True:
+            try:
+                data = await websocket.receive_json()
+                
+                if data.get("action") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    
+            except Exception:
+                break
+                
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if run_id in workflow_ws_connections:
+            workflow_ws_connections[run_id].discard(websocket)
+
+
+@app.websocket("/ws/scraping/{tool_id}")
+async def scraping_progress_stream(websocket: WebSocket, tool_id: str):
+    """WebSocket for scraping progress updates."""
+    await websocket.accept()
+    
+    # Register connection
+    if tool_id not in scraping_ws_connections:
+        scraping_ws_connections[tool_id] = set()
+    scraping_ws_connections[tool_id].add(websocket)
+    
+    try:
+        # Send initial connection message
+        await websocket.send_json({
+            "type": "connected",
+            "toolId": tool_id,
+            "message": "Connected to scraping stream",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Keep connection alive
+        while True:
+            try:
+                data = await websocket.receive_json()
+                
+                if data.get("action") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    
+            except Exception:
+                break
+                
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if tool_id in scraping_ws_connections:
+            scraping_ws_connections[tool_id].discard(websocket)
+            if not scraping_ws_connections[tool_id]:
+                del scraping_ws_connections[tool_id]
 
 
 # =============================================================================

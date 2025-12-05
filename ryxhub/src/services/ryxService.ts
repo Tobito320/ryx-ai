@@ -41,6 +41,7 @@ export interface RyxService {
   createSession: typeof ryxApi.createSession;
   getSession: typeof ryxApi.getSession;
   deleteSession: typeof ryxApi.deleteSession;
+  updateSessionTools: typeof ryxApi.updateSessionTools;
   
   // Chat
   sendMessage: typeof ryxApi.sendMessage;
@@ -56,6 +57,9 @@ export interface RyxService {
   getWorkflow: typeof ryxApi.getWorkflow;
   runWorkflow: typeof ryxApi.runWorkflow;
   pauseWorkflow: typeof ryxApi.pauseWorkflow;
+  connectWorkflowStream: typeof ryxApi.connectWorkflowStream;
+  connectWorkflowLogsStream: typeof ryxApi.connectWorkflowLogsStream;
+  connectScrapingStream: typeof ryxApi.connectScrapingStream;
   
   // Agents
   listAgents: typeof ryxApi.listAgents;
@@ -84,6 +88,10 @@ function createRyxService(): RyxService {
       createSession: (data: { name: string; model: string }) => mockApi.createSession(data),
       getSession: (id: string) => mockApi.getSession(id),
       deleteSession: (id: string) => mockApi.deleteSession(id),
+      updateSessionTools: async (sessionId: string, toolId: string, enabled: boolean) => {
+        // Mock implementation
+        return { success: true, sessionId, tools: { [toolId]: enabled } };
+      },
       sendMessage: (sessionId: string, message: string, model?: string) => mockApi.sendMessage(sessionId, message, model),
       getStreamUrl: (sessionId: string) => `mock://stream/${sessionId}`,
       getRagStatus: () => mockApi.getRagStatus(),
@@ -93,6 +101,16 @@ function createRyxService(): RyxService {
       getWorkflow: (id: string) => mockApi.getWorkflow(id),
       runWorkflow: (id: string) => mockApi.runWorkflow(id),
       pauseWorkflow: (id: string) => mockApi.pauseWorkflow(id),
+      connectWorkflowStream: () => {
+        // Mock WebSocket - returns a minimal WebSocket-like object
+        return { close: () => {}, send: () => {} } as WebSocket;
+      },
+      connectWorkflowLogsStream: () => {
+        return { close: () => {}, send: () => {} } as WebSocket;
+      },
+      connectScrapingStream: () => {
+        return { close: () => {}, send: () => {} } as WebSocket;
+      },
       listAgents: () => mockApi.listAgents(),
       getAgentLogs: (id: string, lines?: number) => mockApi.getAgentLogs(id, lines),
       listTools: () => mockApi.listTools(),
