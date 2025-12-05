@@ -49,6 +49,7 @@ export function ChatView() {
   const [isDragging, setIsDragging] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -163,9 +164,18 @@ export function ChatView() {
 
     setIsTyping(true);
     setLastStats(null);
+    setToolStatus(null);
 
     try {
       const enabledTools = tools.filter(t => t.enabled).map(t => t.id);
+      
+      // Show tool usage feedback
+      if (enabledTools.includes('websearch')) {
+        setToolStatus('🔍 Searching the web...');
+      } else if (enabledTools.includes('rag')) {
+        setToolStatus('📚 Searching knowledge base...');
+      }
+      
       const history = buildConversationHistory();
       
       const response = await sendMessageMutation.mutateAsync({
@@ -175,6 +185,8 @@ export function ChatView() {
         history,
         tools: enabledTools,
       });
+      
+      setToolStatus(null);
 
       setLastStats({
         latency_ms: response.latency_ms,
@@ -385,7 +397,16 @@ export function ChatView() {
               </div>
             ))}
 
-            {isTyping && (
+            {toolStatus && (
+              <div className="flex gap-2 justify-start">
+                <Sparkles className="w-4 h-4 text-primary animate-pulse mt-1" />
+                <div className="bg-muted/50 rounded-lg px-3 py-2 text-xs text-muted-foreground">
+                  {toolStatus}
+                </div>
+              </div>
+            )}
+
+            {isTyping && !toolStatus && (
               <div className="flex gap-2 justify-start">
                 <Sparkles className="w-4 h-4 text-primary animate-pulse mt-1" />
                 <div className="bg-muted rounded-lg px-3 py-2">

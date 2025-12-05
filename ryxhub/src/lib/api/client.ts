@@ -426,9 +426,10 @@ export const ryxApi = {
     const startTime = Date.now();
     const modelToUse = model || '/models/medium/general/qwen2.5-7b-gptq';
 
-    // Check if we need to search before responding
+    // Check if we need to search or use RAG before responding
     let searchResults = '';
     const needsWebSearch = tools?.includes('websearch') && this.shouldSearch(message);
+    const needsRAG = tools?.includes('rag');
 
     if (needsWebSearch) {
       try {
@@ -441,7 +442,21 @@ export const ryxApi = {
             ).join('\n\n');
         }
       } catch (error) {
-        console.warn('Search failed:', error);
+        console.warn('Web search failed:', error);
+      }
+    }
+
+    if (needsRAG) {
+      try {
+        const ragResults = await this.searchRag(message, 5);
+        if (ragResults.results.length > 0) {
+          searchResults += '\n\n**Knowledge Base Results:**\n' +
+            ragResults.results.slice(0, 5).map((r, i) =>
+              `${i + 1}. ${r.content.substring(0, 200)}...`
+            ).join('\n\n');
+        }
+      } catch (error) {
+        console.warn('RAG search failed:', error);
       }
     }
 
