@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 import json
 
-from ryx.core.rag_manager import RAGManager, UserProfile
+from ryx_pkg.core.rag_manager import RAGManager, UserProfile
 
 
 @pytest.fixture

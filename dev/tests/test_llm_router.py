@@ -6,18 +6,14 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
-from ryx.core.llm_router import (
-    LLMRouter,
-    Intent,
-    RoutingResult,
-    ModelUnavailableError,
-)
+from core.model_router import ModelRouter, ModelRole
 
+# Note: LLMRouter was renamed to ModelRouter in the actual implementation
 
 @pytest.fixture
 def router():
     """Create a router instance for testing."""
-    return LLMRouter()
+    return ModelRouter()
 
 
 class TestIntentDetection:

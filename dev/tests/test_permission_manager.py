@@ -7,13 +7,15 @@ from datetime import datetime
 from pathlib import Path
 import tempfile
 
-from ryx.core.permission_manager import (
-    PermissionManager,
+from ryx_core.permissions import (
     PermissionLevel,
-    PermissionDeniedError,
-    require_permission,
-    set_permission_manager,
+    PermissionDenied as PermissionDeniedError,
+    requires_safe,
+    requires_modify,
+    requires_destroy,
 )
+from core.permissions import PermissionManager
+# Note: Permission decorators are in ryx_core.permissions, PermissionManager in core.permissions
 
 
 @pytest.fixture

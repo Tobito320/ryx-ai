@@ -4,7 +4,7 @@ Tests for Workflow Orchestrator module.
 
 import pytest
 
-from ryx.core.workflow_orchestrator import (
+from ryx_pkg.core.workflow_orchestrator import (
     WorkflowExecutor,
     WorkflowEvent,
     EventType,
