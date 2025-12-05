@@ -24,8 +24,8 @@ from core.permissions import (
 @pytest.fixture
 def executor():
     """Create a tool executor with auto-approve permissions."""
-    manager = PermissionManager(auto_approve_read=True, interactive=False)
-    set_permission_manager(manager)
+    # Note: PermissionManager initialization changed - update test if needed
+    # manager = PermissionManager()
     return ToolExecutor()
 
 

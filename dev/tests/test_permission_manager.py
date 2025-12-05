@@ -14,7 +14,8 @@ from ryx_core.permissions import (
     requires_modify,
     requires_destroy,
 )
-# Note: PermissionManager is in core.permissions, not ryx_core.permissions
+from core.permissions import PermissionManager
+# Note: Permission decorators are in ryx_core.permissions, PermissionManager in core.permissions
 
 
 @pytest.fixture
