@@ -241,8 +241,15 @@ export function WorkflowCanvasEnhanced() {
       
       try {
         // Create a temporary workflow ID (in real app, you'd save the workflow first)
-        // Use crypto.randomUUID() for better uniqueness
-        const tempWorkflowId = "temp-workflow-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now());
+        // Use crypto.randomUUID() with robust fallback
+        const generateId = () => {
+          if (crypto && crypto.randomUUID) {
+            return crypto.randomUUID();
+          }
+          // Fallback: timestamp + random string for better uniqueness
+          return Date.now().toString(36) + Math.random().toString(36).substring(2);
+        };
+        const tempWorkflowId = "temp-workflow-" + generateId();
         
         // Run the workflow via backend API
         const result = await runWorkflowMutation.mutateAsync(tempWorkflowId);

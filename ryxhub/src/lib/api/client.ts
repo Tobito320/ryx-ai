@@ -376,8 +376,7 @@ export const ryxApi = {
     onMessage: (data: WorkflowStatusEvent) => void,
     onError?: (error: Event) => void
   ): WebSocket {
-    const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
-    const ws = new WebSocket(`${wsUrl}/ws/workflows/${runId}`);
+    const ws = new WebSocket(getWebSocketUrl(`/ws/workflows/${runId}`));
 
     ws.onmessage = (event) => {
       try {
@@ -401,8 +400,7 @@ export const ryxApi = {
     onLog: (log: LogEvent) => void,
     onError?: (error: Event) => void
   ): WebSocket {
-    const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
-    const ws = new WebSocket(`${wsUrl}/ws/workflows/${runId}/logs`);
+    const ws = new WebSocket(getWebSocketUrl(`/ws/workflows/${runId}/logs`));
 
     ws.onmessage = (event) => {
       try {
@@ -426,8 +424,7 @@ export const ryxApi = {
     onProgress: (progress: ScrapingProgressEvent) => void,
     onError?: (error: Event) => void
   ): WebSocket {
-    const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
-    const ws = new WebSocket(`${wsUrl}/ws/scraping/${toolId}`);
+    const ws = new WebSocket(getWebSocketUrl(`/ws/scraping/${toolId}`));
 
     ws.onmessage = (event) => {
       try {
@@ -490,5 +487,13 @@ export const ryxApi = {
     });
   },
 };
+
+/**
+ * Helper function to convert HTTP URL to WebSocket URL
+ */
+function getWebSocketUrl(path: string): string {
+  const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+  return `${wsUrl}${path}`;
+}
 
 export default ryxApi;

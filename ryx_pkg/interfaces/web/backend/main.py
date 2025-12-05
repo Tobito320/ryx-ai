@@ -1485,12 +1485,11 @@ async def run_workflow(workflow_id: str, params: Dict[str, Any] = None) -> Dict[
     workflow["status"] = "running"
     
     # Store run in global runs dict for WebSocket access
+    # Only store reference to workflow, not the full data
     workflow_runs[run_id] = {
         "id": run_id,
         "workflow_id": workflow_id,
         "status": "running",
-        "nodes": workflow.get("nodes", []),
-        "connections": workflow.get("connections", []),
         "logs": [],
         "node_statuses": {},
         "startTime": datetime.now().isoformat()
