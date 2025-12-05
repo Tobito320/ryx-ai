@@ -169,7 +169,14 @@ start_ryxhub() {
 # Handle commands
 case "$1" in
     ryxhub|hub|web)
-        start_ryxhub
+        if [ "$2" = "restart" ]; then
+            echo -e "${YELLOW}Restarting RyxHub...${NC}"
+            stop_services
+            sleep 2
+            start_ryxhub
+        else
+            start_ryxhub
+        fi
         exit 0
         ;;
     stop)
@@ -187,6 +194,13 @@ case "$1" in
         exit 0
         ;;
     restart)
+        if [ "$2" = "ryxhub" ]; then
+            echo -e "${YELLOW}Restarting RyxHub...${NC}"
+            stop_services
+            sleep 2
+            start_ryxhub
+            exit 0
+        fi
         stop_services
         sleep 2
         ;;
@@ -196,12 +210,14 @@ case "$1" in
         echo "Usage: ryx [command]"
         echo ""
         echo "Commands:"
-        echo "  (none)    Start interactive CLI"
-        echo "  ryxhub    Start RyxHub web interface"
-        echo "  status    Show service status"
-        echo "  stop      Stop all services"
-        echo "  restart   Restart all services"
-        echo "  cleanup   Clean Docker resources"
+        echo "  (none)           Start interactive CLI"
+        echo "  ryxhub           Start RyxHub web interface"
+        echo "  ryxhub restart   Restart RyxHub services"
+        echo "  restart ryxhub   Restart RyxHub services"
+        echo "  status           Show service status"
+        echo "  stop             Stop all services"
+        echo "  restart          Restart all services"
+        echo "  cleanup          Clean Docker resources"
         exit 0
         ;;
 esac
