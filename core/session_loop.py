@@ -36,12 +36,16 @@ try:
 except ImportError:
     HAS_SUPERVISOR = False
 
-# Use legacy CLI UI
+# Use TUI (prompt_toolkit) if available, fallback to legacy CLI
 try:
-    from core.cli_ui import get_ui, get_cli, CLI
+    from core.tui import get_tui, get_cli, TUI as CLI
+    get_ui = get_tui
 except ImportError:
-    from core.rich_ui import get_ui, RyxUI as CLI
-    get_cli = get_ui
+    try:
+        from core.cli_ui import get_ui, get_cli, CLI
+    except ImportError:
+        from core.rich_ui import get_ui, RyxUI as CLI
+        get_cli = get_ui
 
 
 class SessionLoop:

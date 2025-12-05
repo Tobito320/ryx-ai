@@ -13,6 +13,7 @@ lxml>=4.9.0  # Fast HTML/XML parser for BeautifulSoup
 # CLI & API (ryx_core module)
 typer>=0.20.0  # Modern CLI framework
 rich>=13.0.0  # Rich terminal output
+prompt_toolkit>=3.0.0  # TUI framework for fixed-bottom prompt
 fastapi>=0.100.0  # REST API framework
 uvicorn>=0.22.0  # ASGI server
 websockets>=11.0  # WebSocket support
