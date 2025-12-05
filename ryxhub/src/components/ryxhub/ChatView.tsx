@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { useSendMessage, useModels } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
+import { ToolsPanel, defaultTools, type ToolConfig } from "@/components/ryxhub/ToolsPanel";
 
 interface MessageStats {
   latency_ms?: number;
@@ -23,6 +24,7 @@ export function ChatView() {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [lastStats, setLastStats] = useState<MessageStats | null>(null);
+  const [tools, setTools] = useState<ToolConfig[]>(defaultTools);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const sendMessageMutation = useSendMessage();
@@ -117,6 +119,22 @@ export function ChatView() {
     toast.success(`Switched to ${modelId.split('/').pop()}`);
   };
 
+  const handleToolToggle = async (toolId: string, enabled: boolean) => {
+    setTools((prev) =>
+      prev.map((tool) =>
+        tool.id === toolId ? { ...tool, enabled } : tool
+      )
+    );
+
+    // TODO: Send to backend API to persist tool state
+    // await fetch(`http://localhost:8420/api/sessions/${selectedSessionId}/tools`, {
+    //   method: 'PUT',
+    //   body: JSON.stringify({ toolId, enabled })
+    // });
+
+    toast.success(`${enabled ? 'Enabled' : 'Disabled'} ${tools.find(t => t.id === toolId)?.name}`);
+  };;
+
   if (!currentSession) {
     return (
       <div className="flex flex-col h-full bg-background items-center justify-center">
@@ -132,9 +150,11 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Chat Header with Model Selector */}
-      <div className="px-6 py-4 border-b border-border bg-card/50 backdrop-blur-sm">
+    <div className="flex h-full bg-background">
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat Header with Model Selector */}
+        <div className="px-6 py-4 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
@@ -307,6 +327,12 @@ export function ChatView() {
         <p className="text-[10px] text-muted-foreground mt-2 text-center">
           Press Enter to send • Shift+Enter for new line
         </p>
+        </div>
+      </div>
+
+      {/* Right Sidebar - Tools Panel */}
+      <div className="w-80 border-l border-border bg-card/30 backdrop-blur-sm p-4 overflow-y-auto">
+        <ToolsPanel tools={tools} onToolToggle={handleToolToggle} />
       </div>
     </div>
   );

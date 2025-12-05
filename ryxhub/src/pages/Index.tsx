@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
-import { WorkflowCanvas } from "@/components/ryxhub/WorkflowCanvas";
+import { WorkflowCanvasEnhanced } from "@/components/ryxhub/WorkflowCanvasEnhanced";
 import { RightInspector } from "@/components/ryxhub/RightInspector";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
@@ -74,12 +74,9 @@ function RyxHubApp() {
             <div className="flex-1 min-w-0">
               {activeView === "dashboard" && <DashboardView />}
               {activeView === "chat" && <ChatView />}
-              {activeView === "workflow" && <WorkflowCanvas />}
+              {activeView === "workflow" && <WorkflowCanvasEnhanced />}
               {activeView === "settings" && <SettingsView />}
             </div>
-
-            {/* Right Inspector - Only show in workflow view */}
-            {activeView === "workflow" && <RightInspector />}
           </main>
         </div>
       </div>
