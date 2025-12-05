@@ -59,18 +59,17 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onDismiss }) => {
   };
 
   return (
-    <div className={getToastStyles()}>
+    <div
+      className={`${getToastStyles()} cursor-pointer hover:opacity-90 transition-opacity`}
+      onClick={() => onDismiss(toast.id)}
+      role="button"
+      aria-label="Dismiss notification"
+      title="Click to dismiss"
+    >
       <div className="flex items-center gap-3">
         <span className="text-xl font-bold">{getIcon()}</span>
         <p className="flex-1">{toast.message}</p>
       </div>
-      <button
-        onClick={() => onDismiss(toast.id)}
-        className="ml-4 text-current opacity-70 hover:opacity-100 transition-opacity"
-        aria-label="Dismiss notification"
-      >
-        ✕
-      </button>
     </div>
   );
 };

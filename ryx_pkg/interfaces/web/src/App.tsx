@@ -41,6 +41,7 @@ function App() {
     deleteSession,
     selectSession,
     updateSessionName,
+    updateSessionStyle,
   } = useSessions();
 
   // RAG files management
@@ -107,6 +108,7 @@ function App() {
     connectionStatus,
     queue,
     retryFailedMessage,
+    clearMessages,
   } = useChat(selectedSessionId, showToast, selectedModelFile, ragEnabled);
 
   // Manage persistent connection status toast (non-intrusive)
@@ -197,6 +199,32 @@ function App() {
         event.preventDefault();
         inputRef.current?.focus();
       }
+
+      // Escape: close open menus/modals/sheets by targeting common backdrop/modal attributes
+      if (event.key === 'Escape') {
+        // Close any element that has data-state="open" by clicking its close button if present
+        const openEls = Array.from(document.querySelectorAll('[data-state="open"], [aria-modal="true"]')) as HTMLElement[];
+        if (openEls.length > 0) {
+          openEls.forEach((el) => {
+            // prefer an element with data-sidebar="menu" close or a button[aria-label="Close settings"]
+            const closeBtn = el.querySelector('button[aria-label="Close settings"], button[aria-label="Close"], button[aria-label="Close modal"], button[data-close]');
+            if (closeBtn instanceof HTMLElement) {
+              closeBtn.click();
+              return;
+            }
+
+            // If there's a backdrop that closes on click, click it
+            const backdrop = el.querySelector('[data-backdrop], .react-modal-overlay, .sheet-backdrop') || document.querySelector('.react-modal-overlay, [data-backdrop], .sheet-backdrop');
+            if (backdrop instanceof HTMLElement) {
+              backdrop.click();
+              return;
+            }
+
+            // Fallback: dispatch Escape key to the element
+            el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+          });
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -283,6 +311,9 @@ function App() {
             modelName={selectedModelDisplay}
             connectionStatus={connectionStatus}
             messages={messages}
+            onClearChat={clearMessages}
+            style={selectedSession?.style}
+            onStyleChange={(style) => selectedSessionId && updateSessionStyle(selectedSessionId, style)}
           />
           
           {/* Messages Area */}

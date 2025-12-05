@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2 } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,8 +8,13 @@ import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { useSendMessage, useModels } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
-import { ToolsPanel, type ToolConfig } from "@/components/ryxhub/ToolsPanel";
+import { type ToolConfig } from "@/components/ryxhub/ToolsPanel";
 import { getModelDisplayName } from "@/types/ryxhub";
+
+// Icon map for tools
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Search, Database, Globe, FileText, Wrench,
+};
 
 interface UploadedFile {
   id: string;
@@ -303,10 +308,9 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex h-full bg-background">
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Compact Header */}
-        <div className="px-4 py-2 border-b border-border bg-card/50 flex items-center justify-between">
+    <div className="flex flex-col h-full bg-background w-full">
+      {/* Compact Header */}
+      <div className="px-4 py-2 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium">{currentSession.name}</span>
@@ -345,8 +349,8 @@ export function ChatView() {
           </div>
         </div>
 
-        {/* Messages - Compact */}
-        <ScrollArea className="flex-1 px-4">
+      {/* Messages - Compact */}
+      <ScrollArea className="flex-1 px-4">
           <div className="py-3 space-y-3">
             {messages.map((message) => (
               <div key={message.id} className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}>
@@ -395,51 +399,90 @@ export function ChatView() {
             )}
             <div ref={scrollRef} />
           </div>
-        </ScrollArea>
+      </ScrollArea>
 
-        {/* Compact Input */}
-        <div ref={dropZoneRef} className={cn("p-3 border-t border-border", isDragging && "bg-primary/10")}
-          onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}>
-          
-          {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10 pointer-events-none">
-              <Upload className="w-8 h-8 text-primary" />
-            </div>
-          )}
+      {/* ChatGPT-style Input Area with Tool Toggles */}
+      <div className="border-t border-border bg-background shrink-0">
+        <div className="max-w-3xl mx-auto p-4">
+          {/* Tool Toggles - ChatGPT Style */}
+          <div className="flex items-center gap-2 mb-2">
+            {tools.map((tool) => {
+              const Icon = typeof tool.icon === 'string' ? iconMap[tool.icon] || Wrench : tool.icon;
+              return (
+                <button
+                  key={tool.id}
+                  onClick={() => handleToolToggle(tool.id, !tool.enabled)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    tool.enabled
+                      ? "bg-primary/10 text-primary border border-primary/30"
+                      : "bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted"
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{tool.name}</span>
+                </button>
+              );
+            })}
+          </div>
 
-          {uploadedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {uploadedFiles.map((file) => (
-                <div key={file.id} className="flex items-center gap-1 px-2 py-1 bg-muted rounded text-xs">
-                  {file.type.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                  <span className="max-w-[100px] truncate">{file.name}</span>
-                  <button onClick={() => removeFile(file.id)}><X className="w-3 h-3" /></button>
+          {/* File Uploads */}
+          <div ref={dropZoneRef} className={cn("relative", isDragging && "bg-primary/10 rounded-lg")}
+            onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}>
+
+            {isDragging && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10 pointer-events-none rounded-lg">
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="w-8 h-8 text-primary" />
+                  <span className="text-sm text-primary font-medium">Drop files here</span>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          <div className="relative">
-            <Textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder="Message..." className="min-h-[50px] max-h-[150px] pr-20 text-sm resize-none" />
-            <div className="absolute right-2 bottom-2 flex items-center gap-1">
-              <input ref={fileInputRef} type="file" multiple className="hidden"
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                accept="image/*,.txt,.md,.json,.py,.ts,.js,.tsx,.jsx,.css,.html" />
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => fileInputRef.current?.click()}>
-                <Paperclip className="w-4 h-4" />
-              </Button>
-              <Button size="icon" className="h-7 w-7" onClick={handleSend} disabled={(!input.trim() && uploadedFiles.length === 0) || isTyping}>
-                {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {uploadedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {uploadedFiles.map((file) => (
+                  <div key={file.id} className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg text-xs border border-border">
+                    {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                    <span className="max-w-[150px] truncate">{file.name}</span>
+                    <button onClick={() => removeFile(file.id)} className="hover:text-destructive">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Message Input */}
+            <div className="relative flex items-end gap-2">
+              <div className="flex-1 relative">
+                <Textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Message Ryx..."
+                  className="min-h-[52px] max-h-[200px] pr-12 text-sm resize-none rounded-2xl border-border focus:border-primary"
+                />
+                <div className="absolute right-2 bottom-2">
+                  <input ref={fileInputRef} type="file" multiple className="hidden"
+                    onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                    accept="image/*,.txt,.md,.json,.py,.ts,.js,.tsx,.jsx,.css,.html" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => fileInputRef.current?.click()}>
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <Button
+                size="icon"
+                className="h-[52px] w-[52px] rounded-xl shrink-0"
+                onClick={handleSend}
+                disabled={(!input.trim() && uploadedFiles.length === 0) || isTyping}
+              >
+                {isTyping ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               </Button>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Compact Tools Panel */}
-      <div className="w-64 border-l border-border p-3 overflow-y-auto">
-        <ToolsPanel tools={tools} onToolToggle={handleToolToggle} compact />
       </div>
     </div>
   );

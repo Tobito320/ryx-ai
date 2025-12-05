@@ -117,6 +117,19 @@ class IntentClassifier:
         r"^what('s| is)\s+(up|happening|new)",
     ]
 
+    # Time-sensitive patterns that require current information from the web
+    # These should trigger web search even if not explicitly asking to "search"
+    TIME_SENSITIVE_PATTERNS = [
+        r'\b(current|currently)\b',
+        r'\b(latest|recent|recently)\b',
+        r'\b(today|now|right now)\b',
+        r'\bas of\s+(today|now|\d{4})',
+        r'\b(this|last)\s+(week|month|year|quarter)\b',
+        r'\b(20(2[4-9]|[3-9]\d))\b',  # Years 2024-2099
+        r'\bwhat\s+(is|are)\s+the\s+(current|latest)',
+        r'\bwho\s+(is|are)\s+the\s+current\b',
+    ]
+
     # Slash command mappings
     SLASH_COMMANDS = {
         '/help': 'show_help',
@@ -213,6 +226,17 @@ class IntentClassifier:
         if rule_result and rule_result.confidence >= 0.8:
             rule_result.tier_override = tier_override
             return rule_result
+
+        # Check for time-sensitive queries that require current information
+        if self._requires_current_info(prompt):
+            return ClassifiedIntent(
+                intent_type=IntentType.WEB_RESEARCH,
+                confidence=0.9,
+                original_prompt=prompt,
+                tier_override=tier_override,
+                needs_web=True,
+                target=prompt
+            )
 
         # Check for short conversational prompts
         if len(prompt.split()) < 5 and not self._has_action_indicators(prompt):
@@ -413,7 +437,7 @@ Respond with JSON only:
     def _is_conversational(self, prompt: str) -> bool:
         """
         Check if the prompt is conversational and should NOT trigger web search.
-        
+
         This includes:
         - Questions about the AI itself ("what is your name")
         - Greetings and social exchanges
@@ -421,11 +445,29 @@ Respond with JSON only:
         - Help requests about the tool
         """
         prompt_lower = prompt.lower().strip()
-        
+
         for pattern in self.CONVERSATIONAL_PATTERNS:
             if re.search(pattern, prompt_lower, re.IGNORECASE):
                 return True
-        
+
+        return False
+
+    def _requires_current_info(self, prompt: str) -> bool:
+        """
+        Check if the prompt requires current/real-time information from the web.
+
+        This includes queries with time-sensitive keywords like:
+        - "current", "latest", "recent"
+        - "today", "now", "as of today"
+        - References to current years
+        - "What is the current/latest..."
+        """
+        prompt_lower = prompt.lower().strip()
+
+        for pattern in self.TIME_SENSITIVE_PATTERNS:
+            if re.search(pattern, prompt_lower, re.IGNORECASE):
+                return True
+
         return False
 
     def _is_greeting(self, prompt: str) -> bool:

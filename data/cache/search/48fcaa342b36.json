@@ -1,0 +1,31 @@
+{
+  "query": "what changes were made from angular material v19 to v20.",
+  "results": [
+    {
+      "title": "Angular v19 vs Angular v20: Major Differences, Features, and Performance Upgrades",
+      "url": "https://www.avidclan.com/blog/angular-v19-vs-angular-v20-major-differences-features-and-performance-upgrades/",
+      "content": "Angular 20 offers default standalone components, phased hydration for SSR, RxJS 8 compatibility, and improved CLI diagnostics. Angular 19 lacked these by default. While Angular v20 concentrates on per"
+    },
+    {
+      "title": "Roadmap \u2022 Angular",
+      "url": "https://angular.dev/roadmap",
+      "content": "In Angular v19 we shipped initial support for CSS and template HMR and in v20 we graduated template HMR to stable. We'll continue collecting feedback to make sure we're addressing developers' needs be"
+    },
+    {
+      "title": "Angular Material Blocks now supports Angular v20! - DEV Community",
+      "url": "https://dev.to/ngmaterialdev/angular-material-blocks-now-supports-angular-v20-32ak",
+      "content": "Angular Material Blocks has successfully migrated to Angular v20 with signals migration, updated button directives, and enhanced CLI support - now featuring 180+ blocks with backward compatibility for"
+    },
+    {
+      "title": "Article: What's New in Angular Material 20 | Angular Material Dev",
+      "url": "https://angular-material.dev/articles/whats-new-in-angular-material-20",
+      "content": "Angular Material 20 brings significant improvements to the library with new features, enhanced accessibility, performance optimizations, and breaking changes that modernize the codebase. This release "
+    },
+    {
+      "title": "What's New in Angular Material 20 - DEV Community",
+      "url": "https://dev.to/ngmaterialdev/whats-new-in-angular-material-20-1njb",
+      "content": "Conclusion Angular Material 20 represents a significant step forward in the library's evolution, bringing Material Design 3 features, improved accessibility, better performance, and modernized APIs. T"
+    }
+  ],
+  "timestamp": "2025-12-05T13:45:47.132682"
+}

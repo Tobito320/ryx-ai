@@ -63,6 +63,8 @@ export interface Message {
   status?: 'sending' | 'sent' | 'error';
 }
 
+export type ResponseStyle = 'concise' | 'balanced' | 'explanatory' | 'technical';
+
 export interface Session {
   id: string;
   name: string;
@@ -70,6 +72,7 @@ export interface Session {
   lastActive: number;       // Changed from Date to number (Unix timestamp)
   messageCount: number;
   modelName?: string;
+  style?: ResponseStyle;    // Response style preference
 }
 
 export interface Model {

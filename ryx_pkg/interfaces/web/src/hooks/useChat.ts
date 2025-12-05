@@ -146,13 +146,12 @@ export const useChat = (
         // Update user message status
         updateMessage(userMessage.id, { status: 'sent' });
 
-        // Format AI response with search results if available
+        // Format AI response with compact search source if available
         let aiContent = response.message || response.response || '';
         if (searchResults && searchResults.results.length > 0) {
-          const searchSection = `\n\n---\n**Search Results:**\n${searchResults.results
-            .slice(0, 3)
-            .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n   ${r.snippet}`)
-            .join('\n\n')}`;
+          // Show only the most relevant source compactly
+          const topResult = searchResults.results[0];
+          const searchSection = `\n\n---\n📎 Source: [${topResult.title}](${topResult.url})`;
           aiContent += searchSection;
         }
 

@@ -62,32 +62,30 @@ export class ApiService {
   }
 
     /**
-   * Send chat message to backend
+   * Send chat message to backend with message history for context
    * Returns response or throws ApiError
    */
-  async sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
+  async sendChatMessage(request: ChatRequest, messageHistory?: Array<{role: string; content: string}>): Promise<ChatResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.defaultTimeout);
 
     try {
-      // Format request for llama.cpp backend (uses "message" field)
-      const requestBody = {
-        message: request.message,
-        model: request.model,
-        session_id: request.sessionId,
-        max_tokens: 512,
-        temperature: 0.7
-      };
+      // Format request for vLLM backend via /api/sessions/{session_id}/messages
+      const sessionId = request.sessionId || 'default-session';
 
       // Use proxy if baseUrl is empty (development mode)
       const apiUrl = this.baseUrl || '/api';
-      
-      const response = await fetch(`${apiUrl}/chat`, {
+
+      const response = await fetch(`${apiUrl}/sessions/${sessionId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          content: request.message,
+          model: request.model,
+          stream: false
+        }),
         signal: controller.signal,
       });
 
@@ -112,12 +110,12 @@ export class ApiService {
       }
 
       const data = await response.json();
-      
-      // Handle backend response format
+
+      // Handle backend MessageResponse format from /api/sessions/{session_id}/messages
       const chatResponse: ChatResponse = {
-        message: data.response || data.message || '',
-        response: data.response || data.message,
-        sessionId: data.session_id || data.sessionId || request.sessionId,
+        message: data.content || data.response || data.message || '',
+        response: data.content || data.response || data.message,
+        sessionId: sessionId,
         error: data.error,
       };
 

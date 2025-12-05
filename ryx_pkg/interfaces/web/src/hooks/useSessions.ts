@@ -85,12 +85,19 @@ export const useSessions = () => {
       lastActive: Date.now(),
       modelName: modelName,
       messageCount: 0,
+      style: 'concise', // Default style
     };
 
     setSessions((prev) => [...prev, newSession]);
     setSelectedSessionId(newSession.id);
     return newSession;
   }, [sessions.length]);
+
+  const updateSessionStyle = useCallback((sessionId: string, style: Session['style']) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, style } : s))
+    );
+  }, []);
 
   const deleteSession = useCallback((sessionId: string) => {
     if (sessions.length <= 1) {
@@ -136,6 +143,7 @@ export const useSessions = () => {
     deleteSession,
     selectSession,
     updateSessionName,
+    updateSessionStyle,
   };
 };
 

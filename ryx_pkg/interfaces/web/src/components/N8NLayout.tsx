@@ -29,6 +29,7 @@ import { ResultsPanel, ResultItem } from './ResultsPanel';
 import { ChatPanel, ChatMessage } from './ChatPanel';
 import { SettingsModal, SettingsConfig } from './SettingsModal';
 import { ToastContainer, useToast } from './Toast';
+import { useModels } from '../hooks/useModels';
 
 /**
  * Props for the N8NLayout component
@@ -78,6 +79,11 @@ export const N8NLayout: React.FC<N8NLayoutProps> = ({ className = '' }) => {
   // Settings state
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<SettingsConfig>(DEFAULT_SETTINGS);
+
+  // Models state
+  const { models } = useModels();
+  const [loadingModel, setLoadingModel] = useState<string | null>(null);
+  const [activeModel, setActiveModel] = useState<string | null>(null);
 
   // Handle workflow selection - use callback ref pattern to avoid infinite loops
   const showToastRef = React.useRef(showToast);
@@ -236,6 +242,36 @@ export const N8NLayout: React.FC<N8NLayoutProps> = ({ className = '' }) => {
     setTotalLatency(undefined);
   }, []);
 
+  // Handle model loading
+  const handleLoadModel = useCallback(async (modelPath: string) => {
+    setLoadingModel(modelPath);
+
+    try {
+      const response = await fetch('/api/models/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_name: modelPath }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        showToast(`Failed to load model: ${error.detail || 'Unknown error'}`, 'error');
+        setLoadingModel(null);
+        return;
+      }
+
+      const data = await response.json();
+      setActiveModel(modelPath);
+      setLoadingModel(null);
+
+      const modelDisplayName = modelPath.replace('.gguf', '').replace(/-/g, ' ');
+      showToast(`Model loaded: ${modelDisplayName}`, 'success');
+    } catch (error) {
+      showToast('Failed to load model', 'error');
+      setLoadingModel(null);
+    }
+  }, [showToast]);
+
   // Handle chat message send
   const handleChatSend = useCallback(async (message: string) => {
     setChatLoading(true);
@@ -360,6 +396,10 @@ export const N8NLayout: React.FC<N8NLayoutProps> = ({ className = '' }) => {
         onClose={() => setSettingsOpen(false)}
         settings={settings}
         onSettingsChange={setSettings}
+        models={models}
+        activeModel={activeModel}
+        loadingModel={loadingModel}
+        onLoadModel={handleLoadModel}
       />
 
       {/* Toast Notifications */}

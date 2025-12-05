@@ -122,58 +122,58 @@ export function LeftSidebar() {
   };
 
   return (
-    <aside className="w-72 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
-      {/* Logo */}
-      <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-            <Zap className="w-5 h-5 text-primary-foreground" />
+    <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
+      {/* Logo - Compact */}
+      <div className="p-2.5 border-b border-sidebar-border">
+        <div className="flex items-center gap-1.5">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+            <Zap className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-lg font-semibold text-sidebar-foreground tracking-tight">
+          <span className="text-sm font-semibold text-sidebar-foreground tracking-tight">
             RyxHub
           </span>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="p-3 border-b border-sidebar-border">
+      {/* Search - Compact */}
+      <div className="p-2 border-b border-sidebar-border">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search sessions..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-input border-border text-sm"
+            className="pl-7 h-7 bg-input border-border text-xs"
           />
         </div>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-4">
-          {/* Sessions */}
+        <div className="p-2 space-y-3">
+          {/* Sessions - Compact */}
           <div>
             <button
               onClick={() => toggleSection("sessions")}
-              className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 hover:text-foreground transition-colors"
+              className="flex items-center justify-between w-full text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 hover:text-foreground transition-colors"
             >
-              <span className="flex items-center gap-2">
-                <MessageSquare className="w-3.5 h-3.5" />
+              <span className="flex items-center gap-1.5">
+                <MessageSquare className="w-3 h-3" />
                 Sessions ({filteredSessions.length})
               </span>
               <ChevronDown
                 className={cn(
-                  "w-3.5 h-3.5 transition-transform",
+                  "w-3 h-3 transition-transform",
                   !expandedSections.sessions && "-rotate-90"
                 )}
               />
             </button>
             {expandedSections.sessions && (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {filteredSessions.map((session) => (
                   <div
                     key={session.id}
                     className={cn(
-                      "relative group w-full p-2.5 rounded-lg transition-all",
+                      "relative group w-full p-1.5 rounded-md transition-all",
                       session.id === selectedSessionId
                         ? "bg-primary/10 border border-primary/30"
                         : "hover:bg-muted/50 border border-transparent"
@@ -193,17 +193,17 @@ export function LeftSidebar() {
                               if (e.key === 'Enter') handleRenameSubmit(session.id);
                               if (e.key === 'Escape') setRenamingSessionId(null);
                             }}
-                            className="h-6 text-sm"
+                            className="h-5 text-xs"
                             autoFocus
                             onClick={(e) => e.stopPropagation()}
                           />
                         ) : (
-                          <span className="text-sm font-medium text-foreground truncate">
+                          <span className="text-xs font-medium text-foreground truncate">
                             {session.name}
                           </span>
                         )}
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-0.5">
+                          <span className="text-[9px] text-muted-foreground">
                             {session.timestamp}
                           </span>
                           <DropdownMenu>
@@ -211,173 +211,129 @@ export function LeftSidebar() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"
+                                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <MoreVertical className="h-3 w-3" />
+                                <MoreVertical className="h-2.5 w-2.5" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={(e) => handleRenameStart(session.id, session.name, e)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Rename
+                                <Edit className="mr-2 h-3.5 w-3.5" />
+                                <span className="text-xs">Rename</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={(e) => handleExportSession(session.id, e)}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Export
+                                <Download className="mr-2 h-3.5 w-3.5" />
+                                <span className="text-xs">Export</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={(e) => handleDeleteSession(session.id, e)}
                                 className="text-destructive"
                               >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                <span className="text-xs">Delete</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      <p className="text-[10px] text-muted-foreground truncate mt-0.5">
                         {session.lastMessage}
                       </p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {session.model}
-                        </span>
-                      </div>
                     </button>
                   </div>
                 ))}
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="w-full justify-start text-muted-foreground hover:text-foreground"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 justify-start text-xs text-muted-foreground hover:text-foreground"
                   onClick={() => window.dispatchEvent(new CustomEvent('new-session-click'))}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />
                   New Session
                 </Button>
               </div>
             )}
           </div>
 
-          {/* Active Models */}
+          {/* Active Models - Compact */}
           <div>
             <button
               onClick={() => toggleSection("models")}
-              className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 hover:text-foreground transition-colors"
+              className="flex items-center justify-between w-full text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 hover:text-foreground transition-colors"
             >
-              <span className="flex items-center gap-2">
-                <Bot className="w-3.5 h-3.5" />
-                Active Models ({models.filter((m) => m.status === "online").length})
+              <span className="flex items-center gap-1.5">
+                <Bot className="w-3 h-3" />
+                Models ({models.filter((m) => m.status === "online").length})
               </span>
               <ChevronDown
                 className={cn(
-                  "w-3.5 h-3.5 transition-transform",
+                  "w-3 h-3 transition-transform",
                   !expandedSections.models && "-rotate-90"
                 )}
               />
             </button>
             {expandedSections.models && (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {models.map((model) => (
                   <button
                     key={model.id}
                     onClick={() => window.dispatchEvent(new CustomEvent('model-click', { detail: model }))}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 transition-colors w-full cursor-pointer"
+                    className="flex items-center justify-between p-1.5 rounded-md hover:bg-muted/50 transition-colors w-full cursor-pointer"
                   >
-                    <div className="flex items-center gap-2">
-                      <Circle className={cn("w-2 h-2 fill-current", getStatusColor(model.status))} />
-                      <span className="text-sm text-foreground truncate">{model.name}</span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Circle className={cn("w-1.5 h-1.5 flex-shrink-0 fill-current", getStatusColor(model.status))} />
+                      <span className="text-xs text-foreground truncate">{model.name}</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{model.provider}</span>
+                    <span className="text-[9px] text-muted-foreground flex-shrink-0 ml-1">{model.provider}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* RAG Status */}
+          {/* RAG Status - Compact */}
           <div>
             <button
               onClick={() => toggleSection("rag")}
-              className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 hover:text-foreground transition-colors"
+              className="flex items-center justify-between w-full text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5 hover:text-foreground transition-colors"
             >
-              <span className="flex items-center gap-2">
-                <Database className="w-3.5 h-3.5" />
-                RAG Index
+              <span className="flex items-center gap-1.5">
+                <Database className="w-3 h-3" />
+                RAG
               </span>
               <ChevronDown
                 className={cn(
-                  "w-3.5 h-3.5 transition-transform",
+                  "w-3 h-3 transition-transform",
                   !expandedSections.rag && "-rotate-90"
                 )}
               />
             </button>
             {expandedSections.rag && (
-              <div className="p-3 rounded-lg bg-muted/30 border border-border space-y-2">
-                <div className="flex justify-between text-sm">
+              <div className="p-2 rounded-md bg-muted/30 border border-border space-y-1.5">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Indexed</span>
                   <span className="text-[hsl(var(--success))] font-mono">{ragStatus.indexed.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Pending</span>
                   <span className="text-[hsl(var(--warning))] font-mono">{ragStatus.pending}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Last Sync</span>
-                  <span className="text-foreground font-mono">{ragStatus.lastSync}</span>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Sync</span>
+                  <span className="text-foreground font-mono text-[10px]">{ragStatus.lastSync}</span>
                 </div>
-                <div className="flex items-center gap-1.5 pt-1">
+                <div className="flex items-center gap-1 pt-0.5">
                   <Circle
                     className={cn(
-                      "w-2 h-2 fill-current",
+                      "w-1.5 h-1.5 fill-current",
                       ragStatus.status === "syncing" && "text-[hsl(var(--warning))] animate-pulse",
                       ragStatus.status === "idle" && "text-[hsl(var(--success))]",
                       ragStatus.status === "error" && "text-destructive"
                     )}
                   />
-                  <span className="text-xs text-muted-foreground capitalize">{ragStatus.status}</span>
+                  <span className="text-[10px] text-muted-foreground capitalize">{ragStatus.status}</span>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Shortcuts */}
-          <div>
-            <button
-              onClick={() => toggleSection("shortcuts")}
-              className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 hover:text-foreground transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Wrench className="w-3.5 h-3.5" />
-                Quick Actions
-              </span>
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 transition-transform",
-                  !expandedSections.shortcuts && "-rotate-90"
-                )}
-              />
-            </button>
-            {expandedSections.shortcuts && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" size="sm" className="justify-start text-xs">
-                  <Bot className="w-3.5 h-3.5 mr-1.5" />
-                  Agents
-                </Button>
-                <Button variant="secondary" size="sm" className="justify-start text-xs">
-                  <Wrench className="w-3.5 h-3.5 mr-1.5" />
-                  Tools
-                </Button>
-                <Button variant="secondary" size="sm" className="justify-start text-xs">
-                  <Database className="w-3.5 h-3.5 mr-1.5" />
-                  Sources
-                </Button>
-                <Button variant="secondary" size="sm" className="justify-start text-xs">
-                  <Zap className="w-3.5 h-3.5 mr-1.5" />
-                  Triggers
-                </Button>
               </div>
             )}
           </div>

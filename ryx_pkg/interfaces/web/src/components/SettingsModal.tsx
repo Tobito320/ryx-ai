@@ -13,6 +13,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 /**
+ * Model information interface
+ */
+export interface Model {
+  id: string;
+  name: string;
+  status: 'online' | 'offline' | 'available' | 'loaded' | 'loading' | 'error';
+  path?: string;
+  size?: number;
+  provider?: string;
+}
+
+/**
  * Settings configuration interface
  */
 export interface SettingsConfig {
@@ -36,6 +48,14 @@ export interface SettingsModalProps {
   onSettingsChange: (settings: SettingsConfig) => void;
   /** Custom class name */
   className?: string;
+  /** Available models */
+  models?: Model[];
+  /** Currently active model path */
+  activeModel?: string | null;
+  /** Model currently being loaded */
+  loadingModel?: string | null;
+  /** Callback to load a model */
+  onLoadModel?: (modelPath: string) => void;
 }
 
 // Keyboard shortcuts reference
@@ -64,6 +84,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSettingsChange,
   className = '',
+  models = [],
+  activeModel = null,
+  loadingModel = null,
+  onLoadModel,
 }) => {
   const [localSettings, setLocalSettings] = useState<SettingsConfig>(settings);
 
@@ -234,6 +258,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </button>
           </div>
+
+          {/* VLLM Models Section */}
+          {models.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-ryx-foreground font-mono flex items-center gap-2">
+                <span>🤖</span>
+                Available VLLM Models
+                <span className="text-xs text-ryx-text-muted font-normal">
+                  ({models.filter(m => m.status === 'online' || m.status === 'loaded' || activeModel === m.path).length} active / {models.length} total)
+                </span>
+              </label>
+              <div className="bg-ryx-bg rounded-ryx p-3 max-h-48 overflow-y-auto ryx-scrollbar space-y-2">
+                {models.map((model) => (
+                  <div
+                    key={model.id}
+                    className={`
+                      p-3 rounded-ryx font-mono text-sm border transition-all duration-150
+                      ${activeModel === model.path
+                        ? 'bg-ryx-accent/20 border-ryx-accent'
+                        : loadingModel === model.path
+                        ? 'bg-ryx-orange/10 border-ryx-orange'
+                        : 'bg-ryx-current-line border-ryx-border hover:border-ryx-text-muted'
+                      }
+                      ${onLoadModel && model.path && loadingModel !== model.path ? 'cursor-pointer' : ''}
+                    `}
+                    onClick={() => {
+                      if (onLoadModel && model.path && loadingModel !== model.path && activeModel !== model.path) {
+                        onLoadModel(model.path);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-ryx-foreground font-semibold truncate">{model.name}</div>
+                        {model.path && (
+                          <div className="text-xs text-ryx-text-muted truncate mt-0.5">{model.path}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {loadingModel === model.path ? (
+                          <>
+                            <div className="w-2 h-2 bg-ryx-orange rounded-full animate-pulse"></div>
+                            <span className="text-xs text-ryx-orange">Loading...</span>
+                          </>
+                        ) : activeModel === model.path ? (
+                          <>
+                            <div className="w-2 h-2 bg-ryx-success rounded-full"></div>
+                            <span className="text-xs text-ryx-success">Active</span>
+                          </>
+                        ) : model.status === 'online' || model.status === 'loaded' ? (
+                          <>
+                            <div className="w-2 h-2 bg-ryx-cyan rounded-full"></div>
+                            <span className="text-xs text-ryx-cyan">Ready</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-2 h-2 bg-ryx-border rounded-full"></div>
+                            <span className="text-xs text-ryx-text-muted">Offline</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-ryx-text-muted italic">
+                Click on a model to load it. Active models are highlighted in purple.
+              </p>
+            </div>
+          )}
 
           {/* Keyboard Shortcuts */}
           <div className="space-y-2">

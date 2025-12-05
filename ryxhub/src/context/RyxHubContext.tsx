@@ -204,28 +204,54 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const clearSessionMessages = useCallback((sessionId: string) => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id === sessionId) {
-          return {
-            ...s,
-            messages: [],
-            lastMessage: "Chat cleared",
-            timestamp: "just now",
-          };
+  const clearSessionMessages = useCallback(async (sessionId: string) => {
+    try {
+      // Clear messages via API
+      const response = await fetch(API_ENDPOINTS.sessionMessages(sessionId), {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Update local state
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id === sessionId) {
+              return {
+                ...s,
+                messages: [],
+                lastMessage: "Chat cleared",
+                timestamp: "just now",
+              };
+            }
+            return s;
+          })
+        );
+        // Persist to localStorage
+        const stored = localStorage.getItem('ryxhub_sessions');
+        if (stored) {
+          const sessions = JSON.parse(stored);
+          const updated = sessions.map((s: Session) =>
+            s.id === sessionId ? { ...s, messages: [], lastMessage: "Chat cleared" } : s
+          );
+          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
         }
-        return s;
-      })
-    );
-    // Persist to localStorage
-    const stored = localStorage.getItem('ryxhub_sessions');
-    if (stored) {
-      const sessions = JSON.parse(stored);
-      const updated = sessions.map((s: Session) => 
-        s.id === sessionId ? { ...s, messages: [], lastMessage: "Chat cleared" } : s
+      }
+    } catch (error) {
+      console.error('Failed to clear messages via API:', error);
+      // Still update UI even if API call fails
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id === sessionId) {
+            return {
+              ...s,
+              messages: [],
+              lastMessage: "Chat cleared",
+              timestamp: "just now",
+            };
+          }
+          return s;
+        })
       );
-      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
     }
   }, []);
 
@@ -247,7 +273,8 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const updateSessionTools = useCallback((sessionId: string, toolId: string, enabled: boolean) => {
+  const updateSessionTools = useCallback(async (sessionId: string, toolId: string, enabled: boolean) => {
+    // Update local state first for immediate UI feedback
     setSessions((prev) =>
       prev.map((s) => {
         if (s.id === sessionId) {
@@ -259,11 +286,23 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         return s;
       })
     );
-    // Persist
+
+    // Persist to API
+    try {
+      await fetch(API_ENDPOINTS.sessionTools(sessionId), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolId, enabled }),
+      });
+    } catch (error) {
+      console.warn('Failed to persist tool state to API:', error);
+    }
+
+    // Persist to localStorage as backup
     const stored = localStorage.getItem('ryxhub_sessions');
     if (stored) {
       const sessions = JSON.parse(stored);
-      const updated = sessions.map((s: Session) => 
+      const updated = sessions.map((s: Session) =>
         s.id === sessionId ? { ...s, tools: { ...(s.tools || {}), [toolId]: enabled } } : s
       );
       localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
@@ -292,8 +331,14 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const newSession = await response.json();
-        setSessions((prev) => [newSession, ...prev]);
+        setSessions((prev) => {
+          const updated = [newSession, ...prev];
+          // Persist to localStorage
+          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+          return updated;
+        });
         setSelectedSessionId(newSession.id);
+        localStorage.setItem('ryxhub_selected_session', newSession.id);
         return newSession;
       }
     } catch (error) {
@@ -348,11 +393,20 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
       const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
         method: 'DELETE',
       });
-      
+
       if (response.ok) {
-        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        // Update state
+        setSessions((prev) => {
+          const updated = prev.filter((s) => s.id !== sessionId);
+          // Persist to localStorage
+          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+          return updated;
+        });
+
+        // Clear selection if deleted session was selected
         if (selectedSessionId === sessionId) {
           setSelectedSessionId(null);
+          localStorage.removeItem('ryxhub_selected_session');
         }
       }
     } catch (error) {
@@ -370,12 +424,14 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         },
         body: JSON.stringify({ name: newName }),
       });
-      
+
       if (response.ok) {
-        const updated = await response.json();
-        setSessions((prev) =>
-          prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s))
-        );
+        setSessions((prev) => {
+          const updated = prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s));
+          // Persist to localStorage
+          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Failed to rename session:', error);
