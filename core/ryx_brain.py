@@ -2090,19 +2090,63 @@ Sprache: Deutsch"""
         
         # Build style-specific instructions
         style = getattr(self, 'response_style', 'normal')
+        
+        # CONCISE MODE: Detect greetings and force ultra-short responses
+        query_lower = query.lower().strip()
+        greeting_responses = {
+            'hi': 'Hey!',
+            'hey': 'Hi!',
+            'hello': 'Hey!',
+            'hallo': 'Hey!',
+            'hii': 'Hey!',
+            'heyy': 'Hi!',
+            'yo': 'Yo!',
+            'sup': 'Hey!',
+            'hi!': 'Hey!',
+            'hey!': 'Hi!',
+            'hello!': 'Hey!',
+        }
+        
+        # Check for greeting + simple question patterns
+        how_are_you_patterns = ['how are you', 'wie gehts', 'how r u', 'whats up', "what's up", 'wassup']
+        
+        if style == 'concise':
+            # Instant response for pure greetings
+            if query_lower in greeting_responses:
+                instant = greeting_responses[query_lower]
+                ui.stream_start(model)
+                ui.stream_token(instant)
+                ui.stream_end()
+                self.add_message('assistant', instant)
+                return True, "__STREAMED__"
+            
+            # Short response for "how are you" type questions
+            if any(p in query_lower for p in how_are_you_patterns):
+                instant = "Good, thanks! You?"
+                ui.stream_start(model)
+                ui.stream_token(instant)
+                ui.stream_end()
+                self.add_message('assistant', instant)
+                return True, "__STREAMED__"
+        
         style_instructions = {
             'normal': "Be clear and helpful. Keep responses focused.",
-            'concise': """STRICT CONCISE MODE:
-- ONE sentence maximum for greetings/simple questions
-- NEVER write more than 2-3 sentences unless asked
-- NO pleasantries, NO filler words, NO repetition
-- If user says "hello", just say "Hi!" or "Hey!" - nothing more
-- Get straight to the point. Less is more.""",
+            'concise': """ULTRA CONCISE MODE - CRITICAL RULES:
+- For greetings: ONE word or TWO words MAX ("Hey!", "Good, you?")
+- For simple questions: ONE sentence ONLY
+- For complex questions: MAX 2 sentences
+- NEVER use phrases like "I'm an AI", "I don't have feelings", "As an assistant"
+- NO filler, NO pleasantries, NO repetition
+- Respond like a friend texting, not a formal assistant
+- Examples: "hi" → "Hey!", "how are you" → "Good, you?", "what time is it" → "Check your system clock." """,
             'explanatory': "Explain in detail with examples, context, and background information.",
             'learning': "Teach step-by-step like for a student - with context, examples, and memory aids.",
             'formal': "Respond formally and professionally, as in documentation."
         }
         style_hint = style_instructions.get(style, style_instructions['normal'])
+        
+        # Reduce max_tokens for concise mode
+        max_tokens = 100 if style == 'concise' else 800
         
         # Build system prompt with follow-up awareness
         if is_followup:
@@ -2146,7 +2190,7 @@ WICHTIG für Suchergebnisse:
                 prompt=query,
                 model=model,
                 system=system_prompt,
-                max_tokens=800,
+                max_tokens=max_tokens,
                 temperature=0.7
             ):
                 ui.stream_token(token)

@@ -124,17 +124,77 @@
       "role": "assistant",
       "content": "What specific topic or question do you have in mind? [1]",
       "ts": "2025-12-05T02:59:07.105099"
+    },
+    {
+      "role": "user",
+      "content": "/status",
+      "ts": "2025-12-05T03:00:36.966843"
+    },
+    {
+      "role": "user",
+      "content": "/precision on",
+      "ts": "2025-12-05T03:00:45.770207"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-05T03:00:49.603969"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! How can I assist you today? [1]",
+      "ts": "2025-12-05T03:00:51.317701"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "ts": "2025-12-05T03:07:26.289140"
+    },
+    {
+      "role": "assistant",
+      "content": "What specific test do you need help with? It depends on your symptoms or the condition you are concerned about. Common tests include blood tests which can help diagnose various conditions [2,4].",
+      "ts": "2025-12-05T03:07:28.363624"
+    },
+    {
+      "role": "user",
+      "content": "/style",
+      "ts": "2025-12-05T03:07:31.552654"
+    },
+    {
+      "role": "user",
+      "content": "/style concise",
+      "ts": "2025-12-05T03:07:39.573285"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-05T03:07:41.160116"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! Please provide your query or request so I can assist you.",
+      "ts": "2025-12-05T03:07:41.613219"
+    },
+    {
+      "role": "user",
+      "content": "hello",
+      "ts": "2025-12-05T03:07:55.648509"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! What can I assist you with today?",
+      "ts": "2025-12-05T03:07:56.031761"
     }
   ],
   "stats": {
-    "prompts": 4,
-    "actions": 2,
+    "prompts": 5,
+    "actions": 3,
     "files": 0,
     "urls": 0,
-    "searches": 2,
+    "searches": 3,
     "scrapes": 0
   },
-  "precision_mode": false,
+  "precision_mode": true,
   "browsing_enabled": true,
   "context": {
     "last_path": "",
@@ -142,5 +202,5 @@
     "last_intent": null,
     "created_files": []
   },
-  "saved_at": "2025-12-05T03:00:29.649026"
+  "saved_at": "2025-12-05T03:08:03.044925"
 }

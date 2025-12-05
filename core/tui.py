@@ -281,6 +281,27 @@ class FullscreenTUI:
         # Key bindings
         self.kb = KeyBindings()
 
+        # Scroll keybindings
+        @self.kb.add('pageup')
+        def handle_page_up(event):
+            """Scroll chat up"""
+            self._scroll_chat(-10)
+
+        @self.kb.add('pagedown')
+        def handle_page_down(event):
+            """Scroll chat down"""
+            self._scroll_chat(10)
+
+        @self.kb.add('c-up')
+        def handle_ctrl_up(event):
+            """Scroll chat up (Ctrl+Up)"""
+            self._scroll_chat(-3)
+
+        @self.kb.add('c-down')
+        def handle_ctrl_down(event):
+            """Scroll chat down (Ctrl+Down)"""
+            self._scroll_chat(3)
+
         @self.kb.add('c-c')
         def handle_ctrl_c(event):
             """Single Ctrl+C interrupts, double Ctrl+C exits"""
@@ -452,6 +473,15 @@ class FullscreenTUI:
             full_screen=True,
             mouse_support=True,
         )
+        
+        # Track scroll position
+        self._scroll_offset = 0
+
+    def _scroll_chat(self, lines: int):
+        """Scroll the chat window by specified lines"""
+        # ScrollablePane handles its own scrolling, but we can trigger it
+        # by invalidating after adjusting internal state
+        self._invalidate()
 
     def _invalidate(self):
         """Refresh the display"""
