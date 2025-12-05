@@ -77,7 +77,7 @@ stop_services() {
     
     # Kill any remaining processes on ports
     fuser -k 8420/tcp 2>/dev/null
-    fuser -k 5173/tcp 2>/dev/null
+    fuser -k 8080/tcp 2>/dev/null
     
     # Stop containers (but don't remove vLLM - takes too long to restart)
     docker stop "$SEARXNG_CONTAINER" 2>/dev/null
@@ -114,8 +114,8 @@ show_status() {
     fi
     
     # RyxHub Frontend
-    if curl -s http://localhost:5173 &>/dev/null; then
-        echo -e "  RyxHub Web: ${GREEN}running${NC} (port 5173)"
+    if curl -s http://localhost:8080 &>/dev/null; then
+        echo -e "  RyxHub Web: ${GREEN}running${NC} (port 8080)"
     else
         echo -e "  RyxHub Web: ${RED}stopped${NC}"
     fi
@@ -148,7 +148,7 @@ start_ryxhub() {
     fi
     
     # Start frontend if not running
-    if ! curl -s http://localhost:5173 &>/dev/null; then
+    if ! curl -s http://localhost:8080 &>/dev/null; then
         echo -e "${YELLOW}Starting RyxHub Frontend...${NC}"
         cd "$PROJECT_ROOT/ryxhub"
         [ ! -d "node_modules" ] && npm install --silent
@@ -160,10 +160,10 @@ start_ryxhub() {
         sleep 3
     fi
     
-    echo -e "\n${GREEN}RyxHub ready: ${CYAN}http://localhost:5173${NC}"
+    echo -e "\n${GREEN}RyxHub ready: ${CYAN}http://localhost:8080${NC}"
     
     # Open browser
-    xdg-open "http://localhost:5173" 2>/dev/null &
+    xdg-open "http://localhost:8080" 2>/dev/null &
 }
 
 # Handle commands
