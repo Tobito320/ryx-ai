@@ -1,0 +1,17 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Purple background circle -->
+  <circle cx="128" cy="128" r="120" fill="#9333ea" />
+  
+  <!-- RYX letters in white -->
+  <g fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="80">
+    <!-- R -->
+    <text x="40" y="155" font-size="90">R</text>
+    <!-- Y -->
+    <text x="100" y="155" font-size="90">Y</text>
+    <!-- X -->
+    <text x="160" y="155" font-size="90">X</text>
+  </g>
+  
+  <!-- Subtle glow effect -->
+  <circle cx="128" cy="128" r="120" fill="none" stroke="#c084fc" stroke-width="4" opacity="0.5"/>
+</svg>
