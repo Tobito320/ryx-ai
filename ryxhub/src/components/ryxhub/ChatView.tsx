@@ -133,7 +133,7 @@ export function ChatView() {
     // });
 
     toast.success(`${enabled ? 'Enabled' : 'Disabled'} ${tools.find(t => t.id === toolId)?.name}`);
-  };;
+  };
 
   if (!currentSession) {
     return (

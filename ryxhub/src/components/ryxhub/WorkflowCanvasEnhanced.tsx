@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrapingVisualization, generateMockScrapes } from "@/components/ryxhub/ScrapingVisualization";
 
 const nodeIcons = {
   trigger: Zap,
@@ -109,6 +111,7 @@ export function WorkflowCanvasEnhanced() {
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [selectedConfigNode, setSelectedConfigNode] = useState<RyxWorkflowNode | null>(null);
   const [executionLogs, setExecutionLogs] = useState<string[]>([]);
+  const [scrapingData, setScrapingData] = useState<any[]>([]);
 
   const handleNodeDoubleClick = useCallback((node: RyxWorkflowNode) => {
     setSelectedConfigNode(node);
@@ -226,29 +229,94 @@ export function WorkflowCanvasEnhanced() {
     toggleWorkflowRunning();
     if (!isWorkflowRunning) {
       setExecutionLogs([]);
+      setScrapingData([]);
       setExecutionLogs((prev) => [
         ...prev,
-        `[${new Date().toLocaleTimeString()}] Workflow execution started`,
+        `[${new Date().toLocaleTimeString()}] 🚀 Workflow execution started`,
       ]);
 
-      // Simulate workflow execution
+      // Simulate workflow execution with detailed node-by-node feedback
       const nodeSequence = [...workflowNodes];
       nodeSequence.forEach((node, index) => {
         setTimeout(() => {
+          // Update node status to running
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? { ...n, data: { ...n.data, status: "running" } }
+                : n
+            )
+          );
+
           setExecutionLogs((prev) => [
             ...prev,
-            `[${new Date().toLocaleTimeString()}] Executing ${node.name}...`,
+            `[${new Date().toLocaleTimeString()}] ⚙️ Executing ${node.type}: "${node.name}"`,
           ]);
-        }, index * 1000);
+
+          // Simulate node-specific actions
+          if (node.type === "agent") {
+            setTimeout(() => {
+              setExecutionLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 🤖 Agent processing with ${node.config?.model || "default model"}...`,
+              ]);
+            }, 200);
+          } else if (node.type === "tool" && node.config?.toolType === "scrape") {
+            setTimeout(() => {
+              setExecutionLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 🌐 Scraping web content...`,
+              ]);
+              setScrapingData(generateMockScrapes());
+            }, 200);
+          } else if (node.type === "tool" && node.config?.toolType === "websearch") {
+            setTimeout(() => {
+              setExecutionLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 🔍 Searching via SearXNG...`,
+              ]);
+            }, 200);
+          } else if (node.type === "tool" && node.config?.toolType === "rag") {
+            setTimeout(() => {
+              setExecutionLogs((prev) => [
+                ...prev,
+                `[${new Date().toLocaleTimeString()}] 📚 Querying RAG database...`,
+              ]);
+            }, 200);
+          }
+
+          // Mark node as success after execution
+          setTimeout(() => {
+            setNodes((nds) =>
+              nds.map((n) =>
+                n.id === node.id
+                  ? { ...n, data: { ...n.data, status: "success" } }
+                  : n
+              )
+            );
+            setExecutionLogs((prev) => [
+              ...prev,
+              `[${new Date().toLocaleTimeString()}] ✅ Completed ${node.type}: "${node.name}"`,
+            ]);
+          }, 800);
+        }, index * 1500);
       });
 
+      // Complete workflow
       setTimeout(() => {
         setExecutionLogs((prev) => [
           ...prev,
-          `[${new Date().toLocaleTimeString()}] Workflow completed successfully`,
+          `[${new Date().toLocaleTimeString()}] 🎉 Workflow completed successfully`,
         ]);
         toggleWorkflowRunning();
-      }, nodeSequence.length * 1000);
+        
+        // Reset node statuses after a delay
+        setTimeout(() => {
+          setNodes((nds) =>
+            nds.map((n) => ({ ...n, data: { ...n.data, status: "idle" } }))
+          );
+        }, 2000);
+      }, nodeSequence.length * 1500 + 1000);
 
       // TODO: Real workflow execution
       // await fetch(`http://localhost:8420/api/workflows/${workflowId}/run`, {
@@ -257,7 +325,7 @@ export function WorkflowCanvasEnhanced() {
     } else {
       setExecutionLogs((prev) => [
         ...prev,
-        `[${new Date().toLocaleTimeString()}] Workflow execution paused`,
+        `[${new Date().toLocaleTimeString()}] ⏸️ Workflow execution paused`,
       ]);
     }
   };
@@ -382,31 +450,53 @@ export function WorkflowCanvasEnhanced() {
         </div>
       </div>
 
-      {/* Execution Logs Panel */}
-      <Card className="w-80 border-l border-border bg-card/30 backdrop-blur-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Execution Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[calc(100vh-10rem)]">
-            <div className="space-y-1 font-mono text-xs">
-              {executionLogs.length === 0 ? (
-                <div className="text-muted-foreground text-center py-8">
-                  No execution logs yet
-                </div>
-              ) : (
-                executionLogs.map((log, index) => (
-                  <div
-                    key={index}
-                    className="text-foreground/80 bg-muted/20 px-2 py-1 rounded"
-                  >
-                    {log}
+      {/* Right Panel - Execution Info */}
+      <Card className="w-96 border-l border-border bg-card/30 backdrop-blur-sm">
+        <Tabs defaultValue="logs" className="h-full">
+          <div className="border-b border-border px-4 py-2">
+            <TabsList className="w-full grid grid-cols-2">
+              <TabsTrigger value="logs">Execution Logs</TabsTrigger>
+              <TabsTrigger value="scraping">
+                Scraping
+                {scrapingData.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                    {scrapingData.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="logs" className="mt-0 p-4">
+            <ScrollArea className="h-[calc(100vh-12rem)]">
+              <div className="space-y-1 font-mono text-xs">
+                {executionLogs.length === 0 ? (
+                  <div className="text-muted-foreground text-center py-8">
+                    No execution logs yet
+                    <p className="text-[10px] mt-2">
+                      Click "Run Workflow" to start
+                    </p>
                   </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </CardContent>
+                ) : (
+                  executionLogs.map((log, index) => (
+                    <div
+                      key={index}
+                      className="text-foreground/80 bg-muted/20 px-2 py-1 rounded"
+                    >
+                      {log}
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="scraping" className="mt-0 p-4">
+            <ScrollArea className="h-[calc(100vh-12rem)]">
+              <ScrapingVisualization scrapes={scrapingData} />
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </Card>
 
       {/* Workflow Templates Dialog */}
