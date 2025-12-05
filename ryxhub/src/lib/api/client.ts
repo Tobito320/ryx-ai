@@ -128,6 +128,42 @@ export interface Tool {
   parameters: Record<string, unknown>;
 }
 
+// WebSocket message types
+export interface WorkflowStatusEvent {
+  type: 'workflow_status' | 'node_status' | 'connected' | 'pong';
+  status?: 'running' | 'success' | 'error' | 'idle';
+  nodeId?: string;
+  runId?: string;
+  timestamp?: string;
+  error?: string;
+}
+
+export interface LogEvent {
+  type: 'log' | 'connected';
+  level?: 'info' | 'success' | 'warning' | 'error';
+  message?: string;
+  nodeId?: string;
+  timestamp: string;
+  runId?: string;
+}
+
+export interface ScrapingProgressEvent {
+  type: 'scraping_progress' | 'connected';
+  url?: string;
+  status?: 'pending' | 'scraping' | 'success' | 'error';
+  progress?: number;
+  items?: Array<{
+    type: string;
+    content: string;
+    selector: string;
+    timestamp: string;
+  }>;
+  totalItems?: number;
+  toolId?: string;
+  timestamp: string;
+  message?: string;
+}
+
 /**
  * Make an API request with timeout and error handling
  */
@@ -265,6 +301,20 @@ export const ryxApi = {
     });
   },
 
+  async updateSessionTools(
+    sessionId: string,
+    toolId: string,
+    enabled: boolean
+  ): Promise<{ success: boolean; sessionId: string; tools: Record<string, boolean> }> {
+    return apiRequest<{ success: boolean; sessionId: string; tools: Record<string, boolean> }>(
+      `/api/sessions/${sessionId}/tools`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ toolId, enabled }),
+      }
+    );
+  },
+
   // ============ Chat ============
 
   async sendMessage(sessionId: string, message: string, model?: string): Promise<Message> {
@@ -320,6 +370,79 @@ export const ryxApi = {
     });
   },
 
+  // WebSocket connections for workflows
+  connectWorkflowStream(
+    runId: string,
+    onMessage: (data: WorkflowStatusEvent) => void,
+    onError?: (error: Event) => void
+  ): WebSocket {
+    const ws = new WebSocket(getWebSocketUrl(`/ws/workflows/${runId}`));
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as WorkflowStatusEvent;
+        onMessage(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      if (onError) onError(event);
+    };
+
+    return ws;
+  },
+
+  connectWorkflowLogsStream(
+    runId: string,
+    onLog: (log: LogEvent) => void,
+    onError?: (error: Event) => void
+  ): WebSocket {
+    const ws = new WebSocket(getWebSocketUrl(`/ws/workflows/${runId}/logs`));
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as LogEvent;
+        onLog(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      if (onError) onError(event);
+    };
+
+    return ws;
+  },
+
+  connectScrapingStream(
+    toolId: string,
+    onProgress: (progress: ScrapingProgressEvent) => void,
+    onError?: (error: Event) => void
+  ): WebSocket {
+    const ws = new WebSocket(getWebSocketUrl(`/ws/scraping/${toolId}`));
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as ScrapingProgressEvent;
+        onProgress(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+
+    ws.onerror = (event) => {
+      console.error('WebSocket error:', event);
+      if (onError) onError(event);
+    };
+
+    return ws;
+  },
+
   // ============ Agents ============
 
   async listAgents(): Promise<Agent[]> {
@@ -364,5 +487,13 @@ export const ryxApi = {
     });
   },
 };
+
+/**
+ * Helper function to convert HTTP URL to WebSocket URL
+ */
+function getWebSocketUrl(path: string): string {
+  const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+  return `${wsUrl}${path}`;
+}
 
 export default ryxApi;

@@ -41,6 +41,7 @@ export interface RyxService {
   createSession: typeof ryxApi.createSession;
   getSession: typeof ryxApi.getSession;
   deleteSession: typeof ryxApi.deleteSession;
+  updateSessionTools: typeof ryxApi.updateSessionTools;
   
   // Chat
   sendMessage: typeof ryxApi.sendMessage;
@@ -56,6 +57,9 @@ export interface RyxService {
   getWorkflow: typeof ryxApi.getWorkflow;
   runWorkflow: typeof ryxApi.runWorkflow;
   pauseWorkflow: typeof ryxApi.pauseWorkflow;
+  connectWorkflowStream: typeof ryxApi.connectWorkflowStream;
+  connectWorkflowLogsStream: typeof ryxApi.connectWorkflowLogsStream;
+  connectScrapingStream: typeof ryxApi.connectScrapingStream;
   
   // Agents
   listAgents: typeof ryxApi.listAgents;
@@ -84,6 +88,10 @@ function createRyxService(): RyxService {
       createSession: (data: { name: string; model: string }) => mockApi.createSession(data),
       getSession: (id: string) => mockApi.getSession(id),
       deleteSession: (id: string) => mockApi.deleteSession(id),
+      updateSessionTools: async (sessionId: string, toolId: string, enabled: boolean) => {
+        // Mock implementation
+        return { success: true, sessionId, tools: { [toolId]: enabled } };
+      },
       sendMessage: (sessionId: string, message: string, model?: string) => mockApi.sendMessage(sessionId, message, model),
       getStreamUrl: (sessionId: string) => `mock://stream/${sessionId}`,
       getRagStatus: () => mockApi.getRagStatus(),
@@ -93,6 +101,79 @@ function createRyxService(): RyxService {
       getWorkflow: (id: string) => mockApi.getWorkflow(id),
       runWorkflow: (id: string) => mockApi.runWorkflow(id),
       pauseWorkflow: (id: string) => mockApi.pauseWorkflow(id),
+      connectWorkflowStream: () => {
+        // Mock WebSocket - returns a complete mock object
+        const mockWs = {
+          close: () => {},
+          send: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+          readyState: 1, // OPEN
+          url: 'mock://workflow/stream',
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          binaryType: 'blob' as BinaryType,
+          CONNECTING: 0,
+          OPEN: 1,
+          CLOSING: 2,
+          CLOSED: 3,
+        } as unknown as WebSocket;
+        return mockWs;
+      },
+      connectWorkflowLogsStream: () => {
+        const mockWs = {
+          close: () => {},
+          send: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+          readyState: 1,
+          url: 'mock://workflow/logs',
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          binaryType: 'blob' as BinaryType,
+          CONNECTING: 0,
+          OPEN: 1,
+          CLOSING: 2,
+          CLOSED: 3,
+        } as unknown as WebSocket;
+        return mockWs;
+      },
+      connectScrapingStream: () => {
+        const mockWs = {
+          close: () => {},
+          send: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+          readyState: 1,
+          url: 'mock://scraping/stream',
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          binaryType: 'blob' as BinaryType,
+          CONNECTING: 0,
+          OPEN: 1,
+          CLOSING: 2,
+          CLOSED: 3,
+        } as unknown as WebSocket;
+        return mockWs;
+      },
       listAgents: () => mockApi.listAgents(),
       getAgentLogs: (id: string, lines?: number) => mockApi.getAgentLogs(id, lines),
       listTools: () => mockApi.listTools(),

@@ -367,13 +367,14 @@ Type-specific settings:
 
 ## Backend Integration
 
-### Required Endpoints
+### Implemented Endpoints
 
 #### Tool Management
 ```http
 PUT /api/sessions/:sessionId/tools
 Content-Type: application/json
 
+Request Body:
 {
   "toolId": "websearch",
   "enabled": true
@@ -390,125 +391,339 @@ Response: 200 OK
     "filesystem": true
   }
 }
+
+Error Responses:
+- 404 Not Found: Session not found
+- 400 Bad Request: toolId is required
 ```
+
+**Status**: ✅ Implemented
+
+---
 
 #### Workflow Execution
 ```http
 POST /api/workflows/:workflowId/run
 Content-Type: application/json
 
+Request Body (optional):
 {
   "parameters": {}
 }
 
 Response: 200 OK
 {
-  "runId": "run-456",
+  "success": true,
+  "runId": "run-wf-123-1733385000",
   "status": "running",
   "startedAt": "2025-12-05T14:32:15Z"
 }
+
+Error Responses:
+- 404 Not Found: Workflow not found
 ```
 
-#### WebSocket: Real-time Updates
+**Features**:
+- Creates a new workflow run
+- Stores run in memory for WebSocket access
+- Executes workflow asynchronously
+- Broadcasts real-time updates via WebSocket
+
+**Status**: ✅ Implemented
+
+---
+
+#### WebSocket: Workflow Status Stream
 ```javascript
 // Connect to workflow execution stream
-const ws = new WebSocket('ws://localhost:8420/ws/workflows/run-456');
+const ws = new WebSocket('ws://localhost:8420/ws/workflows/{runId}');
+
+// Connection established
+ws.onopen = () => {
+  console.log('Connected to workflow stream');
+};
 
 // Receive updates
 ws.onmessage = (event) => {
-  const update = JSON.parse(event.data);
-  /*
-  {
-    "type": "node_status",
-    "nodeId": "agent-1",
-    "status": "running",
-    "timestamp": "2025-12-05T14:32:16Z"
+  const data = JSON.parse(event.data);
+  
+  // Initial connection message
+  if (data.type === 'connected') {
+    console.log('Connected to run:', data.runId);
   }
-  */
+  
+  // Workflow status updates
+  if (data.type === 'workflow_status') {
+    console.log('Workflow status:', data.status);
+    // status: "running" | "success" | "error"
+  }
+  
+  // Node status updates
+  if (data.type === 'node_status') {
+    console.log('Node', data.nodeId, 'status:', data.status);
+    // status: "running" | "success" | "error"
+  }
 };
+
+// Keep connection alive
+setInterval(() => {
+  ws.send(JSON.stringify({ action: 'ping' }));
+}, 30000);
 ```
 
-#### Node Logs Stream
+**Event Types**:
+1. `connected` - Initial connection confirmation
+2. `workflow_status` - Overall workflow status changes
+3. `node_status` - Individual node status updates
+4. `pong` - Response to ping (keepalive)
+
+**Status**: ✅ Implemented
+
+---
+
+#### WebSocket: Node Execution Logs
 ```javascript
 // Connect to node execution logs
-const ws = new WebSocket('ws://localhost:8420/ws/workflows/run-456/logs');
+const ws = new WebSocket('ws://localhost:8420/ws/workflows/{runId}/logs');
 
 // Receive logs
 ws.onmessage = (event) => {
-  const log = JSON.parse(event.data);
-  /*
-  {
-    "nodeId": "agent-1",
-    "level": "info",
-    "message": "Processing with qwen2.5-coder:14b...",
-    "timestamp": "2025-12-05T14:32:16Z"
+  const data = JSON.parse(event.data);
+  
+  if (data.type === 'log') {
+    console.log(`[${data.timestamp}] ${data.level}: ${data.message}`);
   }
-  */
 };
+
+/*
+Log Event Structure:
+{
+  "type": "log",
+  "level": "info" | "success" | "warning" | "error",
+  "message": "Processing with qwen2.5-coder:14b...",
+  "nodeId": "agent-1",  // Optional, present for node-specific logs
+  "timestamp": "2025-12-05T14:32:16.123Z"
+}
+*/
 ```
 
-#### Scraping Progress Stream
+**Log Levels**:
+- `info` - General information
+- `success` - Successful operations
+- `warning` - Non-critical issues
+- `error` - Errors and failures
+
+**Status**: ✅ Implemented
+
+---
+
+#### WebSocket: Scraping Progress Stream
 ```javascript
 // Connect to scraping updates
-const ws = new WebSocket('ws://localhost:8420/ws/scraping/tool-1');
+const ws = new WebSocket('ws://localhost:8420/ws/scraping/{toolId}');
 
 // Receive progress
 ws.onmessage = (event) => {
-  const progress = JSON.parse(event.data);
-  /*
-  {
-    "url": "https://example.com",
-    "status": "scraping",
-    "progress": 65,
-    "items": [
-      {
-        "type": "text",
-        "content": "...",
-        "selector": "article > h1",
-        "timestamp": "2025-12-05T14:32:17Z"
-      }
-    ],
-    "totalItems": 10
+  const data = JSON.parse(event.data);
+  
+  if (data.type === 'scraping_progress') {
+    console.log(`Scraping ${data.url}: ${data.progress}%`);
+    console.log(`Items: ${data.items.length}/${data.totalItems}`);
   }
-  */
 };
+
+/*
+Progress Event Structure:
+{
+  "type": "scraping_progress",
+  "url": "https://example.com",
+  "status": "pending" | "scraping" | "success" | "error",
+  "progress": 65,
+  "items": [
+    {
+      "type": "text" | "image" | "code" | "link",
+      "content": "Sample content",
+      "selector": "article > p",
+      "timestamp": "2025-12-05T14:32:17Z"
+    }
+  ],
+  "totalItems": 10,
+  "timestamp": "2025-12-05T14:32:17.456Z"
+}
+*/
 ```
 
+**Scraping Statuses**:
+- `pending` - Scraping queued
+- `scraping` - Currently scraping
+- `success` - Scraping completed
+- `error` - Scraping failed
+
+**Status**: ✅ Implemented
+
+---
+
 ### Workflow Persistence
+
+All workflow persistence endpoints are implemented and store data in `data/workflows/` directory.
+
+#### List Workflows
 ```http
 GET /api/workflows
+
 Response: 200 OK
 {
   "workflows": [
     {
-      "id": "workflow-1",
+      "id": "wf-1733385000",
       "name": "Code Review",
-      "nodes": [...],
-      "connections": [...],
-      "createdAt": "2025-12-05T14:00:00Z",
-      "updatedAt": "2025-12-05T14:32:00Z"
+      "status": "idle" | "running" | "paused",
+      "lastRun": "2m ago",
+      "nodeCount": 5,
+      "connectionCount": 4
     }
   ]
 }
+```
 
+**Status**: ✅ Implemented
+
+---
+
+#### Create Workflow
+```http
 POST /api/workflows
 Content-Type: application/json
+
+Request Body:
 {
   "name": "My Workflow",
-  "nodes": [...],
-  "connections": [...]
+  "nodes": [
+    {
+      "id": "node-1",
+      "type": "trigger",
+      "name": "Manual Trigger",
+      "x": 100,
+      "y": 100,
+      "config": {}
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-1",
+      "from": "node-1",
+      "to": "node-2"
+    }
+  ],
+  "status": "idle"
 }
 
+Response: 200 OK
+{
+  "success": true,
+  "workflow": {
+    "id": "wf-1733385000",
+    "name": "My Workflow",
+    "nodes": [...],
+    "connections": [...],
+    "status": "idle",
+    "created": "2025-12-05T14:00:00Z",
+    "updated": "2025-12-05T14:00:00Z",
+    "runs": []
+  }
+}
+```
+
+**Status**: ✅ Implemented
+
+---
+
+#### Get Workflow
+```http
+GET /api/workflows/:workflowId
+
+Response: 200 OK
+{
+  "id": "wf-1733385000",
+  "name": "Code Review",
+  "nodes": [...],
+  "connections": [...],
+  "status": "idle",
+  "created": "2025-12-05T14:00:00Z",
+  "updated": "2025-12-05T14:32:00Z",
+  "runs": [...]
+}
+
+Error Responses:
+- 404 Not Found: Workflow not found
+```
+
+**Status**: ✅ Implemented
+
+---
+
+#### Update Workflow
+```http
 PUT /api/workflows/:workflowId
 Content-Type: application/json
+
+Request Body:
 {
+  "name": "Updated Workflow",
   "nodes": [...],
-  "connections": [...]
+  "connections": [...],
+  "status": "idle"
 }
 
-DELETE /api/workflows/:workflowId
-Response: 204 No Content
+Response: 200 OK
+{
+  "success": true,
+  "workflow": {
+    "id": "wf-1733385000",
+    "name": "Updated Workflow",
+    ...
+  }
+}
+
+Error Responses:
+- 404 Not Found: Workflow not found
 ```
+
+**Status**: ✅ Implemented
+
+---
+
+#### Delete Workflow
+```http
+DELETE /api/workflows/:workflowId
+
+Response: 200 OK
+{
+  "success": true
+}
+
+Error Responses:
+- 404 Not Found: Workflow not found
+```
+
+**Status**: ✅ Implemented
+
+---
+
+#### Pause Workflow
+```http
+POST /api/workflows/:workflowId/pause
+
+Response: 200 OK
+{
+  "status": "paused"
+}
+
+Error Responses:
+- 404 Not Found: Workflow not found
+```
+
+**Status**: ✅ Implemented
 
 ---
 

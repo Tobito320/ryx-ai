@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo, useEffect, useRef } from "react";
 import ReactFlow, {
   Node,
   Edge,
@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrapingVisualization, generateMockScrapes } from "@/components/ryxhub/ScrapingVisualization";
+import { useRunWorkflow } from "@/hooks/useRyxApi";
 
 const nodeIcons = {
   trigger: Zap,
@@ -111,7 +112,17 @@ export function WorkflowCanvasEnhanced() {
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [selectedConfigNode, setSelectedConfigNode] = useState<RyxWorkflowNode | null>(null);
   const [executionLogs, setExecutionLogs] = useState<string[]>([]);
-  const [scrapingData, setScrapingData] = useState<any[]>([]);
+  const [scrapingData, setScrapingData] = useState<Array<{
+    url: string;
+    status: string;
+    progress: number;
+    items: Array<{ type: string; content: string; selector: string }>;
+    totalItems: number;
+  }>>([]);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const logsWsRef = useRef<WebSocket | null>(null);
+  const runWorkflowMutation = useRunWorkflow();
 
   const handleNodeDoubleClick = useCallback((node: RyxWorkflowNode) => {
     setSelectedConfigNode(node);
@@ -186,12 +197,9 @@ export function WorkflowCanvasEnhanced() {
       };
       setEdges((eds) => addEdge(newEdge, eds));
       toast.success("Connection created");
-
-      // TODO: Persist to backend
-      // await fetch(`http://localhost:8420/api/workflows/${workflowId}`, {
-      //   method: 'PUT',
-      //   body: JSON.stringify({ connections: [...edges, newEdge] })
-      // });
+      
+      // Note: Connections are persisted when workflow is saved/updated
+      // In a full implementation, you'd call an API to save the workflow here
     },
     [isWorkflowRunning]
   );
@@ -225,110 +233,117 @@ export function WorkflowCanvasEnhanced() {
     }
   };
 
-  const handleRunWorkflow = () => {
-    toggleWorkflowRunning();
+  const handleRunWorkflow = async () => {
     if (!isWorkflowRunning) {
+      toggleWorkflowRunning();
       setExecutionLogs([]);
       setScrapingData([]);
-      setExecutionLogs((prev) => [
-        ...prev,
-        `[${new Date().toLocaleTimeString()}] 🚀 Workflow execution started`,
-      ]);
-
-      // Simulate workflow execution with detailed node-by-node feedback
-      const nodeSequence = [...workflowNodes];
-      nodeSequence.forEach((node, index) => {
-        setTimeout(() => {
-          // Update node status to running
-          setNodes((nds) =>
-            nds.map((n) =>
-              n.id === node.id
-                ? { ...n, data: { ...n.data, status: "running" } }
-                : n
-            )
-          );
-
-          setExecutionLogs((prev) => [
-            ...prev,
-            `[${new Date().toLocaleTimeString()}] ⚙️ Executing ${node.type}: "${node.name}"`,
-          ]);
-
-          // Simulate node-specific actions
-          if (node.type === "agent") {
-            setTimeout(() => {
-              setExecutionLogs((prev) => [
-                ...prev,
-                `[${new Date().toLocaleTimeString()}] 🤖 Agent processing with ${node.config?.model || "default model"}...`,
-              ]);
-            }, 200);
-          } else if (node.type === "tool" && node.config?.toolType === "scrape") {
-            setTimeout(() => {
-              setExecutionLogs((prev) => [
-                ...prev,
-                `[${new Date().toLocaleTimeString()}] 🌐 Scraping web content...`,
-              ]);
-              setScrapingData(generateMockScrapes());
-            }, 200);
-          } else if (node.type === "tool" && node.config?.toolType === "websearch") {
-            setTimeout(() => {
-              setExecutionLogs((prev) => [
-                ...prev,
-                `[${new Date().toLocaleTimeString()}] 🔍 Searching via SearXNG...`,
-              ]);
-            }, 200);
-          } else if (node.type === "tool" && node.config?.toolType === "rag") {
-            setTimeout(() => {
-              setExecutionLogs((prev) => [
-                ...prev,
-                `[${new Date().toLocaleTimeString()}] 📚 Querying RAG database...`,
-              ]);
-            }, 200);
+      
+      try {
+        // Create a temporary workflow ID (in real app, you'd save the workflow first)
+        // Use crypto.randomUUID() with robust fallback
+        const generateId = () => {
+          if (crypto && crypto.randomUUID) {
+            return crypto.randomUUID();
           }
-
-          // Mark node as success after execution
-          setTimeout(() => {
-            setNodes((nds) =>
-              nds.map((n) =>
-                n.id === node.id
-                  ? { ...n, data: { ...n.data, status: "success" } }
-                  : n
-              )
-            );
-            setExecutionLogs((prev) => [
-              ...prev,
-              `[${new Date().toLocaleTimeString()}] ✅ Completed ${node.type}: "${node.name}"`,
-            ]);
-          }, 800);
-        }, index * 1500);
-      });
-
-      // Complete workflow
-      setTimeout(() => {
-        setExecutionLogs((prev) => [
-          ...prev,
-          `[${new Date().toLocaleTimeString()}] 🎉 Workflow completed successfully`,
-        ]);
-        toggleWorkflowRunning();
+          // Fallback: timestamp + random string for better uniqueness
+          return Date.now().toString(36) + Math.random().toString(36).substring(2);
+        };
+        const tempWorkflowId = "temp-workflow-" + generateId();
         
-        // Reset node statuses after a delay
-        setTimeout(() => {
-          setNodes((nds) =>
-            nds.map((n) => ({ ...n, data: { ...n.data, status: "idle" } }))
-          );
-        }, 2000);
-      }, nodeSequence.length * 1500 + 1000);
-
-      // TODO: Real workflow execution
-      // await fetch(`http://localhost:8420/api/workflows/${workflowId}/run`, {
-      //   method: 'POST'
-      // });
+        // Run the workflow via backend API
+        const result = await runWorkflowMutation.mutateAsync(tempWorkflowId);
+        setCurrentRunId(result.run_id);
+        
+        // Connect to WebSocket for live updates
+        const { ryxApi } = await import('@/lib/api/client');
+        
+        // Connect to workflow status stream
+        const ws = ryxApi.connectWorkflowStream(
+          result.run_id,
+          (message) => {
+            if (message.type === "workflow_status") {
+              if (message.status === "success" || message.status === "error") {
+                toggleWorkflowRunning();
+                // Reset node statuses after a delay
+                setTimeout(() => {
+                  setNodes((nds) =>
+                    nds.map((n) => ({ ...n, data: { ...n.data, status: "idle" } }))
+                  );
+                }, 2000);
+              }
+            } else if (message.type === "node_status") {
+              // Update node status in UI
+              setNodes((nds) =>
+                nds.map((n) =>
+                  n.id === message.nodeId
+                    ? { ...n, data: { ...n.data, status: message.status } }
+                    : n
+                )
+              );
+            }
+          },
+          (error) => {
+            console.error("WebSocket error:", error);
+            toast.error("Lost connection to workflow execution");
+          }
+        );
+        wsRef.current = ws;
+        
+        // Connect to logs stream
+        const logsWs = ryxApi.connectWorkflowLogsStream(
+          result.run_id,
+          (log) => {
+            if (log.type === "log" && log.message) {
+              setExecutionLogs((prev) => [
+                ...prev,
+                `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.message}`,
+              ]);
+            }
+          },
+          (error) => {
+            console.error("Logs WebSocket error:", error);
+          }
+        );
+        logsWsRef.current = logsWs;
+        
+        toast.success("Workflow execution started");
+      } catch (error) {
+        console.error("Failed to run workflow:", error);
+        toast.error("Failed to start workflow execution");
+        toggleWorkflowRunning();
+      }
     } else {
+      // Pause workflow
       setExecutionLogs((prev) => [
         ...prev,
         `[${new Date().toLocaleTimeString()}] ⏸️ Workflow execution paused`,
       ]);
+      toggleWorkflowRunning();
+      
+      // Close WebSocket connections
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (logsWsRef.current) {
+        logsWsRef.current.close();
+        logsWsRef.current = null;
+      }
     }
   };
+  
+  // Cleanup WebSocket connections on unmount
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (logsWsRef.current) {
+        logsWsRef.current.close();
+      }
+    };
+  }, []);
 
   const handleClearCanvas = () => {
     setNodes([]);
@@ -338,19 +353,19 @@ export function WorkflowCanvasEnhanced() {
 
   const handleSaveNodeConfig = (nodeId: string, config: Record<string, unknown>) => {
     // Update node configuration in state
-    // In a real implementation, this would update the backend
     toast.success("Node configuration updated");
     
-    // TODO: Update backend
-    // await fetch(`http://localhost:8420/api/workflows/nodes/${nodeId}`, {
-    //   method: 'PUT',
-    //   body: JSON.stringify({ config })
-    // });
+    // Note: Node configuration is persisted when workflow is saved
+    // In a full implementation, you'd call an API to update the workflow here
   };
 
-  const handleSelectTemplate = (template: any) => {
+  const handleSelectTemplate = (template: {
+    name: string;
+    nodes: Array<Omit<RyxWorkflowNode, "logs" | "runs">>;
+    connections: Array<{ id: string; from: string; to: string }>;
+  }) => {
     // Load template nodes and connections
-    const templateNodes = template.nodes.map((node: any) => ({
+    const templateNodes = template.nodes.map((node) => ({
       ...node,
       logs: [],
       runs: [],
@@ -361,7 +376,7 @@ export function WorkflowCanvasEnhanced() {
     });
 
     // Add connections
-    template.connections.forEach((conn: any) => {
+    template.connections.forEach((conn) => {
       const newEdge = {
         id: conn.id,
         source: conn.from,

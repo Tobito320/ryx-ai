@@ -126,11 +126,21 @@ export function ChatView() {
       )
     );
 
-    // TODO: Send to backend API to persist tool state
-    // await fetch(`http://localhost:8420/api/sessions/${selectedSessionId}/tools`, {
-    //   method: 'PUT',
-    //   body: JSON.stringify({ toolId, enabled })
-    // });
+    if (selectedSessionId) {
+      try {
+        // Send to backend API to persist tool state
+        const { ryxApi } = await import('@/lib/api/client');
+        await ryxApi.updateSessionTools(selectedSessionId, toolId, enabled);
+      } catch (error) {
+        console.error('Failed to update tool state:', error);
+        // Revert on error
+        setTools((prev) =>
+          prev.map((tool) =>
+            tool.id === toolId ? { ...tool, enabled: !enabled } : tool
+          )
+        );
+      }
+    }
 
     toast.success(`${enabled ? 'Enabled' : 'Disabled'} ${tools.find(t => t.id === toolId)?.name}`);
   };
