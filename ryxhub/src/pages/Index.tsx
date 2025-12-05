@@ -5,6 +5,7 @@ import { WorkflowCanvasEnhanced } from "@/components/ryxhub/WorkflowCanvasEnhanc
 import { RightInspector } from "@/components/ryxhub/RightInspector";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
+import { CouncilWorkflow } from "@/components/ryxhub/CouncilWorkflow";
 import { ViewToggle } from "@/components/ryxhub/ViewToggle";
 import { ModelDialog } from "@/components/ryxhub/ModelDialog";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
@@ -75,6 +76,7 @@ function RyxHubApp() {
               {activeView === "dashboard" && <DashboardView />}
               {activeView === "chat" && <ChatView />}
               {activeView === "workflow" && <WorkflowCanvasEnhanced />}
+              {activeView === "council" && <CouncilWorkflow />}
               {activeView === "settings" && <SettingsView />}
             </div>
           </main>
