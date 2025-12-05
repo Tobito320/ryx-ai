@@ -1,4 +1,4 @@
-import { MessageSquare, GitBranch, LayoutDashboard } from "lucide-react";
+import { MessageSquare, GitBranch, LayoutDashboard, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import type { ViewMode } from "@/types/ryxhub";
@@ -7,6 +7,7 @@ const views: { id: ViewMode; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "workflow", label: "Workflow", icon: GitBranch },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 export function ViewToggle() {

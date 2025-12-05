@@ -4,6 +4,7 @@ import { ChatView } from "@/components/ryxhub/ChatView";
 import { WorkflowCanvas } from "@/components/ryxhub/WorkflowCanvas";
 import { RightInspector } from "@/components/ryxhub/RightInspector";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
+import { SettingsView } from "@/components/ryxhub/SettingsView";
 import { ViewToggle } from "@/components/ryxhub/ViewToggle";
 import { ModelDialog } from "@/components/ryxhub/ModelDialog";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
@@ -74,6 +75,7 @@ function RyxHubApp() {
               {activeView === "dashboard" && <DashboardView />}
               {activeView === "chat" && <ChatView />}
               {activeView === "workflow" && <WorkflowCanvas />}
+              {activeView === "settings" && <SettingsView />}
             </div>
 
             {/* Right Inspector - Only show in workflow view */}

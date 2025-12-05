@@ -84,4 +84,4 @@ export interface Workflow {
   status: "idle" | "running" | "paused";
 }
 
-export type ViewMode = "dashboard" | "chat" | "workflow";
+export type ViewMode = "dashboard" | "chat" | "workflow" | "settings";

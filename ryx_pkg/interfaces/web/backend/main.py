@@ -476,13 +476,142 @@ async def health_check() -> HealthResponse:
 async def get_status() -> StatusResponse:
     """Get system status."""
     models = await vllm_list_models()
+    
+    # Try to get real GPU stats from vLLM metrics
+    gpu_used = 8.5
+    gpu_total = 16.0
+    try:
+        metrics = await get_vllm_metrics()
+        if metrics:
+            # Convert bytes to GB
+            gpu_used = metrics.get("process_resident_memory_bytes", 0) / (1024**3)
+    except:
+        pass
+    
     return StatusResponse(
         models_loaded=len(models),
         active_sessions=len([s for s in sessions.values() if s.isActive]),
-        gpu_memory_used=8.5,  # TODO: Get real GPU stats
-        gpu_memory_total=16.0,
+        gpu_memory_used=gpu_used,
+        gpu_memory_total=gpu_total,
         vllm_workers=1
     )
+
+
+async def get_vllm_metrics() -> Dict[str, Any]:
+    """Fetch and parse vLLM Prometheus metrics."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(f"{VLLM_BASE_URL}/metrics") as resp:
+                if resp.status != 200:
+                    return {}
+                
+                text = await resp.text()
+                metrics = {}
+                
+                for line in text.split('\n'):
+                    if line.startswith('#') or not line.strip():
+                        continue
+                    
+                    # Parse metric line: name{labels} value
+                    if ' ' in line:
+                        parts = line.rsplit(' ', 1)
+                        if len(parts) == 2:
+                            metric_name = parts[0].split('{')[0]
+                            try:
+                                value = float(parts[1])
+                                metrics[metric_name] = value
+                            except ValueError:
+                                pass
+                
+                return metrics
+    except Exception:
+        return {}
+
+
+@app.get("/api/metrics/vllm")
+async def get_vllm_metrics_endpoint() -> Dict[str, Any]:
+    """Get detailed vLLM metrics for the metrics page."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(f"{VLLM_BASE_URL}/metrics") as resp:
+                if resp.status != 200:
+                    return {"error": "Failed to fetch metrics", "available": False}
+                
+                text = await resp.text()
+                
+                # Parse key metrics
+                metrics = {
+                    "available": True,
+                    "memory": {},
+                    "requests": {},
+                    "tokens": {},
+                    "cache": {},
+                    "model": {}
+                }
+                
+                for line in text.split('\n'):
+                    if line.startswith('#') or not line.strip():
+                        continue
+                    
+                    try:
+                        # Parse metric
+                        if ' ' not in line:
+                            continue
+                        parts = line.rsplit(' ', 1)
+                        value = float(parts[1])
+                        metric_key = parts[0]
+                        
+                        # Memory metrics
+                        if 'process_resident_memory_bytes' in metric_key:
+                            metrics["memory"]["resident_gb"] = round(value / (1024**3), 2)
+                        elif 'process_virtual_memory_bytes' in metric_key:
+                            metrics["memory"]["virtual_gb"] = round(value / (1024**3), 2)
+                        
+                        # Request metrics
+                        elif 'vllm:num_requests_running' in metric_key:
+                            metrics["requests"]["running"] = int(value)
+                        elif 'vllm:num_requests_waiting' in metric_key:
+                            metrics["requests"]["waiting"] = int(value)
+                        elif 'vllm:request_success_total' in metric_key and 'stop' in metric_key:
+                            metrics["requests"]["successful"] = int(value)
+                        
+                        # Token metrics
+                        elif 'vllm:prompt_tokens_total' in metric_key:
+                            metrics["tokens"]["prompt_total"] = int(value)
+                        elif 'vllm:generation_tokens_total' in metric_key:
+                            metrics["tokens"]["generation_total"] = int(value)
+                        
+                        # Cache metrics
+                        elif 'vllm:kv_cache_usage_perc' in metric_key:
+                            metrics["cache"]["kv_usage_percent"] = round(value * 100, 2)
+                        elif 'vllm:prefix_cache_hits_total' in metric_key:
+                            metrics["cache"]["prefix_hits"] = int(value)
+                        elif 'vllm:prefix_cache_queries_total' in metric_key:
+                            metrics["cache"]["prefix_queries"] = int(value)
+                        
+                        # Extract model name
+                        if 'model_name="' in metric_key:
+                            model_match = metric_key.split('model_name="')[1].split('"')[0]
+                            metrics["model"]["name"] = model_match
+                            metrics["model"]["short_name"] = model_match.split('/')[-1]
+                            
+                    except (ValueError, IndexError):
+                        continue
+                
+                # Calculate derived metrics
+                if metrics["cache"].get("prefix_queries", 0) > 0:
+                    hit_rate = metrics["cache"].get("prefix_hits", 0) / metrics["cache"]["prefix_queries"] * 100
+                    metrics["cache"]["hit_rate_percent"] = round(hit_rate, 1)
+                
+                metrics["tokens"]["total"] = (
+                    metrics["tokens"].get("prompt_total", 0) + 
+                    metrics["tokens"].get("generation_total", 0)
+                )
+                
+                return metrics
+                
+    except Exception as e:
+        return {"error": str(e), "available": False}
 
 
 # =============================================================================
