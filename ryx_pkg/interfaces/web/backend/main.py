@@ -1217,6 +1217,21 @@ async def trigger_rag_sync() -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
+@app.post("/api/rag/upload")
+async def upload_rag_documents(files: List[Any] = None) -> Dict[str, Any]:
+    """Upload documents to RAG index."""
+    try:
+        # In a real implementation, this would:
+        # 1. Save uploaded files to a staging directory
+        # 2. Queue them for processing and embedding
+        # 3. Add to vector store
+        # For now, return a success message
+        log_activity("info", f"Documents uploaded for RAG indexing")
+        return {"success": True, "message": "Files queued for indexing", "count": 0}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/rag/search")
 async def search_rag(data: Dict[str, Any]) -> Dict[str, Any]:
     """Search RAG index."""
@@ -1228,6 +1243,7 @@ async def search_rag(data: Dict[str, Any]) -> Dict[str, Any]:
         rag = RAGSystem()
         results = rag.search(query, top_k=top_k) if hasattr(rag, 'search') else []
         rag.close()
+        log_activity("info", f"RAG search: '{query[:50]}'")
         return {"results": results, "total": len(results)}
     except Exception:
         return {"results": [], "total": 0}

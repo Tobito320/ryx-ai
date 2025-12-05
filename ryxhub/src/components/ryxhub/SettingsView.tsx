@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useModels, useLoadModel, useHealth } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { RAGManagement } from "@/components/ryxhub/RAGManagement";
 
 interface VLLMMetrics {
   available: boolean;
@@ -336,6 +337,15 @@ export function SettingsView() {
             </CardContent>
           </Card>
         )}
+
+        {/* RAG Management Section */}
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Knowledge Base Management
+          </h2>
+          <RAGManagement />
+        </div>
       </div>
     </ScrollArea>
   );
