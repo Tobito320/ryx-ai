@@ -241,7 +241,8 @@ export function WorkflowCanvasEnhanced() {
       
       try {
         // Create a temporary workflow ID (in real app, you'd save the workflow first)
-        const tempWorkflowId = "temp-workflow-" + Date.now();
+        // Use crypto.randomUUID() for better uniqueness
+        const tempWorkflowId = "temp-workflow-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now());
         
         // Run the workflow via backend API
         const result = await runWorkflowMutation.mutateAsync(tempWorkflowId);
@@ -253,8 +254,7 @@ export function WorkflowCanvasEnhanced() {
         // Connect to workflow status stream
         const ws = ryxApi.connectWorkflowStream(
           result.run_id,
-          (data: unknown) => {
-            const message = data as { type: string; status?: string; nodeId?: string };
+          (message) => {
             if (message.type === "workflow_status") {
               if (message.status === "success" || message.status === "error") {
                 toggleWorkflowRunning();
@@ -286,9 +286,8 @@ export function WorkflowCanvasEnhanced() {
         // Connect to logs stream
         const logsWs = ryxApi.connectWorkflowLogsStream(
           result.run_id,
-          (data: unknown) => {
-            const log = data as { type: string; timestamp: string; message: string };
-            if (log.type === "log") {
+          (log) => {
+            if (log.type === "log" && log.message) {
               setExecutionLogs((prev) => [
                 ...prev,
                 `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.message}`,

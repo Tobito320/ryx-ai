@@ -997,11 +997,8 @@ async def update_session_tools(session_id: str, data: Dict[str, Any]) -> Dict[st
     if not tool_id:
         raise HTTPException(status_code=400, detail="toolId is required")
     
-    # Store tool state in session metadata
-    if not hasattr(session, 'tools'):
-        session.tools = {}  # type: ignore
-    
-    session.tools[tool_id] = enabled  # type: ignore
+    # Store tool state in session metadata (tools field is initialized in SessionInfo)
+    session.tools[tool_id] = enabled
     save_session(session)
     
     log_activity("info", f"Session '{session.name}': tool '{tool_id}' {'enabled' if enabled else 'disabled'}")
@@ -1009,7 +1006,7 @@ async def update_session_tools(session_id: str, data: Dict[str, Any]) -> Dict[st
     return {
         "success": True,
         "sessionId": session_id,
-        "tools": session.tools  # type: ignore
+        "tools": session.tools
     }
 
 

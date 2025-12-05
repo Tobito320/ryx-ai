@@ -128,6 +128,42 @@ export interface Tool {
   parameters: Record<string, unknown>;
 }
 
+// WebSocket message types
+export interface WorkflowStatusEvent {
+  type: 'workflow_status' | 'node_status' | 'connected' | 'pong';
+  status?: 'running' | 'success' | 'error' | 'idle';
+  nodeId?: string;
+  runId?: string;
+  timestamp?: string;
+  error?: string;
+}
+
+export interface LogEvent {
+  type: 'log' | 'connected';
+  level?: 'info' | 'success' | 'warning' | 'error';
+  message?: string;
+  nodeId?: string;
+  timestamp: string;
+  runId?: string;
+}
+
+export interface ScrapingProgressEvent {
+  type: 'scraping_progress' | 'connected';
+  url?: string;
+  status?: 'pending' | 'scraping' | 'success' | 'error';
+  progress?: number;
+  items?: Array<{
+    type: string;
+    content: string;
+    selector: string;
+    timestamp: string;
+  }>;
+  totalItems?: number;
+  toolId?: string;
+  timestamp: string;
+  message?: string;
+}
+
 /**
  * Make an API request with timeout and error handling
  */
@@ -337,7 +373,7 @@ export const ryxApi = {
   // WebSocket connections for workflows
   connectWorkflowStream(
     runId: string,
-    onMessage: (data: unknown) => void,
+    onMessage: (data: WorkflowStatusEvent) => void,
     onError?: (error: Event) => void
   ): WebSocket {
     const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
@@ -345,7 +381,7 @@ export const ryxApi = {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as WorkflowStatusEvent;
         onMessage(data);
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
@@ -362,7 +398,7 @@ export const ryxApi = {
 
   connectWorkflowLogsStream(
     runId: string,
-    onLog: (log: unknown) => void,
+    onLog: (log: LogEvent) => void,
     onError?: (error: Event) => void
   ): WebSocket {
     const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
@@ -370,7 +406,7 @@ export const ryxApi = {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as LogEvent;
         onLog(data);
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
@@ -387,7 +423,7 @@ export const ryxApi = {
 
   connectScrapingStream(
     toolId: string,
-    onProgress: (progress: unknown) => void,
+    onProgress: (progress: ScrapingProgressEvent) => void,
     onError?: (error: Event) => void
   ): WebSocket {
     const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
@@ -395,7 +431,7 @@ export const ryxApi = {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as ScrapingProgressEvent;
         onProgress(data);
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);

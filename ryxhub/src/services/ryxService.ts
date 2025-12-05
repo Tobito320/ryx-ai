@@ -102,14 +102,77 @@ function createRyxService(): RyxService {
       runWorkflow: (id: string) => mockApi.runWorkflow(id),
       pauseWorkflow: (id: string) => mockApi.pauseWorkflow(id),
       connectWorkflowStream: () => {
-        // Mock WebSocket - returns a minimal WebSocket-like object
-        return { close: () => {}, send: () => {} } as WebSocket;
+        // Mock WebSocket - returns a complete mock object
+        const mockWs = {
+          close: () => {},
+          send: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+          readyState: 1, // OPEN
+          url: 'mock://workflow/stream',
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          binaryType: 'blob' as BinaryType,
+          CONNECTING: 0,
+          OPEN: 1,
+          CLOSING: 2,
+          CLOSED: 3,
+        } as unknown as WebSocket;
+        return mockWs;
       },
       connectWorkflowLogsStream: () => {
-        return { close: () => {}, send: () => {} } as WebSocket;
+        const mockWs = {
+          close: () => {},
+          send: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+          readyState: 1,
+          url: 'mock://workflow/logs',
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          binaryType: 'blob' as BinaryType,
+          CONNECTING: 0,
+          OPEN: 1,
+          CLOSING: 2,
+          CLOSED: 3,
+        } as unknown as WebSocket;
+        return mockWs;
       },
       connectScrapingStream: () => {
-        return { close: () => {}, send: () => {} } as WebSocket;
+        const mockWs = {
+          close: () => {},
+          send: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+          readyState: 1,
+          url: 'mock://scraping/stream',
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          binaryType: 'blob' as BinaryType,
+          CONNECTING: 0,
+          OPEN: 1,
+          CLOSING: 2,
+          CLOSED: 3,
+        } as unknown as WebSocket;
+        return mockWs;
       },
       listAgents: () => mockApi.listAgents(),
       getAgentLogs: (id: string, lines?: number) => mockApi.getAgentLogs(id, lines),
