@@ -114,13 +114,15 @@ export function useSendMessage() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ sessionId, message, model }: { sessionId: string; message: string; model?: string }) =>
-      ryxService.sendMessage(sessionId, message, model),
+    mutationFn: ({ sessionId, message, model, history, tools }: { 
+      sessionId: string; 
+      message: string; 
+      model?: string;
+      history?: Array<{ role: "user" | "assistant"; content: string }>;
+      tools?: string[];
+    }) => ryxService.sendMessage(sessionId, message, model, history, tools),
     onSuccess: (_, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to send message: ${error.message}`);
     },
   });
 }

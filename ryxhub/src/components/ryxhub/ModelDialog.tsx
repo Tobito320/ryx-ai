@@ -166,10 +166,10 @@ export function ModelDialog({ model, open, onOpenChange, onModelUpdate }: ModelD
 
           {/* Info */}
           <div className="text-xs text-muted-foreground bg-muted/20 p-3 rounded-lg border border-border">
-            <p className="font-semibold mb-1">ℹ️ Note:</p>
+            <p className="font-semibold mb-1">ℹ️ vLLM Model Management:</p>
             <p>
-              vLLM typically loads one model at a time. To switch models, you may need to
-              restart the vLLM container with the desired model configuration.
+              vLLM loads models at startup. To switch models, restart vLLM with
+              the desired model using <code className="bg-muted px-1 rounded">--model MODEL_NAME</code>.
             </p>
           </div>
         </div>

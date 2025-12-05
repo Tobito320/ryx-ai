@@ -9,6 +9,7 @@ export interface Session {
   messages: Message[];
   agentId: string;
   model: string;
+  tools?: { [toolId: string]: boolean };
 }
 
 export interface Message {
@@ -85,3 +86,10 @@ export interface Workflow {
 }
 
 export type ViewMode = "dashboard" | "chat" | "workflow" | "settings";
+
+// Helper to extract model name from path
+export function getModelDisplayName(modelPath: string): string {
+  if (!modelPath) return "Unknown";
+  const parts = modelPath.split('/');
+  return parts[parts.length - 1] || modelPath;
+}

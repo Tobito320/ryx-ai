@@ -252,11 +252,11 @@
     }
   ],
   "stats": {
-    "prompts": 10,
-    "actions": 2,
+    "prompts": 0,
+    "actions": 0,
     "files": 0,
     "urls": 0,
-    "searches": 2,
+    "searches": 0,
     "scrapes": 0
   },
   "precision_mode": false,
@@ -267,5 +267,5 @@
     "last_intent": "list_models",
     "created_files": []
   },
-  "saved_at": "2025-12-05T08:45:43.278573"
+  "saved_at": "2025-12-05T11:28:31.413378"
 }

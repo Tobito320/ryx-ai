@@ -39,6 +39,79 @@ const randomDelay = () => delay(100 + Math.random() * 400);
 let sessions = [...mockSessions];
 let messageIdCounter = 100;
 
+// Simulated AI responses based on tools and context
+const generateAIResponse = (message: string, enabledTools: string[] = ['websearch', 'rag', 'filesystem']): string => {
+  const lowerMessage = message.toLowerCase();
+  
+  // Check for file attachments
+  if (message.includes('[File:') || message.includes('[Image:')) {
+    return `I've received and analyzed the attached files. Here's what I found:
+
+**File Analysis:**
+- Successfully parsed the content
+- Identified key patterns and structures
+- Cross-referenced with RAG knowledge base
+
+${enabledTools.includes('rag') ? `\n**RAG Context:** Found 3 related documents in the knowledge base that may be relevant.` : ''}
+
+Would you like me to:
+1. Provide a detailed breakdown of the content
+2. Compare with existing codebase patterns
+3. Generate suggestions for improvements`;
+  }
+  
+  // Code-related queries
+  if (lowerMessage.includes('code') || lowerMessage.includes('function') || lowerMessage.includes('bug')) {
+    return `I've analyzed your request. Here's my assessment:
+
+**Code Analysis:**
+\`\`\`python
+# Example relevant code pattern
+def example_function():
+    # Implementation based on your query
+    pass
+\`\`\`
+
+${enabledTools.includes('rag') ? '**RAG Search:** Found 5 relevant code examples in the indexed codebase.' : ''}
+${enabledTools.includes('websearch') ? '**Web Search:** Found 3 recent Stack Overflow discussions on this topic.' : ''}
+
+Would you like me to elaborate on any specific aspect?`;
+  }
+  
+  // Search-related queries
+  if (lowerMessage.includes('search') || lowerMessage.includes('find') || lowerMessage.includes('look')) {
+    return `I've searched for relevant information:
+
+${enabledTools.includes('websearch') ? `**Web Search Results:**
+1. [Relevant Article] - Key insights about your query
+2. [Documentation] - Official documentation reference
+3. [Discussion] - Community discussion with solutions` : '**Note:** Web search is disabled.'}
+
+${enabledTools.includes('rag') ? `**Knowledge Base:**
+- Found 7 indexed documents matching your query
+- Most relevant: "architecture.md" (0.94 similarity)` : ''}
+
+Would you like me to dive deeper into any of these results?`;
+  }
+  
+  // Default intelligent response
+  return `I understand you're asking about "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"
+
+Here's my analysis:
+
+**Key Points:**
+1. I've processed your query through the multi-agent pipeline
+2. ${enabledTools.includes('rag') ? 'Checked the RAG knowledge base for relevant context' : 'RAG is disabled for this session'}
+3. ${enabledTools.includes('websearch') ? 'Ready to search the web if needed' : 'Web search is disabled'}
+
+**Recommendations:**
+- Consider breaking down complex tasks into smaller steps
+- I can help with code generation, analysis, or research
+- Let me know if you'd like me to use specific tools
+
+What would you like to explore further?`;
+};
+
 /**
  * Mock API implementation
  */
@@ -157,40 +230,28 @@ export const mockApi = {
 
   // ============ Chat ============
 
-  async sendMessage(sessionId: string, message: string, model?: string): Promise<Message> {
-    await delay(800 + Math.random() * 1200); // Simulate LLM response time
+  async sendMessage(
+    sessionId: string, 
+    message: string, 
+    model?: string,
+    history?: Array<{ role: "user" | "assistant"; content: string }>,
+    tools?: string[]
+  ): Promise<Message> {
+    await delay(400 + Math.random() * 600);
 
     const session = sessions.find((s) => s.id === sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
 
-    // Use specified model or session default
     const usedModel = model || session.model;
-
-    // Add user message
-    const userMessage: Message = {
-      id: `msg-${++messageIdCounter}`,
-      role: 'user',
-      content: message,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    session.messages.push(userMessage);
-
-    // Generate mock AI response
-    const responses = [
-      `I've analyzed your request. Here's what I found:\n\n**Key Points:**\n1. Your query relates to ${message.slice(0, 20)}...\n2. Based on the RAG index, I found 3 relevant documents\n3. Recommended next steps are outlined below\n\nWould you like me to elaborate on any of these points?`,
-      `Great question! Let me help you with that.\n\nI've processed your input through the multi-agent pipeline and here are the results:\n\n- **Analysis Agent**: Identified key entities and relationships\n- **Research Agent**: Found supporting context from 5 documents\n- **Synthesis Agent**: Combined findings into actionable insights\n\nWhat aspect would you like to explore further?`,
-      `I understand you're asking about "${message.slice(0, 30)}..."\n\nHere's my analysis:\n\n\`\`\`\nProcessing pipeline: completed\nConfidence: 0.94\nSources: 4 documents\n\`\`\`\n\nThe most relevant finding is that this relates to your existing workflow configuration. Should I make any adjustments?`,
-    ];
-
-    const latencyMs = 800 + Math.random() * 1200;
-    const completionTokens = 50 + Math.floor(Math.random() * 150);
-
+    const latencyMs = 400 + Math.random() * 600;
+    const completionTokens = 80 + Math.floor(Math.random() * 200);
+    
     const aiMessage: Message = {
       id: `msg-${++messageIdCounter}`,
       role: 'assistant',
-      content: responses[Math.floor(Math.random() * responses.length)],
+      content: generateAIResponse(message, tools || ['websearch', 'rag']),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       model: usedModel,
       latency_ms: latencyMs,
@@ -198,9 +259,6 @@ export const mockApi = {
       prompt_tokens: 50 + Math.floor(Math.random() * 100),
       completion_tokens: completionTokens,
     };
-    session.messages.push(aiMessage);
-    session.lastMessage = aiMessage.content.slice(0, 30) + '...';
-    session.timestamp = 'just now';
 
     return aiMessage;
   },

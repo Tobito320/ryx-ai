@@ -2,7 +2,7 @@
  * RyxHub Service Layer
  * 
  * Unified service that switches between mock and real API based on configuration.
- * Use this service throughout the application instead of direct API calls.
+ * When USE_MOCK_API is false, attempts to connect to vLLM first.
  * 
  * Usage:
  *   import { ryxService } from '@/services/ryxService';
@@ -10,7 +10,8 @@
  * 
  * Configuration:
  *   Set VITE_USE_MOCK_API=true for mock mode (default in development)
- *   Set VITE_RYX_API_URL=http://your-ryx-backend:8420 for production
+ *   Set VITE_VLLM_API_URL=http://localhost:8000 for vLLM
+ *   Set VITE_RYX_API_URL=http://localhost:8420 for Ryx backend
  */
 
 import { ryxApi } from '@/lib/api/client';
@@ -21,7 +22,7 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false';
 
 // Log which mode we're in
 if (import.meta.env.DEV) {
-  console.log(`🔌 RyxHub API: ${USE_MOCK_API ? 'Mock Mode' : 'Live Mode'}`);
+  console.log(`🔌 RyxHub API: ${USE_MOCK_API ? 'Mock Mode' : 'vLLM Mode'}`);
 }
 
 // Service interface - same methods as API client
@@ -92,7 +93,8 @@ function createRyxService(): RyxService {
         // Mock implementation
         return { success: true, sessionId, tools: { [toolId]: enabled } };
       },
-      sendMessage: (sessionId: string, message: string, model?: string) => mockApi.sendMessage(sessionId, message, model),
+      sendMessage: (sessionId: string, message: string, model?: string, history?: Array<{ role: "user" | "assistant"; content: string }>, tools?: string[]) => 
+        mockApi.sendMessage(sessionId, message, model, history, tools),
       getStreamUrl: (sessionId: string) => `mock://stream/${sessionId}`,
       getRagStatus: () => mockApi.getRagStatus(),
       triggerRagSync: () => mockApi.triggerRagSync(),

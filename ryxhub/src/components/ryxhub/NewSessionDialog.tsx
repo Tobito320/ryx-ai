@@ -47,16 +47,25 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
       const modelList = await ryxService.listModels();
       setModels(modelList);
       
-      // Select first online model by default
-      const onlineModel = modelList.find(m => m.status === "online");
+      // Select first online model by default, prefer 7B models
+      const preferred7B = modelList.find(m => 
+        m.status === "online" && (m.id.includes('7b') || m.id.includes('7B') || m.name.includes('7B'))
+      );
+      const onlineModel = preferred7B || modelList.find(m => m.status === "online");
+      
       if (onlineModel) {
         setSelectedModel(onlineModel.id);
       } else if (modelList.length > 0) {
         setSelectedModel(modelList[0].id);
+      } else {
+        // Default to the local model path
+        setSelectedModel("/models/medium/general/qwen2.5-7b-gptq");
       }
     } catch (error) {
       toast.error("Failed to load models");
       console.error(error);
+      // Set default model on error
+      setSelectedModel("/models/medium/general/qwen2.5-7b-gptq");
     } finally {
       setLoadingModels(false);
     }
@@ -161,10 +170,10 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
               </Select>
             )}
             {models.length === 0 && !loadingModels && (
-              <p className="text-xs text-muted-foreground">
-                No models available. Please ensure vLLM is running.
-              </p>
-            )}
+               <p className="text-xs text-muted-foreground">
+                 No models detected. Using default: qwen2.5-7b-gptq
+               </p>
+             )}
           </div>
         </div>
 

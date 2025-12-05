@@ -97,7 +97,7 @@ describe('RyxService', () => {
 
   it('provides stream URL', () => {
     const url = ryxService.getStreamUrl('test-session');
-    expect(url).toContain('stream');
+    expect(url).toContain('chat/completions');
   });
 });
 

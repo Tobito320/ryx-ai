@@ -20,6 +20,9 @@ interface RyxHubContextType {
   selectSession: (id: string) => void;
   createSession: (name: string, model?: string) => Promise<Session | null>;
   addMessageToSession: (sessionId: string, message: Omit<Message, "id">) => void;
+  clearSessionMessages: (sessionId: string) => void;
+  editMessageInSession: (sessionId: string, messageId: string, newContent: string) => void;
+  updateSessionTools: (sessionId: string, toolId: string, enabled: boolean) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, newName: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -52,9 +55,22 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
   // View state
   const [activeView, setActiveView] = useState<ViewMode>("dashboard");
 
-  // Sessions state - initialize empty, fetch from API
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // Sessions state - initialize from localStorage or empty
+  const [sessions, setSessions] = useState<Session[]>(() => {
+    const stored = localStorage.getItem('ryxhub_sessions');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(() => {
+    const stored = localStorage.getItem('ryxhub_selected_session');
+    return stored || null;
+  });
 
   // Models state - fetch from API
   const [models, setModels] = useState<Model[]>(mockModels);
@@ -70,6 +86,13 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     status: "idle",
   });
 
+  // Save selected session to localStorage
+  useEffect(() => {
+    if (selectedSessionId) {
+      localStorage.setItem('ryxhub_selected_session', selectedSessionId);
+    }
+  }, [selectedSessionId]);
+
   // Fetch sessions from API on mount
   const refreshSessions = useCallback(async () => {
     try {
@@ -78,6 +101,7 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         if (data.sessions && data.sessions.length > 0) {
           setSessions(data.sessions);
+          localStorage.setItem('ryxhub_sessions', JSON.stringify(data.sessions));
           // Auto-select first session if none selected
           if (!selectedSessionId) {
             setSelectedSessionId(data.sessions[0].id);
@@ -158,8 +182,8 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addMessageToSession = useCallback((sessionId: string, message: Omit<Message, "id">) => {
-    setSessions((prev) =>
-      prev.map((s) => {
+    setSessions((prev) => {
+      const updated = prev.map((s) => {
         if (s.id === sessionId) {
           const newMessage: Message = {
             ...message,
@@ -173,8 +197,77 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
           };
         }
         return s;
+      });
+      // Persist to localStorage
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const clearSessionMessages = useCallback((sessionId: string) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            messages: [],
+            lastMessage: "Chat cleared",
+            timestamp: "just now",
+          };
+        }
+        return s;
       })
     );
+    // Persist to localStorage
+    const stored = localStorage.getItem('ryxhub_sessions');
+    if (stored) {
+      const sessions = JSON.parse(stored);
+      const updated = sessions.map((s: Session) => 
+        s.id === sessionId ? { ...s, messages: [], lastMessage: "Chat cleared" } : s
+      );
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+    }
+  }, []);
+
+  const editMessageInSession = useCallback((sessionId: string, messageId: string, newContent: string) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          const msgIndex = s.messages.findIndex(m => m.id === messageId);
+          if (msgIndex === -1) return s;
+          
+          // Edit the message and remove any subsequent assistant messages
+          const newMessages = s.messages.slice(0, msgIndex);
+          newMessages.push({ ...s.messages[msgIndex], content: newContent });
+          
+          return { ...s, messages: newMessages };
+        }
+        return s;
+      })
+    );
+  }, []);
+
+  const updateSessionTools = useCallback((sessionId: string, toolId: string, enabled: boolean) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            tools: { ...(s.tools || {}), [toolId]: enabled },
+          };
+        }
+        return s;
+      })
+    );
+    // Persist
+    const stored = localStorage.getItem('ryxhub_sessions');
+    if (stored) {
+      const sessions = JSON.parse(stored);
+      const updated = sessions.map((s: Session) => 
+        s.id === sessionId ? { ...s, tools: { ...(s.tools || {}), [toolId]: enabled } } : s
+      );
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+    }
   }, []);
 
   const selectNode = useCallback((id: string | null) => {
@@ -300,6 +393,9 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         selectSession,
         createSession,
         addMessageToSession,
+        clearSessionMessages,
+        editMessageInSession,
+        updateSessionTools,
         deleteSession,
         renameSession,
         refreshSessions,

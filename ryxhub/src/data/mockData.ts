@@ -8,7 +8,6 @@ import type {
   Message,
 } from "@/types/ryxhub";
 
-// Sessions with full message history
 export const mockSessions: Session[] = [
   {
     id: "session-1",
@@ -17,7 +16,7 @@ export const mockSessions: Session[] = [
     timestamp: "2m ago",
     isActive: true,
     agentId: "agent-code-review",
-    model: "Qwen2.5-7B-Instruct",
+    model: "Qwen/Qwen2.5-7B-Instruct",
     messages: [
       {
         id: "msg-1",
@@ -41,7 +40,7 @@ export const mockSessions: Session[] = [
 
 Would you like me to create automated fixes for these issues?`,
         timestamp: "10:24 AM",
-        model: "Qwen2.5-7B-Instruct",
+        model: "Qwen/Qwen2.5-7B-Instruct",
       },
       {
         id: "msg-3",
@@ -65,7 +64,7 @@ Would you like me to create automated fixes for these issues?`,
 
 I've created a draft PR with all fixes. Would you like me to open it for review?`,
         timestamp: "10:26 AM",
-        model: "Qwen2.5-7B-Instruct",
+        model: "Qwen/Qwen2.5-7B-Instruct",
       },
     ],
   },
@@ -76,7 +75,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
     timestamp: "15m ago",
     isActive: false,
     agentId: "agent-data",
-    model: "Llama-3.2-3B-Instruct",
+    model: "Qwen/Qwen2.5-Coder-7B-Instruct",
     messages: [
       {
         id: "msg-5",
@@ -107,7 +106,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
 - Records processed: 15,234
 - Success rate: 99.7%`,
         timestamp: "9:50 AM",
-        model: "Llama-3.2-3B-Instruct",
+        model: "Qwen/Qwen2.5-Coder-7B-Instruct",
       },
     ],
   },
@@ -118,7 +117,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
     timestamp: "1h ago",
     isActive: false,
     agentId: "agent-research",
-    model: "Qwen2.5-7B-Instruct",
+    model: "Qwen/Qwen2.5-7B-Instruct",
     messages: [
       {
         id: "msg-7",
@@ -147,7 +146,7 @@ I've created a draft PR with all fixes. Would you like me to open it for review?
 
 Would you like me to summarize any of these papers in detail?`,
         timestamp: "8:35 AM",
-        model: "Qwen2.5-7B-Instruct",
+        model: "Qwen/Qwen2.5-7B-Instruct",
       },
     ],
   },
@@ -158,7 +157,7 @@ Would you like me to summarize any of these papers in detail?`,
     timestamp: "3h ago",
     isActive: false,
     agentId: "agent-bug",
-    model: "Llama-3.2-3B-Instruct",
+    model: "Qwen/Qwen2.5-Coder-7B-Instruct",
     messages: [
       {
         id: "msg-9",
@@ -190,18 +189,18 @@ Would you like me to summarize any of these papers in detail?`,
 
 I recommend addressing the critical issues immediately. Should I create tasks and assign them to the team?`,
         timestamp: "6:15 AM",
-        model: "Llama-3.2-3B-Instruct",
+        model: "Qwen/Qwen2.5-Coder-7B-Instruct",
       },
     ],
   },
 ];
 
-// Active Models - vLLM compatible local models (optimized for multi-agent on RX 7800 XT)
+// Active Models - vLLM compatible local models (optimized for RX 7800 XT 16GB)
 export const mockModels: Model[] = [
-  { id: "model-1", name: "Qwen2.5-7B-Instruct", status: "online", provider: "vLLM" },
-  { id: "model-2", name: "Llama-3.2-3B-Instruct", status: "online", provider: "vLLM" },
-  { id: "model-3", name: "Mistral-7B-Instruct-v0.3", status: "loading", provider: "vLLM" },
-  { id: "model-4", name: "Phi-3.5-mini-instruct", status: "offline", provider: "vLLM" },
+  { id: "Qwen/Qwen2.5-7B-Instruct", name: "Qwen2.5-7B-Instruct", status: "online", provider: "vLLM" },
+  { id: "Qwen/Qwen2.5-Coder-7B-Instruct", name: "Qwen2.5-Coder-7B", status: "online", provider: "vLLM" },
+  { id: "meta-llama/Llama-3.2-3B-Instruct", name: "Llama-3.2-3B-Instruct", status: "offline", provider: "vLLM" },
+  { id: "microsoft/Phi-3.5-mini-instruct", name: "Phi-3.5-mini", status: "offline", provider: "vLLM" },
 ];
 
 // RAG Status
