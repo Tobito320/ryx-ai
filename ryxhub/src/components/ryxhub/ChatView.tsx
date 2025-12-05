@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2 } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,6 +10,7 @@ import { useSendMessage, useModels } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
 import { ToolsPanel, type ToolConfig } from "@/components/ryxhub/ToolsPanel";
 import { getModelDisplayName } from "@/types/ryxhub";
+import { MessageContent } from "@/components/ryxhub/MessageContent";
 
 interface UploadedFile {
   id: string;
@@ -304,6 +305,34 @@ export function ChatView() {
     }
   };
 
+  const handleExportChat = () => {
+    if (!currentSession) return;
+    
+    const exportData = {
+      sessionName: currentSession.name,
+      model: selectedModel,
+      exportDate: new Date().toISOString(),
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+        model: m.model,
+      })),
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ryx-chat-${currentSession.name}-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success("Chat exported");
+  };
+
   if (!currentSession) {
     return (
       <div className="flex flex-col h-full bg-background items-center justify-center">
@@ -350,9 +379,14 @@ export function ChatView() {
             )}
             
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive" onClick={handleClearChat}>
-                <Trash2 className="w-3 h-3" />
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-primary" onClick={handleExportChat} title="Export conversation">
+                  <Download className="w-3 h-3" />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive" onClick={handleClearChat} title="Clear chat">
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -377,7 +411,7 @@ export function ChatView() {
                     </div>
                   ) : (
                     <>
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <MessageContent content={message.content} role={message.role} />
                       <div className={cn("flex items-center gap-1 mt-1 text-[10px]", message.role === "user" ? "text-primary-foreground/70 justify-end" : "text-muted-foreground")}>
                         {message.model && message.role === "assistant" && <span className="opacity-60">{getModelDisplayName(message.model)}</span>}
                         <span>{message.timestamp}</span>
