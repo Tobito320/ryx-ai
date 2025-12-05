@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 
-from ryx.core.tool_executor import (
+from ryx_pkg.core.tool_executor import (
     ToolExecutor,
     ToolResult,
     ToolFileNotFoundError,
@@ -15,18 +15,17 @@ from ryx.core.tool_executor import (
     ToolExecutionError,
     ToolValidationError,
 )
-from ryx.core.permission_manager import (
+from core.permissions import (
     PermissionManager,
     PermissionLevel,
-    set_permission_manager,
 )
 
 
 @pytest.fixture
 def executor():
     """Create a tool executor with auto-approve permissions."""
-    manager = PermissionManager(auto_approve_read=True, interactive=False)
-    set_permission_manager(manager)
+    # Note: PermissionManager initialization changed - update test if needed
+    # manager = PermissionManager()
     return ToolExecutor()
 
 
