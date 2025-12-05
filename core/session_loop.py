@@ -302,9 +302,22 @@ class SessionLoop:
     def _show_welcome(self):
         """Show welcome - Copilot CLI style"""
         import subprocess
-        from core.model_router import select_model
+        import requests
         
-        model = select_model("hi").name
+        # Get actual model from vLLM
+        model = "no model"
+        try:
+            vllm_url = os.environ.get('VLLM_BASE_URL', 'http://localhost:8001')
+            resp = requests.get(f"{vllm_url}/v1/models", timeout=3)
+            if resp.status_code == 200:
+                data = resp.json()
+                models = data.get("data", [])
+                if models:
+                    model_id = models[0].get("id", "")
+                    # Get short name from path like /models/medium/general/qwen2.5-7b-gptq
+                    model = model_id.split('/')[-1] if '/' in model_id else model_id
+        except:
+            model = "vLLM offline"
         
         # Get git branch
         branch = ""
@@ -515,11 +528,7 @@ class SessionLoop:
                 self.cli.warn(f"Unknown: /{command}. Type /help for commands.")
     
     def _help(self):
-        """Show help with all commands"""
-        self.cli.console.print("\n[bold cyan]╭─────────────────────────────────────────╮[/]")
-        self.cli.console.print("[bold cyan]│           Ryx AI Commands               │[/]")
-        self.cli.console.print("[bold cyan]╰─────────────────────────────────────────╯[/]\n")
-        
+        """Show help with all commands - TUI compatible"""
         categories = {
             "Session": ['/help', '/quit', '/clear', '/status', '/usage', '/session'],
             "Models & AI": ['/model', '/models', '/style'],
@@ -530,14 +539,21 @@ class SessionLoop:
             "Advanced": ['/memory', '/metrics', '/cleanup', '/fix', '/sync', '/share'],
         }
         
+        help_lines = ["Ryx AI Commands\n"]
         for category, cmds in categories.items():
-            self.cli.console.print(f"[bold]{category}[/]")
+            help_lines.append(f"{category}:")
             for cmd in cmds:
                 desc = self.COMMANDS.get(cmd, "")
-                self.cli.console.print(f"  [cyan]{cmd:<15}[/] {desc}")
-            print()
+                help_lines.append(f"  {cmd:<12} {desc}")
+            help_lines.append("")
         
-        self.cli.console.print("[dim]Shortcuts: @ for files, ! for shell, Tab to complete[/]\n")
+        help_lines.append("Shortcuts: @ files, ! shell, Tab complete")
+        
+        # Use TUI add_system for fullscreen mode
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system('\n'.join(help_lines), "info")
+        else:
+            self.cli.console.print('\n'.join(help_lines))
     
     def _quit(self):
         self._save()
@@ -576,7 +592,10 @@ class SessionLoop:
     def _models(self):
         plan = Plan(intent=Intent.LIST_MODELS)
         _, result = self.brain.execute(plan)
-        print(result)
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system(result, "info")
+        else:
+            print(result)
     
     def _precision(self, args: str):
         if args.lower() in ['on', '1', 'true']:
@@ -608,7 +627,10 @@ class SessionLoop:
             success, result = self.brain.execute(plan)
         
         if success:
-            print(result)
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system(result, "info")
+            else:
+                print(result)
         else:
             self.cli.error(result)
     
@@ -625,17 +647,25 @@ class SessionLoop:
             self._last_sources = self.brain.ctx.pending_items
         
         if success:
-            print(result)
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system(result, "info")
+            else:
+                print(result)
         else:
             self.cli.error(result)
     
     def _tools(self):
         """List tools"""
-        self.cli.console.print("\n[accent bold]Tools[/]")
         tools = [("web_search", True), ("scrape", True), ("file_ops", True), ("shell", True)]
+        lines = ["Tools:"]
         for name, enabled in tools:
-            status = "[success]ON[/]" if enabled else "[error]OFF[/]"
-            self.cli.console.print(f"  {status} {name}")
+            status = "ON" if enabled else "OFF"
+            lines.append(f"  {status} {name}")
+        
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system('\n'.join(lines), "info")
+        else:
+            self.cli.console.print('\n'.join(lines))
     
     def _undo(self, args: str):
         """Undo checkpoints"""
@@ -667,10 +697,15 @@ class SessionLoop:
             self.cli.info("No checkpoints")
             return
         
-        self.cli.console.print("\n[accent bold]Checkpoints[/]")
+        lines = ["Checkpoints:"]
         for cp in checkpoints:
             time_str = cp['timestamp'].split('T')[1][:5] if 'T' in cp['timestamp'] else ""
-            self.cli.console.print(f"  [dim]{cp['id'][:8]}[/] {cp['name']} [{time_str}]")
+            lines.append(f"  {cp['id'][:8]} {cp['name']} [{time_str}]")
+        
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system('\n'.join(lines), "info")
+        else:
+            self.cli.console.print('\n'.join(lines))
     
     def _fix(self, args: str):
         """
@@ -721,19 +756,24 @@ class SessionLoop:
             memory = get_memory()
             stats = memory.get_stats()
             
-            self.cli.console.print("\n[accent bold]Experience Memory[/]")
-            self.cli.console.print(f"  Total experiences: {stats['total']}")
-            self.cli.console.print(f"  Success rate: {stats['success_rate']:.1%}")
+            lines = [f"Experience Memory",
+                     f"  Total experiences: {stats['total']}",
+                     f"  Success rate: {stats['success_rate']:.1%}"]
             
             if stats['by_type']:
-                self.cli.console.print("\n  By type:")
+                lines.append("\n  By type:")
                 for t, count in stats['by_type'].items():
-                    self.cli.console.print(f"    {t}: {count}")
+                    lines.append(f"    {t}: {count}")
             
             if stats['by_category']:
-                self.cli.console.print("\n  By category:")
+                lines.append("\n  By category:")
                 for c, count in list(stats['by_category'].items())[:5]:
-                    self.cli.console.print(f"    {c}: {count}")
+                    lines.append(f"    {c}: {count}")
+            
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system('\n'.join(lines), "info")
+            else:
+                self.cli.console.print('\n'.join(lines))
                     
         except ImportError:
             self.cli.warn("Memory system not available")
@@ -747,11 +787,16 @@ class SessionLoop:
             
             if not args:
                 # List benchmarks
-                self.cli.console.print("\n[accent bold]Benchmarks[/]")
+                lines = ["Benchmarks:"]
                 for name in BenchmarkRegistry.list_all():
                     b = BenchmarkRegistry.create(name)
-                    self.cli.console.print(f"  {name}: {len(b.problems)} problems")
-                self.cli.console.print("\nUse: /benchmark <name>")
+                    lines.append(f"  {name}: {len(b.problems)} problems")
+                lines.append("\nUse: /benchmark <name>")
+                
+                if hasattr(self.cli, 'add_system'):
+                    self.cli.add_system('\n'.join(lines), "info")
+                else:
+                    self.cli.console.print('\n'.join(lines))
             else:
                 self.cli.info(f"Run: ryx benchmark run {args}")
                 
@@ -765,13 +810,18 @@ class SessionLoop:
         valid_styles = ["normal", "concise", "explanatory", "learning", "formal"]
         
         if not args:
-            self.cli.console.print(f"\n[accent bold]Response Style[/]")
-            self.cli.console.print(f"  Current: {self._style}")
-            self.cli.console.print(f"\n  Available:")
+            lines = [f"Response Style",
+                     f"  Current: {self._style}",
+                     f"\n  Available:"]
             for s in valid_styles:
                 marker = "→" if s == self._style else " "
-                self.cli.console.print(f"    {marker} {s}")
-            self.cli.console.print(f"\nUse: /style <name>")
+                lines.append(f"    {marker} {s}")
+            lines.append(f"\nUse: /style <name>")
+            
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system('\n'.join(lines), "info")
+            else:
+                self.cli.console.print('\n'.join(lines))
             return
         
         style = args.lower().strip()
@@ -792,24 +842,29 @@ class SessionLoop:
             metrics = ModelMetrics()
             summary = metrics.get_summary()
             
-            self.cli.console.print(f"\n[accent bold]Model Metrics[/]")
-            self.cli.console.print(f"  Total models: {summary['total_models']}")
-            self.cli.console.print(f"  Active: {summary['active_models']}")
-            self.cli.console.print(f"  Fired: {summary['fired_models']}")
-            self.cli.console.print(f"  Promoted: {summary['promoted_models']}")
+            lines = [f"Model Metrics",
+                     f"  Total models: {summary['total_models']}",
+                     f"  Active: {summary['active_models']}",
+                     f"  Fired: {summary['fired_models']}",
+                     f"  Promoted: {summary['promoted_models']}"]
             
             if summary['models']:
-                self.cli.console.print(f"\n  [dim]Performance:[/]")
+                lines.append("\n  Performance:")
                 for name, stats in summary['models'].items():
                     short_name = name.split('/')[-1] if '/' in name else name
-                    self.cli.console.print(
+                    lines.append(
                         f"    {stats['status']} {short_name}: "
                         f"{stats['success_rate']} success, "
                         f"{stats['avg_quality']} quality, "
                         f"{stats['avg_latency']}"
                     )
             else:
-                self.cli.console.print(f"\n  [dim]No metrics yet. Run some tasks first.[/]")
+                lines.append("\n  No metrics yet. Run some tasks first.")
+            
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system('\n'.join(lines), "info")
+            else:
+                self.cli.console.print('\n'.join(lines))
                 
         except ImportError:
             self.cli.warn("Metrics system not available")
@@ -833,7 +888,10 @@ class SessionLoop:
                     # Show space reclaimed
                     for line in result.stdout.split('\n'):
                         if 'reclaimed' in line.lower():
-                            self.cli.console.print(f"  {line}")
+                            if hasattr(self.cli, 'add_system'):
+                                self.cli.add_system(f"  {line}", "info")
+                            else:
+                                self.cli.console.print(f"  {line}")
             else:
                 self.cli.error(f"Cleanup failed: {result.stderr}")
         except Exception as e:
@@ -846,27 +904,36 @@ class SessionLoop:
         hours = minutes // 60
         mins = minutes % 60
         
-        self.cli.console.print(f"\n[bold cyan]Usage Statistics[/]")
-        self.cli.console.print(f"  Session Duration: {hours}h {mins}m")
-        self.cli.console.print(f"  Messages: {len(self.history)}")
-        self.cli.console.print(f"  Prompts: {self.stats['prompts']}")
-        self.cli.console.print(f"  Actions: {self.stats['actions']}")
-        self.cli.console.print(f"  Searches: {self.stats['searches']}")
-        self.cli.console.print(f"  Files: {self.stats['files']}")
-        self.cli.console.print(f"  Scrapes: {self.stats['scrapes']}")
+        lines = [f"Usage Statistics",
+                 f"  Session Duration: {hours}h {mins}m",
+                 f"  Messages: {len(self.history)}",
+                 f"  Prompts: {self.stats['prompts']}",
+                 f"  Actions: {self.stats['actions']}",
+                 f"  Searches: {self.stats['searches']}",
+                 f"  Files: {self.stats['files']}",
+                 f"  Scrapes: {self.stats['scrapes']}"]
+        
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system('\n'.join(lines), "info")
+        else:
+            self.cli.console.print('\n'.join(lines))
     
     def _session_info(self):
         """Show current session info"""
-        self.cli.console.print(f"\n[bold cyan]Session Info[/]")
-        self.cli.console.print(f"  Started: {self.session_start.strftime('%Y-%m-%d %H:%M')}")
-        self.cli.console.print(f"  Style: {self._style}")
-        self.cli.console.print(f"  Safety: {self.safety_mode}")
-        self.cli.console.print(f"  CWD: {os.getcwd()}")
-        self.cli.console.print(f"  Messages: {len(self.history)}")
-        
-        # Show backend
         backend_name = getattr(self.backend, 'name', 'unknown')
-        self.cli.console.print(f"  Backend: {backend_name}")
+        
+        lines = [f"Session Info",
+                 f"  Started: {self.session_start.strftime('%Y-%m-%d %H:%M')}",
+                 f"  Style: {self._style}",
+                 f"  Safety: {self.safety_mode}",
+                 f"  CWD: {os.getcwd()}",
+                 f"  Messages: {len(self.history)}",
+                 f"  Backend: {backend_name}"]
+        
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system('\n'.join(lines), "info")
+        else:
+            self.cli.console.print('\n'.join(lines))
     
     def _model(self, args: str):
         """Select or show model"""
@@ -888,7 +955,10 @@ class SessionLoop:
     def _cwd(self, args: str):
         """Change or show working directory"""
         if not args:
-            self.cli.console.print(f"  CWD: {os.getcwd()}")
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system(f"CWD: {os.getcwd()}", "info")
+            else:
+                self.cli.console.print(f"  CWD: {os.getcwd()}")
             return
         
         try:
@@ -927,9 +997,13 @@ class SessionLoop:
         try:
             dirs = json.loads(config_path.read_text()) if config_path.exists() else []
             if dirs:
-                self.cli.console.print(f"\n[bold]Allowed Directories[/]")
+                lines = ["Allowed Directories:"]
                 for d in dirs:
-                    self.cli.console.print(f"  {d}")
+                    lines.append(f"  {d}")
+                if hasattr(self.cli, 'add_system'):
+                    self.cli.add_system('\n'.join(lines), "info")
+                else:
+                    self.cli.console.print('\n'.join(lines))
             else:
                 self.cli.info("No directories added. Use /add-dir <path>")
         except:
@@ -940,9 +1014,13 @@ class SessionLoop:
         themes = ["dark", "light", "auto", "dracula", "nord"]
         
         if not args:
-            self.cli.console.print(f"\n[bold]Theme[/]")
-            self.cli.console.print(f"  Available: {', '.join(themes)}")
-            self.cli.console.print(f"\nUse: /theme <name>")
+            lines = ["Theme",
+                     f"  Available: {', '.join(themes)}",
+                     "\nUse: /theme <name>"]
+            if hasattr(self.cli, 'add_system'):
+                self.cli.add_system('\n'.join(lines), "info")
+            else:
+                self.cli.console.print('\n'.join(lines))
             return
         
         theme = args.lower().strip()
@@ -1028,12 +1106,17 @@ class SessionLoop:
             self.cli.warn("No sources. Run a search first.")
             return
         
-        self.cli.console.print(f"\n[accent bold]Sources ({len(sources)})[/]")
+        lines = [f"Sources ({len(sources)}):"]
         for i, src in enumerate(sources, 1):
             title = src.get('title', 'Unknown')
             url = src.get('url', '')
-            self.cli.console.print(f"  [{i}] {title}")
-            self.cli.console.print(f"      [dim]{url}[/]")
+            lines.append(f"  [{i}] {title}")
+            lines.append(f"      {url}")
+        
+        if hasattr(self.cli, 'add_system'):
+            self.cli.add_system('\n'.join(lines), "info")
+        else:
+            self.cli.console.print('\n'.join(lines))
     
     def _supervisor_dispatch(self, user_input: str) -> Optional[str]:
         """

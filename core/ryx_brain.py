@@ -1985,21 +1985,49 @@ Sprache: Deutsch"""
         return True, now.strftime("%Y-%m-%d %H:%M")
     
     def _exec_list_models(self, plan: Plan) -> Tuple[bool, str]:
-        categorized = self.models.get_categorized()
+        """List models from vLLM - shows what's actually loaded"""
+        import requests
         
-        lines = ["📊 Verfügbare Modelle:\n"]
+        vllm_url = os.environ.get('VLLM_BASE_URL', 'http://localhost:8001')
+        lines = []
         
-        for cat, models in categorized.items():
-            if models:
-                lines.append(f"\n{cat.upper()}:")
-                for m in models:
-                    lines.append(f"  • {m}")
+        try:
+            resp = requests.get(f"{vllm_url}/v1/models", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                loaded_models = [m["id"] for m in data.get("data", [])]
+                
+                if loaded_models:
+                    lines.append("Loaded Models (vLLM):")
+                    for m in loaded_models:
+                        # Show short name
+                        short_name = m.split('/')[-1] if '/' in m else m
+                        lines.append(f"  ✓ {short_name}")
+                        lines.append(f"    Path: {m}")
+                else:
+                    lines.append("No models loaded in vLLM")
+            else:
+                lines.append(f"vLLM returned status {resp.status_code}")
+        except requests.exceptions.ConnectionError:
+            lines.append("vLLM not running")
+            lines.append("Start with: ryx start vllm")
+        except Exception as e:
+            lines.append(f"Error checking models: {e}")
         
-        lines.append("\n\n⚙️ Aktuelle Einstellungen:")
-        for role in ["default", "chatting", "precision", "fast"]:
-            model = self.cache.get_model(role)
-            if model:
-                lines.append(f"  {role}: {model}")
+        # Show available models on disk
+        models_dir = "/home/tobi/vllm-models"
+        if os.path.exists(models_dir):
+            lines.append("\nAvailable on disk:")
+            for size in ["small", "medium", "large"]:
+                size_path = os.path.join(models_dir, size)
+                if os.path.exists(size_path):
+                    for category in os.listdir(size_path):
+                        cat_path = os.path.join(size_path, category)
+                        if os.path.isdir(cat_path):
+                            for model in os.listdir(cat_path):
+                                model_path = os.path.join(cat_path, model)
+                                if os.path.isdir(model_path):
+                                    lines.append(f"  • {model} ({size}/{category})")
         
         return True, "\n".join(lines)
     

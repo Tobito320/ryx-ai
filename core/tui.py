@@ -126,7 +126,7 @@ class ResponseStats:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class SlashCommandCompleter(Completer):
-    """Tab completion for /commands and @files"""
+    """Tab completion for /commands, @files, and /model names"""
 
     COMMANDS = [
         '/help', '/quit', '/exit', '/clear',
@@ -139,6 +139,42 @@ class SlashCommandCompleter(Completer):
     ]
 
     STYLES = ['normal', 'concise', 'explanatory', 'learning', 'formal']
+    
+    # Cache for available models
+    _models_cache = None
+    _models_cache_time = 0
+
+    def _get_available_models(self):
+        """Get available models from vLLM models directory"""
+        import time
+        
+        # Cache for 30 seconds
+        now = time.time()
+        if self._models_cache is not None and (now - self._models_cache_time) < 30:
+            return self._models_cache
+        
+        models = []
+        models_dir = "/home/tobi/vllm-models"
+        
+        try:
+            for size in ["small", "medium", "large"]:
+                size_path = os.path.join(models_dir, size)
+                if os.path.exists(size_path):
+                    for category in os.listdir(size_path):
+                        cat_path = os.path.join(size_path, category)
+                        if os.path.isdir(cat_path):
+                            for model in os.listdir(cat_path):
+                                model_path = os.path.join(cat_path, model)
+                                if os.path.isdir(model_path):
+                                    # Add short name and full path
+                                    models.append(model)
+                                    models.append(f"/models/{size}/{category}/{model}")
+        except:
+            pass
+        
+        self._models_cache = models
+        self._models_cache_time = now
+        return models
 
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor
@@ -149,11 +185,19 @@ class SlashCommandCompleter(Completer):
                 if c.startswith(cmd):
                     yield Completion(c, start_position=-len(cmd))
 
+            # Complete /style <name>
             if cmd.startswith('/style '):
                 style_prefix = cmd[7:]
                 for s in self.STYLES:
                     if s.startswith(style_prefix):
                         yield Completion(s, start_position=-len(style_prefix))
+            
+            # Complete /model <name>
+            if cmd.startswith('/model '):
+                model_prefix = cmd[7:].lower()
+                for m in self._get_available_models():
+                    if m.lower().startswith(model_prefix):
+                        yield Completion(m, start_position=-len(model_prefix))
 
         elif text.startswith('@'):
             path = text[1:]
@@ -482,6 +526,18 @@ class FullscreenTUI:
         # ScrollablePane handles its own scrolling, but we can trigger it
         # by invalidating after adjusting internal state
         self._invalidate()
+    
+    def _scroll_to_bottom(self):
+        """Scroll chat to bottom - called after adding new messages"""
+        # The ScrollablePane's scroll_offsets can be adjusted via the window
+        # For prompt_toolkit, we need to access the scrollable pane's internal state
+        try:
+            if hasattr(self.chat_window, 'scroll_offsets'):
+                # Set scroll to maximum (will be clamped to actual max)
+                self.chat_window.scroll_offsets = (999999, 0)
+        except:
+            pass
+        self._invalidate()
 
     def _invalidate(self):
         """Refresh the display"""
@@ -667,17 +723,17 @@ class FullscreenTUI:
         """Add user message to chat"""
         self.messages.append(ChatMessage(role='user', content=content))
         self.msg_count += 1
-        self._invalidate()
+        self._scroll_to_bottom()
 
     def add_assistant(self, content: str):
         """Add assistant message to chat"""
         self.messages.append(ChatMessage(role='assistant', content=content))
-        self._invalidate()
+        self._scroll_to_bottom()
 
     def add_system(self, content: str, style: str = ''):
         """Add system message"""
         self.messages.append(ChatMessage(role='system', content=content, style=style))
-        self._invalidate()
+        self._scroll_to_bottom()
 
     def welcome(self, model: str = "", branch: str = "", cwd: str = ""):
         """Set welcome/status info"""
