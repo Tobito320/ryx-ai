@@ -129,6 +129,78 @@ class SessionLoop:
         readline.set_history_length(1000)
         import atexit
         atexit.register(readline.write_history_file, history_file)
+        
+        # Setup tab completion for commands
+        self._setup_completer()
+    
+    def _setup_completer(self):
+        """Setup readline tab completion for slash commands"""
+        # All available commands with descriptions
+        self.COMMANDS = {
+            # Session
+            '/help': 'Show help',
+            '/quit': 'Exit session',
+            '/exit': 'Exit session', 
+            '/clear': 'Clear conversation history',
+            '/status': 'Show session status',
+            '/usage': 'Display usage metrics',
+            '/session': 'Show session info',
+            
+            # Models & AI
+            '/model': 'Select or show AI model',
+            '/models': 'List available models',
+            '/style': 'Set response style (concise/normal/explanatory)',
+            
+            # Tools
+            '/search': 'Web search query',
+            '/scrape': 'Scrape a URL',
+            '/tools': 'List available tools',
+            
+            # Files & Directories
+            '/cwd': 'Change or show working directory',
+            '/add-dir': 'Add directory to allowed list',
+            '/list-dirs': 'Show allowed directories',
+            
+            # History & Undo
+            '/undo': 'Undo last action',
+            '/checkpoints': 'List checkpoints',
+            '/sources': 'Show last search sources',
+            
+            # Settings
+            '/precision': 'Toggle precision mode',
+            '/browsing': 'Toggle web browsing',
+            '/theme': 'Set terminal theme',
+            
+            # Advanced
+            '/memory': 'Show memory usage',
+            '/metrics': 'Show performance metrics',
+            '/cleanup': 'Clean temporary files',
+            '/fix': 'Fix last error',
+            '/benchmark': 'Run benchmark',
+            '/sync': 'Sync session to RyxHub',
+            '/share': 'Export session to file',
+        }
+        
+        def completer(text, state):
+            """Tab completion for commands"""
+            if text.startswith('/'):
+                # Complete commands
+                options = [cmd for cmd in self.COMMANDS.keys() if cmd.startswith(text)]
+            elif text.startswith('@'):
+                # Complete file paths
+                import glob
+                pattern = text[1:] + '*'
+                options = ['@' + f for f in glob.glob(pattern)]
+            else:
+                options = []
+            
+            if state < len(options):
+                return options[state]
+            return None
+        
+        readline.set_completer(completer)
+        readline.set_completer_delims(' \t\n')
+        readline.parse_and_bind('tab: complete')
     
     def _setup_signals(self):
         import time
@@ -338,36 +410,83 @@ class SessionLoop:
         args = parts[1] if len(parts) > 1 else ""
         
         cmds = {
+            # Session
             'help': self._help, 'h': self._help, '?': self._help,
             'quit': self._quit, 'exit': self._quit, 'q': self._quit,
             'clear': self._clear, 'c': self._clear,
             'status': self._status, 's': self._status,
-            'models': self._models, 'm': self._models, 'model': self._models,
-            'precision': lambda: self._precision(args),
-            'browsing': lambda: self._browsing(args),
+            'usage': self._usage,
+            'session': self._session_info,
+            
+            # Models & AI
+            'models': self._models, 'm': self._models, 'model': lambda: self._model(args),
+            'style': lambda: self._set_style(args),
+            
+            # Tools
             'scrape': lambda: self._scrape(args),
             'search': lambda: self._search(args),
             'tools': self._tools,
+            
+            # Files & Directories
+            'cwd': lambda: self._cwd(args),
+            'add-dir': lambda: self._add_dir(args),
+            'list-dirs': self._list_dirs,
+            
+            # History & Undo
             'undo': lambda: self._undo(args),
             'checkpoints': self._checkpoints, 'cp': self._checkpoints,
-            'fix': lambda: self._fix(args),
-            'memory': self._memory,
-            'benchmark': lambda: self._benchmark(args),
-            'style': lambda: self._set_style(args),
             'sources': self._show_sources,
+            
+            # Settings
+            'precision': lambda: self._precision(args),
+            'browsing': lambda: self._browsing(args),
+            'theme': lambda: self._theme(args),
+            
+            # Advanced
+            'memory': self._memory,
             'metrics': self._metrics,
             'cleanup': self._cleanup,
+            'fix': lambda: self._fix(args),
+            'benchmark': lambda: self._benchmark(args),
+            'sync': lambda: self._sync_to_ryxhub(args),
+            'share': lambda: self._share(args),
         }
         
         handler = cmds.get(command)
         if handler:
             handler()
         else:
-            self.cli.warn(f"Unknown: {command}")
+            # Show similar commands
+            similar = [c for c in self.COMMANDS.keys() if command in c]
+            if similar:
+                self.cli.warn(f"Unknown: /{command}. Did you mean: {', '.join(similar[:3])}?")
+            else:
+                self.cli.warn(f"Unknown: /{command}. Type /help for commands.")
     
     def _help(self):
-        """Show help"""
-        self.cli.help_box()
+        """Show help with all commands"""
+        self.cli.console.print("\n[bold cyan]╭─────────────────────────────────────────╮[/]")
+        self.cli.console.print("[bold cyan]│           Ryx AI Commands               │[/]")
+        self.cli.console.print("[bold cyan]╰─────────────────────────────────────────╯[/]\n")
+        
+        categories = {
+            "Session": ['/help', '/quit', '/clear', '/status', '/usage', '/session'],
+            "Models & AI": ['/model', '/models', '/style'],
+            "Tools": ['/search', '/scrape', '/tools'],
+            "Files": ['/cwd', '/add-dir', '/list-dirs'],
+            "History": ['/undo', '/checkpoints', '/sources'],
+            "Settings": ['/precision', '/browsing', '/theme'],
+            "Advanced": ['/memory', '/metrics', '/cleanup', '/fix', '/sync', '/share'],
+        }
+        
+        for category, cmds in categories.items():
+            self.cli.console.print(f"[bold]{category}[/]")
+            for cmd in cmds:
+                desc = self.COMMANDS.get(cmd, "")
+                self.cli.console.print(f"  [cyan]{cmd:<15}[/] {desc}")
+            print()
+        
+        self.cli.console.print("[dim]Shortcuts: @ for files, ! for shell, Tab to complete[/]\n")
     
     def _quit(self):
         self._save()
@@ -661,6 +780,186 @@ class SessionLoop:
                 self.cli.error(f"Cleanup failed: {result.stderr}")
         except Exception as e:
             self.cli.error(f"Cleanup error: {e}")
+    
+    def _usage(self):
+        """Display usage metrics"""
+        duration = datetime.now() - self.session_start
+        minutes = int(duration.total_seconds() / 60)
+        hours = minutes // 60
+        mins = minutes % 60
+        
+        self.cli.console.print(f"\n[bold cyan]Usage Statistics[/]")
+        self.cli.console.print(f"  Session Duration: {hours}h {mins}m")
+        self.cli.console.print(f"  Messages: {len(self.history)}")
+        self.cli.console.print(f"  Prompts: {self.stats['prompts']}")
+        self.cli.console.print(f"  Actions: {self.stats['actions']}")
+        self.cli.console.print(f"  Searches: {self.stats['searches']}")
+        self.cli.console.print(f"  Files: {self.stats['files']}")
+        self.cli.console.print(f"  Scrapes: {self.stats['scrapes']}")
+    
+    def _session_info(self):
+        """Show current session info"""
+        self.cli.console.print(f"\n[bold cyan]Session Info[/]")
+        self.cli.console.print(f"  Started: {self.session_start.strftime('%Y-%m-%d %H:%M')}")
+        self.cli.console.print(f"  Style: {self._style}")
+        self.cli.console.print(f"  Safety: {self.safety_mode}")
+        self.cli.console.print(f"  CWD: {os.getcwd()}")
+        self.cli.console.print(f"  Messages: {len(self.history)}")
+        
+        # Show backend
+        backend_name = getattr(self.backend, 'name', 'unknown')
+        self.cli.console.print(f"  Backend: {backend_name}")
+    
+    def _model(self, args: str):
+        """Select or show model"""
+        if not args:
+            self._models()
+            return
+        
+        # Try to set model
+        model_name = args.strip()
+        if hasattr(self.brain, 'set_model'):
+            try:
+                self.brain.set_model(model_name)
+                self.cli.success(f"Model set to: {model_name}")
+            except Exception as e:
+                self.cli.error(f"Failed to set model: {e}")
+        else:
+            self.cli.warn("Model switching not available in this mode")
+    
+    def _cwd(self, args: str):
+        """Change or show working directory"""
+        if not args:
+            self.cli.console.print(f"  CWD: {os.getcwd()}")
+            return
+        
+        try:
+            os.chdir(os.path.expanduser(args.strip()))
+            self.cli.success(f"Changed to: {os.getcwd()}")
+        except Exception as e:
+            self.cli.error(f"Failed: {e}")
+    
+    def _add_dir(self, args: str):
+        """Add directory to allowed list"""
+        if not args:
+            self.cli.error("Usage: /add-dir <directory>")
+            return
+        
+        path = os.path.expanduser(args.strip())
+        if not os.path.isdir(path):
+            self.cli.error(f"Not a directory: {path}")
+            return
+        
+        # Store in config
+        config_path = get_data_dir() / "allowed_dirs.json"
+        try:
+            dirs = json.loads(config_path.read_text()) if config_path.exists() else []
+            if path not in dirs:
+                dirs.append(path)
+                config_path.write_text(json.dumps(dirs, indent=2))
+                self.cli.success(f"Added: {path}")
+            else:
+                self.cli.info(f"Already in list: {path}")
+        except Exception as e:
+            self.cli.error(f"Failed: {e}")
+    
+    def _list_dirs(self):
+        """Show allowed directories"""
+        config_path = get_data_dir() / "allowed_dirs.json"
+        try:
+            dirs = json.loads(config_path.read_text()) if config_path.exists() else []
+            if dirs:
+                self.cli.console.print(f"\n[bold]Allowed Directories[/]")
+                for d in dirs:
+                    self.cli.console.print(f"  {d}")
+            else:
+                self.cli.info("No directories added. Use /add-dir <path>")
+        except:
+            self.cli.info("No directories added")
+    
+    def _theme(self, args: str):
+        """Set terminal theme"""
+        themes = ["dark", "light", "auto", "dracula", "nord"]
+        
+        if not args:
+            self.cli.console.print(f"\n[bold]Theme[/]")
+            self.cli.console.print(f"  Available: {', '.join(themes)}")
+            self.cli.console.print(f"\nUse: /theme <name>")
+            return
+        
+        theme = args.lower().strip()
+        if theme not in themes:
+            self.cli.error(f"Unknown theme: {theme}")
+            return
+        
+        # Store preference
+        config_path = get_data_dir() / "theme.json"
+        config_path.write_text(json.dumps({"theme": theme}))
+        self.cli.success(f"Theme set to: {theme}")
+        self.cli.info("Restart for full effect")
+    
+    def _sync_to_ryxhub(self, args: str):
+        """Sync current session to RyxHub"""
+        import requests
+        
+        if not self.history:
+            self.cli.warn("No conversation to sync")
+            return
+        
+        api_url = "http://localhost:8420/api/sessions/import"
+        name = args.strip() if args else f"CLI Session - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        
+        payload = {
+            "name": name,
+            "messages": self.history,
+            "model": getattr(self.brain, 'current_model', 'auto')
+        }
+        
+        try:
+            response = requests.post(api_url, json=payload, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                self.cli.success(f"Synced: {data.get('name', 'Unknown')}")
+                self.cli.console.print(f"  ID: {data.get('id')}")
+                self.cli.console.print(f"  Open: http://localhost:8080")
+            else:
+                self.cli.error(f"Failed: HTTP {response.status_code}")
+        except requests.exceptions.ConnectionError:
+            self.cli.error("RyxHub API not running. Use: ryx ryxhub")
+        except Exception as e:
+            self.cli.error(f"Sync failed: {e}")
+    
+    def _share(self, args: str):
+        """Export session to file or gist"""
+        parts = args.split() if args else []
+        format_type = parts[0] if parts else "file"
+        path = parts[1] if len(parts) > 1 else None
+        
+        if format_type == "file":
+            # Export to markdown file
+            if not path:
+                path = f"ryx_session_{datetime.now().strftime('%Y%m%d_%H%M')}.md"
+            
+            output_path = get_data_dir() / "exports" / path
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(output_path, 'w') as f:
+                f.write(f"# Ryx AI Session\n\n")
+                f.write(f"**Date:** {datetime.now().isoformat()}\n")
+                f.write(f"**Style:** {self._style}\n\n---\n\n")
+                
+                for msg in self.history:
+                    role = msg.get('role', 'unknown').title()
+                    content = msg.get('content', '')
+                    f.write(f"## {role}\n\n{content}\n\n")
+            
+            self.cli.success(f"Exported: {output_path}")
+        
+        elif format_type == "gist":
+            self.cli.warn("GitHub Gist export not implemented yet")
+        else:
+            self.cli.error(f"Unknown format: {format_type}")
+            self.cli.info("Usage: /share [file|gist] [path]")
     
     def _show_sources(self):
         """Show sources from last search"""

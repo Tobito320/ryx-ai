@@ -12,11 +12,11 @@
     }
   ],
   "stats": {
-    "prompts": 1,
-    "actions": 1,
+    "prompts": 0,
+    "actions": 0,
     "files": 0,
     "urls": 0,
-    "searches": 1,
+    "searches": 0,
     "scrapes": 0
   },
   "precision_mode": false,
@@ -27,5 +27,5 @@
     "last_intent": null,
     "created_files": []
   },
-  "saved_at": "2025-12-05T01:03:45.894051"
+  "saved_at": "2025-12-05T01:18:20.717932"
 }

@@ -1,11 +1,12 @@
 {
   "/models/small/general/qwen2.5-3b": {
     "model_name": "/models/small/general/qwen2.5-3b",
-    "total_tasks": 20,
-    "successful_tasks": 20,
+    "total_tasks": 21,
+    "successful_tasks": 21,
     "failed_tasks": 0,
-    "total_latency_ms": 24987.469000000005,
+    "total_latency_ms": 26837.248000000003,
     "quality_scores": [
+      7.0,
       7.0,
       7.0,
       7.0,
@@ -27,17 +28,18 @@
       7.0,
       7.0
     ],
-    "last_used": "2025-12-05T01:01:41.028471",
+    "last_used": "2025-12-05T01:18:31.837813",
     "fired": false,
     "promoted": false
   },
   "/models/small/general/phi-3.5-mini": {
     "model_name": "/models/small/general/phi-3.5-mini",
-    "total_tasks": 20,
-    "successful_tasks": 20,
+    "total_tasks": 21,
+    "successful_tasks": 21,
     "failed_tasks": 0,
-    "total_latency_ms": 16124.787999999997,
+    "total_latency_ms": 17102.875999999997,
     "quality_scores": [
+      7.0,
       7.0,
       7.0,
       7.0,
@@ -59,17 +61,18 @@
       7.0,
       7.0
     ],
-    "last_used": "2025-12-05T01:01:41.028716",
+    "last_used": "2025-12-05T01:18:31.838015",
     "fired": false,
     "promoted": false
   },
   "/models/small/general/gemma-2-2b": {
     "model_name": "/models/small/general/gemma-2-2b",
-    "total_tasks": 20,
-    "successful_tasks": 20,
+    "total_tasks": 21,
+    "successful_tasks": 21,
     "failed_tasks": 0,
-    "total_latency_ms": 17071.344,
+    "total_latency_ms": 18161.048000000003,
     "quality_scores": [
+      7.0,
       7.0,
       7.0,
       7.0,
@@ -91,7 +94,7 @@
       7.0,
       7.0
     ],
-    "last_used": "2025-12-05T01:01:41.028892",
+    "last_used": "2025-12-05T01:18:31.838210",
     "fired": false,
     "promoted": false
   }
