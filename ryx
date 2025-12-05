@@ -84,6 +84,45 @@ stop_services() {
     echo -e "${GREEN}Stopped${NC}"
 }
 
+# Full restart - stops everything including vLLM
+full_restart() {
+    echo -e "${RED}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${RED}║     FULL RESTART - Stopping All       ║${NC}"
+    echo -e "${RED}╚═══════════════════════════════════════╝${NC}"
+    
+    # Stop RyxHub
+    echo -e "${YELLOW}Stopping RyxHub...${NC}"
+    [ -f "$PROJECT_ROOT/data/ryxhub_api.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_api.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_api.pid"
+    [ -f "$PROJECT_ROOT/data/ryxhub_frontend.pid" ] && kill $(cat "$PROJECT_ROOT/data/ryxhub_frontend.pid") 2>/dev/null && rm "$PROJECT_ROOT/data/ryxhub_frontend.pid"
+    fuser -k 8420/tcp 2>/dev/null
+    fuser -k 8080/tcp 2>/dev/null
+    
+    # Stop ALL ryx containers
+    echo -e "${YELLOW}Stopping all containers...${NC}"
+    docker stop "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
+    docker rm "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
+    
+    # Kill any python/node processes from ryx
+    pkill -f "uvicorn ryx_pkg" 2>/dev/null
+    pkill -f "vite.*ryxhub" 2>/dev/null
+    
+    echo -e "${GREEN}All services stopped${NC}"
+    sleep 2
+    
+    # Restart vLLM with default model
+    echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║     Starting Fresh with Default       ║${NC}"
+    echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
+    
+    start_vllm
+    start_searxng
+    
+    echo -e "\n${GREEN}Full restart complete!${NC}"
+    echo -e "  vLLM loaded with default model"
+    echo -e "  Run ${CYAN}ryx${NC} to start CLI"
+    echo -e "  Run ${CYAN}ryx ryxhub${NC} to start web UI"
+}
+
 # Show status
 show_status() {
     echo -e "${CYAN}Ryx Services:${NC}"
@@ -201,8 +240,9 @@ case "$1" in
             start_ryxhub
             exit 0
         fi
-        stop_services
-        sleep 2
+        # Full restart - everything
+        full_restart
+        exit 0
         ;;
     help|--help|-h)
         echo "Ryx AI - Terminal assistant"
@@ -214,9 +254,9 @@ case "$1" in
         echo "  ryxhub           Start RyxHub web interface"
         echo "  ryxhub restart   Restart RyxHub services"
         echo "  restart ryxhub   Restart RyxHub services"
+        echo "  restart          Full restart (vLLM + all services)"
         echo "  status           Show service status"
-        echo "  stop             Stop all services"
-        echo "  restart          Restart all services"
+        echo "  stop             Stop RyxHub services"
         echo "  cleanup          Clean Docker resources"
         exit 0
         ;;
