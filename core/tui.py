@@ -214,6 +214,10 @@ class FullscreenTUI:
         self._pending_input: Optional[str] = None
         self._should_exit = False
         self._hint_message = ""
+        self._is_processing = False
+
+        # Callback for processing input (set by session loop)
+        self._on_submit: Optional[Callable[[str], None]] = None
 
         # Chat messages
         self.messages: List[ChatMessage] = []
@@ -228,6 +232,10 @@ class FullscreenTUI:
 
         # Build the UI
         self._build_ui()
+    
+    def set_submit_handler(self, callback: Callable[[str], None]):
+        """Set callback for when user submits input"""
+        self._on_submit = callback
 
     def _get_history(self):
         """Get command history"""
@@ -275,12 +283,37 @@ class FullscreenTUI:
 
         @self.kb.add('enter')
         def handle_enter(event):
-            """Submit input"""
+            """Submit input - process via callback without exiting fullscreen"""
             text = self.input_buffer.text.strip()
-            if text:
-                self._pending_input = text
+            if text and not self._is_processing:
                 self.input_buffer.reset()
-                event.app.exit(result=text)
+                self._hint_message = ""
+                
+                # Add user message immediately
+                self.add_user(text)
+                
+                # If we have a callback, process in background
+                if self._on_submit:
+                    self._is_processing = True
+                    self._hint_message = "Processing..."
+                    self._invalidate()
+                    
+                    # Run in background thread
+                    import threading
+                    def process():
+                        try:
+                            self._on_submit(text)
+                        finally:
+                            self._is_processing = False
+                            self._hint_message = ""
+                            self._invalidate()
+                    
+                    thread = threading.Thread(target=process, daemon=True)
+                    thread.start()
+                else:
+                    # No callback - store for legacy prompt() mode
+                    self._pending_input = text
+                    event.app.exit(result=text)
 
         @self.kb.add('c-d')
         def handle_ctrl_d(event):
@@ -521,22 +554,25 @@ class FullscreenTUI:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def run(self):
-        """Run the fullscreen TUI - main entry point"""
+        """Run the fullscreen TUI - stays in fullscreen until exit"""
         try:
-            while not self._should_exit:
-                result = self.app.run()
-                if result is None or self._should_exit:
-                    break
-                if result:
-                    return result
+            self.app.run()
         except (EOFError, KeyboardInterrupt):
             pass
-        return None
+
+    def run_with_callback(self, on_submit: Callable[[str], None]):
+        """Run TUI with a callback for processing input - PREFERRED method"""
+        self._on_submit = on_submit
+        try:
+            self.app.run()
+        except (EOFError, KeyboardInterrupt):
+            pass
 
     def prompt(self) -> str:
-        """Get user input - runs the app once"""
+        """Get user input - legacy mode, exits fullscreen temporarily"""
         self._pending_input = None
         self._hint_message = ""
+        self._on_submit = None  # Disable callback mode
 
         try:
             result = self.app.run()

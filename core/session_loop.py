@@ -231,37 +231,60 @@ class SessionLoop:
         signal.signal(signal.SIGINT, handler)
 
     def run(self):
-        """Main loop - fullscreen TUI mode"""
+        """Main loop - fullscreen TUI mode with callback"""
         self._show_welcome()
         self._health_check()
         self._restore()
 
-        while self.running:
+        # Check if TUI supports callback mode
+        if hasattr(self.cli, 'run_with_callback'):
+            # Use callback mode - TUI stays in fullscreen
+            def on_submit(user_input: str):
+                self._handle_input(user_input)
+            
             try:
-                user_input = self.cli.prompt()
-
-                if not user_input or not user_input.strip():
-                    continue
-
-                # Check for quit command
-                if user_input.strip() in ['/quit', '/exit', '/q']:
-                    self._save()
-                    self.running = False
-                    break
-
-                # Add user message to TUI chat (if fullscreen TUI)
-                if hasattr(self.cli, 'add_user'):
-                    self.cli.add_user(user_input.strip())
-
-                self._process(user_input.strip())
-                # Update footer state
-                self.cli.footer(msgs=len(self.history))
-
-            except KeyboardInterrupt:
+                self.cli.run_with_callback(on_submit)
+            except (KeyboardInterrupt, EOFError):
+                pass
+            finally:
                 self._save()
-                break
-            except Exception as e:
-                self.cli.error(str(e))
+        else:
+            # Legacy mode - TUI exits on each prompt
+            while self.running:
+                try:
+                    user_input = self.cli.prompt()
+
+                    if not user_input or not user_input.strip():
+                        continue
+
+                    self._handle_input(user_input.strip())
+
+                except KeyboardInterrupt:
+                    self._save()
+                    break
+                except Exception as e:
+                    self.cli.error(str(e))
+    
+    def _handle_input(self, user_input: str):
+        """Handle user input - called from TUI callback or legacy loop"""
+        if not user_input or not user_input.strip():
+            return
+        
+        user_input = user_input.strip()
+        
+        # Check for quit command
+        if user_input in ['/quit', '/exit', '/q']:
+            self._save()
+            self.running = False
+            if hasattr(self.cli, '_should_exit'):
+                self.cli._should_exit = True
+            return
+
+        # Process the input
+        self._process(user_input)
+        
+        # Update footer state
+        self.cli.footer(msgs=len(self.history))
     
     def _health_check(self):
         """Quick health check - vLLM preferred"""
