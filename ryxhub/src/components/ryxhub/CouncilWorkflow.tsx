@@ -39,6 +39,11 @@ interface CouncilTask {
   timestamp: string;
 }
 
+// Performance thresholds
+const PERFORMANCE_EXCELLENT = 70;
+const PERFORMANCE_WARNING = 40;
+const MIN_TASKS_BEFORE_FIRING = 5;
+
 export function CouncilWorkflow() {
   const [workers, setWorkers] = useState<WorkerModel[]>([
     {
@@ -84,14 +89,14 @@ export function CouncilWorkflow() {
   const [currentTask, setCurrentTask] = useState<string>('');
 
   const getPerformanceColor = (performance: number) => {
-    if (performance >= 70) return 'text-green-500';
-    if (performance >= 40) return 'text-yellow-500';
+    if (performance >= PERFORMANCE_EXCELLENT) return 'text-green-500';
+    if (performance >= PERFORMANCE_WARNING) return 'text-yellow-500';
     return 'text-red-500';
   };
 
   const getPerformanceBg = (performance: number) => {
-    if (performance >= 70) return 'bg-green-500/10';
-    if (performance >= 40) return 'bg-yellow-500/10';
+    if (performance >= PERFORMANCE_EXCELLENT) return 'bg-green-500/10';
+    if (performance >= PERFORMANCE_WARNING) return 'bg-yellow-500/10';
     return 'bg-red-500/10';
   };
 
@@ -167,14 +172,14 @@ export function CouncilWorkflow() {
       let newStatus: WorkerModel['status'] = 'active';
       const newLogs = [...worker.logs];
 
-      if (newPerformance < 40 && worker.tasksCompleted + 1 >= 5) {
+      if (newPerformance < PERFORMANCE_WARNING && worker.tasksCompleted + 1 >= MIN_TASKS_BEFORE_FIRING) {
         newStatus = 'fired';
         newLogs.push(`🔥 FIRED: Performance dropped to ${newPerformance}%. Supervisor decision: Consistently low quality responses.`);
         toast.error(`Worker ${worker.name} has been fired for poor performance`);
-      } else if (newPerformance < 70 && newPerformance >= 40) {
+      } else if (newPerformance < PERFORMANCE_EXCELLENT && newPerformance >= PERFORMANCE_WARNING) {
         newStatus = 'warning';
         newLogs.push(`⚠️ Warning: Performance at ${newPerformance}%. Supervisor refining prompts...`);
-      } else if (newPerformance >= 70) {
+      } else if (newPerformance >= PERFORMANCE_EXCELLENT) {
         newLogs.push(`✅ Good performance: ${newPerformance}%`);
       }
 

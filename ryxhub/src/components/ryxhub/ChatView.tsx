@@ -308,6 +308,9 @@ export function ChatView() {
   const handleExportChat = () => {
     if (!currentSession) return;
     
+    // Sanitize filename to remove invalid characters
+    const sanitizedName = currentSession.name.replace(/[^a-z0-9-_]/gi, '-').toLowerCase();
+    
     const exportData = {
       sessionName: currentSession.name,
       model: selectedModel,
@@ -324,7 +327,7 @@ export function ChatView() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ryx-chat-${currentSession.name}-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `ryx-chat-${sanitizedName}-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

@@ -38,7 +38,7 @@ export function MessageContent({ content, role }: MessageContentProps) {
           // Extract code content
           const codeElement = children?.[0] as any;
           const codeContent = codeElement?.props?.children?.[0] || '';
-          const codeId = `code-${Math.random().toString(36).substr(2, 9)}`;
+          const codeId = `code-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
           return (
             <div className="relative group">
