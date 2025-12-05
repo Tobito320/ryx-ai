@@ -112,7 +112,13 @@ export function WorkflowCanvasEnhanced() {
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [selectedConfigNode, setSelectedConfigNode] = useState<RyxWorkflowNode | null>(null);
   const [executionLogs, setExecutionLogs] = useState<string[]>([]);
-  const [scrapingData, setScrapingData] = useState<any[]>([]);
+  const [scrapingData, setScrapingData] = useState<Array<{
+    url: string;
+    status: string;
+    progress: number;
+    items: Array<{ type: string; content: string; selector: string }>;
+    totalItems: number;
+  }>>([]);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const logsWsRef = useRef<WebSocket | null>(null);
@@ -247,9 +253,10 @@ export function WorkflowCanvasEnhanced() {
         // Connect to workflow status stream
         const ws = ryxApi.connectWorkflowStream(
           result.run_id,
-          (data: any) => {
-            if (data.type === "workflow_status") {
-              if (data.status === "success" || data.status === "error") {
+          (data: unknown) => {
+            const message = data as { type: string; status?: string; nodeId?: string };
+            if (message.type === "workflow_status") {
+              if (message.status === "success" || message.status === "error") {
                 toggleWorkflowRunning();
                 // Reset node statuses after a delay
                 setTimeout(() => {
@@ -258,12 +265,12 @@ export function WorkflowCanvasEnhanced() {
                   );
                 }, 2000);
               }
-            } else if (data.type === "node_status") {
+            } else if (message.type === "node_status") {
               // Update node status in UI
               setNodes((nds) =>
                 nds.map((n) =>
-                  n.id === data.nodeId
-                    ? { ...n, data: { ...n.data, status: data.status } }
+                  n.id === message.nodeId
+                    ? { ...n, data: { ...n.data, status: message.status } }
                     : n
                 )
               );
@@ -279,11 +286,12 @@ export function WorkflowCanvasEnhanced() {
         // Connect to logs stream
         const logsWs = ryxApi.connectWorkflowLogsStream(
           result.run_id,
-          (data: any) => {
-            if (data.type === "log") {
+          (data: unknown) => {
+            const log = data as { type: string; timestamp: string; message: string };
+            if (log.type === "log") {
               setExecutionLogs((prev) => [
                 ...prev,
-                `[${new Date(data.timestamp).toLocaleTimeString()}] ${data.message}`,
+                `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.message}`,
               ]);
             }
           },
@@ -345,9 +353,13 @@ export function WorkflowCanvasEnhanced() {
     // In a full implementation, you'd call an API to update the workflow here
   };
 
-  const handleSelectTemplate = (template: any) => {
+  const handleSelectTemplate = (template: {
+    name: string;
+    nodes: Array<Omit<RyxWorkflowNode, "logs" | "runs">>;
+    connections: Array<{ id: string; from: string; to: string }>;
+  }) => {
     // Load template nodes and connections
-    const templateNodes = template.nodes.map((node: any) => ({
+    const templateNodes = template.nodes.map((node) => ({
       ...node,
       logs: [],
       runs: [],
@@ -358,7 +370,7 @@ export function WorkflowCanvasEnhanced() {
     });
 
     // Add connections
-    template.connections.forEach((conn: any) => {
+    template.connections.forEach((conn) => {
       const newEdge = {
         id: conn.id,
         source: conn.from,
