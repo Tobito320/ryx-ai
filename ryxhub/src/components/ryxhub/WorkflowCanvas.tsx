@@ -36,6 +36,7 @@ export function WorkflowCanvas() {
     selectNode,
     isWorkflowRunning,
     toggleWorkflowRunning,
+    addWorkflowNode,
   } = useRyxHub();
 
   const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
@@ -54,28 +55,34 @@ export function WorkflowCanvas() {
 
   const handleAddNode = async (nodeData: { type: string; name: string }) => {
     try {
-      // In a full implementation, this would add the node to the workflow
-      // For now, we'll show success and indicate nodes can be added
-      const newNode = {
+      // Create new node with random position
+      const newNode: WorkflowNode = {
         id: `node-${Date.now()}`,
         type: nodeData.type as "trigger" | "agent" | "tool" | "output",
         name: nodeData.name,
-        x: 100 + Math.random() * 200,
-        y: 100 + Math.random() * 200,
+        x: 100 + Math.random() * 400,
+        y: 100 + Math.random() * 300,
         status: "idle" as const,
         config: {},
-        logs: [],
+        logs: [
+          {
+            time: new Date().toLocaleTimeString(),
+            level: "info",
+            message: `${nodeData.name} node created`
+          }
+        ],
         runs: []
       };
 
-      // Note: In a real implementation, this would update the workflow state
-      // and persist to the backend via PUT /api/workflows/:id
+      // Add to workflow state
+      addWorkflowNode(newNode);
+      
       toast.success(`Node "${nodeData.name}" added to workflow`, {
         description: "Node created successfully"
       });
       
-      // TODO: Actually add to workflowNodes state and persist to backend
-      console.log("New node:", newNode);
+      // In a real implementation, persist to backend via PUT /api/workflows/:id
+      // For now, nodes are stored in React state
     } catch (error) {
       toast.error("Failed to add node", {
         description: error instanceof Error ? error.message : "Unknown error"

@@ -34,6 +34,7 @@ interface RyxHubContextType {
   selectNode: (id: string | null) => void;
   isWorkflowRunning: boolean;
   toggleWorkflowRunning: () => void;
+  addWorkflowNode: (node: WorkflowNode) => void;
 }
 
 const RyxHubContext = createContext<RyxHubContextType | null>(null);
@@ -135,6 +136,10 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     setIsWorkflowRunning((prev) => !prev);
   }, []);
 
+  const addWorkflowNode = useCallback((node: WorkflowNode) => {
+    setWorkflowNodes((prev) => [...prev, node]);
+  }, []);
+
   const deleteSession = useCallback(async (sessionId: string) => {
     try {
       const response = await fetch(`http://localhost:8420/api/sessions/${sessionId}`, {
@@ -194,6 +199,7 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         selectNode,
         isWorkflowRunning,
         toggleWorkflowRunning,
+        addWorkflowNode,
       }}
     >
       {children}
