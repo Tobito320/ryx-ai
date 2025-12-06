@@ -14,9 +14,11 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # vLLM
-    vllm_api_url: str = "http://localhost:8002/v1"
-    vllm_model_name: str = "qwen2.5-32b"
+    # Multi-Agent vLLM Endpoints
+    vllm_chat_agent_url: str = "http://localhost:8101/v1"
+    vllm_doc_analyst_url: str = "http://localhost:8102/v1"
+    vllm_board_planner_url: str = "http://localhost:8103/v1"
+    vllm_brief_writer_url: str = "http://localhost:8104/v1"
 
     # File Storage
     upload_dir: str = "./uploads"
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
     # AI Settings
     rag_enabled: bool = True
     lancedb_path: str = "./data/lancedb"
-    embedding_model: str = "qwen2.5-32b"
+    embedding_model: str = "chat-agent"  # Use chat agent for embeddings
 
     # Logging
     log_level: str = "INFO"

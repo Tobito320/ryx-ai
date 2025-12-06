@@ -48,72 +48,203 @@ services:
       - familydocs-network
 
   # ============================================================================
-  # vLLM Backend (Qwen 2.5 32B for FamilyDocs AI)
+  # MULTI-AGENT SYSTEM: 4x vLLM Containers (Qwen 2.5 3B each)
+  # Total VRAM: ~12 GB (4x 3GB = fits in 16GB with headroom)
+  # Each agent specializes in specific tasks for better performance
   # ============================================================================
-  vllm:
-    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
-    container_name: familydocs-vllm
 
-    # AMD GPU access
+  # AGENT 1: Chat Agent (General conversation & questions)
+  vllm-chat-agent:
+    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
+    container_name: familydocs-vllm-chat
     devices:
       - /dev/kfd
       - /dev/dri
     group_add:
       - video
       - render
-
-    # Security for GPU access
     security_opt:
       - seccomp:unconfined
     cap_add:
       - SYS_PTRACE
-
-    # Environment
     environment:
       - HIP_VISIBLE_DEVICES=0
-      - HSA_OVERRIDE_GFX_VERSION=11.0.0  # RX 7800 XT = gfx1101
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
       - VLLM_LOGGING_LEVEL=INFO
       - HF_HOME=/models
-      - VLLM_USE_TRITON_AWQ=1
-      - VLLM_USE_TRITON_FLASH_ATTN=0
-
-    # Volumes
     volumes:
       - ${VLLM_MODELS_PATH:-/home/tobi/vllm-models}:/models
       - ${HF_CACHE_PATH:-/home/tobi/.cache/huggingface}:/root/.cache/huggingface
-
-    # Ports
     ports:
-      - "8002:8002"  # OpenAI-compatible API (different from ryx-ai:8001)
-
-    # Start vLLM with Qwen 2.5 32B (quantized for 16GB VRAM)
+      - "8101:8000"
     entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
     command:
       - "--model"
-      - "/models/Qwen2.5-32B-Instruct-GPTQ-Int4"  # Adjust path to your model
-      - "--quantization"
-      - "gptq"
+      - "Qwen/Qwen2.5-3B-Instruct"
       - "--max-model-len"
       - "8192"
       - "--gpu-memory-utilization"
-      - "0.85"  # Use 85% of VRAM (13.6 GB out of 16 GB)
-      - "--tensor-parallel-size"
-      - "1"
+      - "0.20"
       - "--host"
       - "0.0.0.0"
       - "--port"
-      - "8002"
+      - "8000"
       - "--trust-remote-code"
       - "--served-model-name"
-      - "qwen2.5-32b"  # Consistent model name for API
-
+      - "chat-agent"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s  # vLLM needs time to load model
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - familydocs-network
 
+  # AGENT 2: Document Analyst (OCR, extraction, classification)
+  vllm-doc-analyst:
+    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
+    container_name: familydocs-vllm-doc-analyst
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      - VLLM_LOGGING_LEVEL=INFO
+      - HF_HOME=/models
+    volumes:
+      - ${VLLM_MODELS_PATH:-/home/tobi/vllm-models}:/models
+      - ${HF_CACHE_PATH:-/home/tobi/.cache/huggingface}:/root/.cache/huggingface
+    ports:
+      - "8102:8000"
+    entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+    command:
+      - "--model"
+      - "Qwen/Qwen2.5-3B-Instruct"
+      - "--max-model-len"
+      - "8192"
+      - "--gpu-memory-utilization"
+      - "0.20"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--trust-remote-code"
+      - "--served-model-name"
+      - "doc-analyst"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+  # AGENT 3: Board Planner (Create/organize boards, smart suggestions)
+  vllm-board-planner:
+    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
+    container_name: familydocs-vllm-board-planner
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      - VLLM_LOGGING_LEVEL=INFO
+      - HF_HOME=/models
+    volumes:
+      - ${VLLM_MODELS_PATH:-/home/tobi/vllm-models}:/models
+      - ${HF_CACHE_PATH:-/home/tobi/.cache/huggingface}:/root/.cache/huggingface
+    ports:
+      - "8103:8000"
+    entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+    command:
+      - "--model"
+      - "Qwen/Qwen2.5-3B-Instruct"
+      - "--max-model-len"
+      - "8192"
+      - "--gpu-memory-utilization"
+      - "0.20"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--trust-remote-code"
+      - "--served-model-name"
+      - "board-planner"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+  # AGENT 4: Brief Writer (Generate letters, emails, responses)
+  vllm-brief-writer:
+    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
+    container_name: familydocs-vllm-brief-writer
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      - VLLM_LOGGING_LEVEL=INFO
+      - HF_HOME=/models
+    volumes:
+      - ${VLLM_MODELS_PATH:-/home/tobi/vllm-models}:/models
+      - ${HF_CACHE_PATH:-/home/tobi/.cache/huggingface}:/root/.cache/huggingface
+    ports:
+      - "8104:8000"
+    entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+    command:
+      - "--model"
+      - "Qwen/Qwen2.5-3B-Instruct"
+      - "--max-model-len"
+      - "8192"
+      - "--gpu-memory-utilization"
+      - "0.20"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8000"
+      - "--trust-remote-code"
+      - "--served-model-name"
+      - "brief-writer"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
     networks:
       - familydocs-network
@@ -133,9 +264,11 @@ services:
       # Redis
       REDIS_URL: redis://redis:6379/0
 
-      # vLLM
-      VLLM_API_URL: http://vllm:8002/v1
-      VLLM_MODEL_NAME: qwen2.5-32b
+      # Multi-Agent vLLM Endpoints
+      VLLM_CHAT_AGENT_URL: http://vllm-chat-agent:8000/v1
+      VLLM_DOC_ANALYST_URL: http://vllm-doc-analyst:8000/v1
+      VLLM_BOARD_PLANNER_URL: http://vllm-board-planner:8000/v1
+      VLLM_BRIEF_WRITER_URL: http://vllm-brief-writer:8000/v1
 
       # File Storage
       UPLOAD_DIR: /app/uploads
@@ -149,7 +282,7 @@ services:
       # AI Settings
       RAG_ENABLED: "true"
       LANCEDB_PATH: /app/data/lancedb
-      EMBEDDING_MODEL: qwen2.5-32b
+      EMBEDDING_MODEL: chat-agent
 
       # Logging
       LOG_LEVEL: INFO
@@ -168,7 +301,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      vllm:
+      vllm-chat-agent:
+        condition: service_healthy
+      vllm-doc-analyst:
+        condition: service_healthy
+      vllm-board-planner:
+        condition: service_healthy
+      vllm-brief-writer:
         condition: service_healthy
 
     healthcheck:
