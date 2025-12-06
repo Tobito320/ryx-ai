@@ -252,11 +252,11 @@
     }
   ],
   "stats": {
-    "prompts": 6,
-    "actions": 3,
+    "prompts": 0,
+    "actions": 0,
     "files": 0,
     "urls": 0,
-    "searches": 3,
+    "searches": 0,
     "scrapes": 0
   },
   "precision_mode": true,
@@ -267,5 +267,5 @@
     "last_intent": "search_web",
     "created_files": []
   },
-  "saved_at": "2025-12-05T13:51:23.155867"
+  "saved_at": "2025-12-05T18:34:19.411525"
 }
