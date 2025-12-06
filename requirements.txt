@@ -2,6 +2,7 @@
 
 # Core
 requests>=2.31.0
+aiohttp>=3.9.0  # Async HTTP client for vLLM and concurrent operations
 
 # Optional - Performance Monitoring
 psutil>=5.9.0  # For system resource monitoring
