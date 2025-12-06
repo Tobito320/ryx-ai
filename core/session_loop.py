@@ -196,6 +196,11 @@ class SessionLoop:
             '/heal': 'Run self-healing on knowledge base',
             '/improve': 'Analyze codebase for improvements',
             '/doctor': 'Run health check and diagnostics',
+            
+            # Council - Multi-model consensus
+            '/council': 'Query multiple models for consensus',
+            '/vote': 'Quick council vote on a question',
+            '/review': 'Council code review',
         }
         
         def completer(text, state):
@@ -421,12 +426,26 @@ class SessionLoop:
         # FALLBACK: Use brain directly
         # ─────────────────────────────────────────────────────────────
         
+        # Show visual thinking indicator (with graceful fallback)
+        try:
+            if hasattr(self.cli, 'thinking'):
+                self.cli.thinking("Processing request...")
+            elif hasattr(self.cli, 'step_start'):
+                self.cli.step_start("Understanding")
+        except Exception:
+            pass  # Gracefully handle any UI errors
+        
         # Understand the input
-        if hasattr(self.cli, 'step_start'):
-            self.cli.step_start("Understanding")
         plan = self.brain.understand(user_input)
-        if hasattr(self.cli, 'step_done'):
-            self.cli.step_done("Understood", f"intent: {plan.intent.value}")
+        
+        # Show planning step (with graceful fallback)
+        try:
+            if hasattr(self.cli, 'planning'):
+                self.cli.planning(f"Plan: {plan.intent.value}")
+            elif hasattr(self.cli, 'step_done'):
+                self.cli.step_done("Understood", f"intent: {plan.intent.value}")
+        except Exception:
+            pass  # Gracefully handle any UI errors
         
         # Execute
         if hasattr(self.cli, 'step_start'):
@@ -532,6 +551,11 @@ class SessionLoop:
             'heal': lambda: self._heal(args),
             'improve': lambda: self._improve(args),
             'doctor': self._doctor,
+            
+            # Council - Multi-model consensus
+            'council': lambda: self._council(args),
+            'vote': lambda: self._council(args),
+            'review': lambda: self._council_review(args),
         }
         
         handler = cmds.get(command)
@@ -1521,6 +1545,80 @@ class SessionLoop:
                     
             except Exception:
                 pass
+    
+    def _council(self, args: str):
+        """
+        Run council - query multiple models for consensus.
+        Usage: /council <question>
+        """
+        if not args:
+            self.cli.warn("Usage: /council <question>")
+            self.cli.muted("Example: /council Rate this code quality")
+            return
+        
+        try:
+            import asyncio
+            from core.council_v2 import Council, CouncilPreset
+            
+            # Parse preset if specified
+            preset = None
+            if args.startswith("--"):
+                parts = args.split(maxsplit=1)
+                if len(parts) == 2:
+                    preset_name = parts[0][2:]  # Remove --
+                    args = parts[1]
+                    # Try to match preset
+                    for p in CouncilPreset:
+                        if p.value == preset_name:
+                            preset = p
+                            break
+            
+            council = Council(console=self.cli.console)
+            
+            # Run council query
+            result = asyncio.run(council.query(args, preset=preset))
+            
+        except ImportError as e:
+            self.cli.error(f"Council not available: {e}")
+        except Exception as e:
+            self.cli.error(f"Council error: {e}")
+    
+    def _council_review(self, args: str):
+        """
+        Quick council code review.
+        Usage: /review <code or @file>
+        """
+        if not args:
+            self.cli.warn("Usage: /review <code or @file>")
+            return
+        
+        # Handle file reference
+        if args.startswith("@"):
+            filepath = args[1:].strip()
+            try:
+                from pathlib import Path
+                file_path = Path(filepath).expanduser()
+                if file_path.exists():
+                    code = file_path.read_text()
+                    args = f"Review this code from {filepath}:\n\n{code}"
+                else:
+                    self.cli.error(f"File not found: {filepath}")
+                    return
+            except Exception as e:
+                self.cli.error(f"Error reading file: {e}")
+                return
+        
+        try:
+            import asyncio
+            from core.council_v2 import Council, CouncilPreset
+            
+            council = Council(console=self.cli.console)
+            result = asyncio.run(council.query(args, preset=CouncilPreset.CODE_REVIEW))
+            
+        except ImportError as e:
+            self.cli.error(f"Council not available: {e}")
+        except Exception as e:
+            self.cli.error(f"Council error: {e}")
 
 
 def main():
