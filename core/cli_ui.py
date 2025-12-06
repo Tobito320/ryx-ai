@@ -423,6 +423,56 @@ class CLI:
         self.console.print(line)
     
     # ═══════════════════════════════════════════════════════════════════════════
+    # Visual Steps - Claude/ChatGPT-style process indicators
+    # ═══════════════════════════════════════════════════════════════════════════
+    
+    def thinking(self, message: str = "Thinking..."):
+        """Show thinking indicator (like Claude)"""
+        text = Text()
+        text.append("🤔 ", style="bold")
+        text.append(message, style="thinking")
+        self.console.print(text)
+    
+    def parsing(self, message: str = "Parsing request..."):
+        """Show parsing step"""
+        text = Text()
+        text.append("📝 ", style="bold")
+        text.append(message, style="step")
+        self.console.print(text)
+    
+    def planning(self, message: str = "Planning approach..."):
+        """Show planning step"""
+        text = Text()
+        text.append("📋 ", style="bold")
+        text.append(message, style="step")
+        self.console.print(text)
+    
+    def searching(self, query: str, sources: int = 0):
+        """Show search progress"""
+        text = Text()
+        text.append("🔍 ", style="bold")
+        text.append(f"Searching: {query[:40]}", style="step")
+        if sources > 0:
+            text.append(f" ({sources} sources)", style="dim")
+        self.console.print(text)
+    
+    def tool_exec(self, tool: str, details: str = ""):
+        """Show tool execution"""
+        text = Text()
+        text.append("🛠️  ", style="bold")
+        text.append(f"Using {tool}", style="step")
+        if details:
+            text.append(f": {details}", style="dim")
+        self.console.print(text)
+    
+    def synthesizing(self, message: str = "Synthesizing response..."):
+        """Show synthesis step"""
+        text = Text()
+        text.append("🔄 ", style="bold")
+        text.append(message, style="step")
+        self.console.print(text)
+    
+    # ═══════════════════════════════════════════════════════════════════════════
     # Phases - For complex tasks (EXPLORE → PLAN → APPLY → VERIFY)
     # ═══════════════════════════════════════════════════════════════════════════
     

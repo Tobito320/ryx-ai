@@ -39,6 +39,12 @@ class LLMBackend(ABC):
         """Generate a response with streaming"""
         pass
     
+    async def generate_stream_async(self, prompt: str, system: str = "", **kwargs):
+        """Generate a response with async streaming (optional)"""
+        # Default implementation for backends without async support
+        for token in self.generate_stream(prompt, system, **kwargs):
+            yield token
+    
     @abstractmethod
     def health_check(self) -> Dict[str, Any]:
         """Check if the backend is healthy"""
@@ -133,36 +139,64 @@ class VLLMBackend(LLMBackend):
         max_tokens: int = 2048,
         **kwargs
     ) -> Iterator[str]:
-        """Generate a response with streaming"""
+        """Generate a response with TRUE token-by-token streaming"""
         
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         
-        # Create new client for each streaming request (to properly close)
-        async def _gen():
+        # Use true async streaming
+        async def _gen_stream():
             from core.vllm_client import VLLMClient
             client = VLLMClient(self.config)
             try:
-                resp = await client.chat(
-                    messages=messages,
+                async for token in client.generate_stream(
+                    prompt=prompt,
+                    system=system,
                     model=model,
                     temperature=temperature,
                     max_tokens=max_tokens
-                )
-                return resp.response
+                ):
+                    yield token
             finally:
                 await client.close()
         
         try:
-            response = self._run_async(_gen())
-            # Yield word by word to simulate streaming
-            for word in response.split():
-                yield word + " "
+            # Run async generator in sync context
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                gen = _gen_stream()
+                while True:
+                    try:
+                        token = loop.run_until_complete(gen.__anext__())
+                        yield token
+                    except StopAsyncIteration:
+                        break
+            finally:
+                loop.close()
         except Exception as e:
             logger.error(f"vLLM stream error: {e}")
             yield f"Error: {e}"
+    
+    async def generate_stream_async(self, prompt: str, system: str = "", model: str = None, 
+                                   temperature: float = 0.7, max_tokens: int = 2048, **kwargs):
+        """Generate a response with async streaming - native async version"""
+        from core.vllm_client import VLLMClient
+        
+        client = VLLMClient(self.config)
+        try:
+            async for token in client.generate_stream(
+                prompt=prompt,
+                system=system,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens
+            ):
+                yield token
+        finally:
+            await client.close()
     
     def health_check(self) -> Dict[str, Any]:
         """Check vLLM health"""
