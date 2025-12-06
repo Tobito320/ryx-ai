@@ -15,7 +15,6 @@ from rich.live import Live
 from rich.spinner import Spinner
 from rich.text import Text
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 
 
 class StepType(Enum):

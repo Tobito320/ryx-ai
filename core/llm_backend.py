@@ -146,10 +146,11 @@ class VLLMBackend(LLMBackend):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         
-        # Use true async streaming
-        async def _gen_stream():
+        # Use true async streaming with a single event loop
+        async def _stream_all():
             from core.vllm_client import VLLMClient
             client = VLLMClient(self.config)
+            tokens = []
             try:
                 async for token in client.generate_stream(
                     prompt=prompt,
@@ -158,22 +159,19 @@ class VLLMBackend(LLMBackend):
                     temperature=temperature,
                     max_tokens=max_tokens
                 ):
-                    yield token
+                    tokens.append(token)
             finally:
                 await client.close()
+            return tokens
         
         try:
-            # Run async generator in sync context
+            # Create a single event loop for the entire stream
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                gen = _gen_stream()
-                while True:
-                    try:
-                        token = loop.run_until_complete(gen.__anext__())
-                        yield token
-                    except StopAsyncIteration:
-                        break
+                tokens = loop.run_until_complete(_stream_all())
+                for token in tokens:
+                    yield token
             finally:
                 loop.close()
         except Exception as e:

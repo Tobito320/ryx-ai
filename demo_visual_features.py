@@ -100,13 +100,15 @@ def demo_code_review():
     console.print("─"*60 + "\n", style="dim")
     
     # Show sample code
-    code = '''def calculate_factorial(n):
+    code = """\
+def calculate_factorial(n):
     if n < 0:
         return None
     result = 1
     for i in range(1, n + 1):
         result *= i
-    return result'''
+    return result\
+"""
     
     console.print(Text("User: ", style="bold purple") + Text("/review <code>", style="purple"))
     console.print()

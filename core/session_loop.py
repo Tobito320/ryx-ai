@@ -426,19 +426,26 @@ class SessionLoop:
         # FALLBACK: Use brain directly
         # ─────────────────────────────────────────────────────────────
         
-        # Show visual thinking indicator
-        if hasattr(self.cli, 'thinking'):
-            self.cli.thinking("Processing request...")
-        elif hasattr(self.cli, 'step_start'):
-            self.cli.step_start("Understanding")
+        # Show visual thinking indicator (with graceful fallback)
+        try:
+            if hasattr(self.cli, 'thinking'):
+                self.cli.thinking("Processing request...")
+            elif hasattr(self.cli, 'step_start'):
+                self.cli.step_start("Understanding")
+        except Exception:
+            pass  # Gracefully handle any UI errors
         
         # Understand the input
         plan = self.brain.understand(user_input)
         
-        if hasattr(self.cli, 'planning'):
-            self.cli.planning(f"Plan: {plan.intent.value}")
-        elif hasattr(self.cli, 'step_done'):
-            self.cli.step_done("Understood", f"intent: {plan.intent.value}")
+        # Show planning step (with graceful fallback)
+        try:
+            if hasattr(self.cli, 'planning'):
+                self.cli.planning(f"Plan: {plan.intent.value}")
+            elif hasattr(self.cli, 'step_done'):
+                self.cli.step_done("Understood", f"intent: {plan.intent.value}")
+        except Exception:
+            pass  # Gracefully handle any UI errors
         
         # Execute
         if hasattr(self.cli, 'step_start'):
