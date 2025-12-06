@@ -8,6 +8,10 @@ Your intelligent terminal companion, powered by local AI models.
 
 - **Natural Language First**: No weird syntax - just type what you want
 - **Intelligent Model Routing**: Automatically selects fast/balanced/powerful models
+- **Real-Time Token Streaming**: See responses as they're generated with live statistics
+- **Visual Process Indicators**: Claude/ChatGPT-style feedback showing what's happening (🤔 thinking, 🔍 searching, 🛠️ executing)
+- **Multi-Model Council**: Query multiple models concurrently for consensus and code review
+- **Async Operations**: Concurrent tool execution for faster performance
 - **Tool Orchestration**: Filesystem, web, shell, and RAG tools with safety controls
 - **Modern Terminal UI**: Themed output with Dracula/Nord/Catppuccin themes
 - **Graceful Interrupts**: Ctrl+C saves state, continue where you left off
@@ -22,6 +26,25 @@ ryx
 # Or run a single command
 ryx "open hyprland config"
 ryx "refactor the intent parser"
+```
+
+### What You'll See
+
+Ryx provides real-time visual feedback showing exactly what it's doing:
+
+```
+> explain quantum entanglement
+
+🤔 Thinking...
+📝 Parsing request...
+📋 Planning approach...
+🔍 Searching: quantum entanglement (5 sources)
+🔄 Synthesizing response...
+
+Quantum entanglement is a phenomenon where two particles become...
+[response streams in real-time]
+
+└─ 247 tokens • 89 tok/s • 2.8s
 ```
 
 ## 📋 Requirements
@@ -103,6 +126,8 @@ Shows:
 | `/themes` | List available themes |
 | `/clear` | Clear conversation |
 | `/save <title>` | Save conversation as note |
+| `/council <question>` | Query multiple models for consensus |
+| `/review @file` | Council code review |
 | `/quit` | Exit session |
 
 ### Direct Prompts
@@ -121,18 +146,71 @@ ryx --loose    # Auto-approve most operations
 
 ## 🎨 UI Indicators
 
+Ryx provides Claude/ChatGPT-style visual feedback showing what it's doing in real-time:
+
 | Emoji | Meaning |
 |-------|---------|
-| 📋 | Plan |
-| 🔍 | Search |
-| 🌐 | Browse |
-| 📂 | Files |
-| 🛠️ | Edit |
-| 🧪 | Test |
-| 💾 | Commit |
-| ✅ | Done |
+| 🤔 | Thinking / Processing |
+| 📝 | Parsing request |
+| 📋 | Planning approach |
+| 🔍 | Searching web |
+| 🌐 | Browsing / Scraping |
+| 📂 | File operations |
+| 🛠️ | Tool execution |
+| 🔄 | Synthesizing response |
+| 💻 | Code generation |
+| 🧪 | Testing |
+| 💾 | Committing changes |
+| ✅ | Done / Success |
 | ❌ | Error |
 | ⚠️ | Warning |
+| 🏛️ | Council session (multi-model) |
+
+## 🏛️ Council - Multi-Model Consensus
+
+Query multiple AI models simultaneously for consensus, code review, or fact-checking:
+
+```bash
+# In interactive session
+/council Is this code safe?
+/review @myfile.py
+/council --code_review Review this function
+
+# Available presets
+--code_review      # Code quality and security review
+--fact_check       # Fact checking with accuracy rating
+--creative_writing # Writing critique and suggestions
+--bug_analysis     # Bug root cause analysis
+--security_audit   # Security vulnerability scanning
+```
+
+### Council Features
+- **Concurrent Queries**: Multiple models run in parallel for speed
+- **Weighted Voting**: Models can have different influence weights
+- **Rating Extraction**: Automatically extracts and averages ratings (X/10)
+- **Agreement Score**: Shows how much models agree (0-100%)
+- **Rich Output**: Beautiful tables showing all responses side-by-side
+
+### Example Output
+```
+🏛️  Council Session (3 members)
+
+🤔 Thinking...
+  ✓ Coder: 245 chars
+  ✓ General: 198 chars
+  ✓ Fast: 156 chars
+
+📊 Council Responses
+┌─────────┬────────┬──────────────────────────┬────────┐
+│ Member  │ Rating │ Response                 │ Time   │
+├─────────┼────────┼──────────────────────────┼────────┤
+│ Coder   │ 8.5/10 │ Good structure, but...   │ 1250ms │
+│ General │ 8.0/10 │ Clear code, consider...  │ 980ms  │
+│ Fast    │ 7.5/10 │ Looks fine, minor...     │ 450ms  │
+└─────────┴────────┴──────────────────────────┴────────┘
+
+└─ Avg: 8.0/10 • Agreement: 85% • 2.68s
+```
 
 ## 🔧 Configuration
 

@@ -426,11 +426,18 @@ class SessionLoop:
         # FALLBACK: Use brain directly
         # ─────────────────────────────────────────────────────────────
         
-        # Understand the input
-        if hasattr(self.cli, 'step_start'):
+        # Show visual thinking indicator
+        if hasattr(self.cli, 'thinking'):
+            self.cli.thinking("Processing request...")
+        elif hasattr(self.cli, 'step_start'):
             self.cli.step_start("Understanding")
+        
+        # Understand the input
         plan = self.brain.understand(user_input)
-        if hasattr(self.cli, 'step_done'):
+        
+        if hasattr(self.cli, 'planning'):
+            self.cli.planning(f"Plan: {plan.intent.value}")
+        elif hasattr(self.cli, 'step_done'):
             self.cli.step_done("Understood", f"intent: {plan.intent.value}")
         
         # Execute

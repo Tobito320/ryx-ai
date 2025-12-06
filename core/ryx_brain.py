@@ -2081,12 +2081,18 @@ Sprache: Deutsch"""
         search_results = []
         
         if should_search and self.browsing_enabled:
-            ui.step_start(f"Searching '{query[:35]}...'")
+            # Use new visual searching indicator
+            if hasattr(ui, 'searching'):
+                ui.searching(query[:40])
+            else:
+                ui.step_start(f"Searching '{query[:35]}...'")
             
             # Search web first for grounding
             search_result = self.tools.web_search.search(query, num_results=5)
             if search_result.success and search_result.data:
                 search_results = search_result.data[:5]
+                if hasattr(ui, 'searching'):
+                    ui.searching(query[:40], len(search_results))
                 ui.step_done("Search", f"{len(search_results)} results")
                 
                 # Show top results
@@ -2208,6 +2214,10 @@ WICHTIG für Suchergebnisse:
             
             if search_context:
                 system_prompt += search_context
+        
+        # Show synthesizing indicator before streaming
+        if hasattr(ui, 'synthesizing'):
+            ui.synthesizing("Generating response...")
         
         # Stream the response token by token
         ui.stream_start(model)
