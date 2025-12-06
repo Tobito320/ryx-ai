@@ -1,0 +1,225 @@
+version: "3.8"
+
+services:
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: familydocs-postgres
+    environment:
+      POSTGRES_DB: familydocs
+      POSTGRES_USER: familydocs
+      POSTGRES_PASSWORD: familydocs_dev_password # CHANGE IN PRODUCTION!
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=de_DE.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familydocs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+  # ============================================================================
+  # Redis Cache (for session state, API cache)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: familydocs-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+  # ============================================================================
+  # vLLM Backend (Qwen 2.5 32B for FamilyDocs AI)
+  # ============================================================================
+  vllm:
+    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
+    container_name: familydocs-vllm
+
+    # AMD GPU access
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+
+    # Security for GPU access
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
+
+    # Environment
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0  # RX 7800 XT = gfx1101
+      - VLLM_LOGGING_LEVEL=INFO
+      - HF_HOME=/models
+      - VLLM_USE_TRITON_AWQ=1
+      - VLLM_USE_TRITON_FLASH_ATTN=0
+
+    # Volumes
+    volumes:
+      - ${VLLM_MODELS_PATH:-/home/tobi/vllm-models}:/models
+      - ${HF_CACHE_PATH:-/home/tobi/.cache/huggingface}:/root/.cache/huggingface
+
+    # Ports
+    ports:
+      - "8002:8002"  # OpenAI-compatible API (different from ryx-ai:8001)
+
+    # Start vLLM with Qwen 2.5 32B (quantized for 16GB VRAM)
+    entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+    command:
+      - "--model"
+      - "/models/Qwen2.5-32B-Instruct-GPTQ-Int4"  # Adjust path to your model
+      - "--quantization"
+      - "gptq"
+      - "--max-model-len"
+      - "8192"
+      - "--gpu-memory-utilization"
+      - "0.85"  # Use 85% of VRAM (13.6 GB out of 16 GB)
+      - "--tensor-parallel-size"
+      - "1"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8002"
+      - "--trust-remote-code"
+      - "--served-model-name"
+      - "qwen2.5-32b"  # Consistent model name for API
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s  # vLLM needs time to load model
+
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+  # ============================================================================
+  # FastAPI Backend
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: familydocs-backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://familydocs:familydocs_dev_password@postgres:5432/familydocs
+
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+
+      # vLLM
+      VLLM_API_URL: http://vllm:8002/v1
+      VLLM_MODEL_NAME: qwen2.5-32b
+
+      # File Storage
+      UPLOAD_DIR: /app/uploads
+      PC_SYNC_ROOT: /mnt/familydocs  # Mount C:\FamilyDocs here
+
+      # API Settings
+      API_HOST: 0.0.0.0
+      API_PORT: 8420
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+
+      # AI Settings
+      RAG_ENABLED: "true"
+      LANCEDB_PATH: /app/data/lancedb
+      EMBEDDING_MODEL: qwen2.5-32b
+
+      # Logging
+      LOG_LEVEL: INFO
+
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+      - lancedb_data:/app/data/lancedb
+      - ${PC_SYNC_ROOT:-./pc_sync}:/mnt/familydocs  # Bind mount to Windows C:\FamilyDocs
+
+    ports:
+      - "8420:8420"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vllm:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+  # ============================================================================
+  # Frontend (React + Vite)
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: familydocs-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8420
+      - VITE_WS_URL=ws://localhost:8420/ws
+    ports:
+      - "5174:5174"  # Different from ryxhub:5173
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 5174
+    restart: unless-stopped
+    networks:
+      - familydocs-network
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  familydocs-network:
+    driver: bridge
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_data:
+    driver: local
+  lancedb_data:
+    driver: local

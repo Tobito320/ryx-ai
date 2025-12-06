@@ -1,0 +1,60 @@
+# ============================================================================
+# FamilyDocs Backend Requirements
+# ============================================================================
+
+# Web Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.18
+websockets==13.1
+
+# Database
+asyncpg==0.30.0
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# Redis
+redis==5.2.0
+hiredis==3.0.0
+
+# AI/LLM
+openai==1.55.0  # For vLLM OpenAI-compatible API
+httpx==0.28.1
+tiktoken==0.8.0
+
+# RAG & Embeddings
+lancedb==0.16.0
+sentence-transformers==3.3.1
+
+# Document Processing
+pypdf==5.1.0
+python-docx==1.1.2
+pillow==11.0.0
+pytesseract==0.3.13  # OCR
+
+# File Watching (PC Sync)
+watchdog==6.0.0
+
+# Gmail API
+google-auth==2.36.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+google-api-python-client==2.154.0
+
+# Utilities
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dateutil==2.9.0
+
+# Logging & Monitoring
+loguru==0.7.3
+prometheus-client==0.21.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.28.1
