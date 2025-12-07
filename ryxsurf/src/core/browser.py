@@ -132,6 +132,7 @@ class Browser:
         
         # Bookmark manager
         self.bookmark_manager = BookmarkManager()
+        self.hint_mode = HintMode()
         
         # Download manager
         self.download_manager = DownloadManager(
@@ -1453,8 +1454,10 @@ class Browser:
         
     def _hint_mode(self):
         """Enter hint mode for keyboard link clicking"""
-        # TODO: Implement hint mode (like vimium)
-        pass
+        current_webview = self.tabs[self.active_tab_idx].webview
+        hint_injection_js = self.hint_mode.get_hint_injection_js()
+        current_webview.evaluate_javascript(hint_injection_js, None)
+        self.hint_mode.active = True
     
     def _close_overlays(self):
         """Close any open overlays/bars"""
