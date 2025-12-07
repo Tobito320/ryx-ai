@@ -116,7 +116,7 @@ Database: SQLite
 8. **✅ Smart Model Switching** - Auto 3B/14B based on query complexity
 9. **✅ File Upload** - Drag & drop + file picker with category support
 10. **✅ Document Toggle** - Click to select/deselect (not stuck)
-11. **❌ Drag & Drop Widgets** - Movable dashboard widgets
+11. **✅ Drag & Drop Widgets** - DONE: react-grid-layout, layout persists
 12. **❌ PDF Form Filling** - AI-assisted form filling
 
 ---
