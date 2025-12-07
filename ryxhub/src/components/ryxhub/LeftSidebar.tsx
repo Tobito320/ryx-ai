@@ -173,74 +173,67 @@ export function LeftSidebar() {
                   <div
                     key={session.id}
                     className={cn(
-                      "relative group w-full p-1.5 rounded-md transition-all",
+                      "relative group w-full p-1.5 rounded-md transition-all cursor-pointer",
                       session.id === selectedSessionId
                         ? "bg-primary/10 border border-primary/30"
                         : "hover:bg-muted/50 border border-transparent"
                     )}
+                    onClick={() => handleSessionClick(session.id)}
                   >
-                    <button
-                      onClick={() => handleSessionClick(session.id)}
-                      className="w-full text-left"
-                    >
-                      <div className="flex items-center justify-between">
-                        {renamingSessionId === session.id ? (
-                          <Input
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => handleRenameSubmit(session.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleRenameSubmit(session.id);
-                              if (e.key === 'Escape') setRenamingSessionId(null);
-                            }}
-                            className="h-5 text-xs"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className="text-xs font-medium text-foreground truncate">
-                            {session.name}
-                          </span>
-                        )}
-                        <div className="flex items-center gap-0.5">
-                          <span className="text-[9px] text-muted-foreground">
-                            {session.timestamp}
-                          </span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-2.5 w-2.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => handleRenameStart(session.id, session.name, e)}>
-                                <Edit className="mr-2 h-3.5 w-3.5" />
-                                <span className="text-xs">Rename</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={(e) => handleExportSession(session.id, e)}>
-                                <Download className="mr-2 h-3.5 w-3.5" />
-                                <span className="text-xs">Export</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={(e) => handleDeleteSession(session.id, e)}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="mr-2 h-3.5 w-3.5" />
-                                <span className="text-xs">Delete</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+                    <div className="flex items-center justify-between">
+                      {renamingSessionId === session.id ? (
+                        <Input
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onBlur={() => handleRenameSubmit(session.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleRenameSubmit(session.id);
+                            if (e.key === 'Escape') setRenamingSessionId(null);
+                          }}
+                          className="h-5 text-xs"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {session.name}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[9px] text-muted-foreground">
+                          {session.timestamp}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <div
+                              className="h-4 w-4 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted cursor-pointer"
+                            >
+                              <MoreVertical className="h-2.5 w-2.5" />
+                            </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => handleRenameStart(session.id, session.name, e)}>
+                              <Edit className="mr-2 h-3.5 w-3.5" />
+                              <span className="text-xs">Rename</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => handleExportSession(session.id, e)}>
+                              <Download className="mr-2 h-3.5 w-3.5" />
+                              <span className="text-xs">Export</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => handleDeleteSession(session.id, e)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-3.5 w-3.5" />
+                              <span className="text-xs">Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                        {session.lastMessage}
-                      </p>
-                    </button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                      {session.lastMessage}
+                    </p>
                   </div>
                 ))}
                 <Button

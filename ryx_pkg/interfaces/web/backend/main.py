@@ -2919,13 +2919,22 @@ async def smart_chat(data: Dict[str, Any]) -> Dict[str, Any]:
     date_str = today.strftime("%A, %d. %B %Y")
     time_str = today.strftime("%H:%M")
     
-    system_prompt = f"""Du bist Tobi's persönlicher Assistent. Heute ist {date_str}, aktuelle Uhrzeit: {time_str}.
-Antworte kurz und präzise - maximal 2-3 Sätze wenn möglich.
-Du kennst ihn gut und hilfst ihm mit Dokumenten, Emails, Terminen und Erinnerungen.
-Sei freundlich aber effizient."""
+    system_prompt = f"""Du bist Ryx, Tobi's persönlicher AI-Assistent. Heute ist {date_str}, aktuelle Uhrzeit: {time_str}.
+
+WICHTIG:
+- Wenn der User ein Dokument ausgewählt hat, beziehe dich darauf und hilf konkret damit
+- Antworte auf Deutsch, kurz und präzise
+- Bei Fragen zu Dokumenten: erkläre was du siehst/verstehst oder frag nach dem spezifischen Problem
+- Du kannst helfen mit: Dokumente verstehen, Emails schreiben, Termine verwalten, Formulare ausfüllen
+- Sei proaktiv: schlage Aktionen vor die dem User helfen könnten
+
+User-Profil:
+- Name: Tobi
+- Wohnort: Hagen
+- Situation: Azubi, braucht Hilfe mit Alltagsbürokratie"""
     
     if context_parts:
-        system_prompt += "\n\nKontext über den User:\n" + "\n".join(context_parts)
+        system_prompt += "\n\nAktuelle Kontext-Informationen:\n" + "\n".join(context_parts)
     
     # Call vLLM
     try:
@@ -2935,7 +2944,7 @@ Sei freundlich aber effizient."""
                 {"role": "user", "content": message},
             ],
             model=None,  # Use default
-            max_tokens=500,
+            max_tokens=1000,
             temperature=0.7,
         )
         
@@ -3002,13 +3011,22 @@ async def smart_chat_stream(
     date_str = today.strftime("%A, %d. %B %Y")
     time_str = today.strftime("%H:%M")
     
-    system_prompt = f"""Du bist Tobi's persönlicher Assistent. Heute ist {date_str}, aktuelle Uhrzeit: {time_str}.
-Antworte kurz und präzise - maximal 2-3 Sätze wenn möglich.
-Du kennst ihn gut und hilfst ihm mit Dokumenten, Emails, Terminen und Erinnerungen.
-Sei freundlich aber effizient."""
+    system_prompt = f"""Du bist Ryx, Tobi's persönlicher AI-Assistent. Heute ist {date_str}, aktuelle Uhrzeit: {time_str}.
+
+WICHTIG:
+- Wenn der User ein Dokument ausgewählt hat, beziehe dich darauf und hilf konkret damit
+- Antworte auf Deutsch, kurz und präzise
+- Bei Fragen zu Dokumenten: erkläre was du siehst/verstehst oder frag nach dem spezifischen Problem
+- Du kannst helfen mit: Dokumente verstehen, Emails schreiben, Termine verwalten, Formulare ausfüllen
+- Sei proaktiv: schlage Aktionen vor die dem User helfen könnten
+
+User-Profil:
+- Name: Tobi
+- Wohnort: Hagen
+- Situation: Azubi, braucht Hilfe mit Alltagsbürokratie"""
     
     if context_parts:
-        system_prompt += "\n\nKontext über den User:\n" + "\n".join(context_parts)
+        system_prompt += "\n\nAktuelle Kontext-Informationen:\n" + "\n".join(context_parts)
     
     messages = [
         {"role": "system", "content": system_prompt},
