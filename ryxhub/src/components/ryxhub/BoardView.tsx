@@ -132,7 +132,7 @@ export function BoardView() {
     const pagePoint = editor.screenToPage(viewportCenter);
 
     // Add as a note shape with document info
-    editor.createShape({
+    editor.createShapes([{
       id: shapeId,
       type: "note",
       x: pagePoint.x - 100 + Math.random() * 50,
@@ -142,7 +142,7 @@ export function BoardView() {
         color: getCategoryColor(doc.category),
         size: "m",
       },
-    });
+    }]);
 
     toast.success(`${doc.name} zum Board hinzugefügt`);
     setAddDocDialogOpen(false);
@@ -169,7 +169,7 @@ export function BoardView() {
     const viewportCenter = editor.getViewportScreenCenter();
     const pagePoint = editor.screenToPage(viewportCenter);
 
-    editor.createShape({
+    editor.createShapes([{
       id: shapeId,
       type: "note",
       x: pagePoint.x - 100,
@@ -179,7 +179,7 @@ export function BoardView() {
         color: "yellow",
         size: "m",
       },
-    });
+    }]);
 
     // Select and start editing
     editor.select(shapeId);
@@ -193,7 +193,7 @@ export function BoardView() {
     const viewportCenter = editor.getViewportScreenCenter();
     const pagePoint = editor.screenToPage(viewportCenter);
 
-    editor.createShape({
+    editor.createShapes([{
       id: shapeId,
       type: "note",
       x: pagePoint.x - 100,
@@ -203,7 +203,7 @@ export function BoardView() {
         color: "blue",
         size: "l",
       },
-    });
+    }]);
 
     editor.select(shapeId);
     toast.info("E-Mail Entwurf erstellt - bearbeite und verbinde mit Dokumenten");
@@ -239,7 +239,7 @@ export function BoardView() {
             ? `📄 ${doc.name}\n\n📋 ${analysis.type}\n⏰ ${analysis.priority}\n${analysis.deadlines.length > 0 ? `⚠️ Frist: ${analysis.deadlines[0].date}` : ''}\n\n${analysis.summary.slice(0, 100)}...`
             : `📄 ${doc.name}\n\n📁 ${category?.toUpperCase() || "Dokument"}`;
 
-          editor.createShape({
+          editor.createShapes([{
             id: shapeId,
             type: "note",
             x: x + (docIndex % 3) * 250,
@@ -249,12 +249,12 @@ export function BoardView() {
               color: analysis?.priority === "HOCH" ? "red" : getCategoryColor(doc.category),
               size: "l",
             },
-          });
+          }]);
         } catch (error) {
           console.error("Analysis failed for", doc.name, error);
           // Fallback to simple display
           const shapeId = createShapeId();
-          editor.createShape({
+          editor.createShapes([{
             id: shapeId,
             type: "note",
             x: x + (docIndex % 3) * 250,
@@ -264,7 +264,7 @@ export function BoardView() {
               color: getCategoryColor(doc.category),
               size: "m",
             },
-          });
+          }]);
         }
       }
       
