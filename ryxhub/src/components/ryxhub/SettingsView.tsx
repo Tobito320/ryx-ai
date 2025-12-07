@@ -346,7 +346,126 @@ export function SettingsView() {
           </h2>
           <RAGManagement />
         </div>
+
+        {/* Integrations Section */}
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Integrationen
+          </h2>
+          <WebUntisSettings />
+        </div>
       </div>
     </ScrollArea>
+  );
+}
+
+// WebUntis Settings Component
+function WebUntisSettings() {
+  const [config, setConfig] = useState({ server: "", school: "", username: "", password: "" });
+  const [isConfigured, setIsConfigured] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const res = await fetch("http://localhost:8420/api/webuntis/config");
+        if (res.ok) {
+          const data = await res.json();
+          setIsConfigured(data.configured);
+          if (data.configured) {
+            setConfig(prev => ({
+              ...prev,
+              server: data.server,
+              school: data.school,
+              username: data.username,
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load WebUntis config", error);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  const handleSave = async () => {
+    if (!config.server || !config.school || !config.username || !config.password) {
+      toast.error("Alle Felder erforderlich");
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const res = await fetch("http://localhost:8420/api/webuntis/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      
+      if (res.ok) {
+        toast.success("WebUntis konfiguriert!");
+        setIsConfigured(true);
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || "Fehler beim Speichern");
+      }
+    } catch (error) {
+      toast.error("Verbindungsfehler");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium">WebUntis (Berufsschule)</CardTitle>
+        <CardDescription>
+          Verbinde dein WebUntis-Konto für den Stundenplan
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isConfigured && (
+          <Badge variant="outline" className="mb-2 text-green-600 border-green-600">
+            ✓ Verbunden als {config.username}
+          </Badge>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            type="text"
+            placeholder="Server (z.B. neilo.webuntis.com)"
+            value={config.server}
+            onChange={(e) => setConfig(prev => ({ ...prev, server: e.target.value }))}
+            className="px-3 py-2 text-sm rounded-md border bg-background"
+          />
+          <input
+            type="text"
+            placeholder="Schule"
+            value={config.school}
+            onChange={(e) => setConfig(prev => ({ ...prev, school: e.target.value }))}
+            className="px-3 py-2 text-sm rounded-md border bg-background"
+          />
+          <input
+            type="text"
+            placeholder="Benutzername"
+            value={config.username}
+            onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
+            className="px-3 py-2 text-sm rounded-md border bg-background"
+          />
+          <input
+            type="password"
+            placeholder="Passwort"
+            value={config.password}
+            onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
+            className="px-3 py-2 text-sm rounded-md border bg-background"
+          />
+        </div>
+        <Button onClick={handleSave} disabled={isSaving} className="w-full">
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          {isConfigured ? "Aktualisieren" : "Verbinden"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

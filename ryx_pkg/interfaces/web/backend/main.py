@@ -2853,6 +2853,208 @@ async def scrape_webpage(data: Dict[str, str]) -> Dict[str, Any]:
 
 
 # =============================================================================
+# WebUntis Integration - School Schedule
+# =============================================================================
+
+@app.get("/api/webuntis/config")
+async def get_webuntis_config() -> Dict[str, Any]:
+    """Get WebUntis configuration (without password)."""
+    memory = load_memory()
+    config = memory.get("webuntis", {})
+    return {
+        "configured": bool(config.get("server") and config.get("username")),
+        "server": config.get("server", ""),
+        "school": config.get("school", ""),
+        "username": config.get("username", ""),
+    }
+
+
+@app.post("/api/webuntis/config")
+async def save_webuntis_config(data: Dict[str, str]) -> Dict[str, Any]:
+    """Save WebUntis configuration."""
+    server = data.get("server", "")
+    school = data.get("school", "")
+    username = data.get("username", "")
+    password = data.get("password", "")
+    
+    if not all([server, school, username, password]):
+        raise HTTPException(status_code=400, detail="All fields required")
+    
+    memory = load_memory()
+    memory["webuntis"] = {
+        "server": server,
+        "school": school,
+        "username": username,
+        "password": password,  # In production, encrypt this!
+    }
+    save_memory(memory)
+    
+    return {"success": True}
+
+
+@app.get("/api/webuntis/timetable")
+async def get_webuntis_timetable(days: int = 7) -> Dict[str, Any]:
+    """Get timetable for the next N days."""
+    try:
+        import webuntis
+        
+        memory = load_memory()
+        config = memory.get("webuntis", {})
+        
+        if not config.get("server"):
+            return {"error": "WebUntis not configured", "lessons": []}
+        
+        session = webuntis.Session(
+            server=config["server"],
+            school=config["school"],
+            username=config["username"],
+            password=config["password"],
+            useragent="RyxHub/1.0"
+        )
+        
+        session.login()
+        
+        today = datetime.now().date()
+        end_date = today + timedelta(days=days)
+        
+        # Get timetable
+        timetable = session.my_timetable(start=today, end=end_date)
+        
+        lessons = []
+        for lesson in timetable:
+            lessons.append({
+                "id": lesson.id,
+                "date": lesson.start.strftime("%Y-%m-%d"),
+                "weekday": lesson.start.strftime("%A"),
+                "start": lesson.start.strftime("%H:%M"),
+                "end": lesson.end.strftime("%H:%M"),
+                "subject": lesson.subjects[0].name if lesson.subjects else "?",
+                "subject_long": lesson.subjects[0].long_name if lesson.subjects else "",
+                "room": lesson.rooms[0].name if lesson.rooms else "",
+                "teacher": lesson.teachers[0].name if lesson.teachers else "",
+                "cancelled": lesson.code == "cancelled",
+            })
+        
+        session.logout()
+        
+        # Group by date
+        by_date = {}
+        for lesson in lessons:
+            date = lesson["date"]
+            if date not in by_date:
+                by_date[date] = []
+            by_date[date].append(lesson)
+        
+        return {"lessons": lessons, "by_date": by_date, "total": len(lessons)}
+        
+    except Exception as e:
+        return {"error": str(e), "lessons": []}
+
+
+@app.get("/api/webuntis/today")
+async def get_webuntis_today() -> Dict[str, Any]:
+    """Get today's timetable."""
+    result = await get_webuntis_timetable(days=1)
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    today_lessons = result.get("by_date", {}).get(today, [])
+    
+    return {
+        "date": today,
+        "weekday": datetime.now().strftime("%A"),
+        "lessons": today_lessons,
+        "total": len(today_lessons),
+    }
+
+
+# =============================================================================
+# NRW Holidays
+# =============================================================================
+
+def get_nrw_holidays(year: int = None) -> List[Dict[str, Any]]:
+    """Get NRW public holidays for a year."""
+    if year is None:
+        year = datetime.now().year
+    
+    # Fixed holidays
+    holidays = [
+        {"name": "Neujahr", "date": f"{year}-01-01"},
+        {"name": "Tag der Arbeit", "date": f"{year}-05-01"},
+        {"name": "Tag der Deutschen Einheit", "date": f"{year}-10-03"},
+        {"name": "Allerheiligen", "date": f"{year}-11-01"},
+        {"name": "1. Weihnachtstag", "date": f"{year}-12-25"},
+        {"name": "2. Weihnachtstag", "date": f"{year}-12-26"},
+    ]
+    
+    # Easter-based holidays (simplified calculation)
+    # Using Anonymous Gregorian algorithm
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    
+    easter = datetime(year, month, day)
+    
+    # Easter-based holidays
+    holidays.extend([
+        {"name": "Karfreitag", "date": (easter - timedelta(days=2)).strftime("%Y-%m-%d")},
+        {"name": "Ostersonntag", "date": easter.strftime("%Y-%m-%d")},
+        {"name": "Ostermontag", "date": (easter + timedelta(days=1)).strftime("%Y-%m-%d")},
+        {"name": "Christi Himmelfahrt", "date": (easter + timedelta(days=39)).strftime("%Y-%m-%d")},
+        {"name": "Pfingstsonntag", "date": (easter + timedelta(days=49)).strftime("%Y-%m-%d")},
+        {"name": "Pfingstmontag", "date": (easter + timedelta(days=50)).strftime("%Y-%m-%d")},
+        {"name": "Fronleichnam", "date": (easter + timedelta(days=60)).strftime("%Y-%m-%d")},
+    ])
+    
+    # Sort by date
+    holidays.sort(key=lambda x: x["date"])
+    
+    # Add weekday
+    for h in holidays:
+        dt = datetime.strptime(h["date"], "%Y-%m-%d")
+        h["weekday"] = dt.strftime("%A")
+        h["formatted"] = dt.strftime("%d.%m.%Y")
+    
+    return holidays
+
+
+@app.get("/api/holidays/nrw")
+async def get_holidays_nrw(year: int = None) -> Dict[str, Any]:
+    """Get NRW public holidays."""
+    if year is None:
+        year = datetime.now().year
+    
+    holidays = get_nrw_holidays(year)
+    
+    # Also get upcoming holidays
+    today = datetime.now().date()
+    upcoming = []
+    for h in holidays:
+        h_date = datetime.strptime(h["date"], "%Y-%m-%d").date()
+        if h_date >= today:
+            days_until = (h_date - today).days
+            h["days_until"] = days_until
+            upcoming.append(h)
+    
+    return {
+        "year": year,
+        "holidays": holidays,
+        "upcoming": upcoming[:5],
+        "next": upcoming[0] if upcoming else None,
+    }
+
+
+# =============================================================================
 # AI Chat with Memory Context
 # =============================================================================
 

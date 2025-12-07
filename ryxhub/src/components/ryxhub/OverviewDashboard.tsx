@@ -39,6 +39,23 @@ interface Document {
   modifiedAt: string;
 }
 
+interface Holiday {
+  name: string;
+  date: string;
+  weekday: string;
+  formatted: string;
+  days_until?: number;
+}
+
+interface SchoolLesson {
+  subject: string;
+  subject_long: string;
+  start: string;
+  end: string;
+  room: string;
+  cancelled: boolean;
+}
+
 export function OverviewDashboard() {
   const { setActiveView } = useRyxHub();
   const [trashSchedule, setTrashSchedule] = useState<{ upcoming: TrashItem[]; tomorrow: TrashItem[] }>({ upcoming: [], tomorrow: [] });
@@ -46,6 +63,8 @@ export function OverviewDashboard() {
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
   const [profile, setProfile] = useState<{ name: string; address: string }>({ name: "", address: "" });
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [holidays, setHolidays] = useState<{ upcoming: Holiday[]; next: Holiday | null }>({ upcoming: [], next: null });
+  const [schoolToday, setSchoolToday] = useState<{ lessons: SchoolLesson[]; configured: boolean }>({ lessons: [], configured: false });
 
   // Update time every minute
   useEffect(() => {
@@ -77,6 +96,23 @@ export function OverviewDashboard() {
         if (docsRes.ok) {
           const data = await docsRes.json();
           setRecentDocs((data.documents || []).slice(0, 6));
+        }
+
+        // Get NRW holidays
+        const holidaysRes = await fetch(`${API_BASE}/api/holidays/nrw`);
+        if (holidaysRes.ok) {
+          const data = await holidaysRes.json();
+          setHolidays({ upcoming: data.upcoming || [], next: data.next || null });
+        }
+
+        // Get today's school schedule
+        const schoolRes = await fetch(`${API_BASE}/api/webuntis/today`);
+        if (schoolRes.ok) {
+          const data = await schoolRes.json();
+          setSchoolToday({ 
+            lessons: data.lessons || [], 
+            configured: !data.error?.includes("not configured")
+          });
         }
       } catch (error) {
         console.error("Failed to load dashboard data", error);
@@ -289,34 +325,107 @@ export function OverviewDashboard() {
             </CardContent>
           </Card>
 
-          {/* School/Work Calendar placeholder */}
-          <Card className="border-border bg-card/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                Kalender
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-3 rounded-md bg-muted/30 text-center">
-                  <GraduationCap className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                  <p className="text-xs font-medium">Berufsschule</p>
-                  <p className="text-[10px] text-muted-foreground">WebUntis verbinden</p>
+          {/* Calendars Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* School Schedule */}
+            <Card className="border-border bg-card/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-blue-500" />
+                  Berufsschule Heute
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {schoolToday.configured ? (
+                  schoolToday.lessons.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {schoolToday.lessons.map((lesson, i) => (
+                        <div 
+                          key={i}
+                          className={cn(
+                            "flex items-center justify-between p-1.5 rounded text-xs",
+                            lesson.cancelled ? "bg-destructive/10 line-through" : "bg-muted/30"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{lesson.start}</span>
+                            <span className="font-medium">{lesson.subject}</span>
+                          </div>
+                          <span className="text-muted-foreground">{lesson.room}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-3">Heute kein Unterricht 🎉</p>
+                  )
+                ) : (
+                  <div className="text-center py-3">
+                    <p className="text-xs text-muted-foreground">WebUntis nicht verbunden</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={() => setActiveView("settings")}
+                    >
+                      Verbinden
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Holidays */}
+            <Card className="border-border bg-card/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-green-500" />
+                  Feiertage NRW
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {holidays.next && (
+                  <div className="p-2 rounded-md bg-green-500/10 border border-green-500/20 mb-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{holidays.next.name}</span>
+                      <span className="text-xs text-green-600">in {holidays.next.days_until} Tagen</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{holidays.next.formatted}</p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  {holidays.upcoming.slice(1, 4).map((h, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs p-1.5 bg-muted/30 rounded">
+                      <span>{h.name}</span>
+                      <span className="text-muted-foreground">{h.formatted}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="p-3 rounded-md bg-muted/30 text-center">
-                  <Briefcase className="w-5 h-5 mx-auto mb-1 text-orange-500" />
-                  <p className="text-xs font-medium">Arbeit</p>
-                  <p className="text-[10px] text-muted-foreground">Kalender hinzufügen</p>
+              </CardContent>
+            </Card>
+
+            {/* Work placeholder */}
+            <Card className="border-border bg-card/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-orange-500" />
+                  Arbeit
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-3">
+                  <p className="text-xs text-muted-foreground">Arbeitskalender hinzufügen</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={() => setActiveView("settings")}
+                  >
+                    Einrichten
+                  </Button>
                 </div>
-                <div className="p-3 rounded-md bg-muted/30 text-center">
-                  <Calendar className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                  <p className="text-xs font-medium">Feiertage NRW</p>
-                  <p className="text-[10px] text-muted-foreground">Automatisch</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </ScrollArea>
     </div>
