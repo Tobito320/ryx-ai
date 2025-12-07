@@ -79,8 +79,8 @@ Database: SQLite
 
 ### P0 - BROKEN / NICHT FUNKTIONAL
 
-1. **❌ Search kaputt** - SearXNG antwortet nicht, API Fehler
-2. **❌ Gmail Button tut nichts** - Kein OAuth Flow implementiert
+1. **✅ Search kaputt** - FIXED: SearXNG funktioniert, in Smart Chat integriert
+2. **✅ Gmail Button tut nichts** - FIXED: App-Password Authentifizierung implementiert
 3. **✅ Dokumente klicken tut nichts** - FIXED: Preview + Doppelklick zum Öffnen
 4. **❌ Falsches Default Model** - 3B statt 14B wird geladen (vLLM config)
 5. **✅ AI kennt Datum nicht** - FIXED: System prompt enthält aktuelles Datum

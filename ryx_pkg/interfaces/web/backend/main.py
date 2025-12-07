@@ -2558,14 +2558,18 @@ async def get_gmail_accounts() -> Dict[str, Any]:
     
     # Don't expose passwords
     safe_accounts = []
-    for acc in accounts:
+    for i, acc in enumerate(accounts):
         safe_accounts.append({
+            "id": acc.get("id", str(i)),
             "email": acc.get("email"),
             "name": acc.get("name", acc.get("email", "").split("@")[0]),
-            "is_default": acc.get("is_default", False),
+            "isDefault": acc.get("is_default", False),
         })
     
-    return {"accounts": safe_accounts}
+    # Also return the default account email
+    default_account = next((a["email"] for a in safe_accounts if a.get("isDefault")), None)
+    
+    return {"accounts": safe_accounts, "default_account": default_account}
 
 
 @app.post("/api/gmail/accounts")
@@ -2589,6 +2593,7 @@ async def add_gmail_account(data: Dict[str, str]) -> Dict[str, Any]:
     is_default = len(memory.get("gmail_accounts", [])) == 0
     
     account = {
+        "id": f"gmail_{int(time.time()*1000)}",
         "email": email,
         "app_password": app_password,  # In production, encrypt this!
         "name": name,
@@ -2601,27 +2606,31 @@ async def add_gmail_account(data: Dict[str, str]) -> Dict[str, Any]:
     memory["gmail_accounts"].append(account)
     save_memory(memory)
     
-    return {"success": True, "email": email}
+    return {"success": True, "email": email, "id": account["id"]}
 
 
 @app.delete("/api/gmail/accounts/{email}")
 async def delete_gmail_account(email: str) -> Dict[str, Any]:
-    """Remove a Gmail account."""
+    """Remove a Gmail account by ID or email."""
     memory = load_memory()
     
-    memory["gmail_accounts"] = [a for a in memory.get("gmail_accounts", []) if a.get("email") != email]
+    # Try to match by ID first, then by email
+    memory["gmail_accounts"] = [
+        a for a in memory.get("gmail_accounts", []) 
+        if a.get("id") != email and a.get("email") != email
+    ]
     save_memory(memory)
     
     return {"success": True}
 
 
-@app.post("/api/gmail/accounts/{email}/default")
-async def set_default_gmail(email: str) -> Dict[str, Any]:
-    """Set a Gmail account as default."""
+@app.put("/api/gmail/accounts/{account_id}/default")
+async def set_default_gmail(account_id: str) -> Dict[str, Any]:
+    """Set a Gmail account as default by ID or email."""
     memory = load_memory()
     
     for acc in memory.get("gmail_accounts", []):
-        acc["is_default"] = (acc.get("email") == email)
+        acc["is_default"] = (acc.get("id") == account_id or acc.get("email") == account_id)
     
     save_memory(memory)
     return {"success": True}

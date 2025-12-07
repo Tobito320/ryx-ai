@@ -98,6 +98,7 @@ export function HolographicDesk() {
   const [gmailModalOpen, setGmailModalOpen] = useState(false);
   const [newGmailEmail, setNewGmailEmail] = useState("");
   const [newGmailName, setNewGmailName] = useState("");
+  const [newGmailAppPassword, setNewGmailAppPassword] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
@@ -198,6 +199,10 @@ export function HolographicDesk() {
       toast.error("Email erforderlich");
       return;
     }
+    if (!newGmailAppPassword.trim()) {
+      toast.error("App-Passwort erforderlich");
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/gmail/accounts`, {
         method: "POST",
@@ -205,6 +210,7 @@ export function HolographicDesk() {
         body: JSON.stringify({
           email: newGmailEmail.trim(),
           name: newGmailName.trim() || newGmailEmail.split("@")[0],
+          app_password: newGmailAppPassword.trim(),
           isDefault: gmailAccounts.length === 0,
         }),
       });
@@ -212,6 +218,7 @@ export function HolographicDesk() {
         toast.success("Gmail Account hinzugefügt");
         setNewGmailEmail("");
         setNewGmailName("");
+        setNewGmailAppPassword("");
         loadGmailAccounts();
       } else {
         const err = await res.json();
@@ -510,13 +517,18 @@ export function HolographicDesk() {
                 value={newGmailName}
                 onChange={(e) => setNewGmailName(e.target.value)}
               />
+              <Input
+                placeholder="App-Passwort"
+                value={newGmailAppPassword}
+                onChange={(e) => setNewGmailAppPassword(e.target.value)}
+                type="password"
+              />
               <Button onClick={addGmailAccount} className="w-full">
                 <Plus className="w-4 h-4 mr-2" />
                 Account hinzufügen
               </Button>
               <p className="text-xs text-muted-foreground text-center">
-                Hinweis: Vollständige Gmail API Integration kommt später.
-                <br />Aktuell nur für Speichern der Account-Info.
+                App-Passwort in Gmail: Einstellungen → Sicherheit → 2FA aktivieren → App-Passwörter
               </p>
             </div>
           </div>
