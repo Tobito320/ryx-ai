@@ -197,5 +197,49 @@ Located at `/home/tobi/cloned_repositorys/`:
 
 ---
 
-**Status**: 🟢 ACTIVE - RyxSurf UI is now polished!
-**Supervisor**: Taking over. Tobi can rely on me.
+### Session 2025-12-08 (00:00 UTC) - STRATEGY DECISION
+
+**Decision: Option 3 - Fast Direct Work + Structured Ryx Training**
+
+Tobi needs RyxSurf usable ASAP (work tomorrow). We chose:
+1. **Tonight**: I (Copilot) fix UI directly - fast, quality
+2. **Next sessions**: Structured Ryx training loop
+
+**Why Option 3:**
+- Tobi gets working browser tonight
+- Ryx gets BETTER training via deliberate stress tests vs random prompts
+- Complex edge cases properly solved, not half-fixed
+
+**RyxSurf Design Goals:**
+- Combine best of Zen (minimalism) + Firefox (reliable tab restore/session)
+- Ultra-compact UI, keyboard-driven
+- Resource efficient - replace Firefox, Chrome, Zen as daily driver
+- Session management that WORKS (unlike Zen's issues)
+
+**Ryx Training Loop (Next Sessions):**
+1. File discovery stress tests (ambiguous prompts, nested dirs)
+2. Edit precision tests (multi-line, indentation edge cases)
+3. Context limit handling (huge files, prioritization)
+4. Self-healing extraction from healing-agent repo
+5. Memory persistence across sessions
+
+**KEY RULE - Weakness Detection:**
+When ANY weakness is found in Ryx:
+1. Search GitHub for repos that excel at that weakness
+2. Clone and analyze the code
+3. Extract patterns and integrate into Ryx
+4. Test until Ryx handles it better than Claude Code
+
+**Repos to mine for patterns:**
+- `aider` - Edit formats, file discovery
+- `SWE-agent` - Autonomous coding
+- `OpenHands` - Multi-agent orchestration  
+- `healing-agent` - Self-healing patterns
+- `mem0` / `Letta` - Memory management
+- `browser-use` - Browser automation
+- `Zen-Nebula` - UI/CSS patterns
+
+---
+
+**Status**: 🟢 ACTIVE - Building RyxSurf, Training Ryx
+**Supervisor**: Tobi, I got you. You can rely on me.
