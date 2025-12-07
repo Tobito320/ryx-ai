@@ -2681,6 +2681,83 @@ async def send_gmail(data: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
 
+@app.post("/api/gmail/compose")
+async def compose_email(data: Dict[str, Any]) -> Dict[str, Any]:
+    """AI-assisted email composition."""
+    prompt = data.get("prompt", "")
+    context = data.get("context", "")
+    style = data.get("style", "formal")  # formal, casual, brief
+    language = data.get("language", "de")  # de, en
+    
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt required")
+    
+    # Load memory for context
+    memory = load_memory()
+    profile = memory.get("profile", {})
+    user_name = profile.get("name", "")
+    user_address = profile.get("address", "")
+    
+    # Build system prompt for email composition
+    today = datetime.now()
+    date_str = today.strftime("%d.%m.%Y")
+    
+    style_instructions = {
+        "formal": "Schreibe eine formelle, höfliche Email im Sie-Form.",
+        "casual": "Schreibe eine lockere, freundliche Email.",
+        "brief": "Schreibe eine sehr kurze, präzise Email."
+    }
+    
+    system_prompt = f"""Du bist ein Email-Assistent. Heute ist {date_str}.
+{style_instructions.get(style, style_instructions["formal"])}
+
+User-Info (wenn relevant):
+- Name: {user_name}
+- Adresse: {user_address}
+
+Generiere NUR den Email-Text, keine Erklärungen.
+Formatiere mit Betreff: am Anfang, dann leerzeile, dann Email-Body.
+"""
+    
+    if context:
+        system_prompt += f"\n\nKontext (vorheriger Briefverkehr etc.):\n{context}"
+    
+    try:
+        response = await vllm_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            model=None,
+            max_tokens=1000,
+            temperature=0.7,
+        )
+        
+        email_text = response.get("content", "")
+        
+        # Try to extract subject and body
+        subject = ""
+        body = email_text
+        
+        if "Betreff:" in email_text:
+            lines = email_text.split("\n")
+            for i, line in enumerate(lines):
+                if line.startswith("Betreff:"):
+                    subject = line.replace("Betreff:", "").strip()
+                    body = "\n".join(lines[i+1:]).strip()
+                    break
+        
+        return {
+            "subject": subject,
+            "body": body,
+            "full_text": email_text,
+            "model": response.get("model", ""),
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Composition failed: {str(e)}")
+
+
 # =============================================================================
 # Web Search API - Uses SearXNG
 # =============================================================================
@@ -2717,6 +2794,62 @@ async def web_search(data: Dict[str, str]) -> Dict[str, Any]:
                     return {"results": [], "error": "Search failed"}
     except Exception as e:
         return {"results": [], "error": str(e)}
+
+
+@app.post("/api/scrape")
+async def scrape_webpage(data: Dict[str, str]) -> Dict[str, Any]:
+    """Scrape a webpage for content (opening hours, contact info, etc.)."""
+    url = data.get("url", "")
+    
+    if not url:
+        raise HTTPException(status_code=400, detail="URL required")
+    
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+            headers = {"User-Agent": "Mozilla/5.0 (compatible; RyxBot/1.0)"}
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    return {"success": False, "error": f"HTTP {resp.status}"}
+                
+                html = await resp.text()
+                
+                # Simple text extraction (no heavy deps)
+                import re
+                
+                # Remove scripts and styles
+                html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                
+                # Extract text
+                text = re.sub(r'<[^>]+>', ' ', html)
+                text = re.sub(r'\s+', ' ', text).strip()
+                
+                # Extract common patterns
+                # Opening hours patterns
+                hours_pattern = r'(?:Öffnungszeiten|Opening Hours|Hours).*?(?:\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:Uhr|AM|PM))'
+                hours_matches = re.findall(hours_pattern, text, re.IGNORECASE)
+                
+                # Phone patterns
+                phone_pattern = r'(?:\+49|0)\s*\d{2,5}[\s/-]?\d{3,}[\s/-]?\d{0,}'
+                phone_matches = re.findall(phone_pattern, text)
+                
+                # Email patterns
+                email_pattern = r'[\w.+-]+@[\w.-]+\.\w{2,}'
+                email_matches = re.findall(email_pattern, text)
+                
+                return {
+                    "success": True,
+                    "url": url,
+                    "text": text[:3000],  # First 3000 chars
+                    "extracted": {
+                        "hours": hours_matches[:3] if hours_matches else [],
+                        "phones": list(set(phone_matches[:5])),
+                        "emails": list(set(email_matches[:5])),
+                    }
+                }
+                
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # =============================================================================

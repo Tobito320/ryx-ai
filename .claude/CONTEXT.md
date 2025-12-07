@@ -82,7 +82,7 @@ Database: SQLite
 1. **✅ Search kaputt** - FIXED: SearXNG funktioniert, in Smart Chat integriert
 2. **✅ Gmail Button tut nichts** - FIXED: App-Password Authentifizierung implementiert
 3. **✅ Dokumente klicken tut nichts** - FIXED: Preview + Doppelklick zum Öffnen
-4. **❌ Falsches Default Model** - 3B statt 14B wird geladen (vLLM config)
+4. **✅ Falsches Default Model** - FIXED: 14B Model läuft (qwen2.5-14b-gptq)
 5. **✅ AI kennt Datum nicht** - FIXED: System prompt enthält aktuelles Datum
 
 ### P1 - UI/UX PROBLEME
@@ -101,8 +101,8 @@ Database: SQLite
 2. **✅ Memory System** - FIXED: /api/memory + /api/memory/fact endpoints
 3. **✅ Termine/Reminders** - FIXED: /api/reminders CRUD endpoints
 4. **❌ PDF Preview/Edit** - Formulare ausfüllen mit AI
-5. **❌ Email Composer** - AI-assistiertes Email schreiben
-6. **❌ Web Scraping** - Öffnungszeiten, Termine etc.
+5. **✅ Email Composer** - FIXED: /api/gmail/compose mit AI
+6. **✅ Web Scraping** - FIXED: /api/scrape für Öffnungszeiten etc.
 
 ---
 
