@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
-import { DocumentManager } from "@/components/ryxhub/DocumentManager";
+import { HolographicDesk } from "@/components/ryxhub/HolographicDesk";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
 import { ViewToggle } from "@/components/ryxhub/ViewToggle";
@@ -89,7 +89,7 @@ function RyxHubApp() {
           <main className="flex-1 overflow-hidden">
             {activeView === "dashboard" && <DashboardView />}
             {activeView === "chat" && <ChatView />}
-            {activeView === "documents" && <DocumentManager />}
+            {activeView === "documents" && <HolographicDesk />}
             {activeView === "settings" && <SettingsView />}
           </main>
         </div>

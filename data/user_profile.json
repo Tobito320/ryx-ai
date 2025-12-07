@@ -1,0 +1,17 @@
+{
+  "name": "Tobi",
+  "full_name": "",
+  "address": "Alleestraße 58",
+  "city": "Hagen",
+  "postal_code": "58097",
+  "email_default": "",
+  "phone": "",
+  "birth_date": "",
+  "occupation": "Azubi",
+  "employer": "",
+  "preferences": {
+    "language": "de",
+    "formal_letters": true,
+    "brief_style": "höflich_formell"
+  }
+}

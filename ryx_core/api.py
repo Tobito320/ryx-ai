@@ -5,6 +5,9 @@ Provides:
 - REST API for model management and queries
 - WebSocket streaming for real-time workflow updates
 - N8N-style workflow execution tracking
+- Memory system (like ChatGPT)
+- Reminders and scheduling
+- File organization
 """
 
 from contextlib import asynccontextmanager
@@ -27,6 +30,10 @@ from .workflow import WorkflowEngine, ExecutionEvent, EventType, SimpleWorkflow,
 from .interfaces import WorkflowNode, ExecutionContext, NodeStatus
 from .router import IntelligentRouter, RouteDecision
 from .document_ai import DocumentAI
+from .memory import memory_system, MemoryEntry
+from .reminders import reminder_system, Reminder, ReminderStatus, ReminderType
+from .trash_schedule import trash_schedule
+from .file_organizer import file_organizer, CATEGORIES
 
 # Global state
 document_ai = DocumentAI()
@@ -1118,4 +1125,331 @@ async def view_log(log_type: str, filename: str):
         "filename": filename,
         "lines": [json_lib.loads(line) for line in last_lines if line.strip()],
         "total": len(lines),
+    }
+
+
+# ============================================================================
+# Memory System API - Like ChatGPT Memory
+# ============================================================================
+
+class MemoryRequest(BaseModel):
+    type: str = "fact"
+    key: str
+    value: str
+    source: Optional[str] = None
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    full_name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    email_default: Optional[str] = None
+    phone: Optional[str] = None
+    birth_date: Optional[str] = None
+    occupation: Optional[str] = None
+    employer: Optional[str] = None
+
+
+@app.get("/api/memory")
+async def get_memories(type: Optional[str] = None, limit: int = 50):
+    """Get all memories or filtered by type"""
+    memories = memory_system.get_memories(type=type, limit=limit)
+    return {"memories": [m.model_dump() for m in memories]}
+
+
+@app.post("/api/memory")
+async def add_memory(request: MemoryRequest):
+    """Add a new memory"""
+    memory = memory_system.add_memory(
+        type=request.type,
+        key=request.key,
+        value=request.value,
+        source=request.source,
+    )
+    return {"success": True, "memory": memory.model_dump()}
+
+
+@app.delete("/api/memory/{memory_id}")
+async def delete_memory(memory_id: str):
+    """Delete a memory"""
+    success = memory_system.delete_memory(memory_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return {"success": True}
+
+
+@app.get("/api/memory/search")
+async def search_memories(q: str):
+    """Search memories"""
+    memories = memory_system.search_memories(q)
+    return {"memories": [m.model_dump() for m in memories]}
+
+
+@app.get("/api/profile")
+async def get_profile():
+    """Get user profile"""
+    return memory_system.profile.model_dump()
+
+
+@app.patch("/api/profile")
+async def update_profile(request: ProfileUpdateRequest):
+    """Update user profile"""
+    updates = {k: v for k, v in request.model_dump().items() if v is not None}
+    profile = memory_system.update_profile(**updates)
+    return {"success": True, "profile": profile.model_dump()}
+
+
+@app.get("/api/memory/context")
+async def get_ai_context():
+    """Get context string for AI prompts"""
+    return {"context": memory_system.get_context_for_ai()}
+
+
+# ============================================================================
+# Reminders API
+# ============================================================================
+
+class ReminderRequest(BaseModel):
+    title: str
+    date: str  # YYYY-MM-DD
+    type: str = "custom"
+    time: Optional[str] = None
+    description: Optional[str] = None
+    source: Optional[str] = None
+    source_id: Optional[str] = None
+
+
+class ReminderStatusUpdate(BaseModel):
+    status: str  # pending, completed, missed, cancelled
+    notes: Optional[str] = None
+
+
+@app.get("/api/reminders")
+async def get_reminders(days: int = 7, include_overdue: bool = True):
+    """Get upcoming reminders"""
+    upcoming = reminder_system.get_upcoming(days=days)
+    overdue = reminder_system.get_overdue() if include_overdue else []
+    today = reminder_system.get_today()
+    
+    return {
+        "today": [r.model_dump() for r in today],
+        "upcoming": [r.model_dump() for r in upcoming],
+        "overdue": [r.model_dump() for r in overdue],
+    }
+
+
+@app.post("/api/reminders")
+async def add_reminder(request: ReminderRequest):
+    """Add a new reminder"""
+    reminder = reminder_system.add_reminder(
+        title=request.title,
+        date=request.date,
+        type=ReminderType(request.type),
+        time=request.time,
+        description=request.description,
+        source=request.source,
+        source_id=request.source_id,
+    )
+    return {"success": True, "reminder": reminder.model_dump()}
+
+
+@app.patch("/api/reminders/{reminder_id}")
+async def update_reminder_status(reminder_id: str, request: ReminderStatusUpdate):
+    """Update reminder status"""
+    reminder = reminder_system.update_status(
+        reminder_id=reminder_id,
+        status=ReminderStatus(request.status),
+        notes=request.notes,
+    )
+    if not reminder:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return {"success": True, "reminder": reminder.model_dump()}
+
+
+@app.delete("/api/reminders/{reminder_id}")
+async def delete_reminder(reminder_id: str):
+    """Delete a reminder"""
+    success = reminder_system.delete_reminder(reminder_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return {"success": True}
+
+
+# ============================================================================
+# Trash Schedule API (HEB Hagen)
+# ============================================================================
+
+@app.get("/api/trash")
+async def get_trash_schedule(days: int = 14):
+    """Get upcoming trash collection dates"""
+    upcoming = trash_schedule.get_upcoming(days=days)
+    next_collection = trash_schedule.get_next()
+    today = trash_schedule.get_today()
+    tomorrow = trash_schedule.get_tomorrow()
+    
+    return {
+        "today": [{"date": e.date, "type": e.type, "description": e.description} for e in today],
+        "tomorrow": [{"date": e.date, "type": e.type, "description": e.description} for e in tomorrow],
+        "next": {"date": next_collection.date, "type": next_collection.type} if next_collection else None,
+        "upcoming": [{"date": e.date, "type": e.type, "description": e.description} for e in upcoming],
+        "needs_update": trash_schedule.needs_update(),
+        "last_updated": trash_schedule.config.get("last_updated"),
+    }
+
+
+class TrashICSRequest(BaseModel):
+    ics_url: str
+
+
+@app.post("/api/trash/sync")
+async def sync_trash_schedule(request: TrashICSRequest):
+    """Sync trash schedule from ICS URL"""
+    success = trash_schedule.fetch_from_ics_url(request.ics_url)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to fetch ICS calendar")
+    return {
+        "success": True,
+        "events_count": len(trash_schedule.events),
+    }
+
+
+# ============================================================================
+# File Organization API
+# ============================================================================
+
+@app.get("/api/files/stats")
+async def get_file_stats():
+    """Get folder statistics"""
+    return file_organizer.get_folder_stats()
+
+
+@app.get("/api/files/uncategorized")
+async def get_uncategorized_files():
+    """Get uncategorized files in documents root"""
+    return {"files": file_organizer.get_uncategorized()}
+
+
+@app.get("/api/files/categories")
+async def get_categories():
+    """Get available categories"""
+    return {
+        "categories": [
+            {"id": cat, "keywords": info["keywords"], "path": str(info["path"])}
+            for cat, info in CATEGORIES.items()
+        ]
+    }
+
+
+class MoveFileRequest(BaseModel):
+    source_path: str
+    category: str
+    new_name: Optional[str] = None
+
+
+@app.post("/api/files/move")
+async def move_file(request: MoveFileRequest):
+    """Move file to category"""
+    success, result = file_organizer.move_to_category(
+        source_path=request.source_path,
+        category=request.category,
+        new_name=request.new_name,
+    )
+    if not success:
+        raise HTTPException(status_code=400, detail=result)
+    return {"success": True, "new_path": result}
+
+
+class RenameFileRequest(BaseModel):
+    path: str
+    new_name: str
+
+
+@app.post("/api/files/rename")
+async def rename_file(request: RenameFileRequest):
+    """Rename a file"""
+    success, result = file_organizer.rename_file(request.path, request.new_name)
+    if not success:
+        raise HTTPException(status_code=400, detail=result)
+    return {"success": True, "new_path": result}
+
+
+class CreateFolderRequest(BaseModel):
+    parent: str
+    name: str
+
+
+@app.post("/api/files/folder")
+async def create_folder(request: CreateFolderRequest):
+    """Create a new folder"""
+    success, result = file_organizer.create_folder(request.parent, request.name)
+    if not success:
+        raise HTTPException(status_code=400, detail=result)
+    return {"success": True, "path": result}
+
+
+@app.delete("/api/files")
+async def delete_file(path: str):
+    """Delete a file (moves to trash)"""
+    success, result = file_organizer.delete_file(path)
+    if not success:
+        raise HTTPException(status_code=400, detail=result)
+    return {"success": True, "message": result}
+
+
+# ============================================================================
+# Dashboard Summary API
+# ============================================================================
+
+@app.get("/api/dashboard/summary")
+async def get_dashboard_summary():
+    """Get summary for dashboard - all in one call"""
+    # Documents
+    scan_path = Path("/home/tobi/documents")
+    documents = []
+    for ext in ["*.pdf", "*.PDF"]:
+        for file_path in scan_path.rglob(ext):
+            if file_path.is_file():
+                documents.append({
+                    "name": file_path.name,
+                    "path": str(file_path),
+                    "category": detect_category(file_path),
+                })
+    
+    # Reminders
+    today_reminders = reminder_system.get_today()
+    overdue_reminders = reminder_system.get_overdue()
+    
+    # Trash
+    tomorrow_trash = trash_schedule.get_tomorrow()
+    
+    # Memory count
+    memory_count = len(memory_system.memories)
+    
+    # File stats
+    file_stats = file_organizer.get_folder_stats()
+    uncategorized = file_organizer.get_uncategorized()
+    
+    return {
+        "documents": {
+            "total": len(documents),
+            "by_category": {cat: len([d for d in documents if d["category"] == cat]) for cat in CATEGORIES.keys()},
+        },
+        "reminders": {
+            "today": len(today_reminders),
+            "overdue": len(overdue_reminders),
+            "items": [r.model_dump() for r in (overdue_reminders + today_reminders)[:5]],
+        },
+        "trash": {
+            "tomorrow": [{"type": t.type, "description": t.description} for t in tomorrow_trash],
+        },
+        "memory": {
+            "facts_count": memory_count,
+        },
+        "files": {
+            "uncategorized_count": len(uncategorized),
+            "stats": file_stats,
+        },
+        "profile": memory_system.profile.model_dump(),
     }
