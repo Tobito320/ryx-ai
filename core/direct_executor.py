@@ -93,29 +93,33 @@ class DirectExecutor:
         Determine if a query might benefit from file context.
         
         We're aggressive here - better to load context than not have it.
+        The intent classifier can be wrong, so we check keywords too.
         """
-        # These intents definitely need context
+        prompt_lower = prompt.lower()
+        
+        # Keywords that ALWAYS indicate we need file context, regardless of intent
+        code_keywords = [
+            'file', 'code', 'function', 'class', 'method', 'module',
+            'fix', 'edit', 'change', 'update', 'modify', 'refactor',
+            'add', 'create', 'implement', 'bug', 'error', 'issue',
+            'read', 'show', 'view', 'explain', 'analyze', 'check',
+            'ryxsurf', 'ryx', 'agent', 'brain', 'core', 'tool',
+            'config', 'test', 'api', 'client', 'server', 'model',
+            '.py', '.js', '.ts', 'import', 'def ', 'class ',
+            'browser', 'keybind', 'hint', 'connected', 'integrated'
+        ]
+        
+        # If ANY code keyword is in the prompt, load context
+        if any(kw in prompt_lower for kw in code_keywords):
+            return True
+        
+        # Also check intent-based context needs
         context_intents = {
             Intent.CODE_TASK, Intent.EXPLORE_REPO, Intent.FIND_FILE,
-            Intent.FIND_PATH, Intent.CHAT  # Even CHAT might be about code
+            Intent.FIND_PATH, Intent.CHAT
         }
         
-        if intent in context_intents:
-            # Check if prompt mentions anything code-related
-            code_keywords = [
-                'file', 'code', 'function', 'class', 'method', 'module',
-                'fix', 'edit', 'change', 'update', 'modify', 'refactor',
-                'add', 'create', 'implement', 'bug', 'error', 'issue',
-                'read', 'show', 'view', 'explain', 'what', 'how', 'why',
-                'ryxsurf', 'ryx', 'agent', 'brain', 'core', 'tool',
-                'config', 'test', 'api', 'client', 'server', 'model',
-                '.py', '.js', '.ts', 'import', 'def ', 'class '
-            ]
-            
-            prompt_lower = prompt.lower()
-            return any(kw in prompt_lower for kw in code_keywords)
-        
-        return False
+        return intent in context_intents
     
     def _build_enhanced_prompt(self, original_prompt: str, context: ContextResult) -> str:
         """Build prompt with auto-discovered file context"""
@@ -203,6 +207,10 @@ Be surgical - only change what's necessary. Never rewrite entire files."""
             file_path = file_path.strip()
             old_str = old_str.strip()
             new_str = new_str.strip()
+            
+            # Handle literal \n in the strings (LLM sometimes outputs these)
+            old_str = old_str.replace('\\n', '\n')
+            new_str = new_str.replace('\\n', '\n')
             
             result = file_tool.edit(file_path, old_str, new_str)
             
