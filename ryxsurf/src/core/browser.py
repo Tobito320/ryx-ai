@@ -1468,6 +1468,19 @@ class Browser:
             self._on_get_page_text
         )
 
+    def _dismiss_popup(self):
+        """Remove modal/popup elements via JavaScript"""
+        current_webview = self.tabs[self.active_tab_idx].webview
+        current_webview.run_javascript(
+            """
+            const popups = document.querySelectorAll('[class*="popup"], [class*="modal"], [class*="overlay"], [class*="cookie"], [class*="newsletter"]');
+            popups.forEach(popup => popup.remove());
+            document.body.style.overflow = 'auto'; // Restore body scrolling
+            """,
+            None,
+            None
+        )
+
     def _on_get_page_text(self, result, error):
         if error:
             print(f"Error getting page text: {error}")
