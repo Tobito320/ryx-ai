@@ -8,7 +8,7 @@ import { ryxService } from "@/services/ryxService";
 import { API_ENDPOINTS, POLLING_INTERVALS } from "@/config";
 
 export function DashboardView() {
-  const { models, ragStatus, workflowNodes } = useRyxHub();
+  const { models, ragStatus } = useRyxHub();
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [topWorkflows, setTopWorkflows] = useState<any[]>([]);
@@ -49,7 +49,6 @@ export function DashboardView() {
 
   // Calculate live stats from context
   const activeAgentsCount = models.filter((m) => m.status === "online").length;
-  const runningWorkflows = workflowNodes.filter((n) => n.status === "running").length;
 
   const stats = [
     {
@@ -61,9 +60,9 @@ export function DashboardView() {
       bgColor: "bg-primary/10",
     },
     {
-      title: "Workflows Running",
-      value: dashboardStats?.workflowsRunning?.value?.toString() || String(runningWorkflows),
-      change: `${dashboardStats?.workflowsRunning?.queued || 0} queued`,
+      title: "Boards Active",
+      value: "1",
+      change: "Board Mode",
       icon: Zap,
       color: "text-[hsl(var(--warning))]",
       bgColor: "bg-[hsl(var(--warning))]/10",

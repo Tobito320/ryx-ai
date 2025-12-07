@@ -1,18 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Tldraw, Editor, TLShapeId, createShapeId } from "tldraw";
+import { Tldraw, Editor, createShapeId } from "tldraw";
 import "tldraw/tldraw.css";
 import { 
   FileText, 
   Mail, 
   StickyNote, 
-  Upload, 
   FolderOpen, 
   Plus,
   Search,
-  Filter,
   RefreshCw,
-  Inbox,
-  Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,10 +27,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Board, BoardDocument, GmailAccount } from "@/types/ryxhub";
+import type { GmailAccount } from "@/types/ryxhub";
+import { API_ENDPOINTS } from "@/config";
 
 // Document categories for organization
 const DOCUMENT_CATEGORIES = [
@@ -69,7 +66,7 @@ export function BoardView() {
   const loadDocuments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/documents/scan");
+      const response = await fetch(API_ENDPOINTS.documentsScan);
       if (response.ok) {
         const data = await response.json();
         setDocuments(data.documents || []);
@@ -98,7 +95,7 @@ export function BoardView() {
   // Load Gmail accounts
   const loadGmailAccounts = useCallback(async () => {
     try {
-      const response = await fetch("/api/gmail/accounts");
+      const response = await fetch(API_ENDPOINTS.gmailAccounts);
       if (response.ok) {
         const data = await response.json();
         setGmailAccounts(data.accounts || []);

@@ -37,7 +37,7 @@ export const API_ENDPOINTS = {
   searxngStatus: `${API_BASE_URL}/api/searxng/status`,
   searxngSearch: `${API_BASE_URL}/api/searxng/search`,
   
-  // Workflows
+  // Workflows (legacy, kept for compatibility)
   workflows: `${API_BASE_URL}/api/workflows`,
   workflowById: (id: string) => `${API_BASE_URL}/api/workflows/${id}`,
   
@@ -46,6 +46,19 @@ export const API_ENDPOINTS = {
   ragUpload: `${API_BASE_URL}/api/rag/upload`,
   ragSearch: `${API_BASE_URL}/api/rag/search`,
   ragSync: `${API_BASE_URL}/api/rag/sync`,
+
+  // Board Mode - Documents, Memory, Gmail
+  documentsScan: `${API_BASE_URL}/api/documents/scan`,
+  
+  memory: `${API_BASE_URL}/api/memory`,
+  memoryById: (id: string) => `${API_BASE_URL}/api/memory/${id}`,
+  
+  gmailAccounts: `${API_BASE_URL}/api/gmail/accounts`,
+  gmailAccountById: (id: string) => `${API_BASE_URL}/api/gmail/accounts/${id}`,
+  gmailAccountDefault: (id: string) => `${API_BASE_URL}/api/gmail/accounts/${id}/default`,
+  
+  boards: `${API_BASE_URL}/api/boards`,
+  boardById: (id: string) => `${API_BASE_URL}/api/boards/${id}`,
 };
 
 // Polling intervals (milliseconds)
