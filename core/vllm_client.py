@@ -59,12 +59,15 @@ class VLLMClient:
     
     Designed for multi-agent systems where multiple requests
     need to be processed concurrently.
+    
+    Auto-detects the currently loaded model in vLLM.
     """
     
     def __init__(self, config: Optional[VLLMConfig] = None):
         self.config = config or VLLMConfig()
         self.base_url = self.config.base_url.rstrip('/')
         self._session: Optional[aiohttp.ClientSession] = None
+        self._detected_model: Optional[str] = None
     
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
@@ -78,8 +81,24 @@ class VLLMClient:
         if self._session and not self._session.closed:
             await self._session.close()
     
-    def _resolve_model(self, model: str) -> str:
-        """Resolve model alias to full name"""
+    def _resolve_model(self, model: Optional[str]) -> str:
+        """Resolve model - uses detected model if none specified"""
+        if model is None:
+            # Use detected model from vLLM
+            if self._detected_model:
+                return self._detected_model
+            # Try to detect
+            try:
+                from core.model_detector import detect_model
+                detected = detect_model()
+                if detected:
+                    self._detected_model = detected.path
+                    return self._detected_model
+            except Exception:
+                pass
+            # Fallback to config default
+            return self.config.default_model
+        # Check aliases
         return self.config.models.get(model, model)
     
     async def chat(
@@ -105,7 +124,7 @@ class VLLMClient:
         Returns:
             VLLMResponse with result or error
         """
-        model = self._resolve_model(model or self.config.default_model)
+        model = self._resolve_model(model)
         
         payload = {
             "model": model,
@@ -234,7 +253,7 @@ class VLLMClient:
         Yields:
             Token strings as they arrive
         """
-        model = self._resolve_model(model or self.config.default_model)
+        model = self._resolve_model(model)
         
         messages = []
         if system:
@@ -341,7 +360,7 @@ def get_vllm_client() -> VLLMClient:
     global _client
     if _client is None:
         config = VLLMConfig(
-            base_url=os.environ.get("VLLM_BASE_URL", "http://localhost:8000"),
+            base_url=os.environ.get("VLLM_BASE_URL", "http://localhost:8001"),
             default_model=os.environ.get("VLLM_DEFAULT_MODEL", "Qwen/Qwen2.5-Coder-14B-Instruct-AWQ")
         )
         _client = VLLMClient(config)
@@ -355,7 +374,7 @@ class VLLMCompatClient:
     Drop-in replacement for existing code.
     """
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = "http://localhost:8001"):
         self.client = VLLMClient(VLLMConfig(base_url=base_url))
         self.base_url = base_url
     
