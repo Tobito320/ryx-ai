@@ -18,7 +18,7 @@ gi.require_version('WebKit', '6.0')
 
 from gi.repository import Gtk, WebKit, GLib, Gdk, Pango
 from typing import Optional, List, Callable, Dict
-from ui.hints import HintMode
+from src.ui.hints import HintMode
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote_plus
