@@ -2948,6 +2948,79 @@ Sei freundlich aber effizient."""
         return {"response": f"Fehler: {str(e)}", "error": True}
 
 
+@app.get("/api/chat/smart/stream")
+async def smart_chat_stream(
+    message: str,
+    include_memory: bool = True,
+    use_search: bool = False,
+    document: str = None
+):
+    """Stream smart chat response with memory context."""
+    if not message:
+        raise HTTPException(status_code=400, detail="Message required")
+    
+    # Build context from memory
+    context_parts = []
+    
+    if include_memory:
+        memory = load_memory()
+        profile = memory.get("profile", {})
+        if profile:
+            context_parts.append(f"User info: Name={profile.get('name')}, Address={profile.get('address')}")
+        
+        facts = memory.get("facts", [])[-10:]
+        if facts:
+            context_parts.append("Known facts: " + "; ".join([f.get("content", "") for f in facts]))
+        
+        reminders_data = await get_reminders()
+        if reminders_data.get("items"):
+            reminder_texts = [r.get("title", "") for r in reminders_data["items"][:3]]
+            context_parts.append("Upcoming reminders: " + ", ".join(reminder_texts))
+        
+        trash = await get_trash_schedule()
+        if trash.get("tomorrow"):
+            trash_types = [t.get("type", "") for t in trash["tomorrow"]]
+            context_parts.append(f"Tomorrow's trash: {', '.join(trash_types)}")
+    
+    if document:
+        context_parts.append(f"User is looking at document: {document}")
+    
+    if use_search:
+        try:
+            search_response = await searxng_search({"query": message})
+            if search_response.get("results"):
+                search_results = search_response["results"][:3]
+                search_context = "Web search results:\n"
+                for r in search_results:
+                    search_context += f"- {r.get('title', '')}: {r.get('content', '')[:150]}\n"
+                context_parts.append(search_context)
+        except:
+            pass
+    
+    # Build system prompt
+    today = datetime.now()
+    date_str = today.strftime("%A, %d. %B %Y")
+    time_str = today.strftime("%H:%M")
+    
+    system_prompt = f"""Du bist Tobi's persönlicher Assistent. Heute ist {date_str}, aktuelle Uhrzeit: {time_str}.
+Antworte kurz und präzise - maximal 2-3 Sätze wenn möglich.
+Du kennst ihn gut und hilfst ihm mit Dokumenten, Emails, Terminen und Erinnerungen.
+Sei freundlich aber effizient."""
+    
+    if context_parts:
+        system_prompt += "\n\nKontext über den User:\n" + "\n".join(context_parts)
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": message}
+    ]
+    
+    return StreamingResponse(
+        vllm_chat_stream(messages),
+        media_type="text/event-stream"
+    )
+
+
 # =============================================================================
 # Entry Point
 # =============================================================================

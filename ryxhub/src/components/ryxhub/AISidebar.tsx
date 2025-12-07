@@ -59,7 +59,7 @@ interface AISidebarProps {
   summary?: any;
 }
 
-export function AISidebar({ document, onClose, summary }: AISidebarProps) {
+export function AISidebar({ document: selectedDoc, onClose, summary }: AISidebarProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [userMessage, setUserMessage] = useState("");
@@ -67,22 +67,43 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
   const [isSending, setIsSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Sidebar width state for resizing
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const isResizing = useRef(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   
-  // Tool toggles
-  const [useMemory, setUseMemory] = useState(true);
-  const [useSearch, setUseSearch] = useState(false);
-  const [useScrape, setUseScrape] = useState(false);
+  // Tool toggles - persist in localStorage
+  const [useMemory, setUseMemory] = useState(() => {
+    const saved = localStorage.getItem('ryx-tool-memory');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [useSearch, setUseSearch] = useState(() => {
+    const saved = localStorage.getItem('ryx-tool-search');
+    return saved === 'true';
+  });
+  const [useScrape, setUseScrape] = useState(() => {
+    const saved = localStorage.getItem('ryx-tool-scrape');
+    return saved === 'true';
+  });
+
+  // Save tool toggles
+  useEffect(() => {
+    localStorage.setItem('ryx-tool-memory', String(useMemory));
+  }, [useMemory]);
+  useEffect(() => {
+    localStorage.setItem('ryx-tool-search', String(useSearch));
+  }, [useSearch]);
+  useEffect(() => {
+    localStorage.setItem('ryx-tool-scrape', String(useScrape));
+  }, [useScrape]);
 
   // Resize handlers
   const startResize = useCallback((e: React.MouseEvent) => {
     isResizing.current = true;
-    document.body.style.cursor = 'ew-resize';
-    document.body.style.userSelect = 'none';
+    window.document.body.style.cursor = 'ew-resize';
+    window.document.body.style.userSelect = 'none';
   }, []);
 
   useEffect(() => {
@@ -94,8 +115,8 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
 
     const handleMouseUp = () => {
       isResizing.current = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      window.document.body.style.cursor = '';
+      window.document.body.style.userSelect = '';
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -111,12 +132,24 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  // Abort current request
+  const abortRequest = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsSending(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!userMessage.trim() || isSending) return;
 
     const message = userMessage.trim();
     setUserMessage("");
     setIsSending(true);
+
+    // Create abort controller
+    abortControllerRef.current = new AbortController();
 
     // Add user message
     setChatMessages(prev => [...prev, {
@@ -125,39 +158,112 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
       timestamp: new Date(),
     }]);
 
+    // Add placeholder for streaming response
+    setChatMessages(prev => [...prev, {
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+    }]);
+
     try {
-      const res = await fetch(`${API_BASE}/api/chat/smart`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          include_memory: useMemory,
-          use_search: useSearch,
-          use_scrape: useScrape,
-          document: document?.name,
-        }),
+      // Use streaming endpoint
+      const params = new URLSearchParams({
+        message,
+        include_memory: String(useMemory),
+        use_search: String(useSearch),
+        document: selectedDoc?.name || "",
+      });
+
+      const res = await fetch(`${API_BASE}/api/chat/smart/stream?${params}`, {
+        signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok) throw new Error("Chat failed");
 
-      const data = await res.json();
-      
-      setChatMessages(prev => [...prev, {
-        role: "assistant",
-        content: data.response || "Keine Antwort",
-        timestamp: new Date(),
-      }]);
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = "";
 
-      log.info("Smart chat response", { chars: data.response?.length });
-    } catch (error) {
-      log.error("Chat failed", { error });
-      setChatMessages(prev => [...prev, {
-        role: "assistant",
-        content: "Fehler bei der Verbindung zum AI. Ist vLLM aktiv?",
-        timestamp: new Date(),
-      }]);
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') break;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) {
+                fullContent += parsed.content;
+                // Update the last message with streaming content
+                setChatMessages(prev => {
+                  const updated = [...prev];
+                  if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+                    updated[updated.length - 1] = {
+                      ...updated[updated.length - 1],
+                      content: fullContent,
+                    };
+                  }
+                  return updated;
+                });
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      if (!fullContent) {
+        // Fallback: update with error message
+        setChatMessages(prev => {
+          const updated = [...prev];
+          if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: "Keine Antwort erhalten",
+            };
+          }
+          return updated;
+        });
+      }
+
+      log.info("Smart chat response", { chars: fullContent.length });
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        log.info("Chat aborted by user");
+        // Update the placeholder message
+        setChatMessages(prev => {
+          const updated = [...prev];
+          if (updated.length > 0 && updated[updated.length - 1].role === "assistant" && !updated[updated.length - 1].content) {
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: "(Abgebrochen)",
+            };
+          }
+          return updated;
+        });
+      } else {
+        log.error("Chat failed", { error });
+        setChatMessages(prev => {
+          const updated = [...prev];
+          if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              content: "Fehler bei der Verbindung zum AI. Ist vLLM aktiv?",
+            };
+          }
+          return updated;
+        });
+      }
     } finally {
       setIsSending(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -244,13 +350,13 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
           {chatMessages.length === 0 && (
             <div className="space-y-3">
               {/* Document context */}
-              {document && (
+              {selectedDoc && (
                 <div className="p-2 rounded-md bg-primary/10 border border-primary/20">
                   <div className="flex items-start gap-2">
                     <FileText className="w-3.5 h-3.5 mt-0.5 text-primary" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{document.name}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{document.category}</p>
+                      <p className="text-sm font-medium truncate">{selectedDoc?.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{selectedDoc?.category}</p>
                     </div>
                   </div>
                 </div>
@@ -336,13 +442,13 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
               )}
               <div
                 className={cn(
-                  "max-w-[85%] px-2.5 py-1.5 rounded text-xs",
+                  "max-w-[85%] px-2.5 py-1.5 rounded text-xs overflow-hidden",
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted"
                 )}
               >
-                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                <p className="whitespace-pre-wrap leading-relaxed break-words overflow-wrap-anywhere">{msg.content}</p>
               </div>
               {msg.role === "user" && (
                 <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
@@ -352,14 +458,19 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
             </div>
           ))}
 
-          {/* Loading indicator */}
+          {/* Loading indicator - click to abort */}
           {isSending && (
-            <div className="flex gap-2">
+            <div 
+              className="flex gap-2 cursor-pointer group"
+              onClick={abortRequest}
+              title="Klicken zum Abbrechen"
+            >
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <Bot className="w-3.5 h-3.5 text-primary" />
               </div>
-              <div className="bg-muted p-3 rounded-lg">
+              <div className="bg-muted p-3 rounded-lg flex items-center gap-2 group-hover:bg-destructive/10 transition-colors">
                 <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-[10px] text-muted-foreground group-hover:text-destructive">Klick zum Abbrechen</span>
               </div>
             </div>
           )}

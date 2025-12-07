@@ -116,7 +116,8 @@ export function HolographicDesk() {
         toast.success(`Öffne ${doc.name}`);
       } else {
         const err = await res.json();
-        toast.error(err.detail || "Fehler beim Öffnen");
+        const errMsg = typeof err.detail === 'string' ? err.detail : "Fehler beim Öffnen";
+        toast.error(errMsg);
       }
     } catch (error) {
       toast.error("Verbindungsfehler");
@@ -222,7 +223,8 @@ export function HolographicDesk() {
         loadGmailAccounts();
       } else {
         const err = await res.json();
-        toast.error(err.detail || "Fehler");
+        const errMsg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || "Fehler";
+        toast.error(errMsg);
       }
     } catch (error) {
       toast.error("Verbindungsfehler");
