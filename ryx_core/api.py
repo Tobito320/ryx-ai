@@ -1499,6 +1499,20 @@ async def smart_chat(request: SmartChatRequest):
         if memory_context:
             context_parts.append(f"## Benutzer-Kontext:\n{memory_context}")
             tools_used.append("memory")
+        
+        # Always add trash schedule to context when memory is enabled
+        upcoming_trash = trash_schedule.get_upcoming(days=14)
+        if upcoming_trash:
+            trash_info = "\n".join([
+                f"- {e.date}: {e.type}" for e in upcoming_trash[:5]
+            ])
+            context_parts.append(f"## Müllabfuhr-Termine (Alleestraße 58, Hagen):\n{trash_info}")
+        
+        # Add today's reminders
+        today_reminders = reminder_system.get_today()
+        if today_reminders:
+            reminder_info = "\n".join([f"- {r.title}" for r in today_reminders])
+            context_parts.append(f"## Heutige Termine:\n{reminder_info}")
     
     # 2. Add document context if selected
     if request.document:
@@ -1538,8 +1552,13 @@ async def smart_chat(request: SmartChatRequest):
         except Exception as e:
             pass
     
-    # 4. Build system prompt
-    system_prompt = """Du bist ein hilfreicher persönlicher Assistent. 
+    # 4. Build system prompt with current date
+    from datetime import datetime as dt
+    current_date = dt.now().strftime("%A, %d. %B %Y")
+    current_time = dt.now().strftime("%H:%M")
+    
+    system_prompt = f"""Du bist ein hilfreicher persönlicher Assistent.
+HEUTE ist {current_date}, aktuelle Uhrzeit: {current_time}.
 Antworte KURZ und PRÄZISE - maximal 2-3 Sätze wenn möglich.
 Du sprichst Deutsch und kennst den Benutzer persönlich.
 Nutze den bereitgestellten Kontext um personalisierte Antworten zu geben.

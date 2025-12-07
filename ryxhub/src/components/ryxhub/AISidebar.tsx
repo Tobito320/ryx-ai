@@ -12,6 +12,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Sparkles,
   FileText,
   Send,
@@ -185,32 +191,49 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
       </div>
       
       {/* Header */}
-      <div className="h-11 border-b flex items-center justify-between px-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-primary" />
-          <span className="font-medium text-sm">AI</span>
+      <div className="h-10 border-b flex items-center justify-between px-3 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-primary" />
+          <span className="font-medium text-xs">AI Assistent</span>
         </div>
         {chatMessages.length > 0 && (
-          <Button size="sm" variant="ghost" onClick={copyLastResponse}>
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={copyLastResponse}>
             {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
           </Button>
         )}
       </div>
 
-      {/* Tool Toggles - Compact */}
-      <div className="px-3 py-2 border-b flex items-center gap-3 text-xs">
-        <div className="flex items-center gap-1.5">
-          <Brain className="w-3 h-3 text-muted-foreground" />
-          <Switch checked={useMemory} onCheckedChange={setUseMemory} className="scale-75" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Search className="w-3 h-3 text-muted-foreground" />
-          <Switch checked={useSearch} onCheckedChange={setUseSearch} className="scale-75" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Globe className="w-3 h-3 text-muted-foreground" />
-          <Switch checked={useScrape} onCheckedChange={setUseScrape} className="scale-75" />
-        </div>
+      {/* Tool Toggles - Compact with Tooltips */}
+      <div className="px-3 py-1.5 border-b flex items-center gap-4 text-[10px]">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1">
+                <Brain className="w-3 h-3 text-muted-foreground" />
+                <Switch checked={useMemory} onCheckedChange={setUseMemory} className="scale-[0.6]" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent><p>Memory - Persönliche Infos</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1">
+                <Search className="w-3 h-3 text-muted-foreground" />
+                <Switch checked={useSearch} onCheckedChange={setUseSearch} className="scale-[0.6]" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent><p>Web-Suche</p></TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1">
+                <Globe className="w-3 h-3 text-muted-foreground" />
+                <Switch checked={useScrape} onCheckedChange={setUseScrape} className="scale-[0.6]" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent><p>Website scrapen</p></TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <ScrollArea className="flex-1">
@@ -300,28 +323,28 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
             <div
               key={i}
               className={cn(
-                "flex gap-2",
+                "flex gap-1.5",
                 msg.role === "user" ? "justify-end" : "justify-start"
               )}
             >
               {msg.role === "assistant" && (
-                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <Bot className="w-3.5 h-3.5 text-primary" />
+                <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="w-3 h-3 text-primary" />
                 </div>
               )}
               <div
                 className={cn(
-                  "max-w-[85%] p-3 rounded-lg text-sm",
+                  "max-w-[85%] px-2.5 py-1.5 rounded text-xs",
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted"
                 )}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
               </div>
               {msg.role === "user" && (
-                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <User className="w-3.5 h-3.5" />
+                <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                  <User className="w-3 h-3" />
                 </div>
               )}
             </div>
@@ -344,26 +367,26 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
       </ScrollArea>
 
       {/* Chat Input */}
-      <div className="p-3 border-t shrink-0">
+      <div className="p-2 border-t shrink-0">
         <div className="relative">
           <Textarea
             placeholder="Frag mich etwas..."
             value={userMessage}
             onChange={(e) => setUserMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="min-h-[50px] max-h-[120px] pr-12 resize-none text-sm"
-            rows={2}
+            className="min-h-[40px] max-h-[80px] pr-10 resize-none text-xs"
+            rows={1}
           />
           <Button
             size="icon"
-            className="absolute right-2 bottom-2 h-7 w-7"
+            className="absolute right-1.5 bottom-1.5 h-6 w-6"
             disabled={!userMessage.trim() || isSending}
             onClick={sendMessage}
           >
             {isSending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-3 h-3 animate-spin" />
             ) : (
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-3 h-3" />
             )}
           </Button>
         </div>

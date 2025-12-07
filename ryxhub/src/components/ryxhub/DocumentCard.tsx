@@ -4,7 +4,13 @@
  */
 
 import { cn } from "@/lib/utils";
-import { FileText, Clock, CheckCircle2, AlertTriangle, Image, FileType } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Image, FileType, File } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Document {
   name: string;
@@ -30,81 +36,74 @@ const CATEGORY_COLORS: Record<string, string> = {
   auto: "border-l-red-500",
   azubi: "border-l-orange-500",
   arbeit: "border-l-violet-500",
-  other: "border-l-gray-500",
+  other: "border-l-gray-400",
 };
 
-const TYPE_ICONS: Record<string, React.ReactNode> = {
-  pdf: <FileText className="w-3.5 h-3.5" />,
-  png: <Image className="w-3.5 h-3.5" />,
-  jpg: <Image className="w-3.5 h-3.5" />,
-  jpeg: <Image className="w-3.5 h-3.5" />,
-  doc: <FileType className="w-3.5 h-3.5" />,
-  docx: <FileType className="w-3.5 h-3.5" />,
-  txt: <FileText className="w-3.5 h-3.5" />,
+const TYPE_ICONS: Record<string, { icon: React.ReactNode; color: string }> = {
+  pdf: { icon: <FileText className="w-4 h-4" />, color: "text-red-500 bg-red-500/10" },
+  png: { icon: <Image className="w-4 h-4" />, color: "text-green-500 bg-green-500/10" },
+  jpg: { icon: <Image className="w-4 h-4" />, color: "text-green-500 bg-green-500/10" },
+  jpeg: { icon: <Image className="w-4 h-4" />, color: "text-green-500 bg-green-500/10" },
+  doc: { icon: <FileType className="w-4 h-4" />, color: "text-blue-500 bg-blue-500/10" },
+  docx: { icon: <FileType className="w-4 h-4" />, color: "text-blue-500 bg-blue-500/10" },
+  txt: { icon: <File className="w-4 h-4" />, color: "text-gray-500 bg-gray-500/10" },
 };
 
 export function DocumentCard({ document, selected, onClick }: DocumentCardProps) {
   const isUrgent = document.deadlineDays !== undefined && document.deadlineDays < 7;
   const isCompleted = document.status === "completed";
-  
-  // Truncate filename properly
-  const maxLen = 22;
-  const ext = document.name.split('.').pop() || '';
-  const nameWithoutExt = document.name.slice(0, document.name.length - ext.length - 1);
-  const displayName = nameWithoutExt.length > maxLen 
-    ? nameWithoutExt.slice(0, maxLen) + "…" 
-    : nameWithoutExt;
+  const typeInfo = TYPE_ICONS[document.type] || { icon: <File className="w-4 h-4" />, color: "text-gray-400 bg-gray-400/10" };
 
   return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "group cursor-pointer rounded-md p-2.5 transition-all duration-150",
-        "bg-card border border-border/40 shadow-sm",
-        "hover:shadow-md hover:border-border hover:bg-accent/30",
-        "border-l-2",
-        CATEGORY_COLORS[document.category] || CATEGORY_COLORS.other,
-        selected && "ring-1 ring-primary shadow-md bg-accent/50",
-        isUrgent && "bg-destructive/5",
-      )}
-    >
-      {/* Top row: Icon + Type badge */}
-      <div className="flex items-center justify-between mb-1.5">
-        <div className={cn(
-          "p-1.5 rounded",
-          isCompleted ? "bg-green-500/10 text-green-500" : 
-          isUrgent ? "bg-destructive/10 text-destructive" : 
-          "bg-primary/10 text-primary"
-        )}>
-          {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> :
-           isUrgent ? <AlertTriangle className="w-3.5 h-3.5" /> :
-           TYPE_ICONS[document.type] || <FileText className="w-3.5 h-3.5" />}
-        </div>
-        <span className="text-[10px] uppercase font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
-          {document.type}
-        </span>
-      </div>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            onClick={onClick}
+            className={cn(
+              "cursor-pointer rounded p-2 transition-all duration-100",
+              "bg-card/80 border border-border/30",
+              "hover:border-border hover:bg-accent/20",
+              "border-l-2 min-w-0",
+              CATEGORY_COLORS[document.category] || CATEGORY_COLORS.other,
+              selected && "ring-1 ring-primary bg-accent/40",
+              isUrgent && "bg-destructive/5",
+            )}
+          >
+            {/* Icon + Type Row */}
+            <div className="flex items-center justify-between mb-1">
+              <div className={cn("p-1 rounded", typeInfo.color)}>
+                {isCompleted ? <CheckCircle2 className="w-4 h-4 text-green-500" /> :
+                 isUrgent ? <AlertTriangle className="w-4 h-4 text-destructive" /> :
+                 typeInfo.icon}
+              </div>
+              <span className="text-[9px] uppercase font-medium text-muted-foreground/70">
+                {document.type}
+              </span>
+            </div>
 
-      {/* Name - with proper truncation */}
-      <h4 className="text-xs font-medium leading-snug mb-1 truncate" title={document.name}>
-        {displayName}
-      </h4>
+            {/* Name - Truncated */}
+            <p className="text-[11px] font-medium leading-tight truncate">
+              {document.name.replace(/\.[^/.]+$/, "")}
+            </p>
 
-      {/* Category - small */}
-      <span className="text-[10px] text-muted-foreground capitalize">
-        {document.category}
-      </span>
-
-      {/* Deadline if urgent */}
-      {document.deadlineDays !== undefined && document.deadlineDays < 14 && (
-        <div className={cn(
-          "mt-1.5 flex items-center gap-1 text-[10px]",
-          isUrgent ? "text-destructive" : "text-muted-foreground"
-        )}>
-          <Clock className="w-2.5 h-2.5" />
-          <span>{document.deadlineDays}d</span>
-        </div>
-      )}
-    </div>
+            {/* Deadline if urgent */}
+            {document.deadlineDays !== undefined && document.deadlineDays < 14 && (
+              <div className={cn(
+                "mt-1 flex items-center gap-0.5 text-[9px]",
+                isUrgent ? "text-destructive" : "text-muted-foreground"
+              )}>
+                <Clock className="w-2.5 h-2.5" />
+                <span>{document.deadlineDays}d</span>
+              </div>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="max-w-xs">
+          <p className="font-medium text-sm">{document.name}</p>
+          <p className="text-xs text-muted-foreground capitalize">{document.category} • {document.type.toUpperCase()}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

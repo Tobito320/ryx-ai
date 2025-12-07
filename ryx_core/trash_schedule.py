@@ -211,3 +211,8 @@ class TrashSchedule:
 
 # Singleton instance
 trash_schedule = TrashSchedule()
+
+# Try to load from local ICS file at startup
+_ICS_FILE = Path("/home/tobi/Downloads/alleestrassehagen.ics")
+if _ICS_FILE.exists() and not trash_schedule.events:
+    trash_schedule.load_from_ics_file(str(_ICS_FILE))

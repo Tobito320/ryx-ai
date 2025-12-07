@@ -262,62 +262,59 @@ export function HolographicDesk() {
       {/* Main Desk Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar - Compact */}
-        <div className="h-11 border-b flex items-center justify-between px-4 bg-card/50">
-          <div className="flex items-center gap-3">
-            <h1 className="text-sm font-semibold">Dokumente</h1>
-            <span className="text-xs text-muted-foreground">
+        <div className="h-10 border-b flex items-center justify-between px-3 bg-card/30">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-medium">Dokumente</h1>
+            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               {documents.length}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Search */}
-            <div className="relative w-48">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <div className="relative w-40">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
               <Input
                 placeholder="Suchen..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-sm bg-background"
+                className="pl-7 h-7 text-xs bg-background"
               />
             </div>
 
             {/* Add Document */}
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-8 gap-1.5"
+              className="h-7 w-7 p-0"
               onClick={() => fileInputRef.current?.click()}
+              title="Dokument hinzufügen"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline text-xs">Hinzufügen</span>
             </Button>
 
             {/* Gmail Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                <Button variant="ghost" size="sm" className="h-7 px-2 gap-1">
                   <Mail className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline text-xs">
-                    {gmailAccounts.find(a => a.isDefault)?.email?.split("@")[0] || "Gmail"}
-                  </span>
-                  <ChevronDown className="w-3 h-3" />
+                  <ChevronDown className="w-2.5 h-2.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-52">
                 {gmailAccounts.map((acc) => (
                   <DropdownMenuItem
                     key={acc.id}
                     onClick={() => setDefaultGmail(acc.id)}
-                    className="flex justify-between"
+                    className="flex justify-between text-xs"
                   >
-                    <span className="text-sm">{acc.email}</span>
-                    {acc.isDefault && <span className="text-xs text-primary">Default</span>}
+                    <span>{acc.email}</span>
+                    {acc.isDefault && <span className="text-[10px] text-primary">★</span>}
                   </DropdownMenuItem>
                 ))}
                 {gmailAccounts.length > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem onClick={() => setGmailModalOpen(true)}>
-                  <Plus className="w-3.5 h-3.5 mr-2" />
+                <DropdownMenuItem onClick={() => setGmailModalOpen(true)} className="text-xs">
+                  <Plus className="w-3 h-3 mr-1.5" />
                   Gmail hinzufügen
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -326,8 +323,8 @@ export function HolographicDesk() {
             {/* Refresh */}
             <Button
               variant="ghost"
-              size="icon"
-              className="h-8 w-8"
+              size="sm"
+              className="h-7 w-7 p-0"
               onClick={loadData}
               disabled={isLoading}
             >
@@ -338,16 +335,16 @@ export function HolographicDesk() {
 
         {/* Alerts Bar - Compact */}
         {summary && (summary.reminders.overdue > 0 || summary.trash.tomorrow.length > 0) && (
-          <div className="px-4 py-1.5 bg-destructive/10 border-b flex items-center gap-3 text-xs">
+          <div className="px-3 py-1 bg-destructive/5 border-b flex items-center gap-2 text-[10px]">
             {summary.reminders.overdue > 0 && (
-              <div className="flex items-center gap-1.5 text-destructive">
-                <AlertTriangle className="w-3 h-3" />
+              <div className="flex items-center gap-1 text-destructive">
+                <AlertTriangle className="w-2.5 h-2.5" />
                 <span>{summary.reminders.overdue} überfällig</span>
               </div>
             )}
             {summary.trash.tomorrow.length > 0 && (
-              <div className="flex items-center gap-1.5 text-orange-500">
-                <Trash2 className="w-3 h-3" />
+              <div className="flex items-center gap-1 text-orange-500">
+                <Trash2 className="w-2.5 h-2.5" />
                 <span>Morgen: {summary.trash.tomorrow.map((t) => t.type).join(", ")}</span>
               </div>
             )}
@@ -355,8 +352,8 @@ export function HolographicDesk() {
         )}
 
         {/* Category Tabs - Compact */}
-        <div className="px-4 py-2 border-b bg-card/30">
-          <div className="flex gap-1.5 overflow-x-auto">
+        <div className="px-3 py-1.5 border-b bg-card/20">
+          <div className="flex gap-1 overflow-x-auto">
             {CATEGORIES.map((cat) => {
               const count = cat.id === "all"
                 ? documents.length
@@ -367,21 +364,16 @@ export function HolographicDesk() {
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all",
-                    "border border-transparent whitespace-nowrap",
+                    "flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all",
+                    "whitespace-nowrap",
                     selectedCategory === cat.id
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   )}
-                  style={{
-                    borderColor: selectedCategory === cat.id && cat.color ? cat.color : undefined,
-                  }}
                 >
                   {cat.label}
                   {count > 0 && (
-                    <span className="text-[10px] opacity-70">
-                      {count}
-                    </span>
+                    <span className="opacity-60">{count}</span>
                   )}
                 </button>
               );
@@ -390,17 +382,15 @@ export function HolographicDesk() {
         </div>
 
         {/* Document Grid - Compact */}
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="flex-1 p-3">
           {filteredDocuments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-              <FolderOpen className="w-12 h-12 mb-3 opacity-30" />
-              <p className="text-sm">Keine Dokumente</p>
-              <p className="text-xs opacity-70">
-                Drag & Drop oder /home/tobi/documents/
-              </p>
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+              <FolderOpen className="w-10 h-10 mb-2 opacity-20" />
+              <p className="text-xs">Keine Dokumente</p>
+              <p className="text-[10px] opacity-60">Drag & Drop zum Hinzufügen</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 gap-2">
               {filteredDocuments.map((doc) => (
                 <DocumentCard
                   key={doc.path + doc.name}
