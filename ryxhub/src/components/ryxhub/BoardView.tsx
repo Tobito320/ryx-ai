@@ -131,13 +131,16 @@ export function BoardView() {
     const viewportCenter = editor.getViewportScreenCenter();
     const pagePoint = editor.screenToPage(viewportCenter);
 
-    // Add as a note shape with document info
+    // Add as a geo shape (rectangle) with document info
     editor.createShapes([{
       id: shapeId,
-      type: "note",
+      type: "geo",
       x: pagePoint.x - 100 + Math.random() * 50,
       y: pagePoint.y - 50 + Math.random() * 50,
       props: {
+        geo: "rectangle",
+        w: 250,
+        h: 150,
         text: `📄 ${doc.name}\n\n📁 ${doc.category?.toUpperCase() || "Dokument"}\n📍 ${doc.path}`,
         color: getCategoryColor(doc.category),
         size: "m",
@@ -171,10 +174,13 @@ export function BoardView() {
 
     editor.createShapes([{
       id: shapeId,
-      type: "note",
+      type: "geo",
       x: pagePoint.x - 100,
       y: pagePoint.y - 50,
       props: {
+        geo: "rectangle",
+        w: 200,
+        h: 100,
         text: "Neue Notiz...",
         color: "yellow",
         size: "m",
@@ -195,10 +201,13 @@ export function BoardView() {
 
     editor.createShapes([{
       id: shapeId,
-      type: "note",
+      type: "geo",
       x: pagePoint.x - 100,
       y: pagePoint.y - 50,
       props: {
+        geo: "rectangle",
+        w: 300,
+        h: 200,
         text: `✉️ E-Mail Entwurf\n\nAn: \nBetreff: \n\n---\n\nInhalt hier schreiben...`,
         color: "blue",
         size: "l",
@@ -241,10 +250,13 @@ export function BoardView() {
 
           editor.createShapes([{
             id: shapeId,
-            type: "note",
+            type: "geo",
             x: x + (docIndex % 3) * 250,
             y: y + Math.floor(docIndex / 3) * 200,
             props: {
+              geo: "rectangle",
+              w: 230,
+              h: 180,
               text,
               color: analysis?.priority === "HOCH" ? "red" : getCategoryColor(doc.category),
               size: "l",
@@ -256,10 +268,13 @@ export function BoardView() {
           const shapeId = createShapeId();
           editor.createShapes([{
             id: shapeId,
-            type: "note",
+            type: "geo",
             x: x + (docIndex % 3) * 250,
             y: y + Math.floor(docIndex / 3) * 150,
             props: {
+              geo: "rectangle",
+              w: 230,
+              h: 150,
               text: `📄 ${doc.name}\n\n📁 ${category?.toUpperCase()}`,
               color: getCategoryColor(doc.category),
               size: "m",
