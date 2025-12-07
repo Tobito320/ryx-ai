@@ -38,17 +38,15 @@ services:
     ports:
       - "8001:8001"  # OpenAI-compatible API (8001 to avoid RyxHub conflict)
     
-    # Start vLLM server with 7B model (lower VRAM, faster)
+    # Start vLLM server with 3B model (fast startup, optimized for RX 7800 XT 16GB)
     entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
     command:
       - "--model"
-      - "/models/medium/general/qwen2.5-7b-gptq"
-      - "--quantization"
-      - "gptq"
+      - "/models/small/general/qwen2.5-3b"
       - "--max-model-len"
-      - "8192"
+      - "4096"
       - "--gpu-memory-utilization"
-      - "0.70"
+      - "0.95"
       - "--tensor-parallel-size"
       - "1"
       - "--host"
@@ -56,6 +54,7 @@ services:
       - "--port"
       - "8001"
       - "--trust-remote-code"
+      - "--enforce-eager"
     
     # Restart policy
     restart: unless-stopped

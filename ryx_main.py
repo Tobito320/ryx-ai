@@ -6,6 +6,7 @@ Copilot CLI-style local AI assistant.
 """
 import sys
 import os
+import time
 from pathlib import Path
 from typing import Dict
 
@@ -49,7 +50,7 @@ def cli_main():
     # Handle special commands first
     first_arg = remaining_args[0].lower() if remaining_args else ""
     
-    # Service commands: ryx start/stop/status
+    # Service commands: ryx start/stop/restart/status
     if first_arg == "start":
         service = remaining_args[1] if len(remaining_args) > 1 else "ryxhub"
         _start_service(service)
@@ -57,6 +58,10 @@ def cli_main():
     elif first_arg == "stop":
         service = remaining_args[1] if len(remaining_args) > 1 else "ryxhub"
         _stop_service(service)
+        return
+    elif first_arg == "restart":
+        service = remaining_args[1] if len(remaining_args) > 1 else "ryxhub"
+        _restart_service(service)
         return
     elif first_arg == "status":
         _service_status()
@@ -155,52 +160,48 @@ def execute_action(action, safety_mode: str, silent_mode: bool):
 
 
 def _start_service(service: str):
-    """Start a service (internal helper)"""
+    """Start a service with visual feedback"""
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
     
     # "ryx start" with no args = start all (vllm + searxng)
     if service in ["all", ""]:
-        print("🚀 Starting all services...")
-        _start_service("vllm")
-        _start_service("searxng")
+        print("\n╭────────────────────────────────────────────────╮")
+        print("│ 🚀 Starting All Services                       │")
+        print("╰────────────────────────────────────────────────╯\n")
+        
+        start_time = time.time()
+        results = []
+        
+        # Start services sequentially with visual feedback
+        for svc in ["vllm", "searxng"]:
+            _start_service(svc)
+            results.append(svc)
+            print()  # Spacing between services
+        
+        elapsed = time.time() - start_time
+        print(f"─" * 50)
+        print(f"✨ All services started in {elapsed:.1f}s")
         return
     
-    # Normalize service name (AI might say "ryxhub", "hub", "web interface", etc.)
+    # Normalize service name
     if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
         from core.service_manager import ServiceManager
         manager = ServiceManager()
         result = manager.start_ryxhub()
-        if result['success']:
-            print("✅ Starting RyxHub...")
-            for line in result.get('info', []):
-                print(f"  ├─ {line}")
-            print("✅ RyxHub is running")
-        else:
-            print(f"❌ Failed to start RyxHub: {result.get('error', 'Unknown error')}")
+        # Display is handled inside start_ryxhub now
+        if not result['success'] and not result.get('already_running'):
+            print(f"❌ Failed: {result.get('error', 'Unknown error')}")
     
     elif service in ["vllm", "llm", "model", "inference"]:
         from core.docker_services import start_service
-        
-        print("🚀 Starting vLLM (GPU inference)...")
         result = start_service("vllm")
-        
-        if result.get("success"):
-            print("✅ vLLM started")
-            print("   Port: http://localhost:8001")
-            print("   Model: qwen2.5-7b-gptq")
-        else:
+        if not result.get("success"):
             print(f"❌ Failed to start vLLM: {result.get('error', 'Unknown')}")
     
     elif service in ["searxng", "search", "websearch"]:
         from core.docker_services import start_service
-        
-        print("🔍 Starting SearXNG (web search)...")
         result = start_service("searxng")
-        
-        if result.get("success"):
-            print("✅ SearXNG started")
-            print("   Port: http://localhost:8888")
-        else:
+        if not result.get("success"):
             print(f"❌ Failed to start SearXNG: {result.get('error', 'Unknown')}")
     
     elif service in ["session", "interactive", "cli", "terminal"]:
@@ -214,15 +215,18 @@ def _start_service(service: str):
 
 
 def _stop_service(service: str):
-    """Stop a service (internal helper)"""
+    """Stop a service with visual feedback"""
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
     
     # "ryx stop all" = stop everything
     if service in ["all", ""]:
-        print("🛑 Stopping all services...")
-        _stop_service("vllm")
-        _stop_service("searxng")
-        _stop_service("ryxhub")
+        print("\n╭────────────────────────────────────────────────╮")
+        print("│ 🛑 Stopping All Services                       │")
+        print("╰────────────────────────────────────────────────╯\n")
+        
+        for svc in ["vllm", "searxng", "ryxhub"]:
+            _stop_service(svc)
+        print()
         return
     
     if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
@@ -230,35 +234,74 @@ def _stop_service(service: str):
         manager = ServiceManager()
         result = manager.stop_ryxhub()
         if result['success']:
-            print("✅ Stopped RyxHub")
+            print("✅ RyxHub stopped")
         else:
-            print(f"❌ Failed to stop RyxHub: {result.get('error', 'Unknown error')}")
+            print(f"⚠️  RyxHub: {result.get('error', 'Not running')}")
     
     elif service in ["vllm", "llm", "model", "inference"]:
         from core.docker_services import stop_service
         
-        print("🛑 Stopping vLLM...")
+        print("🛑 Stopping vLLM...", end=" ", flush=True)
         result = stop_service("vllm")
         
         if result.get("success"):
-            print("✅ vLLM stopped")
+            print("✅ Done")
         else:
-            print(f"❌ Failed to stop vLLM: {result.get('error', 'Unknown')}")
+            print(f"⚠️  {result.get('error', 'Not running')}")
     
     elif service in ["searxng", "search", "websearch"]:
         from core.docker_services import stop_service
         
-        print("🛑 Stopping SearXNG...")
+        print("🛑 Stopping SearXNG...", end=" ", flush=True)
         result = stop_service("searxng")
         
         if result.get("success"):
-            print("✅ SearXNG stopped")
+            print("✅ Done")
         else:
-            print(f"❌ Failed to stop SearXNG: {result.get('error', 'Unknown')}")
+            print(f"⚠️  {result.get('error', 'Not running')}")
     
     else:
         print(f"❌ Unknown service: {service}")
         print("Available: all, vllm, searxng, ryxhub")
+
+
+def _restart_service(service: str):
+    """Restart a service with visual feedback"""
+    import time
+    
+    service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
+    
+    if service in ["all", ""]:
+        print("\n╭────────────────────────────────────────────────╮")
+        print("│ 🔄 Restarting All Services                     │")
+        print("╰────────────────────────────────────────────────╯\n")
+        
+        start_time = time.time()
+        
+        # Stop all first
+        print("Stopping services...")
+        for svc in ["vllm", "searxng", "ryxhub"]:
+            _stop_service(svc)
+        
+        print("\nWaiting for cleanup...")
+        time.sleep(2)
+        
+        # Start all
+        print("\nStarting services...")
+        for svc in ["vllm", "searxng"]:
+            _start_service(svc)
+            print()
+        
+        elapsed = time.time() - start_time
+        print(f"─" * 50)
+        print(f"✨ All services restarted in {elapsed:.1f}s")
+        return
+    
+    # Single service restart
+    print(f"\n🔄 Restarting {service}...\n")
+    _stop_service(service)
+    time.sleep(1)
+    _start_service(service)
 
 
 def _service_status(service: str = None):
@@ -601,11 +644,21 @@ USAGE:
     ryx "prompt"           Execute prompt directly
 
 SERVICES:
-    ryx start vllm         Start vLLM (GPU inference)
+    ryx start all          Start all services (vllm + searxng)
+    ryx start vllm         Start vLLM (GPU inference) 
+    ryx start searxng      Start SearXNG (search)
     ryx start ryxhub       Start web dashboard
+    
+    ryx stop all           Stop all services
     ryx stop vllm          Stop vLLM
     ryx stop ryxhub        Stop web dashboard
+    
+    ryx restart all        Restart all services
+    ryx restart vllm       Restart vLLM
+    
     ryx status             Show all service status
+
+    Note: Start commands show live progress with elapsed time.
 
 BENCHMARKS:
     ryx benchmark list     List available benchmarks
@@ -635,11 +688,11 @@ SESSION COMMANDS:
 
 EXAMPLES:
     ryx                          Interactive session
+    ryx start all                Start all services with progress
+    ryx restart vllm             Restart GPU inference
     ryx "open hyprland config"   Open config file
     ryx "search recursion"       Web search
     ryx "create login.py"        Generate code
-    ryx start vllm               Start GPU inference
-    ryx benchmark run            Run coding benchmark
 """)
 
 

@@ -3,7 +3,7 @@
  * Clean, functional, concise responses
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { log } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   Trash2,
   Calendar,
-  X,
+  Bot,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,15 +35,10 @@ interface Document {
   category: string;
 }
 
-interface Analysis {
-  type: string;
-  sender: string | null;
-  date: string | null;
-  subject: string | null;
-  priority: string;
-  deadlines: { date: string; days_left: number; urgent: boolean }[];
-  requires_response: boolean;
-  summary: string;
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
 }
 
 interface AISidebarProps {
@@ -52,284 +48,251 @@ interface AISidebarProps {
 }
 
 export function AISidebar({ document, onClose, summary }: AISidebarProps) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [generatedResponse, setGeneratedResponse] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [userMessage, setUserMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isSending, setIsSending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Reset when document changes
+  // Scroll to bottom on new message
   useEffect(() => {
-    setAnalysis(null);
-    setGeneratedResponse("");
-  }, [document?.name]);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
-  const analyzeDocument = async () => {
-    if (!document) return;
+  const sendMessage = async () => {
+    if (!userMessage.trim() || isSending) return;
 
-    setIsAnalyzing(true);
-    setAnalysis(null);
+    const message = userMessage.trim();
+    setUserMessage("");
+    setIsSending(true);
 
-    try {
-      const res = await fetch(`${API_BASE}/api/documents/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: document.path + document.name }),
-      });
-
-      if (!res.ok) throw new Error("Analysis failed");
-
-      const data = await res.json();
-      setAnalysis(data);
-      log.info("Document analyzed", { doc: document.name });
-    } catch (error) {
-      log.error("Analysis failed", { error });
-      toast.error("Analyse fehlgeschlagen");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const generateResponse = async () => {
-    if (!document) return;
-
-    setIsGenerating(true);
+    // Add user message
+    setChatMessages(prev => [...prev, {
+      role: "user",
+      content: message,
+      timestamp: new Date(),
+    }]);
 
     try {
-      const res = await fetch(`${API_BASE}/api/documents/generate-response`, {
+      const res = await fetch(`${API_BASE}/api/chat/smart`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          document_path: document.path + document.name,
-          response_type: "standard",
+          message,
+          include_memory: true,
+          document: document?.name,
         }),
       });
 
-      if (!res.ok) throw new Error("Generation failed");
+      if (!res.ok) throw new Error("Chat failed");
 
       const data = await res.json();
-      setGeneratedResponse(data.template);
-      log.info("Response generated", { doc: document.name });
+      
+      setChatMessages(prev => [...prev, {
+        role: "assistant",
+        content: data.response || "Keine Antwort",
+        timestamp: new Date(),
+      }]);
+
+      log.info("Smart chat response", { chars: data.response?.length });
     } catch (error) {
-      log.error("Generation failed", { error });
-      toast.error("Generierung fehlgeschlagen");
+      log.error("Chat failed", { error });
+      setChatMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Fehler bei der Verbindung zum AI. Ist vLLM aktiv?",
+        timestamp: new Date(),
+      }]);
     } finally {
-      setIsGenerating(false);
+      setIsSending(false);
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedResponse);
-    setCopied(true);
-    toast.success("Kopiert!");
-    setTimeout(() => setCopied(false), 2000);
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const copyLastResponse = () => {
+    const lastAssistant = chatMessages.filter(m => m.role === "assistant").pop();
+    if (lastAssistant) {
+      navigator.clipboard.writeText(lastAssistant.content);
+      setCopied(true);
+      toast.success("Kopiert!");
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
-    <div className="w-[380px] border-l bg-card/50 flex flex-col">
+    <div className="w-[380px] border-l bg-card/50 flex flex-col h-full">
       {/* Header */}
-      <div className="h-14 border-b flex items-center justify-between px-4">
+      <div className="h-14 border-b flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
           <span className="font-medium">AI Assistent</span>
         </div>
+        {chatMessages.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={copyLastResponse}>
+            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {/* No document selected */}
-          {!document && (
-            <div className="space-y-6">
-              {/* Quick Info */}
+          {/* Welcome / Quick Info when no chat */}
+          {chatMessages.length === 0 && (
+            <div className="space-y-4">
+              {/* Document context */}
+              {document && (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <div className="flex items-start gap-2">
+                    <FileText className="w-4 h-4 mt-0.5 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{document.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{document.category}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Info from summary */}
               {summary && (
                 <>
-                  {/* Today's Reminders */}
-                  {summary.reminders?.items?.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        Erinnerungen
-                      </h3>
-                      {summary.reminders.items.slice(0, 3).map((r: any, i: number) => (
-                        <div
-                          key={i}
-                          className="text-sm p-2 rounded bg-muted/50 flex items-center gap-2"
-                        >
-                          <AlertTriangle className="w-3 h-3 text-orange-500" />
-                          <span className="truncate">{r.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                   {/* Tomorrow's Trash */}
                   {summary.trash?.tomorrow?.length > 0 && (
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium flex items-center gap-2">
-                        <Trash2 className="w-4 h-4" />
-                        Morgen: Müllabfuhr
-                      </h3>
-                      <div className="text-sm p-2 rounded bg-orange-500/10 text-orange-600">
-                        {summary.trash.tomorrow.map((t: any) => t.type).join(", ")}
+                    <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Trash2 className="w-4 h-4 text-orange-500" />
+                        <span className="text-sm font-medium text-orange-600">Morgen: Müllabfuhr</span>
                       </div>
+                      <p className="text-sm text-orange-600/80">
+                        {summary.trash.tomorrow.map((t: any) => t.type).join(", ")}
+                      </p>
                     </div>
                   )}
 
-                  {/* Profile */}
-                  {summary.profile?.name && (
-                    <div className="text-sm text-muted-foreground">
-                      Hallo {summary.profile.name}! Wähle ein Dokument zum Analysieren.
+                  {/* Reminders */}
+                  {summary.reminders?.overdue > 0 && (
+                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-destructive" />
+                        <span className="text-sm text-destructive">
+                          {summary.reminders.overdue} überfällige Erinnerungen
+                        </span>
+                      </div>
                     </div>
                   )}
                 </>
               )}
 
-              {!summary && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>Wähle ein Dokument</p>
+              {/* Greeting */}
+              <div className="text-center py-4">
+                <Bot className="w-10 h-10 mx-auto mb-3 text-primary/50" />
+                <p className="text-sm text-muted-foreground">
+                  Hallo{summary?.profile?.name ? ` ${summary.profile.name}` : ""}! 
+                  <br />Wie kann ich helfen?
+                </p>
+              </div>
+
+              {/* Quick prompts */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Schnelle Aktionen:</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "Wann ist Müllabfuhr?",
+                    "Schreib eine Email",
+                    "Was steht heute an?",
+                  ].map((prompt) => (
+                    <button
+                      key={prompt}
+                      onClick={() => {
+                        setUserMessage(prompt);
+                        setTimeout(sendMessage, 100);
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
-          {/* Document selected */}
-          {document && (
-            <div className="space-y-4">
-              {/* Document Info */}
-              <div className="p-3 rounded-lg bg-muted/50">
-                <div className="flex items-start gap-2">
-                  <FileText className="w-4 h-4 mt-0.5 text-primary" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{document.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {document.category}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2">
-                <Button
-                  onClick={analyzeDocument}
-                  disabled={isAnalyzing}
-                  className="flex-1"
-                  size="sm"
-                >
-                  {isAnalyzing ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  )}
-                  Analysieren
-                </Button>
-                <Button
-                  onClick={generateResponse}
-                  disabled={isGenerating || !analysis}
-                  variant="secondary"
-                  className="flex-1"
-                  size="sm"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Send className="w-4 h-4 mr-2" />
-                  )}
-                  Antwort
-                </Button>
-              </div>
-
-              {/* Analysis Results */}
-              {analysis && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2 rounded bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Typ</p>
-                      <p className="text-sm font-medium">{analysis.type}</p>
-                    </div>
-                    <div className="p-2 rounded bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Priorität</p>
-                      <Badge
-                        variant={
-                          analysis.priority === "HOCH" ? "destructive" : "secondary"
-                        }
-                      >
-                        {analysis.priority}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {analysis.sender && (
-                    <div className="p-2 rounded bg-muted/50">
-                      <p className="text-xs text-muted-foreground">Absender</p>
-                      <p className="text-sm">{analysis.sender}</p>
-                    </div>
-                  )}
-
-                  {analysis.deadlines.length > 0 && (
-                    <div className="p-2 rounded bg-destructive/10 border border-destructive/20">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-destructive" />
-                        <p className="text-sm font-medium">
-                          Frist: {analysis.deadlines[0].date}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Noch {analysis.deadlines[0].days_left} Tage
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="p-2 rounded bg-muted/50">
-                    <p className="text-xs text-muted-foreground mb-1">Zusammenfassung</p>
-                    <p className="text-sm leading-relaxed">{analysis.summary}</p>
-                  </div>
+          {/* Chat Messages */}
+          {chatMessages.map((msg, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex gap-2",
+                msg.role === "user" ? "justify-end" : "justify-start"
+              )}
+            >
+              {msg.role === "assistant" && (
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Bot className="w-3.5 h-3.5 text-primary" />
                 </div>
               )}
-
-              {/* Generated Response */}
-              {generatedResponse && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Antwort</p>
-                    <Button size="sm" variant="ghost" onClick={copyToClipboard}>
-                      {copied ? (
-                        <Check className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <div className="p-3 rounded-lg bg-muted/50 border max-h-64 overflow-y-auto">
-                    <pre className="text-sm whitespace-pre-wrap font-sans">
-                      {generatedResponse}
-                    </pre>
-                  </div>
+              <div
+                className={cn(
+                  "max-w-[85%] p-3 rounded-lg text-sm",
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                )}
+              >
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              </div>
+              {msg.role === "user" && (
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <User className="w-3.5 h-3.5" />
                 </div>
               )}
             </div>
+          ))}
+
+          {/* Loading indicator */}
+          {isSending && (
+            <div className="flex gap-2">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <Bot className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <div className="bg-muted p-3 rounded-lg">
+                <Loader2 className="w-4 h-4 animate-spin" />
+              </div>
+            </div>
           )}
+
+          <div ref={chatEndRef} />
         </div>
       </ScrollArea>
 
-      {/* Chat Input - for quick questions */}
-      <div className="p-4 border-t">
+      {/* Chat Input */}
+      <div className="p-3 border-t shrink-0">
         <div className="relative">
           <Textarea
             placeholder="Frag mich etwas..."
             value={userMessage}
             onChange={(e) => setUserMessage(e.target.value)}
-            className="min-h-[60px] pr-12 resize-none"
+            onKeyDown={handleKeyDown}
+            className="min-h-[50px] max-h-[120px] pr-12 resize-none text-sm"
             rows={2}
           />
           <Button
             size="icon"
-            className="absolute right-2 bottom-2 h-8 w-8"
-            disabled={!userMessage.trim()}
+            className="absolute right-2 bottom-2 h-7 w-7"
+            disabled={!userMessage.trim() || isSending}
+            onClick={sendMessage}
           >
-            <Send className="w-4 h-4" />
+            {isSending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Send className="w-3.5 h-3.5" />
+            )}
           </Button>
         </div>
       </div>

@@ -146,6 +146,26 @@ class TrashSchedule:
             print(f"Error fetching ICS: {e}")
             return False
     
+    def load_from_ics_file(self, file_path: str) -> bool:
+        """Load and parse ICS from local file"""
+        try:
+            path = Path(file_path)
+            if not path.exists():
+                print(f"ICS file not found: {file_path}")
+                return False
+            
+            content = path.read_text(encoding='utf-8')
+            self.events = self.parse_ics(content)
+            self.config['ics_file'] = str(path)
+            self.config['last_updated'] = datetime.now().isoformat()
+            self._save_config(self.config)
+            self._save_cache()
+            return True
+            
+        except Exception as e:
+            print(f"Error loading ICS file: {e}")
+            return False
+    
     def get_upcoming(self, days: int = 14) -> List[TrashEvent]:
         """Get upcoming trash collection dates"""
         today = datetime.now().date()

@@ -1,0 +1,17 @@
+{
+  "profile": {
+    "name": "Tobi",
+    "address": "Alleestraße 58, 58097 Hagen",
+    "city": "Hagen"
+  },
+  "facts": [
+    {"content": "Macht eine Ausbildung", "added": "2024-12-07T00:00:00", "source": "system"},
+    {"content": "Lebt in Hagen", "added": "2024-12-07T00:00:00", "source": "system"}
+  ],
+  "preferences": {
+    "language": "de",
+    "response_style": "kurz und präzise"
+  },
+  "reminders": [],
+  "gmail_accounts": []
+}

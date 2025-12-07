@@ -9,9 +9,131 @@ import subprocess
 import signal
 import json
 import time
+import sys
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
 from core.paths import get_project_root, get_runtime_dir
+
+
+class ServiceStartupDisplay:
+    """Visual startup display with live timer - used for non-Docker services like RyxHub"""
+    
+    SPINNER = ['◐', '◓', '◑', '◒']
+    
+    def __init__(self, service_name: str, phases: List[tuple], quiet: bool = False):
+        self.service_name = service_name
+        self.phases = phases  # List of (phase_name, estimated_seconds)
+        self.quiet = quiet
+        self.start_time = time.time()
+        self.current_phase = 0
+        self.spinner_idx = 0
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._last_lines = 0
+        
+    def _format_time(self, seconds: float) -> str:
+        mins = int(seconds) // 60
+        secs = int(seconds) % 60
+        return f"{mins:02d}:{secs:02d}"
+    
+    def _render(self):
+        if self.quiet:
+            return
+            
+        elapsed = time.time() - self.start_time
+        elapsed_str = self._format_time(elapsed)
+        
+        try:
+            import shutil
+            width = min(shutil.get_terminal_size().columns, 80)
+        except:
+            width = 60
+        
+        # Clear previous output
+        if self._last_lines > 0:
+            sys.stdout.write(f'\033[{self._last_lines}A\033[J')
+        
+        lines = []
+        lines.append(f"╭{'─' * (width - 2)}╮")
+        
+        header = f"│ 🚀 Starting {self.service_name}"
+        lines.append(f"{header}{' ' * (width - len(header) - 1)}│")
+        lines.append(f"│{' ' * (width - 2)}│")
+        
+        for i, (phase_name, est_time) in enumerate(self.phases):
+            if i < self.current_phase:
+                icon = '✓'
+                color = '\033[32m'  # Green
+            elif i == self.current_phase:
+                icon = self.SPINNER[self.spinner_idx % 4]
+                color = '\033[33m'  # Yellow
+            else:
+                icon = '○'
+                color = '\033[90m'  # Gray
+            
+            if i == self.current_phase:
+                timer_str = f"[{elapsed_str}]"
+                phase_line = f"   {color}{icon}\033[0m {phase_name}"
+                padding = width - len(f"   {icon} {phase_name}") - len(timer_str) - 4
+                lines.append(f"│{phase_line}{' ' * padding}{timer_str}  │")
+            else:
+                phase_line = f"│   {color}{icon}\033[0m {phase_name}"
+                padding = width - len(f"   {icon} {phase_name}") - 3
+                lines.append(f"{phase_line}{' ' * padding}│")
+        
+        lines.append(f"│{' ' * (width - 2)}│")
+        
+        # Estimated time remaining
+        total_est = sum(t for _, t in self.phases)
+        remaining = max(0, total_est - elapsed)
+        est_str = f"   Est. remaining: ~{int(remaining)}s"
+        lines.append(f"│{est_str}{' ' * (width - len(est_str) - 3)}│")
+        lines.append(f"╰{'─' * (width - 2)}╯")
+        
+        output = '\n'.join(lines)
+        sys.stdout.write(output + '\n')
+        sys.stdout.flush()
+        self._last_lines = len(lines)
+    
+    def _animation_loop(self):
+        while not self._stop_event.is_set():
+            self._render()
+            self.spinner_idx += 1
+            self._stop_event.wait(0.2)
+    
+    def start(self):
+        if self.quiet:
+            return
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._animation_loop, daemon=True)
+        self._thread.start()
+    
+    def advance_phase(self):
+        self.current_phase = min(self.current_phase + 1, len(self.phases) - 1)
+    
+    def finish(self, success: bool = True, message: str = ""):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=0.5)
+        
+        if self.quiet:
+            return
+        
+        elapsed = time.time() - self.start_time
+        elapsed_str = self._format_time(elapsed)
+        
+        # Clear display
+        if self._last_lines > 0:
+            sys.stdout.write(f'\033[{self._last_lines}A\033[J')
+        
+        if success:
+            print(f"\033[32m✅ {self.service_name} - Started in {elapsed_str}\033[0m")
+        else:
+            print(f"\033[31m❌ {self.service_name} - Failed after {elapsed_str}\033[0m")
+        
+        if message:
+            print(f"   {message}")
 
 
 class SearXNGManager:
@@ -283,44 +405,70 @@ class ServiceManager:
         self.pid_file = self.runtime_dir / "ryxhub.pid"
         self.config_file = self.runtime_dir / "ryxhub.json"
 
-    def start_ryxhub(self) -> Dict:
+    def start_ryxhub(self, quiet: bool = False) -> Dict:
         """
         Start RyxHub services (Vite React frontend + optional FastAPI backend).
+        
+        Shows visual progress with timer.
 
         Returns:
-            dict: {success: bool, error: str, info: list[str]}
+            dict: {success: bool, error: str, info: list[str], elapsed_time: float}
         """
+        start_time = time.time()
+        
         # Check if already running
         if self._is_running():
+            if not quiet:
+                print("✅ RyxHub - Already running")
+                for line in self._get_running_info():
+                    print(f"   {line}")
             return {
-                'success': False,
-                'error': 'RyxHub is already running',
-                'info': self._get_running_info()
+                'success': True,
+                'already_running': True,
+                'info': self._get_running_info(),
+                'elapsed_time': 0
             }
 
         pids = {}
         info = []
+        
+        # Setup phases for display
+        frontend_dir = self.project_root / "ryxhub"
+        needs_install = not (frontend_dir / "node_modules").exists()
+        
+        phases = []
+        if needs_install:
+            phases.append(("Installing dependencies", 60))
+        phases.extend([
+            ("Starting frontend server", 5),
+            ("Starting API backend", 3),
+            ("Health check", 5),
+        ])
+        
+        display = ServiceStartupDisplay("RyxHub", phases, quiet=quiet)
+        display.start()
 
         try:
-            # Frontend (Vite React) - Primary UI
             frontend_port = 5173
-            frontend_dir = self.project_root / "ryxhub"
 
             if not frontend_dir.exists():
+                display.finish(False, f"Directory not found: {frontend_dir}")
                 return {
                     'success': False,
-                    'error': f'RyxHub directory not found: {frontend_dir}'
+                    'error': f'RyxHub directory not found: {frontend_dir}',
+                    'elapsed_time': time.time() - start_time
                 }
 
             if not (frontend_dir / "package.json").exists():
+                display.finish(False, "package.json not found")
                 return {
                     'success': False,
-                    'error': f'package.json not found in {frontend_dir}'
+                    'error': f'package.json not found in {frontend_dir}',
+                    'elapsed_time': time.time() - start_time
                 }
 
-            # Check if node_modules exists, install if not
-            if not (frontend_dir / "node_modules").exists():
-                info.append("Installing frontend dependencies...")
+            # Install dependencies if needed
+            if needs_install:
                 install_result = subprocess.run(
                     ["npm", "install"],
                     cwd=str(frontend_dir),
@@ -328,11 +476,13 @@ class ServiceManager:
                     text=True
                 )
                 if install_result.returncode != 0:
+                    display.finish(False, "npm install failed")
                     return {
                         'success': False,
-                        'error': f'npm install failed: {install_result.stderr}'
+                        'error': f'npm install failed: {install_result.stderr}',
+                        'elapsed_time': time.time() - start_time
                     }
-                info.append("Dependencies installed successfully")
+                display.advance_phase()
 
             # Start Vite dev server
             frontend_proc = subprocess.Popen(
@@ -345,6 +495,7 @@ class ServiceManager:
             )
             pids['frontend'] = frontend_proc.pid
             info.append(f"RyxHub UI: http://localhost:{frontend_port}")
+            display.advance_phase()
 
             # Optional: Start FastAPI backend if exists
             backend_port = 8000
@@ -367,39 +518,63 @@ class ServiceManager:
                 pids['backend'] = backend_proc.pid
                 info.append(f"FastAPI backend: http://localhost:{backend_port}")
                 info.append(f"WebSocket: ws://localhost:{backend_port}/ws")
+            
+            display.advance_phase()
+
+            # Health check - wait for frontend to respond
+            import requests
+            health_ok = False
+            for _ in range(10):
+                try:
+                    resp = requests.get(f"http://localhost:{frontend_port}", timeout=1)
+                    if resp.status_code < 500:
+                        health_ok = True
+                        break
+                except:
+                    pass
+                time.sleep(0.5)
 
             # Save PIDs
             self._save_pids(pids)
 
+            elapsed = time.time() - start_time
+            
             # Open browser after short delay
-            import threading
             import webbrowser
             def open_browser():
-                import time
-                time.sleep(2)
+                time.sleep(1)
                 webbrowser.open(f"http://localhost:{frontend_port}")
             threading.Thread(target=open_browser, daemon=True).start()
+
+            display.finish(True, f"http://localhost:{frontend_port}")
 
             return {
                 'success': True,
                 'info': info,
-                'pids': pids
+                'pids': pids,
+                'elapsed_time': elapsed
             }
 
         except subprocess.CalledProcessError as e:
+            display.finish(False, str(e))
             return {
                 'success': False,
-                'error': f'Failed to start service: {e}'
+                'error': f'Failed to start service: {e}',
+                'elapsed_time': time.time() - start_time
             }
         except FileNotFoundError as e:
+            display.finish(False, f"Command not found: {e}")
             return {
                 'success': False,
-                'error': f'Required command not found: {e}'
+                'error': f'Required command not found: {e}',
+                'elapsed_time': time.time() - start_time
             }
         except Exception as e:
+            display.finish(False, str(e))
             return {
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'elapsed_time': time.time() - start_time
             }
 
     def stop_ryxhub(self) -> Dict:

@@ -2114,6 +2114,613 @@ async def get_services_status() -> Dict[str, Any]:
 
 
 # =============================================================================
+# Documents API - Document scanning and management
+# =============================================================================
+
+DOCUMENTS_DIR = Path("/home/tobi/documents")
+ICS_FILE = Path("/home/tobi/Downloads/alleestrassehagen.ics")
+
+# Document categories based on folder structure
+DOC_CATEGORIES = {
+    "azubi": ["azubi", "ausbildung", "berufsschule", "ihk"],
+    "arbeit": ["arbeit", "work", "firma", "gehalt"],
+    "aok": ["aok", "krankenkasse", "gesundheit", "arzt"],
+    "sparkasse": ["sparkasse", "bank", "konto", "überweisung"],
+    "auto": ["auto", "kfz", "versicherung", "tüv", "werkstatt"],
+    "familie": ["familie", "family", "eltern", "personal"],
+}
+
+def categorize_document(path: str, name: str) -> str:
+    """Categorize a document based on path and name."""
+    path_lower = path.lower()
+    name_lower = name.lower()
+    combined = f"{path_lower} {name_lower}"
+    
+    for category, keywords in DOC_CATEGORIES.items():
+        for keyword in keywords:
+            if keyword in combined:
+                return category
+    return "sonstige"
+
+
+@app.get("/api/documents/scan")
+async def scan_documents() -> Dict[str, Any]:
+    """Scan documents directory and return all files."""
+    documents = []
+    
+    if not DOCUMENTS_DIR.exists():
+        DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
+        return {"documents": [], "total": 0}
+    
+    try:
+        for file_path in DOCUMENTS_DIR.rglob("*"):
+            if file_path.is_file():
+                # Get file info
+                stat = file_path.stat()
+                rel_path = str(file_path.relative_to(DOCUMENTS_DIR))
+                
+                # Determine file type
+                suffix = file_path.suffix.lower()
+                file_type = "document"
+                if suffix == ".pdf":
+                    file_type = "pdf"
+                elif suffix in [".jpg", ".jpeg", ".png", ".gif"]:
+                    file_type = "image"
+                elif suffix in [".doc", ".docx"]:
+                    file_type = "word"
+                elif suffix in [".xls", ".xlsx"]:
+                    file_type = "excel"
+                elif suffix in [".txt", ".md"]:
+                    file_type = "text"
+                
+                documents.append({
+                    "name": file_path.name,
+                    "path": str(file_path),
+                    "relativePath": rel_path,
+                    "type": file_type,
+                    "category": categorize_document(rel_path, file_path.name),
+                    "modifiedAt": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "size": stat.st_size,
+                })
+        
+        # Sort by modified date, newest first
+        documents.sort(key=lambda x: x["modifiedAt"], reverse=True)
+        
+        return {"documents": documents, "total": len(documents)}
+    
+    except Exception as e:
+        return {"documents": [], "total": 0, "error": str(e)}
+
+
+@app.post("/api/documents/organize")
+async def organize_documents(data: Dict[str, Any]) -> Dict[str, Any]:
+    """AI-assisted document organization."""
+    source = data.get("source")
+    target_category = data.get("category")
+    
+    if not source or not target_category:
+        raise HTTPException(status_code=400, detail="Source and category required")
+    
+    source_path = Path(source)
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Source file not found")
+    
+    # Create category folder if needed
+    target_dir = DOCUMENTS_DIR / target_category
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Move file
+    target_path = target_dir / source_path.name
+    import shutil
+    shutil.move(str(source_path), str(target_path))
+    
+    return {"success": True, "new_path": str(target_path)}
+
+
+# =============================================================================
+# Trash Schedule API - ICS calendar parsing
+# =============================================================================
+
+def parse_ics_file() -> List[Dict[str, Any]]:
+    """Parse ICS file for trash pickup dates."""
+    events = []
+    
+    if not ICS_FILE.exists():
+        return events
+    
+    try:
+        content = ICS_FILE.read_text()
+        
+        # Simple ICS parsing
+        current_event = {}
+        for line in content.split("\n"):
+            line = line.strip()
+            if line == "BEGIN:VEVENT":
+                current_event = {}
+            elif line == "END:VEVENT":
+                if current_event:
+                    events.append(current_event)
+                current_event = {}
+            elif ":" in line:
+                key, value = line.split(":", 1)
+                key = key.split(";")[0]  # Handle parameters
+                if key == "DTSTART":
+                    current_event["date"] = value
+                elif key == "SUMMARY":
+                    current_event["type"] = value
+                elif key == "DESCRIPTION":
+                    current_event["description"] = value
+        
+        return events
+    except Exception as e:
+        print(f"Error parsing ICS: {e}")
+        return []
+
+
+@app.get("/api/trash/schedule")
+async def get_trash_schedule() -> Dict[str, Any]:
+    """Get upcoming trash pickup schedule."""
+    events = parse_ics_file()
+    today = datetime.now().strftime("%Y%m%d")
+    
+    # Filter future events
+    upcoming = []
+    for event in events:
+        event_date = event.get("date", "")
+        if event_date >= today:
+            # Parse date for display
+            try:
+                dt = datetime.strptime(event_date, "%Y%m%d")
+                event["formatted_date"] = dt.strftime("%d.%m.%Y")
+                event["weekday"] = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][dt.weekday()]
+                upcoming.append(event)
+            except:
+                pass
+    
+    # Sort by date
+    upcoming.sort(key=lambda x: x.get("date", ""))
+    
+    # Get tomorrow's pickups
+    tomorrow = (datetime.now() + __import__("datetime").timedelta(days=1)).strftime("%Y%m%d")
+    tomorrow_pickups = [e for e in upcoming if e.get("date") == tomorrow]
+    
+    return {
+        "upcoming": upcoming[:10],  # Next 10 pickups
+        "tomorrow": tomorrow_pickups,
+        "total": len(upcoming),
+    }
+
+
+# =============================================================================
+# Dashboard Summary API
+# =============================================================================
+
+@app.get("/api/dashboard/summary")
+async def get_dashboard_summary() -> Dict[str, Any]:
+    """Get complete dashboard summary for holographic desk."""
+    
+    # Get documents
+    doc_result = await scan_documents()
+    documents = doc_result.get("documents", [])
+    
+    # Count by category
+    by_category = {}
+    for doc in documents:
+        cat = doc.get("category", "sonstige")
+        by_category[cat] = by_category.get(cat, 0) + 1
+    
+    # Get trash schedule
+    trash_result = await get_trash_schedule()
+    
+    # Get reminders (from memory)
+    reminders = await get_reminders()
+    
+    return {
+        "documents": {
+            "total": len(documents),
+            "by_category": by_category,
+        },
+        "reminders": reminders,
+        "trash": {
+            "tomorrow": trash_result.get("tomorrow", []),
+            "upcoming": trash_result.get("upcoming", [])[:5],
+        },
+        "profile": {
+            "name": "Tobi",
+            "address": "Alleestraße 58, 58097 Hagen",
+        },
+    }
+
+
+# =============================================================================
+# Memory System - Persistent AI memory like ChatGPT
+# =============================================================================
+
+MEMORY_FILE = PROJECT_ROOT / "data" / "memory.json"
+
+def load_memory() -> Dict[str, Any]:
+    """Load persistent memory."""
+    if MEMORY_FILE.exists():
+        try:
+            return json.loads(MEMORY_FILE.read_text())
+        except:
+            pass
+    return {
+        "profile": {
+            "name": "Tobi",
+            "address": "Alleestraße 58, 58097 Hagen",
+            "city": "Hagen",
+        },
+        "facts": [],
+        "preferences": {},
+        "reminders": [],
+        "gmail_accounts": [],
+    }
+
+
+def save_memory(memory: Dict[str, Any]) -> None:
+    """Save memory to disk."""
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MEMORY_FILE.write_text(json.dumps(memory, indent=2, ensure_ascii=False))
+
+
+@app.get("/api/memory")
+async def get_memory() -> Dict[str, Any]:
+    """Get AI memory."""
+    return load_memory()
+
+
+@app.post("/api/memory/fact")
+async def add_memory_fact(data: Dict[str, str]) -> Dict[str, Any]:
+    """Add a fact to memory."""
+    memory = load_memory()
+    fact = {
+        "content": data.get("fact", ""),
+        "added": datetime.now().isoformat(),
+        "source": data.get("source", "user"),
+    }
+    memory["facts"].append(fact)
+    save_memory(memory)
+    return {"success": True, "fact": fact}
+
+
+@app.delete("/api/memory/fact/{index}")
+async def delete_memory_fact(index: int) -> Dict[str, Any]:
+    """Delete a fact from memory."""
+    memory = load_memory()
+    if 0 <= index < len(memory["facts"]):
+        removed = memory["facts"].pop(index)
+        save_memory(memory)
+        return {"success": True, "removed": removed}
+    raise HTTPException(status_code=404, detail="Fact not found")
+
+
+@app.post("/api/memory/profile")
+async def update_profile(data: Dict[str, str]) -> Dict[str, Any]:
+    """Update user profile in memory."""
+    memory = load_memory()
+    memory["profile"].update(data)
+    save_memory(memory)
+    return {"success": True, "profile": memory["profile"]}
+
+
+# =============================================================================
+# Reminders API
+# =============================================================================
+
+@app.get("/api/reminders")
+async def get_reminders() -> Dict[str, Any]:
+    """Get all reminders."""
+    memory = load_memory()
+    reminders = memory.get("reminders", [])
+    
+    today = datetime.now().date()
+    
+    # Categorize reminders
+    today_items = []
+    overdue_items = []
+    upcoming_items = []
+    
+    for r in reminders:
+        try:
+            due_date = datetime.fromisoformat(r.get("due", "")).date()
+            if due_date < today and not r.get("completed"):
+                overdue_items.append(r)
+            elif due_date == today:
+                today_items.append(r)
+            else:
+                upcoming_items.append(r)
+        except:
+            upcoming_items.append(r)
+    
+    return {
+        "today": len(today_items),
+        "overdue": len(overdue_items),
+        "items": today_items + overdue_items + upcoming_items[:5],
+    }
+
+
+@app.post("/api/reminders")
+async def add_reminder(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Add a reminder."""
+    memory = load_memory()
+    
+    reminder = {
+        "id": f"rem_{int(time.time()*1000)}",
+        "title": data.get("title", ""),
+        "due": data.get("due", ""),
+        "notes": data.get("notes", ""),
+        "completed": False,
+        "source": data.get("source", "user"),
+        "created": datetime.now().isoformat(),
+    }
+    
+    memory["reminders"].append(reminder)
+    save_memory(memory)
+    
+    return {"success": True, "reminder": reminder}
+
+
+@app.put("/api/reminders/{reminder_id}")
+async def update_reminder(reminder_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Update a reminder."""
+    memory = load_memory()
+    
+    for r in memory["reminders"]:
+        if r.get("id") == reminder_id:
+            r.update(data)
+            save_memory(memory)
+            return {"success": True, "reminder": r}
+    
+    raise HTTPException(status_code=404, detail="Reminder not found")
+
+
+@app.delete("/api/reminders/{reminder_id}")
+async def delete_reminder(reminder_id: str) -> Dict[str, Any]:
+    """Delete a reminder."""
+    memory = load_memory()
+    
+    memory["reminders"] = [r for r in memory["reminders"] if r.get("id") != reminder_id]
+    save_memory(memory)
+    
+    return {"success": True}
+
+
+# =============================================================================
+# Gmail Integration - Simple App Password based
+# =============================================================================
+
+@app.get("/api/gmail/accounts")
+async def get_gmail_accounts() -> Dict[str, Any]:
+    """Get configured Gmail accounts."""
+    memory = load_memory()
+    accounts = memory.get("gmail_accounts", [])
+    
+    # Don't expose passwords
+    safe_accounts = []
+    for acc in accounts:
+        safe_accounts.append({
+            "email": acc.get("email"),
+            "name": acc.get("name", acc.get("email", "").split("@")[0]),
+            "is_default": acc.get("is_default", False),
+        })
+    
+    return {"accounts": safe_accounts}
+
+
+@app.post("/api/gmail/accounts")
+async def add_gmail_account(data: Dict[str, str]) -> Dict[str, Any]:
+    """Add a Gmail account with app password."""
+    email = data.get("email")
+    app_password = data.get("app_password")
+    name = data.get("name", email.split("@")[0] if email else "")
+    
+    if not email or not app_password:
+        raise HTTPException(status_code=400, detail="Email and app_password required")
+    
+    memory = load_memory()
+    
+    # Check if already exists
+    for acc in memory.get("gmail_accounts", []):
+        if acc.get("email") == email:
+            raise HTTPException(status_code=400, detail="Account already exists")
+    
+    # Set as default if first account
+    is_default = len(memory.get("gmail_accounts", [])) == 0
+    
+    account = {
+        "email": email,
+        "app_password": app_password,  # In production, encrypt this!
+        "name": name,
+        "is_default": is_default,
+        "added": datetime.now().isoformat(),
+    }
+    
+    if "gmail_accounts" not in memory:
+        memory["gmail_accounts"] = []
+    memory["gmail_accounts"].append(account)
+    save_memory(memory)
+    
+    return {"success": True, "email": email}
+
+
+@app.delete("/api/gmail/accounts/{email}")
+async def delete_gmail_account(email: str) -> Dict[str, Any]:
+    """Remove a Gmail account."""
+    memory = load_memory()
+    
+    memory["gmail_accounts"] = [a for a in memory.get("gmail_accounts", []) if a.get("email") != email]
+    save_memory(memory)
+    
+    return {"success": True}
+
+
+@app.post("/api/gmail/accounts/{email}/default")
+async def set_default_gmail(email: str) -> Dict[str, Any]:
+    """Set a Gmail account as default."""
+    memory = load_memory()
+    
+    for acc in memory.get("gmail_accounts", []):
+        acc["is_default"] = (acc.get("email") == email)
+    
+    save_memory(memory)
+    return {"success": True}
+
+
+@app.post("/api/gmail/send")
+async def send_gmail(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Send an email via Gmail."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    memory = load_memory()
+    
+    # Get account to use
+    account_email = data.get("from")
+    account = None
+    
+    if account_email:
+        for acc in memory.get("gmail_accounts", []):
+            if acc.get("email") == account_email:
+                account = acc
+                break
+    else:
+        # Use default
+        for acc in memory.get("gmail_accounts", []):
+            if acc.get("is_default"):
+                account = acc
+                break
+    
+    if not account:
+        raise HTTPException(status_code=400, detail="No Gmail account configured")
+    
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = account["email"]
+        msg["To"] = data.get("to", "")
+        msg["Subject"] = data.get("subject", "")
+        msg.attach(MIMEText(data.get("body", ""), "plain"))
+        
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(account["email"], account["app_password"])
+            server.send_message(msg)
+        
+        return {"success": True, "message": "Email sent"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+
+# =============================================================================
+# Web Search API - Uses SearXNG
+# =============================================================================
+
+@app.post("/api/search/web")
+async def web_search(data: Dict[str, str]) -> Dict[str, Any]:
+    """Search the web using SearXNG."""
+    query = data.get("query", "")
+    
+    if not query:
+        raise HTTPException(status_code=400, detail="Query required")
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{SEARXNG_URL}/search",
+                params={"q": query, "format": "json"},
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as resp:
+                if resp.status == 200:
+                    results = await resp.json()
+                    
+                    # Simplify results
+                    simplified = []
+                    for r in results.get("results", [])[:5]:
+                        simplified.append({
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "content": r.get("content", "")[:200],
+                        })
+                    
+                    return {"results": simplified, "query": query}
+                else:
+                    return {"results": [], "error": "Search failed"}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
+
+
+# =============================================================================
+# AI Chat with Memory Context
+# =============================================================================
+
+@app.post("/api/chat/smart")
+async def smart_chat(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Chat with AI including memory context."""
+    message = data.get("message", "")
+    include_memory = data.get("include_memory", True)
+    
+    if not message:
+        raise HTTPException(status_code=400, detail="Message required")
+    
+    # Build context from memory
+    context_parts = []
+    
+    if include_memory:
+        memory = load_memory()
+        
+        # Add profile
+        profile = memory.get("profile", {})
+        if profile:
+            context_parts.append(f"User info: Name={profile.get('name')}, Address={profile.get('address')}")
+        
+        # Add recent facts
+        facts = memory.get("facts", [])[-10:]  # Last 10 facts
+        if facts:
+            context_parts.append("Known facts: " + "; ".join([f.get("content", "") for f in facts]))
+        
+        # Add upcoming reminders
+        reminders = await get_reminders()
+        if reminders.get("items"):
+            reminder_texts = [r.get("title", "") for r in reminders["items"][:3]]
+            context_parts.append("Upcoming reminders: " + ", ".join(reminder_texts))
+        
+        # Add tomorrow's trash
+        trash = await get_trash_schedule()
+        if trash.get("tomorrow"):
+            trash_types = [t.get("type", "") for t in trash["tomorrow"]]
+            context_parts.append(f"Tomorrow's trash: {', '.join(trash_types)}")
+    
+    # Build system prompt
+    system_prompt = """Du bist Tobi's persönlicher Assistent. Antworte kurz und präzise - maximal 2-3 Sätze wenn möglich.
+Du kennst ihn gut und hilfst ihm mit Dokumenten, Emails, Terminen und Erinnerungen.
+Sei freundlich aber effizient."""
+    
+    if context_parts:
+        system_prompt += "\n\nKontext über den User:\n" + "\n".join(context_parts)
+    
+    # Call vLLM
+    try:
+        response = await vllm_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ],
+            model=None,  # Use default
+            max_tokens=500,
+            temperature=0.7,
+        )
+        
+        return {
+            "response": response.get("content", ""),
+            "model": response.get("model", ""),
+        }
+    
+    except Exception as e:
+        return {"response": f"Fehler: {str(e)}", "error": True}
+
+
+# =============================================================================
 # Entry Point
 # =============================================================================
 

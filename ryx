@@ -45,16 +45,19 @@ start_vllm() {
     echo -e "${YELLOW}Starting vLLM...${NC}"
     docker compose -f "$PROJECT_ROOT/docker/vllm/docker-compose.yml" up -d 2>/dev/null
     
-    echo -n "Waiting for vLLM"
-    for i in {1..90}; do
+    echo -n "Waiting for vLLM "
+    local elapsed=0
+    local max_wait=60
+    while [ $elapsed -lt $max_wait ]; do
         if curl -s http://localhost:8001/v1/models &>/dev/null; then
-            echo -e " ${GREEN}ready${NC}"
+            echo -e "\r${GREEN}✓${NC} vLLM ready (${elapsed}s)"
             return 0
         fi
-        echo -n "."
+        printf "\rWaiting for vLLM ${CYAN}[${elapsed}s]${NC}"
         sleep 2
+        elapsed=$((elapsed + 2))
     done
-    echo -e " ${YELLOW}starting in background${NC}"
+    echo -e "\r${YELLOW}⚠${NC} vLLM starting in background (${max_wait}s)"
     return 0
 }
 
