@@ -513,20 +513,32 @@ async def _broadcast_event(workflow_id: str, event: ExecutionEvent):
 # Document path configuration
 DOCUMENTS_PATH = Path("/home/tobi/documents")
 
-# Category mapping based on folder names
+# Category mapping based on folder names and file content keywords
 CATEGORY_MAP = {
+    # Folder-based
     "azubi": "azubi",
     "schule": "azubi",
     "berufsschule": "azubi",
+    "ausbildung": "azubi",
     "arbeit": "arbeit",
     "job": "arbeit",
     "aok": "aok",
     "krankenkasse": "aok",
+    "gesundheit": "aok",
     "sparkasse": "sparkasse",
     "bank": "sparkasse",
+    "konto": "sparkasse",
     "auto": "auto",
     "kfz": "auto",
     "fahrzeug": "auto",
+    "tuev": "auto",
+    "tüv": "auto",
+    # Family/Housing
+    "familie": "familie",
+    "wohnung": "familie",
+    "wohngeld": "familie",
+    "miete": "familie",
+    "heizung": "familie",
 }
 
 

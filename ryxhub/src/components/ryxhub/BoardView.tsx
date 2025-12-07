@@ -41,6 +41,7 @@ const DOCUMENT_CATEGORIES = [
   { id: "aok", label: "AOK", icon: FileText },
   { id: "sparkasse", label: "Sparkasse", icon: FileText },
   { id: "auto", label: "Auto", icon: FileText },
+  { id: "familie", label: "Familie", icon: FileText },
   { id: "other", label: "Sonstiges", icon: FileText },
 ];
 
@@ -145,13 +146,14 @@ export function BoardView() {
   }, [editor]);
 
   // Get color based on category
-  const getCategoryColor = (category?: string): "yellow" | "blue" | "green" | "red" | "violet" | "orange" => {
+  const getCategoryColor = (category?: string): "yellow" | "blue" | "green" | "red" | "violet" | "orange" | "grey" => {
     switch (category) {
       case "aok": return "green";
       case "sparkasse": return "blue";
       case "arbeit": return "violet";
       case "azubi": return "orange";
       case "auto": return "red";
+      case "familie": return "grey";
       default: return "yellow";
     }
   };
@@ -293,6 +295,7 @@ export function BoardView() {
                             doc.category === "arbeit" && "text-violet-500",
                             doc.category === "azubi" && "text-orange-500",
                             doc.category === "auto" && "text-red-500",
+                            doc.category === "familie" && "text-gray-500",
                           )} />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium truncate">{doc.name}</div>
