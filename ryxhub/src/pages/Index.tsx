@@ -21,6 +21,7 @@ function RyxHubApp() {
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     // Listen for model click events
@@ -52,16 +53,29 @@ function RyxHubApp() {
   return (
     <>
       <div className="flex h-screen w-screen bg-background overflow-hidden">
-        {/* Left Sidebar - Fixed width */}
-        <div className="shrink-0">
-          <LeftSidebar />
-        </div>
+        {/* Left Sidebar - Toggleable */}
+        {sidebarOpen && (
+          <div className="shrink-0">
+            <LeftSidebar />
+          </div>
+        )}
 
         {/* Main Content Area - Takes remaining space */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Top Bar with View Toggle */}
           <header className="h-12 px-4 border-b border-border bg-card/30 backdrop-blur-sm flex items-center justify-between shrink-0">
-            <ViewToggle />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+                title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <ViewToggle />
+            </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--success))] animate-pulse" />

@@ -62,6 +62,9 @@ export function BoardView() {
   const [gmailAccounts, setGmailAccounts] = useState<GmailAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [addDocDialogOpen, setAddDocDialogOpen] = useState(false);
+  const [gmailDialogOpen, setGmailDialogOpen] = useState(false);
+  const [newGmailEmail, setNewGmailEmail] = useState("");
+  const [newGmailName, setNewGmailName] = useState("");
 
   // Load documents from /home/tobi/documents/
   const loadDocuments = useCallback(async () => {
@@ -206,12 +209,63 @@ export function BoardView() {
     toast.info("E-Mail Entwurf erstellt - bearbeite und verbinde mit Dokumenten");
   }, [editor]);
 
+  // AI Auto-organize documents
+  const autoOrganizeDocuments = useCallback(async () => {
+    if (!editor || documents.length === 0) {
+      toast.error("Keine Dokumente gefunden");
+      return;
+    }
+
+    toast.info("🤖 AI organisiert deine Dokumente...");
+    
+    // Auto-place documents in a grid by category
+    const categories = [...new Set(documents.map(d => d.category))];
+    let x = 100;
+    let y = 100;
+    
+    categories.forEach((category, catIndex) => {
+      const catDocs = documents.filter(d => d.category === category);
+      
+      catDocs.forEach((doc, docIndex) => {
+        const shapeId = createShapeId();
+        editor.createShape({
+          id: shapeId,
+          type: "note",
+          x: x + (docIndex % 3) * 250,
+          y: y + Math.floor(docIndex / 3) * 150,
+          props: {
+            text: `📄 ${doc.name}\n\n📁 ${category?.toUpperCase() || "Dokument"}`,
+            color: getCategoryColor(doc.category),
+            size: "m",
+          },
+        });
+      });
+      
+      x += 800;
+      if (x > 2000) {
+        x = 100;
+        y += 600;
+      }
+    });
+
+    toast.success(`${documents.length} Dokumente organisiert!`);
+  }, [editor, documents]);
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Top Toolbar */}
       <div className="h-12 px-3 border-b border-border bg-card/50 flex items-center justify-between gap-2 shrink-0">
         {/* Left: Quick Actions */}
         <div className="flex items-center gap-1.5">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="h-8 gap-1.5 bg-primary"
+            onClick={autoOrganizeDocuments}
+          >
+            <span className="text-xs">🤖 AI Organisieren</span>
+          </Button>
+          
           <Button 
             variant="outline" 
             size="sm" 
@@ -346,10 +400,74 @@ export function BoardView() {
               </SelectContent>
             </Select>
           ) : (
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <Mail className="w-3.5 h-3.5" />
-              Gmail verbinden
-            </Button>
+            <Dialog open={gmailDialogOpen} onOpenChange={setGmailDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                  <Mail className="w-3.5 h-3.5" />
+                  Gmail verbinden
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Gmail Account verbinden</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">E-Mail</label>
+                    <Input
+                      type="email"
+                      placeholder="deine@gmail.com"
+                      value={newGmailEmail}
+                      onChange={(e) => setNewGmailEmail(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Name</label>
+                    <Input
+                      type="text"
+                      placeholder="Mein Gmail"
+                      value={newGmailName}
+                      onChange={(e) => setNewGmailName(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    ℹ️ OAuth Integration kommt später. Für jetzt nur zum Tracking.
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (!newGmailEmail) return;
+                      try {
+                        const response = await fetch(API_ENDPOINTS.gmailAccounts, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            email: newGmailEmail,
+                            name: newGmailName || newGmailEmail,
+                            isDefault: true,
+                          }),
+                        });
+                        if (response.ok) {
+                          const account = await response.json();
+                          setGmailAccounts([account]);
+                          setSelectedAccount(account.id);
+                          setGmailDialogOpen(false);
+                          setNewGmailEmail("");
+                          setNewGmailName("");
+                          toast.success("Gmail Account hinzugefügt!");
+                        }
+                      } catch (error) {
+                        toast.error("Fehler beim Hinzufügen");
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    Hinzufügen
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>
@@ -359,12 +477,17 @@ export function BoardView() {
         <Tldraw
           onMount={(editor) => {
             setEditor(editor);
-            // Configure for touch/mobile
+            // Configure for touch/mobile and hide watermark
             editor.updateInstanceState({ 
               isDebugMode: false,
             });
           }}
           inferDarkMode
+          hideUi={false}
+          components={{
+            // Hide watermark by providing empty component
+            WatermarkComponent: () => null,
+          }}
         />
       </div>
     </div>
