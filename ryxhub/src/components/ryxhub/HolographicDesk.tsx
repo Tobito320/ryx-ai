@@ -29,6 +29,7 @@ import {
   Plus,
   Upload,
   X,
+  Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -624,6 +625,37 @@ export function HolographicDesk() {
             )}
             
             <div className="flex gap-2">
+              {previewDoc?.type === 'pdf' && (
+                <Button 
+                  variant="outline"
+                  onClick={async () => {
+                    if (!previewDoc) return;
+                    toast.info("Formularfelder werden erkannt...");
+                    try {
+                      const res = await fetch(`${API_BASE}/api/pdf/ai-fill`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: previewDoc.path }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        if (data.fields?.length > 0) {
+                          toast.success(`${data.fields.length} Felder gefunden`);
+                          // TODO: Show form filling modal
+                          console.log("AI suggestions:", data.suggestions);
+                        } else {
+                          toast.info("Keine Formularfelder gefunden");
+                        }
+                      }
+                    } catch (error) {
+                      toast.error("Formularerkennung fehlgeschlagen");
+                    }
+                  }}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AI Ausfüllen
+                </Button>
+              )}
               <Button 
                 onClick={() => previewDoc && openDocument(previewDoc)}
                 variant="outline"

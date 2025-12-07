@@ -2302,6 +2302,188 @@ async def upload_multiple_documents(
     }
 
 
+# =============================================================================
+# PDF Form Detection and Filling
+# =============================================================================
+
+@app.get("/api/pdf/fields/{path:path}")
+async def get_pdf_form_fields(path: str) -> Dict[str, Any]:
+    """Get form fields from a PDF."""
+    from urllib.parse import unquote
+    
+    try:
+        import pikepdf
+    except ImportError:
+        return {"error": "pikepdf not installed", "fields": []}
+    
+    path = unquote(path)
+    file_path = Path(path)
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if file_path.suffix.lower() != ".pdf":
+        raise HTTPException(status_code=400, detail="Not a PDF file")
+    
+    try:
+        fields = []
+        with pikepdf.open(file_path) as pdf:
+            if "/AcroForm" in pdf.Root:
+                acroform = pdf.Root.AcroForm
+                if "/Fields" in acroform:
+                    for field in acroform.Fields:
+                        field_info = extract_pdf_field(field)
+                        if field_info:
+                            fields.append(field_info)
+        
+        return {
+            "path": str(file_path),
+            "fields": fields,
+            "total": len(fields),
+            "has_form": len(fields) > 0,
+        }
+    except Exception as e:
+        return {"error": str(e), "fields": []}
+
+
+def extract_pdf_field(field) -> Optional[Dict[str, Any]]:
+    """Extract info from a PDF form field."""
+    try:
+        field_type = str(field.get("/FT", ""))
+        field_name = str(field.get("/T", ""))
+        field_value = str(field.get("/V", "")) if "/V" in field else ""
+        
+        # Map PDF field types
+        type_map = {
+            "/Tx": "text",
+            "/Btn": "checkbox",
+            "/Ch": "dropdown",
+            "/Sig": "signature",
+        }
+        
+        return {
+            "name": field_name,
+            "type": type_map.get(field_type, "unknown"),
+            "value": field_value,
+            "required": bool(field.get("/Ff", 0) & 2),  # Required flag
+        }
+    except:
+        return None
+
+
+@app.post("/api/pdf/fill")
+async def fill_pdf_form(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill a PDF form with provided values."""
+    try:
+        import pikepdf
+    except ImportError:
+        raise HTTPException(status_code=500, detail="pikepdf not installed")
+    
+    path = data.get("path")
+    values = data.get("values", {})  # {field_name: value}
+    
+    if not path:
+        raise HTTPException(status_code=400, detail="Path required")
+    
+    file_path = Path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    try:
+        # Create output path
+        output_path = file_path.parent / f"{file_path.stem}_filled{file_path.suffix}"
+        
+        with pikepdf.open(file_path, allow_overwriting_input=True) as pdf:
+            if "/AcroForm" not in pdf.Root:
+                raise HTTPException(status_code=400, detail="PDF has no form fields")
+            
+            acroform = pdf.Root.AcroForm
+            if "/Fields" in acroform:
+                filled_count = 0
+                for field in acroform.Fields:
+                    field_name = str(field.get("/T", ""))
+                    if field_name in values:
+                        field["/V"] = pikepdf.String(str(values[field_name]))
+                        filled_count += 1
+            
+            pdf.save(str(output_path))
+        
+        return {
+            "success": True,
+            "output_path": str(output_path),
+            "filled_fields": filled_count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fill failed: {str(e)}")
+
+
+@app.post("/api/pdf/ai-fill")
+async def ai_fill_pdf_form(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Use AI to suggest values for PDF form fields based on user profile."""
+    path = data.get("path")
+    
+    if not path:
+        raise HTTPException(status_code=400, detail="Path required")
+    
+    # Get form fields
+    fields_response = await get_pdf_form_fields(path)
+    if "error" in fields_response:
+        return fields_response
+    
+    fields = fields_response.get("fields", [])
+    if not fields:
+        return {"error": "No form fields found", "suggestions": {}}
+    
+    # Get user profile for filling
+    memory = load_memory()
+    profile = memory.get("profile", {})
+    
+    # Build prompt for AI
+    field_list = "\n".join([f"- {f['name']} ({f['type']})" for f in fields])
+    
+    prompt = f"""Du bist ein Assistent der beim Ausfüllen von Formularen hilft.
+
+Bekannte User-Daten:
+- Name: {profile.get('name', 'Tobi')}
+- Adresse: {profile.get('address', 'Alleestraße 58, 58097 Hagen')}
+
+Das Formular hat folgende Felder:
+{field_list}
+
+Antworte NUR mit einem JSON-Objekt das die Feldnamen als Keys und die vorgeschlagenen Werte als Values enthält.
+Fülle nur Felder aus die du sicher kennst. Beispiel:
+{{"Vorname": "Tobi", "PLZ": "58097"}}"""
+
+    try:
+        response = await vllm_chat(
+            messages=[
+                {"role": "system", "content": "Du bist ein Formular-Assistent. Antworte nur mit validem JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            model=MODEL_LARGE,
+            max_tokens=500,
+            temperature=0.3,
+        )
+        
+        content = response.get("content", "{}")
+        
+        # Try to parse JSON from response
+        import re
+        json_match = re.search(r'\{[^{}]*\}', content)
+        if json_match:
+            suggestions = json.loads(json_match.group())
+        else:
+            suggestions = {}
+        
+        return {
+            "fields": fields,
+            "suggestions": suggestions,
+            "path": path,
+        }
+    except Exception as e:
+        return {"error": str(e), "suggestions": {}}
+
+
 @app.get("/api/documents/preview/{path:path}")
 async def preview_document(path: str) -> Dict[str, Any]:
     """Get document preview information."""
