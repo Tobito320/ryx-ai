@@ -1,0 +1,116 @@
+"""
+RyxSurf Keybind Definitions
+
+All keybinds follow Hyprland/vim philosophy:
+- Super as primary modifier (matches Hyprland)
+- vim-style navigation (hjkl)
+- Minimal but powerful
+"""
+
+from dataclasses import dataclass
+from typing import Callable, Dict, Optional
+from enum import Enum
+
+
+class Modifier(Enum):
+    NONE = 0
+    SUPER = 1
+    SHIFT = 2
+    CTRL = 4
+    ALT = 8
+    SUPER_SHIFT = 3  # SUPER | SHIFT
+    CTRL_SHIFT = 6   # CTRL | SHIFT
+
+
+@dataclass
+class Keybind:
+    """A single keybind definition"""
+    key: str
+    modifier: Modifier
+    action: str
+    description: str
+    
+
+# All keybinds organized by category
+KEYBINDS: Dict[str, list] = {
+    "navigation": [
+        Keybind("j", Modifier.SUPER, "scroll_down", "Scroll down"),
+        Keybind("k", Modifier.SUPER, "scroll_up", "Scroll up"),
+        Keybind("h", Modifier.SUPER, "history_back", "Go back"),
+        Keybind("l", Modifier.SUPER, "history_forward", "Go forward"),
+        Keybind("g", Modifier.SUPER, "goto_url", "Open URL bar"),
+        Keybind("slash", Modifier.SUPER, "search_page", "Search in page"),
+        Keybind("f", Modifier.SUPER, "hint_mode", "Hint mode (click with keyboard)"),
+        Keybind("f", Modifier.CTRL, "find_in_page", "Find in page"),
+        Keybind("G", Modifier.SUPER_SHIFT, "scroll_bottom", "Scroll to bottom"),
+        Keybind("g", Modifier.NONE, "scroll_top", "Scroll to top (double tap)"),
+    ],
+    
+    "tabs": [
+        Keybind("t", Modifier.SUPER, "new_tab", "New tab"),
+        Keybind("w", Modifier.SUPER, "close_tab", "Close tab"),
+        Keybind("1", Modifier.SUPER, "goto_tab_1", "Go to tab 1"),
+        Keybind("2", Modifier.SUPER, "goto_tab_2", "Go to tab 2"),
+        Keybind("3", Modifier.SUPER, "goto_tab_3", "Go to tab 3"),
+        Keybind("4", Modifier.SUPER, "goto_tab_4", "Go to tab 4"),
+        Keybind("5", Modifier.SUPER, "goto_tab_5", "Go to tab 5"),
+        Keybind("6", Modifier.SUPER, "goto_tab_6", "Go to tab 6"),
+        Keybind("7", Modifier.SUPER, "goto_tab_7", "Go to tab 7"),
+        Keybind("8", Modifier.SUPER, "goto_tab_8", "Go to tab 8"),
+        Keybind("9", Modifier.SUPER, "goto_tab_9", "Go to tab 9"),
+        Keybind("Tab", Modifier.SUPER, "next_tab", "Next tab"),
+        Keybind("Tab", Modifier.SUPER_SHIFT, "prev_tab", "Previous tab"),
+        Keybind("s", Modifier.SUPER, "save_session", "Save current session"),
+        Keybind("S", Modifier.SUPER_SHIFT, "switch_session", "Switch session"),
+    ],
+    
+    "ui": [
+        Keybind("b", Modifier.SUPER, "toggle_sidebar", "Toggle tab sidebar"),
+        Keybind("B", Modifier.SUPER_SHIFT, "toggle_bookmarks", "Toggle bookmarks bar"),
+        Keybind("Escape", Modifier.SUPER, "toggle_fullscreen", "Toggle all UI"),
+    ],
+    
+    "ai": [
+        Keybind("a", Modifier.SUPER, "ai_command", "Open AI command bar"),
+        Keybind("A", Modifier.SUPER_SHIFT, "summarize_page", "AI: Summarize page"),
+        Keybind("x", Modifier.SUPER, "dismiss_popup", "AI: Dismiss popup/overlay"),
+        Keybind("r", Modifier.SUPER, "ai_reader", "AI: Reader mode"),
+    ],
+    
+    "quick": [
+        Keybind("y", Modifier.SUPER, "yank_url", "Copy URL"),
+        Keybind("p", Modifier.SUPER, "paste_go", "Paste and go"),
+        Keybind("o", Modifier.SUPER, "open_file", "Open file"),
+        Keybind("d", Modifier.SUPER, "downloads", "Download manager"),
+        Keybind("d", Modifier.CTRL, "bookmark", "Bookmark page"),
+        Keybind("r", Modifier.CTRL, "reload", "Reload page"),
+        Keybind("R", Modifier.CTRL_SHIFT, "hard_reload", "Hard reload (clear cache)"),
+        Keybind("plus", Modifier.CTRL, "zoom_in", "Zoom in"),
+        Keybind("minus", Modifier.CTRL, "zoom_out", "Zoom out"),
+        Keybind("0", Modifier.CTRL, "zoom_reset", "Reset zoom"),
+    ],
+}
+
+
+def get_all_keybinds() -> list:
+    """Get flat list of all keybinds"""
+    all_binds = []
+    for category, binds in KEYBINDS.items():
+        all_binds.extend(binds)
+    return all_binds
+
+
+def get_keybind_help() -> str:
+    """Generate help text for all keybinds"""
+    lines = ["RyxSurf Keybinds", "=" * 40, ""]
+    
+    for category, binds in KEYBINDS.items():
+        lines.append(f"{category.upper()}")
+        lines.append("-" * 20)
+        for bind in binds:
+            mod = bind.modifier.name.replace("_", "+") if bind.modifier != Modifier.NONE else ""
+            key_str = f"{mod}+{bind.key}" if mod else bind.key
+            lines.append(f"  {key_str:<20} {bind.description}")
+        lines.append("")
+    
+    return "\n".join(lines)
