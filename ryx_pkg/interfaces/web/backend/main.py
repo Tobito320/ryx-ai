@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -2219,6 +2219,87 @@ async def organize_documents(data: Dict[str, Any]) -> Dict[str, Any]:
     shutil.move(str(source_path), str(target_path))
     
     return {"success": True, "new_path": str(target_path)}
+
+
+@app.post("/api/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    category: str = Form("unsorted")
+) -> Dict[str, Any]:
+    """Upload a document to the documents folder."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file provided")
+    
+    # Create category folder if needed
+    target_dir = DOCUMENTS_DIR / category
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique filename if exists
+    target_path = target_dir / file.filename
+    counter = 1
+    while target_path.exists():
+        stem = Path(file.filename).stem
+        suffix = Path(file.filename).suffix
+        target_path = target_dir / f"{stem}_{counter}{suffix}"
+        counter += 1
+    
+    # Save file
+    try:
+        content = await file.read()
+        target_path.write_bytes(content)
+        
+        return {
+            "success": True,
+            "path": str(target_path),
+            "name": target_path.name,
+            "size": len(content),
+            "category": category,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+@app.post("/api/documents/upload-multiple")
+async def upload_multiple_documents(
+    files: List[UploadFile] = File(...),
+    category: str = Form("unsorted")
+) -> Dict[str, Any]:
+    """Upload multiple documents."""
+    results = []
+    errors = []
+    
+    target_dir = DOCUMENTS_DIR / category
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    for file in files:
+        if not file.filename:
+            continue
+            
+        target_path = target_dir / file.filename
+        counter = 1
+        while target_path.exists():
+            stem = Path(file.filename).stem
+            suffix = Path(file.filename).suffix
+            target_path = target_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+        
+        try:
+            content = await file.read()
+            target_path.write_bytes(content)
+            results.append({
+                "name": target_path.name,
+                "path": str(target_path),
+                "size": len(content),
+            })
+        except Exception as e:
+            errors.append({"name": file.filename, "error": str(e)})
+    
+    return {
+        "success": len(results) > 0,
+        "uploaded": results,
+        "errors": errors,
+        "total": len(results),
+    }
 
 
 @app.get("/api/documents/preview/{path:path}")

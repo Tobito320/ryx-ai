@@ -270,8 +270,32 @@ export function HolographicDesk() {
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      toast.info(`${files.length} Datei(en) - Upload noch nicht implementiert`);
-      // TODO: Implement file upload
+      uploadFiles(files);
+    }
+  };
+
+  // Upload files function
+  const uploadFiles = async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    formData.append('category', selectedCategory === 'all' ? 'unsorted' : selectedCategory);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/documents/upload-multiple`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`${data.total} Datei(en) hochgeladen`);
+        loadData(); // Refresh documents
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || "Upload fehlgeschlagen");
+      }
+    } catch (error) {
+      toast.error("Upload fehlgeschlagen");
     }
   };
 
@@ -313,7 +337,11 @@ export function HolographicDesk() {
         onChange={(e) => {
           const files = Array.from(e.target.files || []);
           if (files.length > 0) {
-            toast.info(`${files.length} Datei(en) ausgewählt`);
+            uploadFiles(files);
+          }
+          // Reset input
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
           }
         }}
       />
