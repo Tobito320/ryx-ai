@@ -110,9 +110,11 @@ Database: SQLite
 2. **✅ Streaming Chat** - SSE streaming with abort capability
 3. **✅ Better AI Context** - Improved system prompts for document understanding
 4. **✅ Quick Actions** - Buttons for Dokumente, AI Chat, WebUntis, Gmail
-5. **❌ WebUntis Integration** - Berufsschule schedule (needs API)
-6. **❌ Holiday Calendar** - NRW Feiertage
-7. **❌ Drag & Drop Widgets** - Movable dashboard widgets
+5. **✅ WebUntis Integration** - FIXED: /api/webuntis/* endpoints + Settings UI
+6. **✅ Holiday Calendar** - FIXED: /api/holidays/nrw with Easter calculation
+7. **✅ In-App Document Viewer** - FIXED: PDF/Image/Text preview in modal
+8. **❌ Drag & Drop Widgets** - Movable dashboard widgets
+9. **❌ PDF Form Filling** - AI-assisted form filling
 
 ---
 
