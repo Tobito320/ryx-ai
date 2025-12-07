@@ -26,8 +26,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from .workflow import WorkflowEngine, ExecutionEvent, EventType, SimpleWorkflow, WorkflowState
 from .interfaces import WorkflowNode, ExecutionContext, NodeStatus
 from .router import IntelligentRouter, RouteDecision
+from .document_ai import DocumentAI
 
 # Global state
+document_ai = DocumentAI()
 active_workflows: Dict[str, Dict[str, Any]] = {}
 connected_clients: Dict[str, WebSocket] = {}
 router_instance = IntelligentRouter()
@@ -934,3 +936,100 @@ async def delete_board(board_id: str):
     boards = [b for b in boards if b.get("id") != board_id]
     save_boards(boards)
     return {"success": True}
+
+
+# ============================================================================
+# Document Intelligence API - Smart Brief/Letter Processing
+# ============================================================================
+
+class DocumentAnalysisRequest(BaseModel):
+    path: str
+
+
+class DocumentAnalysisResponse(BaseModel):
+    type: str
+    sender: Optional[str]
+    date: Optional[str]
+    subject: Optional[str]
+    deadlines: List[Dict[str, Any]]
+    requires_response: bool
+    priority: str
+    summary: str
+    text_preview: str
+
+
+class GenerateResponseRequest(BaseModel):
+    document_path: str
+    response_type: str = "standard"  # standard, rechnung, widerspruch
+
+
+class TemplateRequest(BaseModel):
+    name: str
+    content: Optional[str] = None
+
+
+@app.post("/api/documents/analyze", response_model=DocumentAnalysisResponse)
+async def analyze_document(request: DocumentAnalysisRequest):
+    """Analyze a document (PDF) and extract key information"""
+    doc_path = Path(request.path)
+    
+    if not doc_path.exists():
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Extract text
+    text = document_ai.extract_text_from_pdf(doc_path)
+    
+    # Analyze
+    analysis = document_ai.analyze_document(text)
+    
+    return DocumentAnalysisResponse(
+        **analysis,
+        text_preview=text[:500]
+    )
+
+
+@app.post("/api/documents/generate-response")
+async def generate_response(request: GenerateResponseRequest):
+    """Generate a response letter template"""
+    doc_path = Path(request.document_path)
+    
+    if not doc_path.exists():
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Analyze document first
+    text = document_ai.extract_text_from_pdf(doc_path)
+    analysis = document_ai.analyze_document(text)
+    
+    # Generate response template
+    template = document_ai.generate_response_template(analysis, request.response_type)
+    
+    return {
+        "template": template,
+        "analysis": analysis
+    }
+
+
+@app.get("/api/templates")
+async def list_templates():
+    """List available brief templates"""
+    templates = document_ai.list_templates()
+    return {"templates": templates}
+
+
+@app.get("/api/templates/{name}")
+async def get_template(name: str):
+    """Get a specific template"""
+    content = document_ai.load_template(name)
+    if not content:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"name": name, "content": content}
+
+
+@app.post("/api/templates")
+async def save_template(request: TemplateRequest):
+    """Save a custom template"""
+    if not request.content:
+        raise HTTPException(status_code=400, detail="Content required")
+    
+    document_ai.save_template(request.name, request.content)
+    return {"success": True, "name": request.name}

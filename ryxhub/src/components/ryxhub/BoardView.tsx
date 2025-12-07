@@ -209,46 +209,73 @@ export function BoardView() {
     toast.info("E-Mail Entwurf erstellt - bearbeite und verbinde mit Dokumenten");
   }, [editor]);
 
-  // AI Auto-organize documents
+  // AI Auto-organize documents WITH INTELLIGENCE
   const autoOrganizeDocuments = useCallback(async () => {
     if (!editor || documents.length === 0) {
       toast.error("Keine Dokumente gefunden");
       return;
     }
 
-    toast.info("🤖 AI organisiert deine Dokumente...");
+    toast.info("🤖 AI analysiert und organisiert...");
     
-    // Auto-place documents in a grid by category
     const categories = [...new Set(documents.map(d => d.category))];
     let x = 100;
     let y = 100;
     
-    categories.forEach((category, catIndex) => {
+    for (const category of categories) {
       const catDocs = documents.filter(d => d.category === category);
       
-      catDocs.forEach((doc, docIndex) => {
-        const shapeId = createShapeId();
-        editor.createShape({
-          id: shapeId,
-          type: "note",
-          x: x + (docIndex % 3) * 250,
-          y: y + Math.floor(docIndex / 3) * 150,
-          props: {
-            text: `📄 ${doc.name}\n\n📁 ${category?.toUpperCase() || "Dokument"}`,
-            color: getCategoryColor(doc.category),
-            size: "m",
-          },
-        });
-      });
+      for (const [docIndex, doc] of catDocs.entries()) {
+        try {
+          // Smart analyze each document
+          const analysis = await fetch(`${API_ENDPOINTS.documentsScan.replace('/scan', '')}/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: doc.path + doc.name }),
+          }).then(r => r.ok ? r.json() : null);
+
+          const shapeId = createShapeId();
+          const text = analysis 
+            ? `📄 ${doc.name}\n\n📋 ${analysis.type}\n⏰ ${analysis.priority}\n${analysis.deadlines.length > 0 ? `⚠️ Frist: ${analysis.deadlines[0].date}` : ''}\n\n${analysis.summary.slice(0, 100)}...`
+            : `📄 ${doc.name}\n\n📁 ${category?.toUpperCase() || "Dokument"}`;
+
+          editor.createShape({
+            id: shapeId,
+            type: "note",
+            x: x + (docIndex % 3) * 250,
+            y: y + Math.floor(docIndex / 3) * 200,
+            props: {
+              text,
+              color: analysis?.priority === "HOCH" ? "red" : getCategoryColor(doc.category),
+              size: "l",
+            },
+          });
+        } catch (error) {
+          console.error("Analysis failed for", doc.name, error);
+          // Fallback to simple display
+          const shapeId = createShapeId();
+          editor.createShape({
+            id: shapeId,
+            type: "note",
+            x: x + (docIndex % 3) * 250,
+            y: y + Math.floor(docIndex / 3) * 150,
+            props: {
+              text: `📄 ${doc.name}\n\n📁 ${category?.toUpperCase()}`,
+              color: getCategoryColor(doc.category),
+              size: "m",
+            },
+          });
+        }
+      }
       
-      x += 800;
+      x += 850;
       if (x > 2000) {
         x = 100;
-        y += 600;
+        y += 700;
       }
-    });
+    }
 
-    toast.success(`${documents.length} Dokumente organisiert!`);
+    toast.success(`${documents.length} Dokumente intelligent organisiert!`);
   }, [editor, documents]);
 
   return (
