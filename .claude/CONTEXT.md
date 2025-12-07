@@ -113,8 +113,11 @@ Database: SQLite
 5. **✅ WebUntis Integration** - FIXED: /api/webuntis/* endpoints + Settings UI
 6. **✅ Holiday Calendar** - FIXED: /api/holidays/nrw with Easter calculation
 7. **✅ In-App Document Viewer** - FIXED: PDF/Image/Text preview in modal
-8. **❌ Drag & Drop Widgets** - Movable dashboard widgets
-9. **❌ PDF Form Filling** - AI-assisted form filling
+8. **✅ Smart Model Switching** - Auto 3B/14B based on query complexity
+9. **✅ File Upload** - Drag & drop + file picker with category support
+10. **✅ Document Toggle** - Click to select/deselect (not stuck)
+11. **❌ Drag & Drop Widgets** - Movable dashboard widgets
+12. **❌ PDF Form Filling** - AI-assisted form filling
 
 ---
 
