@@ -9,8 +9,6 @@ import {
   mockSessions,
   mockModels,
   mockRAGStatus,
-  mockWorkflowNodes,
-  mockConnections,
 } from '@/data/mockData';
 
 import type {
@@ -305,37 +303,18 @@ export const mockApi = {
 
   async listWorkflows(): Promise<Workflow[]> {
     await randomDelay();
-    return [
-      {
-        id: 'workflow-1',
-        name: 'PR Review Workflow',
-        status: 'running',
-        lastRun: '2m ago',
-      },
-      {
-        id: 'workflow-2',
-        name: 'Code Analysis',
-        status: 'idle',
-        lastRun: '1h ago',
-      },
-      {
-        id: 'workflow-3',
-        name: 'Security Scan',
-        status: 'idle',
-        lastRun: '3h ago',
-      },
-    ];
+    return [];
   },
 
-  async getWorkflow(workflowId: string): Promise<Workflow & { nodes: typeof mockWorkflowNodes; connections: typeof mockConnections }> {
+  async getWorkflow(workflowId: string): Promise<Workflow & { nodes: unknown[]; connections: unknown[] }> {
     await randomDelay();
     return {
       id: workflowId,
-      name: 'PR Review Workflow',
-      status: 'running',
-      lastRun: '2m ago',
-      nodes: mockWorkflowNodes,
-      connections: mockConnections,
+      name: 'Workflow',
+      status: 'idle',
+      lastRun: 'never',
+      nodes: [],
+      connections: [],
     };
   },
 

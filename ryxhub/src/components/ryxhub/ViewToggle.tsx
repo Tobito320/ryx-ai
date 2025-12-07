@@ -1,4 +1,4 @@
-import { MessageSquare, GitBranch, LayoutDashboard, Settings, Users } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Settings, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import type { ViewMode } from "@/types/ryxhub";
@@ -6,8 +6,7 @@ import type { ViewMode } from "@/types/ryxhub";
 const views: { id: ViewMode; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "chat", label: "Chat", icon: MessageSquare },
-  { id: "workflow", label: "Workflow", icon: GitBranch },
-  { id: "council", label: "Council", icon: Users },
+  { id: "board", label: "Board", icon: Layers },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 

@@ -504,3 +504,421 @@ async def _broadcast_event(workflow_id: str, event: ExecutionEvent):
             })
         except Exception:
             pass  # Client disconnected
+
+
+# ============================================================================
+# Document Scanner API - For Board Mode
+# ============================================================================
+
+# Document path configuration
+DOCUMENTS_PATH = Path("/home/tobi/documents")
+
+# Category mapping based on folder names
+CATEGORY_MAP = {
+    "azubi": "azubi",
+    "schule": "azubi",
+    "berufsschule": "azubi",
+    "arbeit": "arbeit",
+    "job": "arbeit",
+    "aok": "aok",
+    "krankenkasse": "aok",
+    "sparkasse": "sparkasse",
+    "bank": "sparkasse",
+    "auto": "auto",
+    "kfz": "auto",
+    "fahrzeug": "auto",
+}
+
+
+class DocumentInfo(BaseModel):
+    name: str
+    path: str
+    type: str
+    category: Optional[str] = None
+    modifiedAt: Optional[str] = None
+    size: Optional[int] = None
+
+
+class ScanDocumentsResponse(BaseModel):
+    documents: List[DocumentInfo]
+    total: int
+    scanned_path: str
+
+
+def detect_category(file_path: Path) -> Optional[str]:
+    """Detect document category from path"""
+    path_lower = str(file_path).lower()
+    for keyword, category in CATEGORY_MAP.items():
+        if keyword in path_lower:
+            return category
+    return "other"
+
+
+@app.get("/api/documents/scan", response_model=ScanDocumentsResponse)
+async def scan_documents(
+    path: Optional[str] = None,
+    category: Optional[str] = None,
+    search: Optional[str] = None,
+):
+    """Scan documents directory and return file information"""
+    scan_path = Path(path) if path else DOCUMENTS_PATH
+    
+    if not scan_path.exists():
+        # Create the directory if it doesn't exist
+        scan_path.mkdir(parents=True, exist_ok=True)
+        return ScanDocumentsResponse(
+            documents=[],
+            total=0,
+            scanned_path=str(scan_path),
+        )
+    
+    documents = []
+    
+    # Recursively scan for documents
+    for ext in ["*.pdf", "*.PDF", "*.png", "*.jpg", "*.jpeg", "*.doc", "*.docx", "*.txt"]:
+        for file_path in scan_path.rglob(ext):
+            if file_path.is_file():
+                doc_category = detect_category(file_path)
+                
+                # Filter by category if specified
+                if category and category != "all" and doc_category != category:
+                    continue
+                
+                # Filter by search query
+                if search and search.lower() not in file_path.name.lower():
+                    continue
+                
+                file_type = file_path.suffix[1:].lower()
+                stat = file_path.stat()
+                
+                documents.append(DocumentInfo(
+                    name=file_path.name,
+                    path=str(file_path.parent) + "/",
+                    type=file_type,
+                    category=doc_category,
+                    modifiedAt=datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    size=stat.st_size,
+                ))
+    
+    # Sort by modification date (newest first)
+    documents.sort(key=lambda x: x.modifiedAt or "", reverse=True)
+    
+    return ScanDocumentsResponse(
+        documents=documents,
+        total=len(documents),
+        scanned_path=str(scan_path),
+    )
+
+
+# ============================================================================
+# Memory API - Personal Knowledge Store
+# ============================================================================
+
+# Memory storage path
+MEMORY_FILE = PROJECT_ROOT / "data" / "user_memory.json"
+
+
+class MemoryEntry(BaseModel):
+    id: str
+    type: str  # fact, preference, contact, template, routine
+    key: str
+    value: str
+    confidence: float = 1.0
+    source: Optional[str] = None
+    createdAt: str
+    updatedAt: str
+    usageCount: int = 0
+
+
+class MemoryListResponse(BaseModel):
+    memories: List[MemoryEntry]
+    total: int
+
+
+def load_memories() -> List[Dict[str, Any]]:
+    """Load memories from file"""
+    if MEMORY_FILE.exists():
+        try:
+            with open(MEMORY_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_memories(memories: List[Dict[str, Any]]):
+    """Save memories to file"""
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(MEMORY_FILE, "w") as f:
+        json.dump(memories, f, indent=2)
+
+
+@app.get("/api/memory", response_model=MemoryListResponse)
+async def list_memories(type: Optional[str] = None):
+    """List all user memories"""
+    memories = load_memories()
+    
+    if type:
+        memories = [m for m in memories if m.get("type") == type]
+    
+    return MemoryListResponse(
+        memories=[MemoryEntry(**m) for m in memories],
+        total=len(memories),
+    )
+
+
+class CreateMemoryRequest(BaseModel):
+    type: str
+    key: str
+    value: str
+    confidence: float = 1.0
+    source: Optional[str] = None
+
+
+@app.post("/api/memory", response_model=MemoryEntry)
+async def create_memory(request: CreateMemoryRequest):
+    """Create a new memory entry"""
+    memories = load_memories()
+    
+    now = datetime.now().isoformat()
+    new_memory = {
+        "id": str(uuid.uuid4()),
+        "type": request.type,
+        "key": request.key,
+        "value": request.value,
+        "confidence": request.confidence,
+        "source": request.source,
+        "createdAt": now,
+        "updatedAt": now,
+        "usageCount": 0,
+    }
+    
+    memories.append(new_memory)
+    save_memories(memories)
+    
+    return MemoryEntry(**new_memory)
+
+
+@app.delete("/api/memory/{memory_id}")
+async def delete_memory(memory_id: str):
+    """Delete a memory entry"""
+    memories = load_memories()
+    memories = [m for m in memories if m.get("id") != memory_id]
+    save_memories(memories)
+    return {"success": True}
+
+
+# ============================================================================
+# Gmail API - Multi-Account Email Integration
+# ============================================================================
+
+# Gmail accounts storage
+GMAIL_FILE = PROJECT_ROOT / "data" / "gmail_accounts.json"
+
+
+class GmailAccount(BaseModel):
+    id: str
+    email: str
+    name: str
+    isDefault: bool = False
+    lastSync: Optional[str] = None
+
+
+class GmailAccountsResponse(BaseModel):
+    accounts: List[GmailAccount]
+    default_account: Optional[str] = None
+
+
+def load_gmail_accounts() -> List[Dict[str, Any]]:
+    """Load Gmail accounts from file"""
+    if GMAIL_FILE.exists():
+        try:
+            with open(GMAIL_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_gmail_accounts(accounts: List[Dict[str, Any]]):
+    """Save Gmail accounts to file"""
+    GMAIL_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(GMAIL_FILE, "w") as f:
+        json.dump(accounts, f, indent=2)
+
+
+@app.get("/api/gmail/accounts", response_model=GmailAccountsResponse)
+async def list_gmail_accounts():
+    """List all connected Gmail accounts"""
+    accounts = load_gmail_accounts()
+    default_id = None
+    
+    for acc in accounts:
+        if acc.get("isDefault"):
+            default_id = acc.get("id")
+            break
+    
+    return GmailAccountsResponse(
+        accounts=[GmailAccount(**a) for a in accounts],
+        default_account=default_id,
+    )
+
+
+class AddGmailAccountRequest(BaseModel):
+    email: str
+    name: str
+    isDefault: bool = False
+
+
+@app.post("/api/gmail/accounts", response_model=GmailAccount)
+async def add_gmail_account(request: AddGmailAccountRequest):
+    """Add a new Gmail account (placeholder for OAuth flow)"""
+    accounts = load_gmail_accounts()
+    
+    # Check if email already exists
+    for acc in accounts:
+        if acc.get("email") == request.email:
+            raise HTTPException(status_code=400, detail="Email already connected")
+    
+    # If this is the first account or marked as default, make it default
+    if request.isDefault or len(accounts) == 0:
+        # Remove default from others
+        for acc in accounts:
+            acc["isDefault"] = False
+    
+    new_account = {
+        "id": str(uuid.uuid4()),
+        "email": request.email,
+        "name": request.name,
+        "isDefault": request.isDefault or len(accounts) == 0,
+        "lastSync": None,
+    }
+    
+    accounts.append(new_account)
+    save_gmail_accounts(accounts)
+    
+    return GmailAccount(**new_account)
+
+
+@app.delete("/api/gmail/accounts/{account_id}")
+async def remove_gmail_account(account_id: str):
+    """Remove a Gmail account"""
+    accounts = load_gmail_accounts()
+    accounts = [a for a in accounts if a.get("id") != account_id]
+    save_gmail_accounts(accounts)
+    return {"success": True}
+
+
+@app.put("/api/gmail/accounts/{account_id}/default")
+async def set_default_gmail_account(account_id: str):
+    """Set an account as the default"""
+    accounts = load_gmail_accounts()
+    
+    for acc in accounts:
+        acc["isDefault"] = acc.get("id") == account_id
+    
+    save_gmail_accounts(accounts)
+    return {"success": True}
+
+
+# ============================================================================
+# Board API - Infinite Canvas Storage
+# ============================================================================
+
+BOARDS_FILE = PROJECT_ROOT / "data" / "boards.json"
+
+
+class Board(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    createdAt: str
+    updatedAt: str
+    isDefault: bool = False
+    category: Optional[str] = None
+
+
+class BoardsResponse(BaseModel):
+    boards: List[Board]
+    total: int
+
+
+def load_boards() -> List[Dict[str, Any]]:
+    """Load boards from file"""
+    if BOARDS_FILE.exists():
+        try:
+            with open(BOARDS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    # Return default board if none exist
+    now = datetime.now().isoformat()
+    return [{
+        "id": "default-board",
+        "name": "Mein Board",
+        "description": "Hauptboard für Dokumente und Notizen",
+        "createdAt": now,
+        "updatedAt": now,
+        "isDefault": True,
+        "category": "personal",
+    }]
+
+
+def save_boards(boards: List[Dict[str, Any]]):
+    """Save boards to file"""
+    BOARDS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(BOARDS_FILE, "w") as f:
+        json.dump(boards, f, indent=2)
+
+
+@app.get("/api/boards", response_model=BoardsResponse)
+async def list_boards():
+    """List all boards"""
+    boards = load_boards()
+    return BoardsResponse(
+        boards=[Board(**b) for b in boards],
+        total=len(boards),
+    )
+
+
+class CreateBoardRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+
+
+@app.post("/api/boards", response_model=Board)
+async def create_board(request: CreateBoardRequest):
+    """Create a new board"""
+    boards = load_boards()
+    
+    now = datetime.now().isoformat()
+    new_board = {
+        "id": str(uuid.uuid4()),
+        "name": request.name,
+        "description": request.description,
+        "createdAt": now,
+        "updatedAt": now,
+        "isDefault": False,
+        "category": request.category,
+    }
+    
+    boards.append(new_board)
+    save_boards(boards)
+    
+    return Board(**new_board)
+
+
+@app.delete("/api/boards/{board_id}")
+async def delete_board(board_id: str):
+    """Delete a board (cannot delete default board)"""
+    boards = load_boards()
+    
+    # Check if trying to delete default board
+    for b in boards:
+        if b.get("id") == board_id and b.get("isDefault"):
+            raise HTTPException(status_code=400, detail="Cannot delete default board")
+    
+    boards = [b for b in boards if b.get("id") != board_id]
+    save_boards(boards)
+    return {"success": True}

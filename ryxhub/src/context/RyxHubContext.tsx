@@ -1,9 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
-import type { Session, Model, RAGStatus, WorkflowNode, Connection, ViewMode, Message } from "@/types/ryxhub";
+import type { Session, Model, RAGStatus, ViewMode, Message, Board, UserMemory, GmailAccount } from "@/types/ryxhub";
 import {
   mockModels,
-  mockWorkflowNodes,
-  mockConnections,
 } from "@/data/mockData";
 import { API_ENDPOINTS } from "@/config";
 import type { ToolConfig } from "@/components/ryxhub/ToolsPanel";
@@ -38,15 +36,21 @@ interface RyxHubContextType {
   tools: ToolConfig[];
   toggleTool: (toolId: string, enabled: boolean) => void;
 
-  // Workflow
-  workflowNodes: WorkflowNode[];
-  connections: Connection[];
-  selectedNodeId: string | null;
-  selectNode: (id: string | null) => void;
-  isWorkflowRunning: boolean;
-  toggleWorkflowRunning: () => void;
-  addWorkflowNode: (node: WorkflowNode) => void;
-  runWorkflow: (workflowId: string) => Promise<void>;
+  // Boards
+  boards: Board[];
+  selectedBoardId: string | null;
+  selectBoard: (id: string) => void;
+  createBoard: (name: string, category?: string) => Promise<Board | null>;
+  refreshBoards: () => Promise<void>;
+
+  // Memory
+  memories: UserMemory[];
+  refreshMemories: () => Promise<void>;
+
+  // Gmail Accounts
+  gmailAccounts: GmailAccount[];
+  defaultGmailAccount: GmailAccount | null;
+  refreshGmailAccounts: () => Promise<void>;
 }
 
 const RyxHubContext = createContext<RyxHubContextType | null>(null);
@@ -85,6 +89,60 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     lastSync: "never",
     status: "idle",
   });
+
+  // Board state
+  const [boards, setBoards] = useState<Board[]>(() => {
+    const stored = localStorage.getItem('ryxhub_boards');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
+    }
+    // Default board
+    return [{
+      id: 'default-board',
+      name: 'Mein Board',
+      description: 'Hauptboard für Dokumente und Notizen',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isDefault: true,
+      category: 'personal',
+    }];
+  });
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(() => {
+    const stored = localStorage.getItem('ryxhub_selected_board');
+    return stored || 'default-board';
+  });
+
+  // Memory state
+  const [memories, setMemories] = useState<UserMemory[]>(() => {
+    const stored = localStorage.getItem('ryxhub_memories');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Gmail accounts state
+  const [gmailAccounts, setGmailAccounts] = useState<GmailAccount[]>(() => {
+    const stored = localStorage.getItem('ryxhub_gmail_accounts');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const defaultGmailAccount = gmailAccounts.find(a => a.isDefault) || null;
 
   // Save selected session to localStorage
   useEffect(() => {
@@ -149,26 +207,75 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [refreshSessions, refreshRAGStatus]);
 
-  // Workflow state
-  const [workflowNodes, setWorkflowNodes] = useState<WorkflowNode[]>(mockWorkflowNodes);
-  const [connections, setConnections] = useState<Connection[]>(mockConnections);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isWorkflowRunning, setIsWorkflowRunning] = useState(false);
+  // Board functions
+  const selectBoard = useCallback((id: string) => {
+    setSelectedBoardId(id);
+    localStorage.setItem('ryxhub_selected_board', id);
+  }, []);
 
-  // Fetch workflows from API
-  useEffect(() => {
-    const fetchWorkflows = async () => {
-      try {
-        const response = await fetch(API_ENDPOINTS.workflows);
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Workflows loaded:', data.workflows?.length || 0);
+  const refreshBoards = useCallback(async () => {
+    try {
+      const response = await fetch('/api/boards');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.boards) {
+          setBoards(data.boards);
+          localStorage.setItem('ryxhub_boards', JSON.stringify(data.boards));
         }
-      } catch (error) {
-        console.warn('Failed to fetch workflows');
       }
+    } catch (error) {
+      console.warn('Failed to fetch boards:', error);
+    }
+  }, []);
+
+  const createBoard = useCallback(async (name: string, category?: string): Promise<Board | null> => {
+    const newBoard: Board = {
+      id: `board-${Date.now()}`,
+      name,
+      category: category as Board['category'] || 'other',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-    fetchWorkflows();
+
+    setBoards((prev) => {
+      const updated = [...prev, newBoard];
+      localStorage.setItem('ryxhub_boards', JSON.stringify(updated));
+      return updated;
+    });
+
+    return newBoard;
+  }, []);
+
+  // Memory functions
+  const refreshMemories = useCallback(async () => {
+    try {
+      const response = await fetch('/api/memory');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.memories) {
+          setMemories(data.memories);
+          localStorage.setItem('ryxhub_memories', JSON.stringify(data.memories));
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch memories:', error);
+    }
+  }, []);
+
+  // Gmail functions
+  const refreshGmailAccounts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/gmail/accounts');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.accounts) {
+          setGmailAccounts(data.accounts);
+          localStorage.setItem('ryxhub_gmail_accounts', JSON.stringify(data.accounts));
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch Gmail accounts:', error);
+    }
   }, []);
 
   const selectSession = useCallback((id: string) => {
@@ -309,18 +416,6 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const selectNode = useCallback((id: string | null) => {
-    setSelectedNodeId(id);
-  }, []);
-
-  const toggleWorkflowRunning = useCallback(() => {
-    setIsWorkflowRunning((prev) => !prev);
-  }, []);
-
-  const addWorkflowNode = useCallback((node: WorkflowNode) => {
-    setWorkflowNodes((prev) => [...prev, node]);
-  }, []);
-
   const createSession = useCallback(async (name: string, model?: string): Promise<Session | null> => {
     try {
       const response = await fetch(API_ENDPOINTS.sessions, {
@@ -363,30 +458,6 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
       }).catch((err) => console.warn('Failed to persist tool state:', err));
     }
   }, [selectedSessionId]);
-
-  const runWorkflow = useCallback(async (workflowId: string) => {
-    try {
-      const response = await fetch(`${API_ENDPOINTS.workflowById(workflowId)}/run`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setIsWorkflowRunning(true);
-        console.log('Workflow started:', result);
-
-        // Update node statuses as workflow runs
-        if (result.runId) {
-          // Could connect to WebSocket here for real-time updates
-          console.log('Run ID:', result.runId);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to run workflow:', error);
-    }
-  }, []);
 
   const deleteSession = useCallback(async (sessionId: string) => {
     try {
@@ -460,14 +531,16 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         refreshRAGStatus,
         tools,
         toggleTool,
-        workflowNodes,
-        connections,
-        selectedNodeId,
-        selectNode,
-        isWorkflowRunning,
-        toggleWorkflowRunning,
-        addWorkflowNode,
-        runWorkflow,
+        boards,
+        selectedBoardId,
+        selectBoard,
+        createBoard,
+        refreshBoards,
+        memories,
+        refreshMemories,
+        gmailAccounts,
+        defaultGmailAccount,
+        refreshGmailAccounts,
       }}
     >
       {children}

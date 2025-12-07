@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
-import { WorkflowCanvasEnhanced } from "@/components/ryxhub/WorkflowCanvasEnhanced";
-import { RightInspector } from "@/components/ryxhub/RightInspector";
+import { BoardView } from "@/components/ryxhub/BoardView";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
 import { ViewToggle } from "@/components/ryxhub/ViewToggle";
@@ -75,7 +74,7 @@ function RyxHubApp() {
           <main className="flex-1 overflow-hidden">
             {activeView === "dashboard" && <DashboardView />}
             {activeView === "chat" && <ChatView />}
-            {activeView === "workflow" && <WorkflowCanvasEnhanced />}
+            {activeView === "board" && <BoardView />}
             {activeView === "settings" && <SettingsView />}
           </main>
         </div>

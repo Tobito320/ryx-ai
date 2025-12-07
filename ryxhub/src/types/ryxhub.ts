@@ -10,6 +10,114 @@ export interface Session {
   agentId: string;
   model: string;
   tools?: { [toolId: string]: boolean };
+  boardId?: string; // Link session to a board
+}
+
+// ============================================================================
+// Board Types - Infinite Canvas for Documents, Notes, and Knowledge
+// ============================================================================
+
+export interface Board {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  isDefault?: boolean;
+  category?: "personal" | "work" | "finance" | "health" | "education" | "auto" | "other";
+}
+
+export interface BoardDocument {
+  id: string;
+  boardId: string;
+  name: string;
+  type: "pdf" | "image" | "note" | "email" | "letter" | "template" | "link";
+  path?: string; // File path on disk
+  content?: string; // For notes/templates
+  metadata?: DocumentMetadata;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentMetadata {
+  sender?: string; // Who sent the letter/email
+  recipient?: string; // Who it's addressed to
+  date?: string; // Date of document
+  subject?: string;
+  category?: string; // AOK, Sparkasse, Arbeit, etc.
+  tags?: string[];
+  summary?: string; // AI-generated summary
+  requiresResponse?: boolean;
+  responseDeadline?: string;
+  relatedDocuments?: string[]; // IDs of related documents
+}
+
+export interface BoardConnection {
+  id: string;
+  boardId: string;
+  fromId: string;
+  toId: string;
+  label?: string;
+  type?: "related" | "response" | "reference" | "followup";
+}
+
+// ============================================================================
+// Memory Types - Personal Knowledge and Context
+// ============================================================================
+
+export interface UserMemory {
+  id: string;
+  type: "fact" | "preference" | "contact" | "template" | "routine";
+  key: string;
+  value: string;
+  confidence: number; // 0-1, how sure the AI is about this
+  source?: string; // Where this was learned from
+  createdAt: string;
+  updatedAt: string;
+  usageCount: number;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  organization?: string; // AOK, Sparkasse, Arbeitgeber, etc.
+  email?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  category?: string;
+}
+
+// ============================================================================
+// Gmail Integration Types
+// ============================================================================
+
+export interface GmailAccount {
+  id: string;
+  email: string;
+  name: string;
+  isDefault: boolean;
+  lastSync?: string;
+  accessToken?: string; // Stored securely
+  refreshToken?: string;
+}
+
+export interface EmailDraft {
+  id: string;
+  accountId: string; // Which Gmail account to use
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  body: string;
+  replyToId?: string; // If this is a reply
+  relatedDocumentIds?: string[]; // Documents this email references
+  status: "draft" | "sent" | "scheduled";
+  scheduledFor?: string;
 }
 
 export interface Message {
@@ -85,7 +193,7 @@ export interface Workflow {
   status: "idle" | "running" | "paused";
 }
 
-export type ViewMode = "dashboard" | "chat" | "workflow" | "council" | "settings";
+export type ViewMode = "dashboard" | "chat" | "board" | "settings";
 
 // Helper to extract model name from path
 export function getModelDisplayName(modelPath: string): string {
