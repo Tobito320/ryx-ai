@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
-import { BoardView } from "@/components/ryxhub/BoardView";
+import { DocumentManager } from "@/components/ryxhub/DocumentManager";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
 import { ViewToggle } from "@/components/ryxhub/ViewToggle";
 import { ModelDialog } from "@/components/ryxhub/ModelDialog";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
 import { RyxHubProvider, useRyxHub } from "@/context/RyxHubContext";
+import { log } from "@/lib/logger";
 
 interface Model {
   id: string;
@@ -88,7 +89,7 @@ function RyxHubApp() {
           <main className="flex-1 overflow-hidden">
             {activeView === "dashboard" && <DashboardView />}
             {activeView === "chat" && <ChatView />}
-            {activeView === "board" && <BoardView />}
+            {activeView === "documents" && <DocumentManager />}
             {activeView === "settings" && <SettingsView />}
           </main>
         </div>

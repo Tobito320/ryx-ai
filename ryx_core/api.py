@@ -1033,3 +1033,89 @@ async def save_template(request: TemplateRequest):
     
     document_ai.save_template(request.name, request.content)
     return {"success": True, "name": request.name}
+
+
+# ============================================================================
+# Frontend Logging API
+# ============================================================================
+
+from datetime import datetime as dt
+import json as json_lib
+
+LOGS_DIR = Path(__file__).parent.parent / "logs"
+FRONTEND_LOGS_DIR = LOGS_DIR / "frontend"
+BACKEND_LOGS_DIR = LOGS_DIR / "backend"
+
+# Ensure log directories exist
+FRONTEND_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+BACKEND_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+class FrontendLogEntry(BaseModel):
+    level: str
+    message: str
+    data: Optional[Dict[str, Any]] = None
+    timestamp: str
+    userAgent: str
+    url: str
+
+
+class FrontendLogsRequest(BaseModel):
+    logs: List[FrontendLogEntry]
+
+
+@app.post("/api/logs/frontend")
+async def log_frontend(request: FrontendLogsRequest):
+    """Receive frontend logs and save to file"""
+    today = dt.now().strftime("%Y-%m-%d")
+    log_file = FRONTEND_LOGS_DIR / f"{today}.log"
+    
+    with open(log_file, "a") as f:
+        for log in request.logs:
+            log_line = json_lib.dumps({
+                "timestamp": log.timestamp,
+                "level": log.level,
+                "message": log.message,
+                "data": log.data,
+                "url": log.url,
+                "userAgent": log.userAgent,
+            })
+            f.write(log_line + "\n")
+    
+    return {"success": True, "count": len(request.logs)}
+
+
+@app.get("/api/logs/list")
+async def list_logs():
+    """List available log files"""
+    frontend_logs = sorted([f.name for f in FRONTEND_LOGS_DIR.glob("*.log")], reverse=True)
+    backend_logs = sorted([f.name for f in BACKEND_LOGS_DIR.glob("*.log")], reverse=True)
+    
+    return {
+        "frontend": frontend_logs,
+        "backend": backend_logs,
+    }
+
+
+@app.get("/api/logs/view/{log_type}/{filename}")
+async def view_log(log_type: str, filename: str):
+    """View a specific log file"""
+    if log_type not in ["frontend", "backend"]:
+        raise HTTPException(status_code=400, detail="Invalid log type")
+    
+    log_dir = FRONTEND_LOGS_DIR if log_type == "frontend" else BACKEND_LOGS_DIR
+    log_file = log_dir / filename
+    
+    if not log_file.exists():
+        raise HTTPException(status_code=404, detail="Log file not found")
+    
+    # Read last 100 lines
+    with open(log_file, "r") as f:
+        lines = f.readlines()
+        last_lines = lines[-100:] if len(lines) > 100 else lines
+    
+    return {
+        "filename": filename,
+        "lines": [json_lib.loads(line) for line in last_lines if line.strip()],
+        "total": len(lines),
+    }
