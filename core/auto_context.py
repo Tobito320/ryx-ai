@@ -125,9 +125,9 @@ class AutoContextBuilder:
             if content is None:
                 continue
                 
-            # Skip if too large
+            # Skip if too large - use smart truncation with search terms
             if len(content) > max_chars * 0.3:  # Single file shouldn't be >30% of context
-                content = self._truncate_smart(content, int(max_chars * 0.3))
+                content = self._truncate_smart(content, int(max_chars * 0.3), search_terms)
             
             file_ctx = FileContext(
                 path=str(path.relative_to(self.repo_root)),
@@ -207,11 +207,15 @@ class AutoContextBuilder:
         found_files: Set[Path] = set()
         
         # Filter out very common words that would match too many files
-        skip_terms = {'does', 'what', 'how', 'why', 'the', 'this', 'that', 'have', 'has'}
-        meaningful_terms = [t for t in terms if t not in skip_terms and len(t) >= 3]
+        skip_terms = {'does', 'what', 'how', 'why', 'the', 'this', 'that', 'have', 'has', 'add'}
+        
+        # Prioritize filename patterns (like browser.py) over directory names
+        filename_terms = [t for t in terms if '.' in t]
+        other_terms = [t for t in terms if '.' not in t and t not in skip_terms and len(t) >= 3]
+        meaningful_terms = filename_terms + other_terms
         
         for term in meaningful_terms[:5]:  # Use top 5 meaningful terms
-            # Search file names with find
+            # Search file names with find (most specific)
             try:
                 result = subprocess.run(
                     ['find', str(self.repo_root), '-type', 'f', '-iname', f'*{term}*'],
@@ -223,20 +227,23 @@ class AutoContextBuilder:
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 pass
             
-            # Also search by PATH containing the term (finds files in directories like ryxsurf/)
-            try:
-                result = subprocess.run(
-                    ['find', str(self.repo_root), '-type', 'f', '-path', f'*{term}*'],
-                    capture_output=True, text=True, timeout=5
-                )
-                for line in result.stdout.strip().split('\n'):
-                    if line:
-                        found_files.add(Path(line))
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
+            # Limit path searches to avoid grabbing entire directories
+            if len(found_files) < max_results:
+                try:
+                    result = subprocess.run(
+                        ['find', str(self.repo_root), '-type', 'f', '-path', f'*{term}*'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    count = 0
+                    for line in result.stdout.strip().split('\n'):
+                        if line and count < max_results:
+                            found_files.add(Path(line))
+                            count += 1
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    pass
             
-            # Search file contents with ripgrep (only for specific terms, not common words)
-            if len(term) >= 4:  # Only search content for longer terms
+            # Search file contents (only for specific terms)
+            if len(term) >= 4 and len(found_files) < max_results:
                 try:
                     result = subprocess.run(
                         ['rg', '-l', '-i', '--max-count=1', '--max-depth=5', term, str(self.repo_root)],
@@ -246,7 +253,17 @@ class AutoContextBuilder:
                         if line:
                             found_files.add(Path(line))
                 except (subprocess.TimeoutExpired, FileNotFoundError):
-                    pass
+                    # Fallback to grep
+                    try:
+                        result = subprocess.run(
+                            ['grep', '-rl', term, str(self.repo_root)],
+                            capture_output=True, text=True, timeout=10
+                        )
+                        for line in result.stdout.strip().split('\n'):
+                            if line:
+                                found_files.add(Path(line))
+                    except:
+                        pass
         
         # Filter out non-code files and binaries
         code_extensions = {
@@ -337,18 +354,89 @@ class AutoContextBuilder:
             logger.debug(f"Failed to read {path}: {e}")
             return None
     
-    def _truncate_smart(self, content: str, max_chars: int) -> str:
-        """Truncate content intelligently (at line boundaries)"""
+    def _truncate_smart(self, content: str, max_chars: int, search_terms: List[str] = None) -> str:
+        """
+        Truncate content intelligently - keep relevant sections.
+        
+        Prioritizes sections with specific search terms over generic matches.
+        """
         if len(content) <= max_chars:
             return content
         
-        # Find a good breaking point
-        lines = content[:max_chars].split('\n')
+        lines = content.split('\n')
         
-        # Keep complete lines
-        result = '\n'.join(lines[:-1])
-        result += f"\n\n... (truncated {len(content) - len(result)} chars)"
+        if search_terms:
+            # Separate specific terms (with underscore, dots) from generic ones
+            specific_terms = [t for t in search_terms if '_' in t or '.' in t]
+            generic_terms = [t for t in search_terms if '_' not in t and '.' not in t]
+            
+            # Find ranges for specific terms first (higher priority)
+            priority_ranges = []
+            other_ranges = []
+            
+            for i, line in enumerate(lines):
+                line_lower = line.lower()
+                
+                # Check specific terms
+                if any(term in line_lower for term in specific_terms):
+                    start = max(0, i - 20)
+                    end = min(len(lines), i + 50)  # More context for important matches
+                    priority_ranges.append((start, end, True))  # True = priority
+                # Check generic terms
+                elif any(term in line_lower for term in generic_terms):
+                    start = max(0, i - 10)
+                    end = min(len(lines), i + 20)  # Less context for generic matches
+                    other_ranges.append((start, end, False))
+            
+            # Combine with priority first
+            all_ranges = priority_ranges + other_ranges
+            
+            if all_ranges:
+                # Sort priority first, then by line number
+                all_ranges.sort(key=lambda x: (not x[2], x[0]))
+                
+                # Build sections
+                sections = []
+                total_len = 0
+                included_lines = set()
+                
+                # Always include file header
+                header = '\n'.join(lines[:25])
+                sections.append(header)
+                total_len += len(header)
+                for i in range(25):
+                    included_lines.add(i)
+                
+                for start, end, is_priority in all_ranges:
+                    if total_len >= max_chars:
+                        break
+                    
+                    # Skip if already included
+                    if all(i in included_lines for i in range(start, end)):
+                        continue
+                    
+                    section_lines = []
+                    for i in range(start, end):
+                        if i not in included_lines:
+                            section_lines.append(lines[i])
+                            included_lines.add(i)
+                    
+                    if section_lines:
+                        section = '\n'.join(section_lines)
+                        if total_len + len(section) <= max_chars or is_priority:
+                            # Always include priority sections even if over limit
+                            sections.append(f"\n... (lines {start+1}-{end}) ...\n")
+                            sections.append(section)
+                            total_len += len(section)
+                
+                result = '\n'.join(sections)
+                if len(content) > len(result):
+                    result += f"\n\n... ({len(content) - len(result)} chars omitted)"
+                return result
         
+        # Fallback
+        result = '\n'.join(lines[:max_chars // 50])
+        result += f"\n\n... (truncated)"
         return result
 
 

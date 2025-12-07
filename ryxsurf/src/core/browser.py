@@ -1458,6 +1458,23 @@ class Browser:
         hint_injection_js = self.hint_mode.get_hint_injection_js()
         current_webview.evaluate_javascript(hint_injection_js, None)
         self.hint_mode.active = True
+
+    def _summarize_page(self):
+        """Get and summarize the page text"""
+        current_webview = self.tabs[self.active_tab_idx].webview
+        current_webview.run_javascript(
+            "document.body.innerText",
+            None,
+            self._on_get_page_text
+        )
+
+    def _on_get_page_text(self, result, error):
+        if error:
+            print(f"Error getting page text: {error}")
+            return
+        page_text = result.get_string()
+        # TODO: Integrate with AI to summarize the page_text
+        print(page_text)
     
     def _close_overlays(self):
         """Close any open overlays/bars"""

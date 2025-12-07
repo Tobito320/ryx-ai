@@ -135,5 +135,35 @@ Located at `/home/tobi/cloned_repositorys/`:
 
 ---
 
+## 📝 Session Log
+
+### Session 2025-12-07 (22:24 UTC)
+
+**Accomplished:**
+- ✅ Fixed vLLM FP8 crash (RDNA3 doesn't support fp8e4nv)
+- ✅ Created `core/auto_context.py` - automatic file discovery
+- ✅ Enhanced DirectExecutor with keyword-based context detection
+- ✅ Fixed literal `\n` handling in edit parsing
+- ✅ Ryx added ZOOM action to ryxsurf agent
+- ✅ Ryx added HintMode import and instance to browser.py
+- ✅ Ryx implemented `_hint_mode()` method with JS injection
+
+**Current Issue:**
+- CODE_TASK intent triggers old planning system (asks for approval)
+- Need to make DirectExecutor fully bypass brain.execute() for code tasks
+- Use auto-context + LLM directly instead
+
+**Next Steps:**
+1. Fix DirectExecutor to handle CODE_TASK without approval
+2. Continue RyxSurf: AI summarization, popup dismissal
+3. Extract self-healing patterns from healing-agent repo
+
+**GPU Config:**
+- vLLM: 92% memory utilization, 16K context
+- Model: qwen2.5-coder-14b-awq
+- Idle: 3% GPU, 15.3GB VRAM used
+
+---
+
 **Status**: 🟢 ACTIVE
 **Supervisor**: Taking over. Tobi can rely on me.
