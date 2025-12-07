@@ -2277,6 +2277,89 @@ async def open_document(data: Dict[str, str]) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to open: {str(e)}")
 
 
+@app.get("/api/documents/serve/{path:path}")
+async def serve_document(path: str):
+    """Serve a document file for in-app viewing."""
+    from fastapi.responses import FileResponse
+    from urllib.parse import unquote
+    import mimetypes
+    
+    path = unquote(path)
+    file_path = Path(path)
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Security: only serve from allowed directories
+    allowed_dirs = [DOCUMENTS_DIR, Path.home() / "Downloads"]
+    if not any(str(file_path).startswith(str(d)) for d in allowed_dirs):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Determine content type
+    content_type, _ = mimetypes.guess_type(str(file_path))
+    if not content_type:
+        content_type = "application/octet-stream"
+    
+    return FileResponse(
+        path=str(file_path),
+        media_type=content_type,
+        filename=file_path.name
+    )
+
+
+@app.get("/api/documents/thumbnail/{path:path}")
+async def get_document_thumbnail(path: str) -> Dict[str, Any]:
+    """Generate a thumbnail for a document (images only for now)."""
+    from urllib.parse import unquote
+    import base64
+    
+    path = unquote(path)
+    file_path = Path(path)
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    suffix = file_path.suffix.lower()
+    
+    # For images, return base64 encoded thumbnail
+    if suffix in [".png", ".jpg", ".jpeg", ".gif", ".webp"]:
+        try:
+            content = file_path.read_bytes()
+            mime_type = f"image/{suffix[1:]}"
+            if suffix == ".jpg":
+                mime_type = "image/jpeg"
+            
+            return {
+                "type": "image",
+                "data": f"data:{mime_type};base64,{base64.b64encode(content).decode()}",
+                "size": len(content),
+            }
+        except Exception as e:
+            return {"type": "error", "error": str(e)}
+    
+    # For PDFs, we could use pdf2image but keep it simple for now
+    elif suffix == ".pdf":
+        return {
+            "type": "pdf",
+            "url": f"/api/documents/serve/{path}",
+            "pages": "unknown",
+        }
+    
+    # For text files
+    elif suffix in [".txt", ".md", ".json", ".py", ".js", ".ts"]:
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")[:5000]
+            return {
+                "type": "text",
+                "content": content,
+                "size": len(content),
+            }
+        except Exception as e:
+            return {"type": "error", "error": str(e)}
+    
+    return {"type": "unsupported", "message": f"Cannot preview {suffix} files"}
+
+
 # =============================================================================
 # Trash Schedule API - ICS calendar parsing
 # =============================================================================

@@ -144,7 +144,8 @@ export function HolographicDesk() {
   };
 
   const handleDocDoubleClick = (doc: Document) => {
-    openDocument(doc);
+    // Show in-app preview instead of opening externally
+    showPreview(doc);
   };
 
   // Load everything on mount
@@ -539,7 +540,7 @@ export function HolographicDesk() {
 
       {/* Document Preview Modal */}
       <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderOpen className="w-4 h-4" />
@@ -551,25 +552,54 @@ export function HolographicDesk() {
           </DialogHeader>
           
           <div className="space-y-3 py-2">
-            {previewContent ? (
-              <div className="bg-muted p-3 rounded-md max-h-60 overflow-auto">
-                <pre className="text-xs whitespace-pre-wrap">{previewContent}</pre>
+            {/* PDF Preview */}
+            {previewDoc?.type === 'pdf' && (
+              <div className="bg-muted rounded-md overflow-hidden" style={{ height: '60vh' }}>
+                <iframe
+                  src={`${API_BASE}/api/documents/serve/${encodeURIComponent(previewDoc.path)}`}
+                  className="w-full h-full border-0"
+                  title={previewDoc.name}
+                />
               </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">
-                Keine Vorschau für diesen Dateityp verfügbar.
+            )}
+            
+            {/* Image Preview */}
+            {['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(previewDoc?.type || '') && (
+              <div className="bg-muted rounded-md overflow-hidden flex items-center justify-center" style={{ maxHeight: '60vh' }}>
+                <img
+                  src={`${API_BASE}/api/documents/serve/${encodeURIComponent(previewDoc?.path || '')}`}
+                  alt={previewDoc?.name}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
+            
+            {/* Text Preview */}
+            {['txt', 'md', 'json', 'py', 'js', 'ts'].includes(previewDoc?.type || '') && previewContent && (
+              <div className="bg-muted p-3 rounded-md overflow-auto" style={{ maxHeight: '60vh' }}>
+                <pre className="text-xs whitespace-pre-wrap font-mono">{previewContent}</pre>
+              </div>
+            )}
+            
+            {/* Unsupported type */}
+            {!['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'md', 'json', 'py', 'js', 'ts'].includes(previewDoc?.type || '') && (
+              <div className="text-sm text-muted-foreground text-center py-8">
+                <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                <p>Keine In-App Vorschau für {previewDoc?.type?.toUpperCase()} Dateien.</p>
+                <p className="text-xs mt-1">Klicke "Extern Öffnen" um die Datei zu öffnen.</p>
               </div>
             )}
             
             <div className="flex gap-2">
               <Button 
                 onClick={() => previewDoc && openDocument(previewDoc)}
+                variant="outline"
                 className="flex-1"
               >
-                Öffnen
+                Extern Öffnen
               </Button>
               <Button 
-                variant="outline" 
+                variant="default" 
                 onClick={() => setPreviewDoc(null)}
               >
                 Schließen
