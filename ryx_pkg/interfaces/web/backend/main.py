@@ -2260,6 +2260,7 @@ async def preview_document(path: str) -> Dict[str, Any]:
 async def open_document(data: Dict[str, str]) -> Dict[str, Any]:
     """Open a document with the system default application."""
     import subprocess
+    import shutil
     
     path = data.get("path")
     if not path:
@@ -2270,7 +2271,17 @@ async def open_document(data: Dict[str, str]) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="File not found")
     
     try:
-        # Use xdg-open on Linux
+        # Try zen-browser first for PDFs/images, then xdg-open
+        suffix = file_path.suffix.lower()
+        
+        # For web-viewable files, prefer Zen browser if available
+        if suffix in ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.html', '.htm']:
+            zen_path = shutil.which("zen-browser") or shutil.which("zen")
+            if zen_path:
+                subprocess.Popen([zen_path, str(file_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return {"success": True, "message": f"Opened {file_path.name} in Zen"}
+        
+        # Fallback to xdg-open
         subprocess.Popen(["xdg-open", str(file_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return {"success": True, "message": f"Opened {file_path.name}"}
     except Exception as e:
@@ -2284,16 +2295,26 @@ async def serve_document(path: str):
     from urllib.parse import unquote
     import mimetypes
     
-    path = unquote(path)
-    file_path = Path(path)
+    # Decode the path
+    decoded_path = unquote(path)
+    
+    # Handle both absolute and relative paths
+    if decoded_path.startswith("/"):
+        file_path = Path(decoded_path)
+    else:
+        # Try to find in documents directory
+        file_path = DOCUMENTS_DIR / decoded_path
+        if not file_path.exists():
+            file_path = Path.home() / "Downloads" / decoded_path
     
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
     
     # Security: only serve from allowed directories
-    allowed_dirs = [DOCUMENTS_DIR, Path.home() / "Downloads"]
-    if not any(str(file_path).startswith(str(d)) for d in allowed_dirs):
-        raise HTTPException(status_code=403, detail="Access denied")
+    allowed_dirs = [DOCUMENTS_DIR, Path.home() / "Downloads", Path.home() / "documents"]
+    file_path_resolved = file_path.resolve()
+    if not any(str(file_path_resolved).startswith(str(d.resolve())) for d in allowed_dirs if d.exists()):
+        raise HTTPException(status_code=403, detail=f"Access denied: {file_path}")
     
     # Determine content type
     content_type, _ = mimetypes.guess_type(str(file_path))
@@ -3138,6 +3159,89 @@ async def get_holidays_nrw(year: int = None) -> Dict[str, Any]:
 
 
 # =============================================================================
+# Smart Intent Detection & Model Selection
+# =============================================================================
+
+# Model paths
+MODEL_SMALL = "/models/small/general/qwen2.5-3b"
+MODEL_LARGE = "/models/powerful/general/qwen2.5-14b-gptq"
+
+def detect_intent_and_model(message: str, has_document: bool = False) -> Dict[str, Any]:
+    """
+    Detect user intent and select appropriate model.
+    Returns enhanced prompt context and model choice.
+    """
+    message_lower = message.lower().strip()
+    
+    # Intent patterns
+    SIMPLE_PATTERNS = [
+        # Greetings
+        r'^(hi|hallo|hey|moin|guten\s*(morgen|tag|abend)|servus|na)\b',
+        # Simple questions
+        r'^(wie geht|was geht|alles klar|wie läuft)',
+        # Time/date
+        r'^(wie spät|welcher tag|welches datum|wann ist)',
+        # Yes/no
+        r'^(ja|nein|ok|okay|danke|bitte|gut|cool|nice)\b',
+        # Short confirmations
+        r'^.{1,15}$',  # Very short messages
+    ]
+    
+    COMPLEX_PATTERNS = [
+        # Document analysis
+        r'(dokument|pdf|datei|inhalt|zusammenfass|analys|erkl[äa]r|was steht)',
+        # Email composition
+        r'(email|mail|schreib|brief|antwort|formulier)',
+        # Search/research
+        r'(such|find|recherch|info über|was ist|wer ist|wie funktioniert)',
+        # Planning/scheduling
+        r'(termin|plan|erinnerung|deadline|bis wann)',
+        # Arabic/complex text
+        r'[\u0600-\u06FF]',  # Arabic characters
+        # Long detailed questions
+        r'.{100,}',  # Long messages
+    ]
+    
+    import re
+    
+    # Check for simple patterns
+    is_simple = any(re.search(p, message_lower) for p in SIMPLE_PATTERNS)
+    is_complex = any(re.search(p, message_lower) for p in COMPLEX_PATTERNS)
+    
+    # Document context always needs big model
+    if has_document:
+        is_complex = True
+    
+    # Determine model
+    use_large_model = is_complex and not is_simple
+    
+    # Enhance the prompt based on intent
+    enhanced_context = []
+    
+    # Auto-detect what user wants
+    if re.search(r'(zusammenfass|worum geht|was steht|inhalt)', message_lower):
+        enhanced_context.append("User wants a summary or explanation of content.")
+    
+    if re.search(r'(schreib|formulier|email|brief)', message_lower):
+        enhanced_context.append("User wants help writing/composing something.")
+    
+    if re.search(r'(find|such|wo ist|welche)', message_lower):
+        enhanced_context.append("User is searching for something specific.")
+    
+    if has_document and len(message) < 30:
+        # Short message with document = probably asking about the document
+        enhanced_context.append("User is likely asking about the selected document.")
+    
+    return {
+        "use_large_model": use_large_model,
+        "model": MODEL_LARGE if use_large_model else MODEL_SMALL,
+        "intent_hints": enhanced_context,
+        "is_simple": is_simple,
+        "is_complex": is_complex,
+    }
+
+
+# =============================================================================
 # AI Chat with Memory Context
 # =============================================================================
 
@@ -3153,8 +3257,16 @@ async def smart_chat(data: Dict[str, Any]) -> Dict[str, Any]:
     if not message:
         raise HTTPException(status_code=400, detail="Message required")
     
+    # Smart intent detection and model selection
+    intent_info = detect_intent_and_model(message, has_document=bool(document_name))
+    selected_model = intent_info["model"]
+    
     # Build context from memory
     context_parts = []
+    
+    # Add intent hints
+    if intent_info["intent_hints"]:
+        context_parts.extend(intent_info["intent_hints"])
     
     if include_memory:
         memory = load_memory()
@@ -3221,21 +3333,22 @@ User-Profil:
     if context_parts:
         system_prompt += "\n\nAktuelle Kontext-Informationen:\n" + "\n".join(context_parts)
     
-    # Call vLLM
+    # Call vLLM with selected model
     try:
         response = await vllm_chat(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message},
             ],
-            model=None,  # Use default
-            max_tokens=1000,
+            model=selected_model,
+            max_tokens=1000 if intent_info["use_large_model"] else 300,
             temperature=0.7,
         )
         
         return {
             "response": response.get("content", ""),
             "model": response.get("model", ""),
+            "used_large_model": intent_info["use_large_model"],
         }
     
     except Exception as e:
@@ -3253,8 +3366,16 @@ async def smart_chat_stream(
     if not message:
         raise HTTPException(status_code=400, detail="Message required")
     
+    # Smart intent detection and model selection
+    intent_info = detect_intent_and_model(message, has_document=bool(document))
+    selected_model = intent_info["model"]
+    
     # Build context from memory
     context_parts = []
+    
+    # Add intent hints
+    if intent_info["intent_hints"]:
+        context_parts.extend(intent_info["intent_hints"])
     
     if include_memory:
         memory = load_memory()

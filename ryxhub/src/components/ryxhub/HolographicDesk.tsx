@@ -138,9 +138,14 @@ export function HolographicDesk() {
     }
   };
 
-  // Handle document click - single click selects, double click opens
+  // Handle document click - toggle selection
   const handleDocClick = (doc: Document) => {
-    setSelectedDoc(doc);
+    // Toggle: if already selected, deselect
+    if (selectedDoc?.path === doc.path) {
+      setSelectedDoc(null);
+    } else {
+      setSelectedDoc(doc);
+    }
   };
 
   const handleDocDoubleClick = (doc: Document) => {

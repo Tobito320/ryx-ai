@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "name": "Tobi",
+    "address": "Alleestraße 58, 58097 Hagen",
+    "city": "Hagen"
+  },
+  "facts": [],
+  "preferences": {},
+  "reminders": [],
+  "gmail_accounts": [
+    {
+      "id": "gmail_1765112841036",
+      "email": "ahmedabou2008@gmail.com",
+      "app_password": "sgxa phci fioc ejpf",
+      "name": "Tobi",
+      "is_default": true,
+      "added": "2025-12-07T14:07:21.036463"
+    }
+  ]
+}
