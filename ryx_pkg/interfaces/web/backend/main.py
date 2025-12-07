@@ -1159,8 +1159,12 @@ async def send_message(session_id: str, request: MessageRequest) -> MessageRespo
     }
     session.messages.append(user_msg)
 
-    # Build messages for vLLM
-    messages = [{"role": "system", "content": "You are Ryx, a helpful AI assistant running on vLLM. Be concise and helpful."}]
+    # Build messages for vLLM with current date
+    today = datetime.now()
+    date_str = today.strftime("%A, %d. %B %Y")
+    time_str = today.strftime("%H:%M")
+    system_content = f"You are Ryx, a helpful AI assistant. Today is {date_str}, current time: {time_str}. Be concise and helpful."
+    messages = [{"role": "system", "content": system_content}]
     for msg in session.messages[-10:]:  # Last 10 messages for context
         messages.append({"role": msg["role"], "content": msg["content"]})
 
@@ -2217,6 +2221,62 @@ async def organize_documents(data: Dict[str, Any]) -> Dict[str, Any]:
     return {"success": True, "new_path": str(target_path)}
 
 
+@app.get("/api/documents/preview/{path:path}")
+async def preview_document(path: str) -> Dict[str, Any]:
+    """Get document preview information."""
+    from urllib.parse import unquote
+    path = unquote(path)
+    
+    file_path = Path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Get file info
+    stat = file_path.stat()
+    suffix = file_path.suffix.lower()
+    
+    preview_data = {
+        "name": file_path.name,
+        "path": str(file_path),
+        "size": stat.st_size,
+        "size_formatted": f"{stat.st_size / 1024:.1f} KB" if stat.st_size < 1024*1024 else f"{stat.st_size / (1024*1024):.1f} MB",
+        "modifiedAt": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+        "type": suffix[1:] if suffix else "unknown",
+        "previewable": suffix in [".txt", ".md", ".json", ".py", ".js", ".ts"],
+    }
+    
+    # For text files, include content preview
+    if suffix in [".txt", ".md"]:
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="ignore")[:2000]
+            preview_data["content"] = content
+        except:
+            pass
+    
+    return preview_data
+
+
+@app.post("/api/documents/open")
+async def open_document(data: Dict[str, str]) -> Dict[str, Any]:
+    """Open a document with the system default application."""
+    import subprocess
+    
+    path = data.get("path")
+    if not path:
+        raise HTTPException(status_code=400, detail="Path required")
+    
+    file_path = Path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    try:
+        # Use xdg-open on Linux
+        subprocess.Popen(["xdg-open", str(file_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"success": True, "message": f"Opened {file_path.name}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open: {str(e)}")
+
+
 # =============================================================================
 # Trash Schedule API - ICS calendar parsing
 # =============================================================================
@@ -2656,9 +2716,12 @@ async def web_search(data: Dict[str, str]) -> Dict[str, Any]:
 
 @app.post("/api/chat/smart")
 async def smart_chat(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Chat with AI including memory context."""
+    """Chat with AI including memory context, web search, and more."""
     message = data.get("message", "")
     include_memory = data.get("include_memory", True)
+    use_search = data.get("use_search", False)
+    use_scrape = data.get("use_scrape", False)
+    document_name = data.get("document")
     
     if not message:
         raise HTTPException(status_code=400, detail="Message required")
@@ -2691,8 +2754,31 @@ async def smart_chat(data: Dict[str, Any]) -> Dict[str, Any]:
             trash_types = [t.get("type", "") for t in trash["tomorrow"]]
             context_parts.append(f"Tomorrow's trash: {', '.join(trash_types)}")
     
-    # Build system prompt
-    system_prompt = """Du bist Tobi's persönlicher Assistent. Antworte kurz und präzise - maximal 2-3 Sätze wenn möglich.
+    # Add document context if provided
+    if document_name:
+        context_parts.append(f"User is looking at document: {document_name}")
+    
+    # Web search if enabled
+    search_results = []
+    if use_search:
+        try:
+            search_response = await searxng_search({"query": message})
+            if search_response.get("results"):
+                search_results = search_response["results"][:3]
+                search_context = "Web search results:\n"
+                for r in search_results:
+                    search_context += f"- {r.get('title', '')}: {r.get('content', '')[:150]}\n"
+                context_parts.append(search_context)
+        except Exception as e:
+            print(f"Search failed: {e}")
+    
+    # Build system prompt with current date
+    today = datetime.now()
+    date_str = today.strftime("%A, %d. %B %Y")
+    time_str = today.strftime("%H:%M")
+    
+    system_prompt = f"""Du bist Tobi's persönlicher Assistent. Heute ist {date_str}, aktuelle Uhrzeit: {time_str}.
+Antworte kurz und präzise - maximal 2-3 Sätze wenn möglich.
 Du kennst ihn gut und hilfst ihm mit Dokumenten, Emails, Terminen und Erinnerungen.
 Sei freundlich aber effizient."""
     

@@ -131,7 +131,9 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message,
-          include_memory: true,
+          include_memory: useMemory,
+          use_search: useSearch,
+          use_scrape: useScrape,
           document: document?.name,
         }),
       });

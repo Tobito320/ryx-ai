@@ -1,10 +1,11 @@
 /**
  * Document Card - Compact, clean card style
  * Minimal, informative, no overflow
+ * Single click: select, Double click: open
  */
 
 import { cn } from "@/lib/utils";
-import { FileText, Clock, CheckCircle2, AlertTriangle, Image, FileType, File } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Image, FileType, File, ExternalLink } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -27,6 +28,8 @@ interface DocumentCardProps {
   document: Document;
   selected?: boolean;
   onClick?: () => void;
+  onDoubleClick?: () => void;
+  onPreview?: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -36,6 +39,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   auto: "border-l-red-500",
   azubi: "border-l-orange-500",
   arbeit: "border-l-violet-500",
+  sonstige: "border-l-gray-400",
   other: "border-l-gray-400",
 };
 
@@ -49,7 +53,7 @@ const TYPE_ICONS: Record<string, { icon: React.ReactNode; color: string }> = {
   txt: { icon: <File className="w-4 h-4" />, color: "text-gray-500 bg-gray-500/10" },
 };
 
-export function DocumentCard({ document, selected, onClick }: DocumentCardProps) {
+export function DocumentCard({ document, selected, onClick, onDoubleClick, onPreview }: DocumentCardProps) {
   const isUrgent = document.deadlineDays !== undefined && document.deadlineDays < 7;
   const isCompleted = document.status === "completed";
   const typeInfo = TYPE_ICONS[document.type] || { icon: <File className="w-4 h-4" />, color: "text-gray-400 bg-gray-400/10" };
@@ -60,16 +64,29 @@ export function DocumentCard({ document, selected, onClick }: DocumentCardProps)
         <TooltipTrigger asChild>
           <div
             onClick={onClick}
+            onDoubleClick={onDoubleClick}
             className={cn(
               "cursor-pointer rounded p-2 transition-all duration-100",
               "bg-card/80 border border-border/30",
               "hover:border-border hover:bg-accent/20",
-              "border-l-2 min-w-0",
+              "border-l-2 min-w-0 group relative",
               CATEGORY_COLORS[document.category] || CATEGORY_COLORS.other,
               selected && "ring-1 ring-primary bg-accent/40",
               isUrgent && "bg-destructive/5",
             )}
           >
+            {/* Open button - visible on hover */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDoubleClick?.();
+              }}
+              className="absolute top-1 right-1 p-0.5 rounded bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Öffnen"
+            >
+              <ExternalLink className="w-3 h-3 text-primary" />
+            </button>
+
             {/* Icon + Type Row */}
             <div className="flex items-center justify-between mb-1">
               <div className={cn("p-1 rounded", typeInfo.color)}>
@@ -102,6 +119,7 @@ export function DocumentCard({ document, selected, onClick }: DocumentCardProps)
         <TooltipContent side="bottom" className="max-w-xs">
           <p className="font-medium text-sm">{document.name}</p>
           <p className="text-xs text-muted-foreground capitalize">{document.category} • {document.type.toUpperCase()}</p>
+          <p className="text-[10px] text-muted-foreground/70 mt-1">Doppelklick zum Öffnen</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

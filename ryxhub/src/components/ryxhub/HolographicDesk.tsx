@@ -99,7 +99,51 @@ export function HolographicDesk() {
   const [newGmailEmail, setNewGmailEmail] = useState("");
   const [newGmailName, setNewGmailName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Open document with system default app
+  const openDocument = async (doc: Document) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/documents/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: doc.path }),
+      });
+      if (res.ok) {
+        toast.success(`Öffne ${doc.name}`);
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || "Fehler beim Öffnen");
+      }
+    } catch (error) {
+      toast.error("Verbindungsfehler");
+    }
+  };
+
+  // Preview document
+  const showPreview = async (doc: Document) => {
+    setPreviewDoc(doc);
+    try {
+      const res = await fetch(`${API_BASE}/api/documents/preview/${encodeURIComponent(doc.path)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPreviewContent(data.content || null);
+      }
+    } catch (error) {
+      log.error("Preview failed", { error });
+    }
+  };
+
+  // Handle document click - single click selects, double click opens
+  const handleDocClick = (doc: Document) => {
+    setSelectedDoc(doc);
+  };
+
+  const handleDocDoubleClick = (doc: Document) => {
+    openDocument(doc);
+  };
 
   // Load everything on mount
   useEffect(() => {
@@ -396,7 +440,9 @@ export function HolographicDesk() {
                   key={doc.path + doc.name}
                   document={doc}
                   selected={selectedDoc?.name === doc.name}
-                  onClick={() => setSelectedDoc(doc)}
+                  onClick={() => handleDocClick(doc)}
+                  onDoubleClick={() => handleDocDoubleClick(doc)}
+                  onPreview={() => showPreview(doc)}
                 />
               ))}
             </div>
@@ -472,6 +518,48 @@ export function HolographicDesk() {
                 Hinweis: Vollständige Gmail API Integration kommt später.
                 <br />Aktuell nur für Speichern der Account-Info.
               </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview Modal */}
+      <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="w-4 h-4" />
+              {previewDoc?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {previewDoc?.category?.toUpperCase()} • {previewDoc?.type?.toUpperCase()}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-2">
+            {previewContent ? (
+              <div className="bg-muted p-3 rounded-md max-h-60 overflow-auto">
+                <pre className="text-xs whitespace-pre-wrap">{previewContent}</pre>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Keine Vorschau für diesen Dateityp verfügbar.
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => previewDoc && openDocument(previewDoc)}
+                className="flex-1"
+              >
+                Öffnen
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setPreviewDoc(null)}
+              >
+                Schließen
+              </Button>
             </div>
           </div>
         </DialogContent>

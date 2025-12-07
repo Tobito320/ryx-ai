@@ -81,25 +81,25 @@ Database: SQLite
 
 1. **❌ Search kaputt** - SearXNG antwortet nicht, API Fehler
 2. **❌ Gmail Button tut nichts** - Kein OAuth Flow implementiert
-3. **❌ Dokumente klicken tut nichts** - Preview fehlt
-4. **❌ Falsches Default Model** - 3B statt 14B wird geladen
-5. **❌ AI kennt Datum nicht** - Sagt "April 2023" statt aktuelles Datum
+3. **✅ Dokumente klicken tut nichts** - FIXED: Preview + Doppelklick zum Öffnen
+4. **❌ Falsches Default Model** - 3B statt 14B wird geladen (vLLM config)
+5. **✅ AI kennt Datum nicht** - FIXED: System prompt enthält aktuelles Datum
 
 ### P1 - UI/UX PROBLEME
 
-1. **❌ AI Sidebar nicht resizable** - Muss drag-to-resize haben
+1. **✅ AI Sidebar nicht resizable** - FIXED: Bereits implementiert mit GripVertical
 2. **❌ Design zu "fettig"** - Muss COMPACT und MINIMAL wie n8n
-3. **❌ Dokument-Namen overflow** - Gehen aus den Boxen raus
+3. **✅ Dokument-Namen overflow** - FIXED: CSS truncate class verwendet
 4. **❌ Angeklickte Docs gehen aus Layout** - Positioning broken
-5. **❌ Kein Drag & Drop** - Dokumente hochladen fehlt
-6. **❌ Kein visueller File-Type** - PDF/Word/etc Icons fehlen
-7. **❌ Keine Tool Toggles** - Memory/Search/Gmail toggles fehlen
+5. **✅ Kein Drag & Drop** - FIXED: Bereits implementiert (TODO: Upload API)
+6. **✅ Kein visueller File-Type** - FIXED: PDF/Word/etc Icons vorhanden
+7. **✅ Keine Tool Toggles** - FIXED: Memory/Search/Scrape toggles in AISidebar
 
 ### P2 - FEATURES FEHLEN
 
-1. **❌ Müllkalender Integration** - ICS parsen, Reminder zeigen
-2. **❌ Memory System** - Langzeit-Gedächtnis für User-Infos
-3. **❌ Termine/Reminders** - Aus Emails extrahieren
+1. **✅ Müllkalender Integration** - FIXED: ICS parsing in /api/trash/schedule
+2. **✅ Memory System** - FIXED: /api/memory + /api/memory/fact endpoints
+3. **✅ Termine/Reminders** - FIXED: /api/reminders CRUD endpoints
 4. **❌ PDF Preview/Edit** - Formulare ausfüllen mit AI
 5. **❌ Email Composer** - AI-assistiertes Email schreiben
 6. **❌ Web Scraping** - Öffnungszeiten, Termine etc.
