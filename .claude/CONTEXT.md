@@ -77,7 +77,7 @@ Database: SQLite
 
 ## 🚨 KRITISCHE TODOS (PRIORITÄT)
 
-### P0 - BROKEN / NICHT FUNKTIONAL
+### P0 - BROKEN / NICHT FUNKTIONAL - ✅ ALL FIXED
 
 1. **✅ Search kaputt** - FIXED: SearXNG funktioniert, in Smart Chat integriert
 2. **✅ Gmail Button tut nichts** - FIXED: App-Password Authentifizierung implementiert
@@ -88,12 +88,12 @@ Database: SQLite
 ### P1 - UI/UX PROBLEME
 
 1. **✅ AI Sidebar nicht resizable** - FIXED: Bereits implementiert mit GripVertical
-2. **❌ Design zu "fettig"** - Muss COMPACT und MINIMAL wie n8n
-3. **✅ Dokument-Namen overflow** - FIXED: CSS truncate class verwendet
-4. **❌ Angeklickte Docs gehen aus Layout** - Positioning broken
+2. **✅ Design zu "fettig"** - FIXED: Cleaner overview dashboard
+3. **✅ Dokument-Namen overflow** - FIXED: CSS truncate + break-words
+4. **✅ Button nesting warning** - FIXED: Replaced nested buttons with divs
 5. **✅ Kein Drag & Drop** - FIXED: Bereits implementiert (TODO: Upload API)
 6. **✅ Kein visueller File-Type** - FIXED: PDF/Word/etc Icons vorhanden
-7. **✅ Keine Tool Toggles** - FIXED: Memory/Search/Scrape toggles in AISidebar
+7. **✅ Keine Tool Toggles** - FIXED: Memory/Search/Scrape toggles + localStorage persist
 
 ### P2 - FEATURES FEHLEN
 
@@ -103,6 +103,16 @@ Database: SQLite
 4. **❌ PDF Preview/Edit** - Formulare ausfüllen mit AI
 5. **✅ Email Composer** - FIXED: /api/gmail/compose mit AI
 6. **✅ Web Scraping** - FIXED: /api/scrape für Öffnungszeiten etc.
+
+### P3 - NEW FEATURES ADDED
+
+1. **✅ Overview Dashboard** - Personal desktop with trash schedule, reminders, recent docs
+2. **✅ Streaming Chat** - SSE streaming with abort capability
+3. **✅ Better AI Context** - Improved system prompts for document understanding
+4. **✅ Quick Actions** - Buttons for Dokumente, AI Chat, WebUntis, Gmail
+5. **❌ WebUntis Integration** - Berufsschule schedule (needs API)
+6. **❌ Holiday Calendar** - NRW Feiertage
+7. **❌ Drag & Drop Widgets** - Movable dashboard widgets
 
 ---
 
