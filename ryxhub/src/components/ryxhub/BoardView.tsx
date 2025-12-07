@@ -166,56 +166,73 @@ export function BoardView() {
 
   // Add quick note
   const addQuickNote = useCallback(() => {
-    if (!editor) return;
+    if (!editor) {
+      toast.error("Board nicht bereit - bitte warten");
+      return;
+    }
 
-    const shapeId = createShapeId();
-    const viewportCenter = editor.getViewportScreenCenter();
-    const pagePoint = editor.screenToPage(viewportCenter);
+    try {
+      const shapeId = createShapeId();
+      const viewportCenter = editor.getViewportScreenCenter();
+      const pagePoint = editor.screenToPage(viewportCenter);
 
-    editor.createShapes([{
-      id: shapeId,
-      type: "geo",
-      x: pagePoint.x - 100,
-      y: pagePoint.y - 50,
-      props: {
-        geo: "rectangle",
-        w: 200,
-        h: 100,
-        text: "Neue Notiz...",
-        color: "yellow",
-        size: "m",
-      },
-    }]);
+      editor.createShapes([{
+        id: shapeId,
+        type: "geo",
+        x: pagePoint.x - 100,
+        y: pagePoint.y - 50,
+        props: {
+          geo: "rectangle",
+          w: 200,
+          h: 100,
+          text: "Neue Notiz...",
+          color: "yellow",
+          size: "m",
+        },
+      }]);
 
-    // Select and start editing
-    editor.select(shapeId);
+      // Select and start editing
+      editor.select(shapeId);
+      toast.success("Notiz erstellt!");
+    } catch (error) {
+      console.error("Note create error:", error);
+      toast.error("Fehler beim Erstellen der Notiz");
+    }
   }, [editor]);
 
   // Add email draft placeholder
   const addEmailDraft = useCallback(() => {
-    if (!editor) return;
+    if (!editor) {
+      toast.error("Board nicht bereit - bitte warten");
+      return;
+    }
 
-    const shapeId = createShapeId();
-    const viewportCenter = editor.getViewportScreenCenter();
-    const pagePoint = editor.screenToPage(viewportCenter);
+    try {
+      const shapeId = createShapeId();
+      const viewportCenter = editor.getViewportScreenCenter();
+      const pagePoint = editor.screenToPage(viewportCenter);
 
-    editor.createShapes([{
-      id: shapeId,
-      type: "geo",
-      x: pagePoint.x - 100,
-      y: pagePoint.y - 50,
-      props: {
-        geo: "rectangle",
-        w: 300,
-        h: 200,
-        text: `✉️ E-Mail Entwurf\n\nAn: \nBetreff: \n\n---\n\nInhalt hier schreiben...`,
-        color: "blue",
-        size: "l",
-      },
-    }]);
+      editor.createShapes([{
+        id: shapeId,
+        type: "geo",
+        x: pagePoint.x - 100,
+        y: pagePoint.y - 50,
+        props: {
+          geo: "rectangle",
+          w: 300,
+          h: 200,
+          text: `✉️ E-Mail Entwurf\n\nAn: \nBetreff: \n\n---\n\nInhalt hier...`,
+          color: "blue",
+          size: "l",
+        },
+      }]);
 
-    editor.select(shapeId);
-    toast.info("E-Mail Entwurf erstellt - bearbeite und verbinde mit Dokumenten");
+      editor.select(shapeId);
+      toast.success("E-Mail Entwurf erstellt!");
+    } catch (error) {
+      console.error("Email create error:", error);
+      toast.error("Fehler beim Erstellen des Email-Entwurfs");
+    }
   }, [editor]);
 
   // AI Auto-organize documents WITH INTELLIGENCE
