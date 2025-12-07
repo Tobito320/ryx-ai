@@ -277,209 +277,192 @@ class Browser:
         app.release()
     
     def _apply_css(self):
-        """Apply modern glassmorphism Dracula-themed CSS"""
+        """Apply polished modern UI styling inspired by Zen Browser"""
         css = """
+        /* Base window */
         window {
-            background: #1e1f29;
+            background: #191a21;
         }
         
-        /* Modern URL bar with glassmorphism effect */
-        .url-bar {
-            background: linear-gradient(135deg, rgba(40, 42, 54, 0.85), rgba(68, 71, 90, 0.75));
-            padding: 6px 16px;
-            border-radius: 0 0 16px 16px;
-            margin: 0 100px;
-            min-height: 42px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 
-                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(189, 147, 249, 0.15);
-            border-top: none;
-            transition: all 200ms ease-out;
-        }
-        
-        .url-bar.hidden {
-            opacity: 0;
-            margin-top: -50px;
-        }
-        
-        .url-bar button {
-            background: rgba(68, 71, 90, 0.6);
-            color: #f8f8f2;
-            border: none;
-            border-radius: 10px;
-            padding: 6px 12px;
-            min-width: 36px;
-            min-height: 28px;
-            font-size: 15px;
-            transition: all 150ms ease;
-        }
-        
-        .url-bar button:hover {
-            background: rgba(98, 114, 164, 0.8);
-            transform: scale(1.05);
-        }
-        
-        .url-bar button:active {
-            transform: scale(0.95);
-        }
-        
-        /* Tab count badge */
-        .tab-count {
-            background: rgba(189, 147, 249, 0.3);
-            color: #bd93f9;
-            border-radius: 8px;
-            padding: 4px 10px;
-            font-size: 13px;
-            font-weight: bold;
-            min-width: 30px;
-        }
-        
-        /* Sleek URL entry */
-        .url-entry {
-            background: rgba(30, 31, 41, 0.7);
-            color: #f8f8f2;
-            border: 1px solid rgba(68, 71, 90, 0.5);
-            border-radius: 12px;
-            padding: 8px 16px;
-            font-size: 14px;
-            min-height: 28px;
-            transition: all 150ms ease;
-        }
-        
-        .url-entry:focus {
-            outline: none;
-            border-color: rgba(189, 147, 249, 0.6);
-            box-shadow: 0 0 0 3px rgba(189, 147, 249, 0.15),
-                        0 2px 8px rgba(189, 147, 249, 0.2);
-            background: rgba(30, 31, 41, 0.9);
-        }
-        
-        /* URL bar indicator (thin line when hidden) */
-        .url-bar-indicator {
-            background: linear-gradient(90deg, transparent, rgba(189, 147, 249, 0.4), transparent);
-            min-height: 3px;
-            margin: 0 200px;
-            border-radius: 0 0 3px 3px;
-            transition: all 200ms ease;
-        }
-        
-        .url-bar-indicator:hover {
-            background: linear-gradient(90deg, transparent, rgba(189, 147, 249, 0.8), transparent);
-            min-height: 5px;
-        }
-        
-        /* History suggestions popover */
-        .suggestions-popover {
-            background: rgba(40, 42, 54, 0.98);
-            border: 1px solid rgba(68, 71, 90, 0.8);
-            border-radius: 8px;
-            padding: 4px;
-        }
-        
-        .suggestion-row {
-            padding: 8px 12px;
-            border-radius: 4px;
-        }
-        
-        .suggestion-row:hover {
-            background: rgba(68, 71, 90, 0.6);
-        }
-        
-        .suggestion-row:selected {
-            background: rgba(189, 147, 249, 0.3);
-        }
-        
-        .suggestion-title {
-            color: #f8f8f2;
-            font-size: 13px;
-        }
-        
-        .suggestion-url {
-            color: #6272a4;
-            font-size: 11px;
-        }
-        
-        /* Tab sidebar with glass effect */
+        /* ═══════════════════════════════════════════════════════════════
+           TAB SIDEBAR - Left panel with vertical tabs (Zen style)
+           ═══════════════════════════════════════════════════════════════ */
         .tab-sidebar {
-            background: rgba(40, 42, 54, 0.9);
-            border-right: 1px solid rgba(68, 71, 90, 0.5);
-            min-width: 220px;
-            padding: 8px;
+            background: rgba(25, 26, 33, 1);
+            border-right: 1px solid rgba(98, 114, 164, 0.2);
+            padding: 12px 8px;
+        }
+        
+        .tab-sidebar-header {
+            padding: 8px 12px 16px 12px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid rgba(98, 114, 164, 0.15);
+        }
+        
+        .tab-sidebar-title {
+            color: #bd93f9;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
         
         .tab-button {
             background: transparent;
-            color: #f8f8f2;
+            color: #a8a8b3;
             border: none;
-            border-radius: 8px;
-            padding: 10px 14px;
-            text-align: left;
-            margin: 2px 0;
-            transition: all 150ms ease;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin: 3px 4px;
+            font-size: 13px;
+            transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .tab-button:hover {
-            background: rgba(68, 71, 90, 0.6);
+            background: rgba(98, 114, 164, 0.15);
+            color: #f8f8f2;
         }
         
         .tab-button.active {
-            background: rgba(98, 114, 164, 0.5);
+            background: rgba(189, 147, 249, 0.15);
+            color: #f8f8f2;
             border-left: 3px solid #bd93f9;
+            padding-left: 11px;
+            box-shadow: 0 2px 8px rgba(189, 147, 249, 0.15);
         }
         
-        /* Unloaded tab indicator */
         .tab-button.unloaded {
-            color: #6272a4;
+            color: #565869;
             font-style: italic;
         }
         
-        /* AI sidebar with glass effect */
-        .ai-sidebar {
-            background: rgba(40, 42, 54, 0.9);
-            border-left: 1px solid rgba(68, 71, 90, 0.5);
-            min-width: 320px;
-            padding: 12px;
+        .tab-favicon {
+            margin-right: 10px;
+            opacity: 0.9;
         }
         
-        /* Settings dialog styling */
-        .settings-dialog {
-            background: rgba(40, 42, 54, 0.95);
-            border-radius: 16px;
-            padding: 20px;
+        .tab-close {
+            background: transparent;
+            color: #565869;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 6px;
+            font-size: 10px;
+            opacity: 0;
+            transition: all 150ms ease;
         }
         
-        .settings-dialog label {
+        .tab-button:hover .tab-close {
+            opacity: 1;
+        }
+        
+        .tab-close:hover {
+            background: rgba(255, 85, 85, 0.3);
+            color: #ff5555;
+        }
+        
+        .new-tab-button {
+            background: rgba(98, 114, 164, 0.1);
+            color: #6272a4;
+            border: 1px dashed rgba(98, 114, 164, 0.3);
+            border-radius: 10px;
+            padding: 10px;
+            margin: 8px 4px;
+            font-size: 13px;
+            transition: all 180ms ease;
+        }
+        
+        .new-tab-button:hover {
+            background: rgba(98, 114, 164, 0.2);
+            border-color: rgba(189, 147, 249, 0.4);
+            color: #bd93f9;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           URL BAR - Top navigation bar
+           ═══════════════════════════════════════════════════════════════ */
+        .url-bar {
+            background: rgba(33, 34, 44, 1);
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(98, 114, 164, 0.15);
+            min-height: 48px;
+        }
+        
+        .url-bar.hidden {
+            opacity: 0;
+            margin-top: -60px;
+            opacity: 0;
+        }
+        
+        /* Navigation buttons */
+        .nav-button {
+            background: transparent;
+            color: #6272a4;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 10px;
+            min-width: 36px;
+            min-height: 36px;
+            font-size: 16px;
+            transition: all 150ms ease;
+        }
+        
+        .nav-button:hover {
+            background: rgba(98, 114, 164, 0.2);
             color: #f8f8f2;
-            font-size: 14px;
         }
         
-        .settings-dialog entry {
+        .nav-button:active {
+            transform: scale(0.92);
+        }
+        
+        .nav-button:disabled {
+            color: #3a3c4e;
+        }
+        
+        /* URL entry field */
+        .url-entry {
             background: rgba(30, 31, 41, 0.8);
             color: #f8f8f2;
-            border: 1px solid rgba(68, 71, 90, 0.5);
-            border-radius: 8px;
-            padding: 8px 12px;
+            border: 1px solid rgba(98, 114, 164, 0.2);
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            min-height: 36px;
+            transition: all 180ms ease;
+            caret-color: #bd93f9;
         }
         
-        .settings-dialog switch {
-            background: #44475a;
+        .url-entry:focus {
+            outline: none;
+            border-color: rgba(189, 147, 249, 0.5);
+            background: rgba(40, 42, 54, 0.95);
+            box-shadow: 0 0 0 3px rgba(189, 147, 249, 0.1),
+                        0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
-        .settings-dialog switch:checked {
-            background: #bd93f9;
+        .url-entry selection {
+            background: rgba(189, 147, 249, 0.3);
         }
         
-        .settings-header {
+        /* Tab count badge */
+        .tab-count {
+            background: rgba(189, 147, 249, 0.2);
             color: #bd93f9;
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 16px;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 32px;
+            border: 1px solid rgba(189, 147, 249, 0.2);
         }
         
-        /* Security icon in URL bar */
+        /* Security indicator */
         .security-icon {
             font-size: 14px;
-            min-width: 20px;
+            min-width: 24px;
+            padding: 0 4px;
         }
         
         .security-icon.secure {
@@ -490,22 +473,194 @@ class Browser:
             color: #ff5555;
         }
         
-        /* Bookmark icon/button in URL bar */
+        /* Bookmark button */
         .bookmark-icon {
             background: transparent;
-            color: #6272a4;
+            color: #565869;
             border: none;
+            border-radius: 8px;
             font-size: 16px;
-            min-width: 28px;
-            padding: 4px;
+            min-width: 36px;
+            padding: 8px;
+            transition: all 150ms ease;
         }
         
         .bookmark-icon:hover {
             color: #f1fa8c;
+            background: rgba(241, 250, 140, 0.1);
         }
         
         .bookmark-icon.bookmarked {
             color: #f1fa8c;
+        }
+        
+        /* URL bar indicator (when hidden) */
+        .url-bar-indicator {
+            background: rgba(189, 147, 249, 0.25);
+            min-height: 2px;
+            margin: 0 200px;
+            border-radius: 0 0 2px 2px;
+            transition: all 200ms ease;
+            opacity: 0.6;
+        }
+        
+        .url-bar-indicator:hover {
+            background: rgba(189, 147, 249, 0.5);
+            min-height: 4px;
+            opacity: 1;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           SUGGESTIONS POPOVER
+           ═══════════════════════════════════════════════════════════════ */
+        .suggestions-popover {
+            background: rgba(30, 31, 41, 0.98);
+            border: 1px solid rgba(98, 114, 164, 0.3);
+            border-radius: 12px;
+            padding: 6px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        .suggestion-row {
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin: 2px;
+            transition: all 120ms ease;
+        }
+        
+        .suggestion-row:hover {
+            background: rgba(98, 114, 164, 0.2);
+        }
+        
+        .suggestion-row:selected {
+            background: rgba(189, 147, 249, 0.2);
+        }
+        
+        .suggestion-title {
+            color: #f8f8f2;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .suggestion-url {
+            color: #6272a4;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           AI SIDEBAR - Right panel
+           ═══════════════════════════════════════════════════════════════ */
+        .ai-sidebar {
+            background: rgba(25, 26, 33, 1);
+            border-left: 1px solid rgba(98, 114, 164, 0.2);
+            min-width: 360px;
+            padding: 16px;
+        }
+        
+        .ai-sidebar-header {
+            color: #8be9fd;
+            font-size: 14px;
+            font-weight: 600;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(98, 114, 164, 0.15);
+            margin-bottom: 12px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           FIND BAR
+           ═══════════════════════════════════════════════════════════════ */
+        .find-bar {
+            background: rgba(40, 42, 54, 0.95);
+            padding: 8px 16px;
+            border-bottom: 1px solid rgba(98, 114, 164, 0.2);
+        }
+        
+        .find-entry {
+            background: rgba(30, 31, 41, 0.8);
+            color: #f8f8f2;
+            border: 1px solid rgba(98, 114, 164, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+        
+        .find-entry:focus {
+            border-color: rgba(189, 147, 249, 0.5);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           BOOKMARKS BAR
+           ═══════════════════════════════════════════════════════════════ */
+        .bookmarks-bar {
+            background: rgba(30, 31, 41, 0.6);
+            padding: 6px 12px;
+            border-bottom: 1px solid rgba(98, 114, 164, 0.1);
+        }
+        
+        .bookmark-item {
+            background: transparent;
+            color: #a8a8b3;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            transition: all 150ms ease;
+        }
+        
+        .bookmark-item:hover {
+            background: rgba(98, 114, 164, 0.2);
+            color: #f8f8f2;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           SCROLLBARS
+           ═══════════════════════════════════════════════════════════════ */
+        scrollbar {
+            background: transparent;
+        }
+        
+        scrollbar slider {
+            background: rgba(98, 114, 164, 0.3);
+            border-radius: 10px;
+            min-width: 8px;
+            min-height: 8px;
+        }
+        
+        scrollbar slider:hover {
+            background: rgba(189, 147, 249, 0.4);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           CONTEXT MENU
+           ═══════════════════════════════════════════════════════════════ */
+        menu {
+            background: rgba(40, 42, 54, 0.98);
+            border: 1px solid rgba(98, 114, 164, 0.3);
+            border-radius: 10px;
+            padding: 6px;
+        }
+        
+        menuitem {
+            padding: 8px 14px;
+            border-radius: 6px;
+            color: #f8f8f2;
+        }
+        
+        menuitem:hover {
+            background: rgba(98, 114, 164, 0.3);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           TOOLTIPS
+           ═══════════════════════════════════════════════════════════════ */
+        tooltip {
+            background: rgba(40, 42, 54, 0.95);
+            color: #f8f8f2;
+            border: 1px solid rgba(98, 114, 164, 0.3);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
         }
         """
         
@@ -696,7 +851,35 @@ class Browser:
         """Create the tab sidebar (left side, Zen Browser style)"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        self.tab_sidebar.set_size_request(200, -1)  # Fixed width for sidebar
+        self.tab_sidebar.set_size_request(220, -1)  # Fixed width for sidebar
+        
+        # Header with "TABS" label
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        header.add_css_class("tab-sidebar-header")
+        
+        title = Gtk.Label(label="TABS")
+        title.add_css_class("tab-sidebar-title")
+        title.set_halign(Gtk.Align.START)
+        title.set_hexpand(True)
+        header.append(title)
+        
+        self.tab_sidebar.append(header)
+        
+        # Scrollable area for tabs
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_vexpand(True)
+        
+        self.tab_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        scroll.set_child(self.tab_list_box)
+        self.tab_sidebar.append(scroll)
+        
+        # New tab button at bottom
+        new_tab_btn = Gtk.Button(label="+ New Tab")
+        new_tab_btn.add_css_class("new-tab-button")
+        new_tab_btn.connect("clicked", lambda _: self._new_tab())
+        self.tab_sidebar.append(new_tab_btn)
+        
         # Prepend to main_box so it's on the left
         self.main_box.prepend(self.tab_sidebar)
     
@@ -1108,41 +1291,64 @@ class Browser:
                 self.content_box.append(self.ai_sidebar)
     
     def _update_tab_sidebar(self):
-        """Update the tab sidebar with current tabs, including hover tooltips and middle-click close"""
-        # Clear existing buttons
-        child = self.tab_sidebar.get_first_child()
-        while child:
-            next_child = child.get_next_sibling()
-            self.tab_sidebar.remove(child)
-            child = next_child
+        """Update the tab sidebar with current tabs"""
+        # Clear existing buttons from tab_list_box
+        if hasattr(self, 'tab_list_box'):
+            child = self.tab_list_box.get_first_child()
+            while child:
+                next_child = child.get_next_sibling()
+                self.tab_list_box.remove(child)
+                child = next_child
+        else:
+            return
         
         # Add tab buttons
         for i, tab in enumerate(self.tabs):
-            # Determine display text
-            display_text = f"{i+1}. {tab.title[:20]}"
-            if tab.is_unloaded:
-                display_text = f"[z] {display_text}"
-            
-            btn = Gtk.Button(label=display_text)
-            btn.add_css_class("tab-button")
+            # Create tab row with favicon, title, and close button
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            row.add_css_class("tab-button")
             if i == self.active_tab_idx:
-                btn.add_css_class("active")
+                row.add_css_class("active")
             if tab.is_unloaded:
-                btn.add_css_class("unloaded")
+                row.add_css_class("unloaded")
             
-            # Full title tooltip on hover
-            btn.set_tooltip_text(f"{tab.title}\n{tab.url}")
+            # Tab number/favicon placeholder
+            num_label = Gtk.Label(label=f"{i+1}")
+            num_label.add_css_class("tab-favicon")
+            num_label.set_size_request(20, -1)
+            row.append(num_label)
             
-            # Left-click to switch
-            btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
+            # Title (truncated)
+            title_text = tab.title[:25] if len(tab.title) > 25 else tab.title
+            if not title_text:
+                title_text = "New Tab"
+            title = Gtk.Label(label=title_text)
+            title.set_halign(Gtk.Align.START)
+            title.set_hexpand(True)
+            title.set_ellipsize(Pango.EllipsizeMode.END)
+            row.append(title)
             
-            # Middle-click to close tab
-            gesture = Gtk.GestureClick()
-            gesture.set_button(2)  # Middle button
-            gesture.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
-            btn.add_controller(gesture)
+            # Close button (visible on hover via CSS)
+            close_btn = Gtk.Button(label="×")
+            close_btn.add_css_class("tab-close")
+            close_btn.connect("clicked", lambda _, idx=i: self._close_tab(idx))
+            row.append(close_btn)
             
-            self.tab_sidebar.append(btn)
+            # Make the row clickable
+            click = Gtk.GestureClick()
+            click.connect("pressed", lambda g, n, x, y, idx=i: self._switch_to_tab(idx))
+            row.add_controller(click)
+            
+            # Middle-click to close
+            middle_click = Gtk.GestureClick()
+            middle_click.set_button(2)
+            middle_click.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
+            row.add_controller(middle_click)
+            
+            # Tooltip with full title and URL
+            row.set_tooltip_text(f"{tab.title}\n{tab.url}")
+            
+            self.tab_list_box.append(row)
         
         # Update tab count in URL bar
         self._update_tab_count()
