@@ -1,15 +1,16 @@
 /**
- * AI Sidebar - Always visible assistant panel
+ * AI Sidebar - Resizable assistant panel
  * Clean, functional, concise responses
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { log } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Sparkles,
   FileText,
@@ -23,6 +24,11 @@ import {
   Calendar,
   Bot,
   User,
+  GripVertical,
+  Search,
+  Brain,
+  Globe,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +61,44 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
   const [isSending, setIsSending] = useState(false);
   const [copied, setCopied] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  
+  // Sidebar width state for resizing
+  const [sidebarWidth, setSidebarWidth] = useState(340);
+  const isResizing = useRef(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  
+  // Tool toggles
+  const [useMemory, setUseMemory] = useState(true);
+  const [useSearch, setUseSearch] = useState(false);
+  const [useScrape, setUseScrape] = useState(false);
+
+  // Resize handlers
+  const startResize = useCallback((e: React.MouseEvent) => {
+    isResizing.current = true;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setSidebarWidth(Math.max(280, Math.min(600, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -127,30 +171,58 @@ export function AISidebar({ document, onClose, summary }: AISidebarProps) {
   };
 
   return (
-    <div className="w-[380px] border-l bg-card/50 flex flex-col h-full">
+    <div 
+      ref={sidebarRef}
+      style={{ width: sidebarWidth }}
+      className="border-l bg-card/50 flex flex-col h-full relative shrink-0"
+    >
+      {/* Resize Handle */}
+      <div
+        onMouseDown={startResize}
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/30 transition-colors z-10 flex items-center"
+      >
+        <GripVertical className="w-3 h-3 text-muted-foreground/50 -ml-1" />
+      </div>
+      
       {/* Header */}
-      <div className="h-14 border-b flex items-center justify-between px-4 shrink-0">
+      <div className="h-11 border-b flex items-center justify-between px-3 shrink-0">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary" />
-          <span className="font-medium">AI Assistent</span>
+          <Sparkles className="w-4 h-4 text-primary" />
+          <span className="font-medium text-sm">AI</span>
         </div>
         {chatMessages.length > 0 && (
           <Button size="sm" variant="ghost" onClick={copyLastResponse}>
-            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+            {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
           </Button>
         )}
       </div>
 
+      {/* Tool Toggles - Compact */}
+      <div className="px-3 py-2 border-b flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-1.5">
+          <Brain className="w-3 h-3 text-muted-foreground" />
+          <Switch checked={useMemory} onCheckedChange={setUseMemory} className="scale-75" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Search className="w-3 h-3 text-muted-foreground" />
+          <Switch checked={useSearch} onCheckedChange={setUseSearch} className="scale-75" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Globe className="w-3 h-3 text-muted-foreground" />
+          <Switch checked={useScrape} onCheckedChange={setUseScrape} className="scale-75" />
+        </div>
+      </div>
+
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-3 space-y-3">
           {/* Welcome / Quick Info when no chat */}
           {chatMessages.length === 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Document context */}
               {document && (
-                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                <div className="p-2 rounded-md bg-primary/10 border border-primary/20">
                   <div className="flex items-start gap-2">
-                    <FileText className="w-4 h-4 mt-0.5 text-primary" />
+                    <FileText className="w-3.5 h-3.5 mt-0.5 text-primary" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{document.name}</p>
                       <p className="text-xs text-muted-foreground capitalize">{document.category}</p>

@@ -1,11 +1,10 @@
 /**
- * Document Card - Holographic floating card style
- * Minimal, clean, informative
+ * Document Card - Compact, clean card style
+ * Minimal, informative, no overflow
  */
 
 import { cn } from "@/lib/utils";
-import { FileText, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { FileText, Clock, CheckCircle2, AlertTriangle, Image, FileType } from "lucide-react";
 
 interface Document {
   name: string;
@@ -34,70 +33,78 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: "border-l-gray-500",
 };
 
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  pdf: <FileText className="w-3.5 h-3.5" />,
+  png: <Image className="w-3.5 h-3.5" />,
+  jpg: <Image className="w-3.5 h-3.5" />,
+  jpeg: <Image className="w-3.5 h-3.5" />,
+  doc: <FileType className="w-3.5 h-3.5" />,
+  docx: <FileType className="w-3.5 h-3.5" />,
+  txt: <FileText className="w-3.5 h-3.5" />,
+};
+
 export function DocumentCard({ document, selected, onClick }: DocumentCardProps) {
   const isUrgent = document.deadlineDays !== undefined && document.deadlineDays < 7;
   const isCompleted = document.status === "completed";
   
-  // Shorten filename for display
-  const displayName = document.name.length > 30
-    ? document.name.substring(0, 27) + "..."
-    : document.name;
+  // Truncate filename properly
+  const maxLen = 22;
+  const ext = document.name.split('.').pop() || '';
+  const nameWithoutExt = document.name.slice(0, document.name.length - ext.length - 1);
+  const displayName = nameWithoutExt.length > maxLen 
+    ? nameWithoutExt.slice(0, maxLen) + "…" 
+    : nameWithoutExt;
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        "group relative cursor-pointer rounded-lg p-4 transition-all duration-200",
-        "bg-card border border-border/50 shadow-sm",
-        "hover:shadow-lg hover:-translate-y-1 hover:border-border",
-        "border-l-4",
+        "group cursor-pointer rounded-md p-2.5 transition-all duration-150",
+        "bg-card border border-border/40 shadow-sm",
+        "hover:shadow-md hover:border-border hover:bg-accent/30",
+        "border-l-2",
         CATEGORY_COLORS[document.category] || CATEGORY_COLORS.other,
-        selected && "ring-2 ring-primary shadow-lg -translate-y-1",
+        selected && "ring-1 ring-primary shadow-md bg-accent/50",
         isUrgent && "bg-destructive/5",
       )}
     >
-      {/* Icon */}
-      <div className="flex items-start gap-3 mb-3">
+      {/* Top row: Icon + Type badge */}
+      <div className="flex items-center justify-between mb-1.5">
         <div className={cn(
-          "p-2 rounded-md",
-          isCompleted ? "bg-green-500/10" : "bg-primary/10"
+          "p-1.5 rounded",
+          isCompleted ? "bg-green-500/10 text-green-500" : 
+          isUrgent ? "bg-destructive/10 text-destructive" : 
+          "bg-primary/10 text-primary"
         )}>
-          {isCompleted ? (
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-          ) : isUrgent ? (
-            <AlertTriangle className="w-4 h-4 text-destructive" />
-          ) : (
-            <FileText className="w-4 h-4 text-primary" />
-          )}
+          {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5" /> :
+           isUrgent ? <AlertTriangle className="w-3.5 h-3.5" /> :
+           TYPE_ICONS[document.type] || <FileText className="w-3.5 h-3.5" />}
         </div>
+        <span className="text-[10px] uppercase font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+          {document.type}
+        </span>
       </div>
 
-      {/* Name */}
-      <h4 className="text-sm font-medium leading-tight mb-2 line-clamp-2">
+      {/* Name - with proper truncation */}
+      <h4 className="text-xs font-medium leading-snug mb-1 truncate" title={document.name}>
         {displayName}
       </h4>
 
-      {/* Category */}
-      <Badge 
-        variant="secondary" 
-        className="text-xs capitalize"
-      >
+      {/* Category - small */}
+      <span className="text-[10px] text-muted-foreground capitalize">
         {document.category}
-      </Badge>
+      </span>
 
-      {/* Deadline if exists */}
-      {document.deadlineDays !== undefined && (
+      {/* Deadline if urgent */}
+      {document.deadlineDays !== undefined && document.deadlineDays < 14 && (
         <div className={cn(
-          "mt-2 flex items-center gap-1 text-xs",
+          "mt-1.5 flex items-center gap-1 text-[10px]",
           isUrgent ? "text-destructive" : "text-muted-foreground"
         )}>
-          <Clock className="w-3 h-3" />
-          <span>{document.deadlineDays} Tage</span>
+          <Clock className="w-2.5 h-2.5" />
+          <span>{document.deadlineDays}d</span>
         </div>
       )}
-
-      {/* Hover overlay */}
-      <div className="absolute inset-0 rounded-lg bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
     </div>
   );
 }

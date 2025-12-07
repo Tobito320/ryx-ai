@@ -1453,3 +1453,148 @@ async def get_dashboard_summary():
         },
         "profile": memory_system.profile.model_dump(),
     }
+
+
+# ============================================================================
+# Smart Chat API - Using vLLM with Memory & Search
+# ============================================================================
+
+import httpx
+
+VLLM_BASE = "http://localhost:8001/v1"
+SEARXNG_BASE = "http://localhost:8888"
+
+
+class SmartChatRequest(BaseModel):
+    message: str
+    include_memory: bool = True
+    include_search: bool = False
+    include_scrape: bool = False
+    document: Optional[str] = None
+    gmail_account: Optional[str] = None
+
+
+class SmartChatResponse(BaseModel):
+    response: str
+    tools_used: List[str]
+    model: str
+    tokens: int
+
+
+@app.post("/api/chat/smart", response_model=SmartChatResponse)
+async def smart_chat(request: SmartChatRequest):
+    """
+    Smart chat endpoint that:
+    - Integrates with memory system (knows user's personal info)
+    - Can search the web via SearXNG
+    - Can analyze documents if selected
+    - Uses the 14B model for quality German responses
+    """
+    tools_used = []
+    context_parts = []
+    
+    # 1. Add memory context
+    if request.include_memory:
+        memory_context = memory_system.get_context_for_ai()
+        if memory_context:
+            context_parts.append(f"## Benutzer-Kontext:\n{memory_context}")
+            tools_used.append("memory")
+    
+    # 2. Add document context if selected
+    if request.document:
+        doc_path = DOCUMENTS_PATH / request.document
+        if doc_path.exists() and doc_path.suffix.lower() == ".pdf":
+            try:
+                text = document_ai.extract_text_from_pdf(doc_path)
+                if text:
+                    context_parts.append(f"## Dokument ({request.document}):\n{text[:2000]}...")
+                    tools_used.append("document")
+            except Exception as e:
+                pass
+    
+    # 3. Web search if requested
+    search_results = ""
+    if request.include_search:
+        try:
+            # Use SearXNG for search
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                search_url = f"{SEARXNG_BASE}/search"
+                params = {
+                    "q": request.message,
+                    "format": "json",
+                    "categories": "general",
+                }
+                res = await client.get(search_url, params=params)
+                if res.status_code == 200:
+                    data = res.json()
+                    results = data.get("results", [])[:3]
+                    if results:
+                        search_results = "\n".join([
+                            f"- {r.get('title', '')}: {r.get('content', '')[:200]}"
+                            for r in results
+                        ])
+                        context_parts.append(f"## Web-Suchergebnisse:\n{search_results}")
+                        tools_used.append("search")
+        except Exception as e:
+            pass
+    
+    # 4. Build system prompt
+    system_prompt = """Du bist ein hilfreicher persönlicher Assistent. 
+Antworte KURZ und PRÄZISE - maximal 2-3 Sätze wenn möglich.
+Du sprichst Deutsch und kennst den Benutzer persönlich.
+Nutze den bereitgestellten Kontext um personalisierte Antworten zu geben.
+"""
+    
+    if context_parts:
+        system_prompt += "\n\n" + "\n\n".join(context_parts)
+    
+    # 5. Call vLLM
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            vllm_res = await client.post(
+                f"{VLLM_BASE}/chat/completions",
+                json={
+                    "model": "/models/powerful/general/qwen2.5-14b-gptq",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": request.message},
+                    ],
+                    "max_tokens": 500,
+                    "temperature": 0.7,
+                },
+            )
+            
+            if vllm_res.status_code == 200:
+                data = vllm_res.json()
+                response_text = data["choices"][0]["message"]["content"]
+                tokens_used = data.get("usage", {}).get("total_tokens", 0)
+                model_used = data.get("model", "unknown")
+                
+                return SmartChatResponse(
+                    response=response_text.strip(),
+                    tools_used=tools_used,
+                    model=model_used,
+                    tokens=tokens_used,
+                )
+            else:
+                # Fallback response if vLLM fails
+                return SmartChatResponse(
+                    response=f"vLLM nicht erreichbar (Status: {vllm_res.status_code}). Starte mit: ryx restart all",
+                    tools_used=tools_used,
+                    model="error",
+                    tokens=0,
+                )
+    except httpx.TimeoutException:
+        return SmartChatResponse(
+            response="vLLM Timeout - Model wird möglicherweise noch geladen. Bitte warten...",
+            tools_used=tools_used,
+            model="timeout",
+            tokens=0,
+        )
+    except Exception as e:
+        return SmartChatResponse(
+            response=f"Fehler: {str(e)}",
+            tools_used=tools_used,
+            model="error",
+            tokens=0,
+        )
