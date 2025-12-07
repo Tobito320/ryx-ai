@@ -18,7 +18,7 @@ gi.require_version('WebKit', '6.0')
 
 from gi.repository import Gtk, WebKit, GLib, Gdk, Pango
 from typing import Optional, List, Callable, Dict
-from src.ui.hints import HintMode
+from ..ui.hints import HintMode
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -119,7 +119,7 @@ class Browser:
         self.bookmarks_visible: bool = False
         self.url_bar_visible: bool = True
         self.url_bar_pinned: bool = False  # When user explicitly shows it
-        self.fullscreen: bool = True  # Start fullscreen
+        self.fullscreen: bool = False  # Don't start fullscreen by default
         self._last_scroll_y: float = 0
         self._url_bar_hide_timeout: Optional[int] = None
         
@@ -188,7 +188,13 @@ class Browser:
         
         self.window = Gtk.ApplicationWindow(application=app)
         self.window.set_title("RyxSurf")
-        self.window.set_default_size(1920, 1080)
+        
+        # Set reasonable default size (not fullscreen)
+        start_fullscreen = self.settings.get("start_fullscreen", False)
+        if start_fullscreen:
+            self.window.set_default_size(1920, 1080)
+        else:
+            self.window.set_default_size(1200, 800)
         
         # Release hold when window is destroyed
         self.window.connect('destroy', lambda w: self._on_window_destroy(app))
@@ -196,32 +202,44 @@ class Browser:
         # Apply CSS styling
         self._apply_css()
         
-        # Main vertical layout: URL bar on top, content below
-        self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        # Zen Browser style layout:
+        # [LEFT SIDEBAR] | [RIGHT: URL BAR + WEBVIEW]
+        
+        # Main horizontal layout: sidebar on left, content on right
+        self.main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.window.set_child(self.main_box)
         
-        # Content area: horizontal box with optional sidebar + webview
-        # Must be created BEFORE url bar (url bar auto-hide needs content_box)
+        # Create tab sidebar FIRST (left side, always visible)
+        self._create_tab_sidebar()
+        self.tab_sidebar.set_visible(True)  # Always visible by default
+        self.sidebar_visible = True
+        
+        # Right side: vertical box with URL bar on top, webview below
+        self.right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.right_box.set_hexpand(True)
+        self.right_box.set_vexpand(True)
+        self.main_box.append(self.right_box)
+        
+        # Content area for webviews (must be created BEFORE url bar for auto-hide)
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.content_box.set_vexpand(True)
         self.content_box.set_hexpand(True)
         
-        # Create persistent URL bar at the top
+        # Create persistent URL bar at the top (always visible)
         self._create_url_bar()
+        self.url_bar_visible = True
+        self.url_bar_box.set_visible(True)
         
-        # Create bookmarks bar (hidden by default)
+        # Create bookmarks bar (hidden by default, below URL bar)
         self._create_bookmarks_bar()
         
         # Create find bar (hidden by default)
         self._create_find_bar()
         
         # Add content box after URL bar
-        self.main_box.append(self.content_box)
+        self.right_box.append(self.content_box)
         
-        # Create tab sidebar (hidden by default)
-        self._create_tab_sidebar()
-        
-        # Create AI sidebar (hidden by default)
+        # Create AI sidebar (hidden by default, right side of content)
         self._create_ai_sidebar()
         
         # Create download notification
@@ -244,8 +262,9 @@ class Browser:
         # Start tab unload monitor
         self._start_tab_unload_monitor()
         
-        # Go fullscreen
-        if self.fullscreen:
+        # Go fullscreen only if setting is enabled
+        start_fullscreen = self.settings.get("start_fullscreen", False)
+        if start_fullscreen:
             self.window.fullscreen()
         
         self.window.present()
@@ -586,7 +605,7 @@ class Browser:
         self.url_bar_indicator.add_controller(indicator_motion)
         
         url_bar_container.append(self.url_bar_indicator)
-        self.main_box.append(url_bar_container)
+        self.right_box.append(url_bar_container)
         
         # Add click-outside detection to webview area
         self._setup_url_bar_auto_hide()
@@ -674,18 +693,18 @@ class Browser:
             self._navigate_current(row.suggestion_url)
     
     def _create_tab_sidebar(self):
-        """Create the tab sidebar (hidden by default) with middle-click close"""
+        """Create the tab sidebar (left side, Zen Browser style)"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        self.tab_sidebar.set_visible(False)
-        self.content_box.append(self.tab_sidebar)
+        self.tab_sidebar.set_size_request(200, -1)  # Fixed width for sidebar
+        # Prepend to main_box so it's on the left
+        self.main_box.prepend(self.tab_sidebar)
     
     def _create_download_notification(self):
         """Create the download notification widget"""
         self.download_notification = DownloadNotification(self.download_manager)
-        # Add as overlay on content area
-        # For now, we add it to main_box at the end (bottom)
-        self.main_box.append(self.download_notification)
+        # Add to right_box (bottom of content area)
+        self.right_box.append(self.download_notification)
     
     def _create_bookmarks_bar(self):
         """Create the bookmarks bar (hidden by default)"""
@@ -694,13 +713,13 @@ class Browser:
             bookmark_manager=self.bookmark_manager,
             on_navigate=self._navigate_current
         )
-        self.main_box.append(self.bookmarks_bar)
+        self.right_box.append(self.bookmarks_bar)
         
     def _create_find_bar(self):
         """Create the find-in-page bar (hidden by default)"""
         from ..ui.find_bar import FindBar
         self.find_bar = FindBar(get_webview_callback=self._get_current_webview)
-        self.main_box.append(self.find_bar)
+        self.right_box.append(self.find_bar)
         
     def _create_context_menu_handler(self):
         """Create the context menu handler"""
