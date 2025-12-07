@@ -779,6 +779,7 @@ class Browser:
         # Get modifier state
         ctrl_pressed = bool(state & Gdk.ModifierType.CONTROL_MASK)
         shift_pressed = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        super_pressed = bool(state & Gdk.ModifierType.MOD4_MASK)
         
         key_name = Gdk.keyval_name(keyval)
         if key_name is None:
@@ -872,6 +873,15 @@ class Browser:
                 return Gdk.EVENT_STOP
             elif key_name == 'ISO_Left_Tab' or key_name == 'Tab':
                 self._prev_tab()
+                return Gdk.EVENT_STOP
+        
+        # Super key shortcuts (for AI features)
+        if super_pressed and not ctrl_pressed:
+            if shift_pressed and key_name in ('a', 'A'):
+                self._summarize_page()
+                return Gdk.EVENT_STOP
+            elif key_name == 'x':
+                self._dismiss_popup()
                 return Gdk.EVENT_STOP
         
         # F for link hints (only when Ctrl not pressed and not in URL entry)
