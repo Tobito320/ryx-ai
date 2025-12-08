@@ -42,8 +42,8 @@ DEFAULT_SETTINGS = {
     "dark_mode": True,
     "font_size": 14,
     "smooth_scrolling": True,
-    "tab_unload_timeout_seconds": 300,  # 5 minutes
-    "max_loaded_tabs": 10,
+    "tab_unload_timeout_seconds": 120,  # 2 minutes - aggressive memory saving
+    "max_loaded_tabs": 8,
     "restore_session_on_startup": True,
 }
 
