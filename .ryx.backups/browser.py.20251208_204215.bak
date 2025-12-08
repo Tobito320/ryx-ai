@@ -175,12 +175,6 @@ class Browser:
         self.ai_client.headers.update({'Content-Type': 'application/json'})
         self.ai_client.base_url = self.config.ai_endpoint
 
-    def _select_all(self):
-        """Run JavaScript to select all text on the current page."""
-        if self.tabs and self.active_tab_idx < len(self.tabs):
-            active_tab = self.tabs[self.active_tab_idx]
-            active_tab.webview.run_javascript("document.body.select();", None, None)
-
     def run(self):
         """Start the browser"""
         self.app = Gtk.Application(application_id='ai.ryx.surf')
