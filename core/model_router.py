@@ -84,12 +84,12 @@ MODELS: Dict[ModelRole, ModelConfig] = {
     ),
     
     ModelRole.REASON: ModelConfig(
-        name="mistral-nemo:12b",
+        name="qwen2.5-coder:14b",
         role=ModelRole.REASON,
-        vram_mb=8000,
+        vram_mb=10000,
         max_tokens=8192,
         timeout_seconds=120,
-        description="Reasoning via Nemo (fallback until deepseek installed)"
+        description="Use coder for reasoning (best available)"
     ),
     
     ModelRole.EMBED: ModelConfig(
@@ -102,12 +102,12 @@ MODELS: Dict[ModelRole, ModelConfig] = {
     ),
     
     ModelRole.FALLBACK: ModelConfig(
-        name="mistral-nemo:12b",
+        name="qwen2.5-coder:7b",
         role=ModelRole.FALLBACK,
-        vram_mb=8000,
+        vram_mb=5000,
         max_tokens=8192,
-        timeout_seconds=120,
-        description="Fallback zu Nemo"
+        timeout_seconds=60,
+        description="Fallback to 7B coder"
     ),
     
     ModelRole.UNCENSORED: ModelConfig(

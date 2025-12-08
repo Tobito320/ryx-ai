@@ -55,19 +55,20 @@ class OllamaConfig:
         "general": "mistral-nemo:12b",
         "uncensored": "dolphin-mistral:7b",
         
-        # Coding (main workhorse)
+        # Coding (main workhorse - 14B)
         "code": "qwen2.5-coder:14b",
         "coder": "qwen2.5-coder:14b",
+        "code_fast": "qwen2.5-coder:7b",
         
-        # Reasoning
-        "reason": "deepseek-r1:14b",
-        "think": "deepseek-r1:14b",
+        # Reasoning (use coder for now)
+        "reason": "qwen2.5-coder:14b",
+        "think": "qwen2.5-coder:14b",
         
         # Embeddings
         "embed": "nomic-embed-text:latest",
         
-        # Default
-        "default": "qwen2.5:7b",
+        # Default - use coder for best results
+        "default": "qwen2.5-coder:14b",
     })
 
 

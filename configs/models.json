@@ -3,8 +3,7 @@
   "ollama_base_url": "http://localhost:11434",
   "searxng_url": "http://localhost:8888",
   
-  "_comment": "Models currently installed: mistral-nemo:12b, dolphin-mistral:7b, qwen2.5:1.5b",
-  "_download_needed": "ollama pull qwen2.5-coder:14b",
+  "_comment": "Models installed: qwen2.5-coder:14b, qwen2.5-coder:7b, mistral-nemo:12b, dolphin-mistral:7b, qwen2.5:1.5b",
   
   "models": {
     "fast": {
@@ -37,7 +36,7 @@
     "code": {
       "name": "qwen2.5-coder:14b",
       "role": "code",
-      "description": "14B Coder - Main coding model (needs download)",
+      "description": "14B Coder - Main coding model, HumanEval 88%",
       "vram_mb": 10000,
       "max_tokens": 8192,
       "num_ctx": 16384,
@@ -45,14 +44,23 @@
       "num_thread": 12,
       "timeout_seconds": 120
     },
-    "default": {
-      "name": "mistral-nemo:12b",
-      "role": "default",
-      "description": "Default to Nemo for now (good balance)",
-      "vram_mb": 8000,
-      "max_tokens": 4096,
+    "code_fast": {
+      "name": "qwen2.5-coder:7b",
+      "role": "code_fast",
+      "description": "7B Coder - Faster coding for simple tasks",
+      "vram_mb": 5000,
+      "max_tokens": 8192,
       "num_ctx": 16384,
       "timeout_seconds": 60
+    },
+    "default": {
+      "name": "qwen2.5-coder:14b",
+      "role": "default",
+      "description": "Default to 14B coder for best results",
+      "vram_mb": 10000,
+      "max_tokens": 8192,
+      "num_ctx": 16384,
+      "timeout_seconds": 120
     }
   },
   
@@ -73,7 +81,7 @@
     "code_explore": "code",
     "code_plan": "code",
     "code_apply": "code",
-    "code_verify": "chat",
+    "code_verify": "code_fast",
     "ryxsurf_ai": "fast",
     "ryxhub_chat": "chat"
   },
@@ -82,7 +90,7 @@
     "explore": "code",
     "plan": "code",
     "apply": "code",
-    "verify": "chat"
+    "verify": "code_fast"
   },
   
   "module_defaults": {
