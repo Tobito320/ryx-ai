@@ -6,6 +6,8 @@ This is the upgraded execution layer that incorporates:
 2. SelfHealing - Automatic error recovery with retries (from healing-agent)
 3. RepoMap - Semantic code understanding (from Aider)
 4. AutoContext - Automatic file discovery
+5. TodoManager - Task tracking for complex work (from Claude Code)
+6. CodebaseExplorer - Project understanding for vague prompts
 
 The goal: Make Ryx 210% as reliable and 110% as powerful as Claude Code CLI.
 
@@ -14,6 +16,7 @@ Key improvements:
 - Errors auto-recover (3 retries with reflection)
 - File discovery is smarter (uses code structure, not just file names)
 - No manual file adding ever needed
+- Handles vague prompts like "resume work on X"
 """
 
 import os
@@ -30,6 +33,8 @@ from core.auto_context import AutoContextBuilder, ContextResult
 from core.reliable_editor import get_editor, EditResult
 from core.self_healing import healing, SelfHealingExecutor, capture_error_context
 from core.repo_map import get_repo_map
+from core.todo_manager import TodoManager, TaskStatus
+from core.codebase_explorer import CodebaseExplorer
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +64,11 @@ class EnhancedExecutor:
     2. Edits succeed even when LLM output is imperfect
     3. Errors are recovered automatically
     4. Learns from mistakes
+    5. Handles vague prompts like "resume work on X"
     
     Usage:
         executor = EnhancedExecutor()
-        result = executor.execute("fix the vllm timeout issue")
+        result = executor.execute("resume work on ryxsurf")
         print(result.output)
     """
     
@@ -76,11 +82,81 @@ class EnhancedExecutor:
         self.editor = get_editor(str(self.project_root))
         self.repo_map = get_repo_map(str(self.project_root))
         
+        # New: Task management and exploration
+        self.todo = TodoManager(str(self.project_root))
+        self.explorer = CodebaseExplorer(str(self.project_root))
+        
         # Scan repo on init
         self.repo_map.scan()
         
         logger.info(f"EnhancedExecutor initialized for {self.project_root}")
         logger.info(f"RepoMap: {len(self.repo_map.files)} files indexed")
+    
+    def _is_vague_prompt(self, prompt: str) -> Tuple[bool, Optional[str]]:
+        """Check if this is a vague prompt that needs exploration"""
+        lower = prompt.lower().strip()
+        
+        # Patterns that indicate vague prompts
+        vague_patterns = [
+            (r"resume\s+(?:work\s+on\s+)?(\w+)", "resume"),
+            (r"continue\s+(?:work\s+on\s+|with\s+)?(\w+)", "continue"),
+            (r"work\s+on\s+(\w+)", "work"),
+            (r"improve\s+(\w+)", "improve"),
+            (r"what.*(?:status|state).*(\w+)", "status"),
+            (r"(\w+)\s+status", "status"),
+        ]
+        
+        for pattern, intent in vague_patterns:
+            match = re.search(pattern, lower)
+            if match:
+                project = match.group(1)
+                return True, project
+        
+        return False, None
+    
+    def _handle_vague_prompt(self, prompt: str, project_name: str) -> ExecutionResult:
+        """Handle vague prompts by exploring and creating tasks"""
+        # Explore the project
+        insight = self.explorer.explore_project(project_name)
+        
+        if not insight.main_files:
+            return ExecutionResult(
+                success=False,
+                output=f"Could not find project '{project_name}'"
+            )
+        
+        # Get suggestions
+        suggestions = self.explorer.suggest_next_actions(insight)
+        
+        # Create TODO items from suggestions
+        if suggestions:
+            self.todo.reset()  # Clear old tasks
+            self.todo.add_tasks(suggestions)
+        
+        # Get current TODO status
+        todo_status = self.todo.get_status_summary()
+        
+        # Build response
+        output = f"""🔍 Explored project: {project_name}
+
+{insight.summary}
+
+{todo_status}
+
+Ready to start working. I'll begin with the first task.
+"""
+        
+        # Auto-start first task
+        next_task = self.todo.get_next_task()
+        if next_task:
+            self.todo.start_task(next_task.id)
+            output += f"\n🔄 Starting: {next_task.content}"
+        
+        return ExecutionResult(
+            success=True,
+            output=output,
+            files_discovered=len(insight.main_files)
+        )
     
     @healing(max_retries=3, log_errors=True)
     def execute(self, prompt: str) -> ExecutionResult:
@@ -94,6 +170,11 @@ class EnhancedExecutor:
             ExecutionResult with details
         """
         result = ExecutionResult(success=False, output="")
+        
+        # Step 0: Check for vague prompts that need exploration
+        is_vague, project_name = self._is_vague_prompt(prompt)
+        if is_vague and project_name:
+            return self._handle_vague_prompt(prompt, project_name)
         
         # Step 1: Understand intent
         plan, confidence = self.autonomous_brain.understand_with_confidence(prompt)
