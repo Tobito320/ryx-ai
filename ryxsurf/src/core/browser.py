@@ -1070,6 +1070,9 @@ class Browser:
         settings.set_enable_media_stream(True)
         settings.set_media_playback_requires_user_gesture(False)
         
+        # Dark mode for web content
+        webview.set_background_color(Gdk.RGBA(red=0.05, green=0.05, blue=0.07, alpha=1.0))
+        
         # Set initial title based on URL
         initial_title = "New Tab"
         if url and url != "about:blank":
@@ -1635,6 +1638,9 @@ kbd {
                 # Inject user scripts
                 if hasattr(self, 'userscript_manager') and uri:
                     self.userscript_manager.inject_user_scripts(webview, uri, "document-idle")
+                
+                # Inject dark mode preference CSS
+                self._inject_dark_mode_css(webview)
             
             if uri and self.url_entry:
                 # Only update if this is the active tab's webview
@@ -1644,6 +1650,24 @@ kbd {
             # Schedule URL bar auto-hide after load
             if self.settings.get("url_bar_auto_hide", True):
                 self._schedule_url_bar_hide()
+    
+    def _inject_dark_mode_css(self, webview):
+        """Inject CSS to help pages respect dark mode"""
+        js = """
+        (function() {
+            // Set color-scheme meta tag if not present
+            if (!document.querySelector('meta[name="color-scheme"]')) {
+                var meta = document.createElement('meta');
+                meta.name = 'color-scheme';
+                meta.content = 'dark light';
+                document.head.appendChild(meta);
+            }
+            
+            // Add dark mode class to html element
+            document.documentElement.style.colorScheme = 'dark';
+        })();
+        """
+        webview.evaluate_javascript(js, -1, None, None, None, None, None)
     
     def _on_load_failed(self, webview, load_event, failing_uri, error):
         """Handle page load failures"""
