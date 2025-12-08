@@ -1515,9 +1515,177 @@ kbd {
         """Process AI response and display it in the browser"""
         print(response)
     def _show_ai_bar(self):
-        """Show AI command bar"""
-        # TODO: Implement AI command bar
-        pass
+        """Show AI command bar overlay"""
+        # Create overlay if not exists
+        if not hasattr(self, 'ai_bar_overlay') or self.ai_bar_overlay is None:
+            self._create_ai_bar()
+        
+        self.ai_bar_overlay.set_visible(True)
+        self.ai_bar_entry.grab_focus()
+    
+    def _create_ai_bar(self):
+        """Create the AI command bar overlay"""
+        # Overlay container
+        self.ai_bar_overlay = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.ai_bar_overlay.set_halign(Gtk.Align.CENTER)
+        self.ai_bar_overlay.set_valign(Gtk.Align.START)
+        self.ai_bar_overlay.set_margin_top(100)
+        self.ai_bar_overlay.add_css_class("ai-bar-overlay")
+        
+        # Style the overlay
+        css = b"""
+        .ai-bar-overlay {
+            background: rgba(40, 42, 54, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 500px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(189, 147, 249, 0.3);
+        }
+        .ai-bar-entry {
+            background: rgba(68, 71, 90, 0.8);
+            border: 1px solid rgba(189, 147, 249, 0.5);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 16px;
+            color: #f8f8f2;
+            min-width: 400px;
+        }
+        .ai-bar-entry:focus {
+            border-color: #bd93f9;
+            box-shadow: 0 0 8px rgba(189, 147, 249, 0.3);
+        }
+        .ai-bar-label {
+            color: #bd93f9;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        .ai-response {
+            background: rgba(68, 71, 90, 0.5);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            color: #f8f8f2;
+            font-size: 14px;
+            max-height: 300px;
+        }
+        """
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        
+        # Label
+        label = Gtk.Label(label="🤖 AI Command (Esc to close)")
+        label.add_css_class("ai-bar-label")
+        self.ai_bar_overlay.append(label)
+        
+        # Entry
+        self.ai_bar_entry = Gtk.Entry()
+        self.ai_bar_entry.add_css_class("ai-bar-entry")
+        self.ai_bar_entry.set_placeholder_text("summarize this page, click login, dismiss popup...")
+        self.ai_bar_overlay.append(self.ai_bar_entry)
+        
+        # Response area
+        self.ai_response_label = Gtk.Label()
+        self.ai_response_label.add_css_class("ai-response")
+        self.ai_response_label.set_wrap(True)
+        self.ai_response_label.set_visible(False)
+        self.ai_bar_overlay.append(self.ai_response_label)
+        
+        # Connect signals
+        self.ai_bar_entry.connect("activate", self._on_ai_bar_activate)
+        
+        # Add key handler for Escape
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", self._on_ai_bar_key)
+        self.ai_bar_entry.add_controller(key_controller)
+        
+        # Add to main overlay
+        self.main_overlay.add_overlay(self.ai_bar_overlay)
+        self.ai_bar_overlay.set_visible(False)
+    
+    def _on_ai_bar_key(self, controller, keyval, keycode, state):
+        """Handle key presses in AI bar"""
+        if keyval == Gdk.KEY_Escape:
+            self._hide_ai_bar()
+            return True
+        return False
+    
+    def _on_ai_bar_activate(self, entry):
+        """Handle AI command submission"""
+        command = entry.get_text().strip()
+        if not command:
+            return
+        
+        # Show loading
+        self.ai_response_label.set_text("🔄 Processing...")
+        self.ai_response_label.set_visible(True)
+        
+        # Process in background
+        GLib.idle_add(self._process_ai_command, command)
+    
+    def _process_ai_command(self, command: str):
+        """Process AI command and execute actions"""
+        import asyncio
+        from ..ai.agent import BrowserAgent, PageContext, ActionExecutor
+        
+        # Get page context
+        current_tab = self.tabs[self.active_tab_idx]
+        
+        # Create agent with config
+        config = type('Config', (), {
+            'ai_endpoint': 'http://localhost:8001/v1',
+            'ai_model': 'qwen2.5-7b-awq'
+        })()
+        agent = BrowserAgent(config)
+        
+        # Simple page context
+        page_ctx = PageContext(
+            url=current_tab.url,
+            title=current_tab.title,
+            text_content="",  # Will be filled by JS
+            links=[],
+            forms=[],
+            has_popup=False,
+            has_newsletter=False
+        )
+        
+        # Run async in thread
+        try:
+            loop = asyncio.new_event_loop()
+            actions = loop.run_until_complete(agent.process_command(command, page_ctx))
+            loop.close()
+            
+            if actions:
+                # Execute first action
+                action = actions[0]
+                js = ActionExecutor.get_js_for_action(action)
+                current_tab.webview.evaluate_javascript(js, -1, None, None, None, None, None)
+                
+                self.ai_response_label.set_text(f"✅ {action.action_type.value}: {action.target or 'done'}")
+            else:
+                self.ai_response_label.set_text("❓ Could not understand command")
+        except Exception as e:
+            self.ai_response_label.set_text(f"❌ Error: {str(e)[:50]}")
+        
+        # Clear entry
+        self.ai_bar_entry.set_text("")
+        
+        # Auto-hide after 2 seconds
+        GLib.timeout_add(2000, self._hide_ai_bar)
+        
+        return False  # Don't repeat
+    
+    def _hide_ai_bar(self):
+        """Hide AI command bar"""
+        if hasattr(self, 'ai_bar_overlay') and self.ai_bar_overlay:
+            self.ai_bar_overlay.set_visible(False)
+            self.ai_response_label.set_visible(False)
+        return False
         
     def _toggle_sidebar(self):
         """Toggle tab sidebar visibility"""
@@ -1558,8 +1726,117 @@ kbd {
             print(f"Error getting page text: {error}")
             return
         page_text = result.get_string()
-        # TODO: Integrate with AI to summarize the page_text
-        print(page_text)
+        
+        # Summarize with AI
+        GLib.idle_add(self._summarize_with_ai, page_text)
+    
+    def _summarize_with_ai(self, page_text: str):
+        """Send page text to AI for summarization"""
+        import aiohttp
+        import asyncio
+        
+        # Truncate to fit context
+        max_chars = 8000
+        if len(page_text) > max_chars:
+            page_text = page_text[:max_chars] + "..."
+        
+        async def get_summary():
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "http://localhost:8001/v1/chat/completions",
+                    json={
+                        "model": "qwen2.5-7b-awq",
+                        "messages": [
+                            {"role": "system", "content": "You are a concise summarizer. Summarize the following web page content in 3-5 bullet points. Be brief."},
+                            {"role": "user", "content": f"Summarize this page:\n\n{page_text}"}
+                        ],
+                        "max_tokens": 300,
+                        "temperature": 0.3
+                    }
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return data["choices"][0]["message"]["content"]
+                    return "Failed to get summary"
+        
+        try:
+            loop = asyncio.new_event_loop()
+            summary = loop.run_until_complete(get_summary())
+            loop.close()
+            
+            # Show summary in overlay
+            self._show_summary_overlay(summary)
+        except Exception as e:
+            self._show_summary_overlay(f"Error: {str(e)}")
+        
+        return False
+    
+    def _show_summary_overlay(self, summary: str):
+        """Show summary in a nice overlay"""
+        # Create overlay if needed
+        if not hasattr(self, 'summary_overlay') or self.summary_overlay is None:
+            self._create_summary_overlay()
+        
+        self.summary_label.set_text(summary)
+        self.summary_overlay.set_visible(True)
+        
+        # Auto-hide after 10 seconds
+        GLib.timeout_add(10000, lambda: self.summary_overlay.set_visible(False) or False)
+    
+    def _create_summary_overlay(self):
+        """Create summary overlay"""
+        self.summary_overlay = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.summary_overlay.set_halign(Gtk.Align.END)
+        self.summary_overlay.set_valign(Gtk.Align.END)
+        self.summary_overlay.set_margin_end(20)
+        self.summary_overlay.set_margin_bottom(20)
+        
+        # Style
+        css = b"""
+        .summary-overlay {
+            background: rgba(40, 42, 54, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(80, 250, 123, 0.3);
+        }
+        .summary-title {
+            color: #50fa7b;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .summary-text {
+            color: #f8f8f2;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        """
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        
+        self.summary_overlay.add_css_class("summary-overlay")
+        
+        title = Gtk.Label(label="📝 Page Summary")
+        title.add_css_class("summary-title")
+        title.set_halign(Gtk.Align.START)
+        self.summary_overlay.append(title)
+        
+        self.summary_label = Gtk.Label()
+        self.summary_label.add_css_class("summary-text")
+        self.summary_label.set_wrap(True)
+        self.summary_label.set_max_width_chars(50)
+        self.summary_label.set_halign(Gtk.Align.START)
+        self.summary_overlay.append(self.summary_label)
+        
+        self.main_overlay.add_overlay(self.summary_overlay)
+        self.summary_overlay.set_visible(False)
     
     def _close_overlays(self):
         """Close any open overlays/bars"""
@@ -1610,33 +1887,163 @@ kbd {
         
     def _ai_summarize(self):
         """AI: Summarize current page"""
-        # TODO: Get page content and send to AI
-        pass
+        self._summarize_page()
         
     def _ai_dismiss(self):
-        """AI: Dismiss popup/overlay"""
-        # TODO: Detect and remove overlays
+        """AI: Dismiss popup/overlay - Enhanced with more selectors"""
         if self.tabs:
             webview = self.tabs[self.active_tab_idx].webview
-            # Common overlay removal script
+            # Comprehensive overlay removal script
             webview.evaluate_javascript("""
-                // Remove common newsletter popups
-                document.querySelectorAll('[class*="popup"], [class*="modal"], [class*="overlay"], [id*="popup"], [id*="modal"]').forEach(el => {
-                    if (el.style.position === 'fixed' || el.style.position === 'absolute') {
+                (function() {
+                    let removed = 0;
+                    
+                    // Common overlay selectors
+                    const selectors = [
+                        '[class*="popup"]', '[class*="modal"]', '[class*="overlay"]',
+                        '[class*="dialog"]', '[id*="popup"]', '[id*="modal"]',
+                        '[class*="newsletter"]', '[class*="subscribe"]',
+                        '[class*="cookie"]', '[class*="consent"]', '[class*="gdpr"]',
+                        '[class*="paywall"]', '[role="dialog"]', '[aria-modal="true"]',
+                        '[class*="banner"]', '[class*="notification"]'
+                    ];
+                    
+                    selectors.forEach(sel => {
+                        document.querySelectorAll(sel).forEach(el => {
+                            const style = window.getComputedStyle(el);
+                            if (style.position === 'fixed' || style.position === 'absolute') {
+                                const rect = el.getBoundingClientRect();
+                                if (rect.width > 100 && rect.height > 100) {
+                                    el.remove();
+                                    removed++;
+                                }
+                            }
+                        });
+                    });
+                    
+                    // Remove backdrop elements
+                    document.querySelectorAll('[class*="backdrop"], [class*="overlay-bg"]').forEach(el => {
                         el.remove();
-                    }
-                });
-                // Remove backdrop
-                document.querySelectorAll('[class*="backdrop"]').forEach(el => el.remove());
-                // Re-enable scrolling
-                document.body.style.overflow = 'auto';
-                document.documentElement.style.overflow = 'auto';
-            """, -1, None, None, None, None)
+                        removed++;
+                    });
+                    
+                    // Re-enable scrolling
+                    document.body.style.overflow = 'auto';
+                    document.body.style.position = '';
+                    document.documentElement.style.overflow = 'auto';
+                    
+                    // Remove blur effects
+                    document.querySelectorAll('[style*="blur"]').forEach(el => {
+                        el.style.filter = '';
+                    });
+                    
+                    console.log('Removed ' + removed + ' overlays');
+                })();
+            """, -1, None, None, None, None, None)
         
     def _switch_session(self):
-        """Switch to a different session"""
-        # TODO: Implement session switcher UI
-        pass
+        """Switch to a different session with UI"""
+        self._show_session_switcher()
+    
+    def _show_session_switcher(self):
+        """Show session switcher overlay"""
+        if not hasattr(self, 'session_switcher') or self.session_switcher is None:
+            self._create_session_switcher()
+        
+        # Load available sessions
+        self._load_session_list()
+        self.session_switcher.set_visible(True)
+    
+    def _create_session_switcher(self):
+        """Create session switcher UI"""
+        self.session_switcher = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.session_switcher.set_halign(Gtk.Align.CENTER)
+        self.session_switcher.set_valign(Gtk.Align.CENTER)
+        
+        css = b"""
+        .session-switcher {
+            background: rgba(40, 42, 54, 0.98);
+            border-radius: 12px;
+            padding: 20px;
+            min-width: 300px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 121, 198, 0.3);
+        }
+        .session-title {
+            color: #ff79c6;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .session-item {
+            background: rgba(68, 71, 90, 0.6);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 4px 0;
+            color: #f8f8f2;
+        }
+        .session-item:hover {
+            background: rgba(189, 147, 249, 0.3);
+        }
+        """
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        
+        self.session_switcher.add_css_class("session-switcher")
+        
+        title = Gtk.Label(label="📁 Switch Session")
+        title.add_css_class("session-title")
+        self.session_switcher.append(title)
+        
+        # Session list
+        self.session_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.session_switcher.append(self.session_list)
+        
+        # New session button
+        new_btn = Gtk.Button(label="+ New Session")
+        new_btn.connect("clicked", self._on_new_session)
+        self.session_switcher.append(new_btn)
+        
+        # Key handler
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", self._on_session_key)
+        self.session_switcher.add_controller(key_controller)
+        
+        self.main_overlay.add_overlay(self.session_switcher)
+        self.session_switcher.set_visible(False)
+    
+    def _load_session_list(self):
+        """Load and display available sessions"""
+        # Clear existing
+        while child := self.session_list.get_first_child():
+            self.session_list.remove(child)
+        
+        # Load sessions from disk
+        session_dir = Path.home() / ".config" / "ryxsurf" / "sessions"
+        if session_dir.exists():
+            for session_file in session_dir.glob("*.json"):
+                name = session_file.stem
+                btn = Gtk.Button(label=name)
+                btn.add_css_class("session-item")
+                btn.connect("clicked", lambda b, n=name: self._load_session(n))
+                self.session_list.append(btn)
+    
+    def _on_session_key(self, controller, keyval, keycode, state):
+        """Handle keys in session switcher"""
+        if keyval == Gdk.KEY_Escape:
+            self.session_switcher.set_visible(False)
+            return True
+        return False
+    
+    def _on_new_session(self, button):
+        """Create new session"""
+        self._save_current_session("new_session")
+        self.session_switcher.set_visible(False)
         
     def _on_title_change(self, tab: Tab):
         """Handle page title change"""
