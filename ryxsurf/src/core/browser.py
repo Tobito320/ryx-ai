@@ -545,39 +545,18 @@ class Browser:
         )
     
     def _create_url_bar(self):
-        """Create ultra-compact full-width URL bar"""
+        """Create ultra-compact full-width URL bar (minimal, no nav buttons)"""
         self.url_bar_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.url_bar_box.add_css_class("url-bar")
-        self.url_bar_box.set_spacing(6)
+        self.url_bar_box.set_spacing(4)
         self.url_bar_box.set_hexpand(True)
         
-        # Back button
-        back_btn = Gtk.Button(label="‹")
-        back_btn.add_css_class("nav-btn")
-        back_btn.set_tooltip_text("Back")
-        back_btn.connect("clicked", lambda _: self._history_back())
-        self.url_bar_box.append(back_btn)
-        
-        # Forward button
-        fwd_btn = Gtk.Button(label="›")
-        fwd_btn.add_css_class("nav-btn")
-        fwd_btn.set_tooltip_text("Forward")
-        fwd_btn.connect("clicked", lambda _: self._history_forward())
-        self.url_bar_box.append(fwd_btn)
-        
-        # Reload button
-        reload_btn = Gtk.Button(label="↻")
-        reload_btn.add_css_class("nav-btn")
-        reload_btn.set_tooltip_text("Reload")
-        reload_btn.connect("clicked", lambda _: self._reload())
-        self.url_bar_box.append(reload_btn)
-        
-        # Security icon
+        # Security icon (compact)
         self.security_icon = Gtk.Label(label="")
         self.security_icon.add_css_class("security-icon")
         self.url_bar_box.append(self.security_icon)
         
-        # URL entry - full width
+        # URL entry - full width, minimal padding
         self.url_entry = Gtk.Entry()
         self.url_entry.set_hexpand(True)
         self.url_entry.add_css_class("url-entry")
@@ -619,24 +598,83 @@ class Browser:
         if not text or text.startswith("!") or text.startswith("?"):
             self._suggestions_popup.popdown()
             return
+        
+        # Quick domain suggestions for common sites
+        QUICK_DOMAINS = {
+            "youtube": "https://www.youtube.com",
+            "google": "https://www.google.com",
+            "github": "https://github.com",
+            "reddit": "https://www.reddit.com",
+            "twitter": "https://twitter.com",
+            "x": "https://x.com",
+            "twitch": "https://www.twitch.tv",
+            "amazon": "https://www.amazon.com",
+            "netflix": "https://www.netflix.com",
+            "wikipedia": "https://wikipedia.org",
+            "stackoverflow": "https://stackoverflow.com",
+            "gmail": "https://mail.google.com",
+            "drive": "https://drive.google.com",
+            "maps": "https://maps.google.com",
+        }
+        
+        # Check if input matches a quick domain
+        lower_text = text.lower()
+        quick_match = None
+        for key, url in QUICK_DOMAINS.items():
+            if key.startswith(lower_text):
+                quick_match = (key, url)
+                break
             
         # Get suggestions from history
-        suggestions = self.history_manager.get_suggestions(text, limit=8)
+        suggestions = self.history_manager.get_suggestions(text, limit=7)
         
-        if not suggestions:
+        if not suggestions and not quick_match:
             self._suggestions_popup.popdown()
             return
             
         # Clear existing
         while child := self._suggestions_list.get_first_child():
             self._suggestions_list.remove(child)
+        
+        # Add quick domain match first if exists
+        if quick_match:
+            row = self._create_quick_suggestion_row(quick_match[0], quick_match[1])
+            self._suggestions_list.append(row)
             
-        # Add suggestions
+        # Add history suggestions
         for entry_data in suggestions:
             row = self._create_suggestion_row(entry_data)
             self._suggestions_list.append(row)
             
         self._suggestions_popup.popup()
+    
+    def _create_quick_suggestion_row(self, name: str, url: str) -> Gtk.ListBoxRow:
+        """Create a quick domain suggestion row"""
+        row = Gtk.ListBoxRow()
+        row.suggestion_url = url
+        row.add_css_class("suggestion-row")
+        row.add_css_class("quick-suggestion")
+        
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        box.set_margin_top(6)
+        box.set_margin_bottom(6)
+        
+        # Icon
+        icon = Gtk.Label(label="→")
+        icon.add_css_class("quick-icon")
+        box.append(icon)
+        
+        # Domain name
+        label = Gtk.Label(label=f"{name}.com")
+        label.set_halign(Gtk.Align.START)
+        label.set_hexpand(True)
+        label.add_css_class("quick-domain")
+        box.append(label)
+        
+        row.set_child(box)
+        return row
         
     def _create_suggestion_row(self, entry_data) -> Gtk.ListBoxRow:
         """Create a suggestion row widget"""
@@ -847,6 +885,14 @@ class Browser:
             elif key_name == 'Tab':
                 self._next_tab()
                 return Gdk.EVENT_STOP
+            elif key_name in ('Down', 'KP_Down'):
+                # Ctrl+Down - Next tab
+                self._next_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('Up', 'KP_Up'):
+                # Ctrl+Up - Previous tab
+                self._prev_tab()
+                return Gdk.EVENT_STOP
             elif key_name in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
                 self._goto_tab(int(key_name) - 1)
                 return Gdk.EVENT_STOP
@@ -882,9 +928,18 @@ class Browser:
                 # Ctrl+Shift+B - Toggle bookmarks bar
                 self._toggle_bookmarks_bar()
                 return Gdk.EVENT_STOP
+            elif key_name in ('u', 'U'):
+                # Ctrl+Shift+U - Toggle URL bar visibility
+                self._toggle_url_bar()
+                return Gdk.EVENT_STOP
             elif key_name == 'ISO_Left_Tab' or key_name == 'Tab':
                 self._prev_tab()
                 return Gdk.EVENT_STOP
+        
+        # F11 - True fullscreen (hide all UI)
+        if key_name == 'F11':
+            self._toggle_fullscreen()
+            return Gdk.EVENT_STOP
         
         # Super key shortcuts (for AI features)
         if super_pressed and not ctrl_pressed:
@@ -903,6 +958,30 @@ class Browser:
                     return Gdk.EVENT_STOP
             
         return Gdk.EVENT_PROPAGATE
+    
+    def _toggle_fullscreen(self):
+        """Toggle true fullscreen mode (hide all UI)"""
+        if not hasattr(self, '_is_fullscreen'):
+            self._is_fullscreen = False
+        
+        self._is_fullscreen = not self._is_fullscreen
+        
+        if self._is_fullscreen:
+            # Hide sidebar and URL bar
+            self.tab_sidebar.set_visible(False)
+            self.sidebar_visible = False
+            self._hide_url_bar()
+            self.url_bar_pinned = False
+            self.url_bar_box.set_visible(False)
+            self.url_bar_indicator.set_visible(False)
+            self.window.fullscreen()
+        else:
+            # Restore UI
+            self.tab_sidebar.set_visible(True)
+            self.sidebar_visible = True
+            self.url_bar_box.set_visible(True)
+            self.url_bar_indicator.set_visible(True)
+            self.window.unfullscreen()
         
     def _setup_url_bar_auto_hide(self):
         """Setup auto-hide behavior for URL bar"""
@@ -943,6 +1022,15 @@ class Browser:
         
         # Actually hide after animation
         GLib.timeout_add(200, lambda: self.url_bar_box.set_visible(False) or False)
+    
+    def _toggle_url_bar(self):
+        """Toggle URL bar visibility (Ctrl+Shift+U)"""
+        if self.url_bar_visible:
+            self.url_bar_pinned = False  # Allow hiding
+            self._hide_url_bar()
+            self.url_bar_indicator.set_visible(False)  # Also hide indicator
+        else:
+            self._show_url_bar(pin=True)
     
     def _schedule_url_bar_hide(self):
         """Schedule URL bar to hide after delay"""
@@ -1030,8 +1118,9 @@ class Browser:
         if url and url != "about:blank":
             webview.load_uri(url)
         else:
-            # New tab - load internal new tab page and focus URL bar
+            # New tab - load internal new tab page, show and focus URL bar
             self._load_newtab_page(webview)
+            self._show_url_bar(pin=True)
             GLib.idle_add(self._focus_url_bar)
         
         self._update_tab_sidebar()
