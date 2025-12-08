@@ -1,6 +1,6 @@
 """
 Ryx AI - Self-Improvement System
-Allows Ryx to analyze itself and suggest improvements
+Allows Ryx to analyze itself, learn from other repos, and suggest improvements
 """
 
 import json
@@ -8,6 +8,13 @@ import ast
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
+
+# Import pattern learner for cross-repo learning
+try:
+    from core.pattern_learner import PatternLearner
+    HAS_PATTERN_LEARNER = True
+except ImportError:
+    HAS_PATTERN_LEARNER = False
 
 class SelfAnalyzer:
     """Analyzes Ryx's own code for improvements"""
@@ -21,6 +28,9 @@ class SelfAnalyzer:
         self.improvement_log.parent.mkdir(parents=True, exist_ok=True)
         
         self.improvements = self.load_improvements()
+        
+        # Pattern learner for cross-repo learning
+        self.pattern_learner = PatternLearner() if HAS_PATTERN_LEARNER else None
     
     def load_improvements(self) -> Dict:
         """Load improvement suggestions"""
@@ -276,6 +286,9 @@ ryx ::improve analyze
 
 # Apply specific improvement
 ryx ::improve apply <number>
+
+# Learn from other repos
+ryx ::improve learn <problem>
 ```
 
 ---
@@ -283,6 +296,21 @@ ryx ::improve apply <number>
 """
         
         return plan
+    
+    def learn_from_repos(self, problem: str) -> Dict:
+        """
+        Learn from cloned repositories to solve a problem.
+        
+        Args:
+            problem: Description of what Ryx can't do well
+            
+        Returns:
+            Dict with suggestions from other codebases
+        """
+        if not self.pattern_learner:
+            return {"error": "Pattern learner not available"}
+        
+        return self.pattern_learner.suggest_improvements(problem)
 
 
 class SelfImprover:
