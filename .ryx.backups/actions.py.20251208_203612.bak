@@ -178,11 +178,6 @@ class BrowserActions:
         return f"window.scrollTo(0, {position}); JSON.stringify({{result: 'success'}})"
         
     @staticmethod
-    def stop_loading() -> str:
-        """Stop loading the page"""
-        return "window.stop(); JSON.stringify({result: 'success'})"
-        
-    @staticmethod
     def extract_text(selector: str = "body") -> str:
         """Extract text from an element"""
         return f"""
