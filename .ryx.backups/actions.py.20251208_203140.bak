@@ -128,11 +128,6 @@ class BrowserActions:
         return "window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
 
     @staticmethod
-    def get_page_title() -> str:
-        """Get the page title"""
-        return "document.title; JSON.stringify({result: 'success'})"
-
-    @staticmethod
     def refresh() -> str:
         """Refresh the page"""
         return "location.reload(); JSON.stringify({result: 'success'})"
