@@ -105,9 +105,21 @@ class BrowserActions:
         elif direction == "up":
             scroll_amount = amount or "window.innerHeight * 0.8"
             return f"window.scrollBy({{top: -{scroll_amount}, behavior: 'smooth'}}); JSON.stringify({{result: 'success'}})"
-        else:  # down
+        elif direction == "down":
             scroll_amount = amount or "window.innerHeight * 0.8"
             return f"window.scrollBy({{top: {scroll_amount}, behavior: 'smooth'}}); JSON.stringify({{result: 'success'}})"
+        else:
+            return JSON.stringify({result: 'error', message: 'Invalid direction'})
+
+    @staticmethod
+    def scroll_top() -> str:
+        """Scroll to the top of the page"""
+        return "window.scrollTo({top: 0, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
+
+    @staticmethod
+    def scroll_bottom() -> str:
+        """Scroll to the bottom of the page"""
+        return "window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
             
     @staticmethod
     def get_scroll_position() -> str:
