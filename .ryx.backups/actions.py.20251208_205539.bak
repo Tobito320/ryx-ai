@@ -355,32 +355,22 @@ class BrowserActions:
         })()
         """
         
-@staticmethod
-def highlight_element(selector: str) -> str:
-    """Temporarily highlight an element"""
-    return f"""
-    (function() {{
-        const el = document.querySelector('{selector}');
-        if (el) {{
-            const original = el.style.outline;
-            el.style.outline = '3px solid #ff79c6';
-            el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-            setTimeout(() => {{ el.style.outline = original; }}, 2000);
-            return JSON.stringify({{result: 'success'}});
-        }}
-        return JSON.stringify({{result: 'not_found', message: 'Element not found'}});
-    }})()
-    """
-
-@staticmethod
-def print_page() -> str:
-    """Print the current page"""
-    return """
-    (function() {
-        window.print();
-        return JSON.stringify({result: 'success', message: 'Page print initiated'});
-    })()
-    """
+    @staticmethod
+    def highlight_element(selector: str) -> str:
+        """Temporarily highlight an element"""
+        return f"""
+        (function() {{
+            const el = document.querySelector('{selector}');
+            if (el) {{
+                const original = el.style.outline;
+                el.style.outline = '3px solid #ff79c6';
+                el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                setTimeout(() => {{ el.style.outline = original; }}, 2000);
+                return JSON.stringify({{result: 'success'}});
+            }}
+            return JSON.stringify({{result: 'not_found'}});
+        }})()
+        """
         
     @staticmethod
     def fill_form(form_data: Dict[str, str]) -> str:
