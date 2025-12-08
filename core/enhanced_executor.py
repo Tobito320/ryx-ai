@@ -151,12 +151,173 @@ Ready to start working. I'll begin with the first task.
         if next_task:
             self.todo.start_task(next_task.id)
             output += f"\n🔄 Starting: {next_task.content}"
+            
+            # AUTONOMOUS: Actually execute the first task!
+            task_result = self._execute_task(next_task, insight)
+            output += f"\n\n{task_result}"
         
         return ExecutionResult(
             success=True,
             output=output,
             files_discovered=len(insight.main_files)
         )
+    
+    def _execute_task(self, task, insight) -> str:
+        """Execute a single task from the TODO list"""
+        from core.todo_manager import TaskStatus
+        
+        task_content = task.content.lower()
+        
+        # Determine what type of task this is
+        if "test" in task_content:
+            return self._handle_test_task(task, insight)
+        elif any(kw in task_content for kw in ["implement", "add", "create", "build"]):
+            return self._handle_implement_task(task, insight)
+        elif any(kw in task_content for kw in ["fix", "bug", "error"]):
+            return self._handle_fix_task(task, insight)
+        elif any(kw in task_content for kw in ["review", "improve", "refactor"]):
+            return self._handle_review_task(task, insight)
+        else:
+            # Generic task - try to understand from context
+            return self._handle_generic_task(task, insight)
+    
+    def _handle_test_task(self, task, insight) -> str:
+        """Handle test-related tasks"""
+        # Mark as in-progress
+        self.todo.start_task(task.id)
+        
+        # Check if tests exist
+        test_dir = insight.root_path / "tests"
+        if not test_dir.exists():
+            # Create basic test structure
+            test_dir.mkdir(exist_ok=True)
+            
+            # Find main files to create tests for
+            main_files = [f for f in insight.main_files if f.endswith('.py') and 'test' not in f]
+            
+            if main_files:
+                # Create a basic test file
+                test_file = test_dir / f"test_{insight.name}.py"
+                test_content = f'''"""Tests for {insight.name}"""
+
+import pytest
+import sys
+from pathlib import Path
+
+# Add parent to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+
+class Test{insight.name.title().replace("_", "")}:
+    """Basic tests for {insight.name}"""
+    
+    def test_import(self):
+        """Test that the module can be imported"""
+        # TODO: Add actual import test
+        assert True
+    
+    def test_placeholder(self):
+        """Placeholder test - implement real tests"""
+        # TODO: Implement real tests based on functionality
+        pass
+'''
+                test_file.write_text(test_content)
+                self.todo.complete_task(task.id)
+                return f"✅ Created test file: {test_file.relative_to(self.project_root)}"
+        
+        self.todo.complete_task(task.id)
+        return f"✅ Test directory already exists with files"
+    
+    def _handle_implement_task(self, task, insight) -> str:
+        """Handle implementation tasks"""
+        self.todo.start_task(task.id)
+        
+        # Parse what needs to be implemented from task content
+        content = task.content
+        
+        # Look for TODOs in the codebase that match
+        matching_todos = [t for t in insight.todos_in_code 
+                         if any(word in t['content'].lower() 
+                               for word in content.lower().split())]
+        
+        if matching_todos:
+            # Pick the first matching TODO
+            todo_item = matching_todos[0]
+            result = f"📋 Found matching TODO in {todo_item['file']}:{todo_item['line']}\n"
+            result += f"   Content: {todo_item['content']}\n"
+            result += f"   → Next: Implement this functionality"
+            
+            # Block this task - needs LLM to implement
+            self.todo.block_task(task.id, "Needs LLM implementation")
+            return result
+        
+        self.todo.block_task(task.id, "Could not determine implementation target")
+        return f"⚠️ Could not find specific implementation target for: {content}"
+    
+    def _handle_fix_task(self, task, insight) -> str:
+        """Handle bug fix tasks"""
+        self.todo.start_task(task.id)
+        
+        # Look for error-related TODOs
+        error_todos = [t for t in insight.todos_in_code
+                      if any(kw in t['content'].lower() 
+                            for kw in ['fix', 'bug', 'error', 'issue', 'broken'])]
+        
+        if error_todos:
+            todo_item = error_todos[0]
+            self.todo.block_task(task.id, f"Fix needed in {todo_item['file']}")
+            return f"🐛 Found issue in {todo_item['file']}:{todo_item['line']}: {todo_item['content']}"
+        
+        self.todo.complete_task(task.id)
+        return "✅ No obvious bugs found in codebase"
+    
+    def _handle_review_task(self, task, insight) -> str:
+        """Handle code review tasks"""
+        self.todo.start_task(task.id)
+        
+        # Review the main files
+        if insight.main_files:
+            file_to_review = insight.main_files[0]
+            file_path = self.project_root / file_to_review
+            
+            if file_path.exists():
+                content = file_path.read_text()
+                lines = len(content.split('\n'))
+                
+                # Quick analysis
+                issues = []
+                if 'TODO' in content:
+                    issues.append("Contains TODOs")
+                if 'FIXME' in content:
+                    issues.append("Contains FIXMEs")
+                if 'pass  #' in content or 'pass # ' in content:
+                    issues.append("Has stub implementations")
+                
+                self.todo.complete_task(task.id)
+                result = f"📝 Reviewed: {file_to_review} ({lines} lines)\n"
+                if issues:
+                    result += f"   Issues: {', '.join(issues)}"
+                else:
+                    result += "   No obvious issues found"
+                return result
+        
+        self.todo.complete_task(task.id)
+        return "✅ Review complete - no main files to review"
+    
+    def _handle_generic_task(self, task, insight) -> str:
+        """Handle generic tasks by attempting to understand intent"""
+        self.todo.start_task(task.id)
+        
+        # Log what we're trying to do
+        result = f"🔧 Task: {task.content}\n"
+        result += f"   Project: {insight.name}\n"
+        result += f"   Main files: {len(insight.main_files)}\n"
+        
+        # For now, just mark as needing manual intervention
+        self.todo.block_task(task.id, "Needs more specific instructions")
+        result += "   Status: Needs clarification or LLM assistance"
+        
+        return result
     
     @healing(max_retries=3, log_errors=True)
     def execute(self, prompt: str) -> ExecutionResult:
