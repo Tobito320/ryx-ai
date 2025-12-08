@@ -404,6 +404,7 @@ class AutoContextBuilder:
     ) -> List[Tuple[Path, float, str]]:
         """Score files by relevance to query"""
         scored = []
+        query_lower = query.lower()
         
         for file_path in files:
             score = 0.0
@@ -412,10 +413,14 @@ class AutoContextBuilder:
             file_name = file_path.name.lower()
             file_str = str(file_path).lower()
             
-            # Count how many terms match in path (most important!)
+            # HIGHEST PRIORITY: Exact path mentioned in query
+            if file_str in query_lower or file_name in query_lower:
+                score += 2.0  # Big bonus for exact match
+                reasons.append("exact path in query")
+            
+            # Count how many terms match in path
             path_term_matches = sum(1 for t in terms if t in file_str)
             if path_term_matches > 1:
-                # Multiple terms = very relevant
                 score += 0.5 * path_term_matches
                 reasons.append(f"{path_term_matches} terms in path")
             elif path_term_matches == 1:

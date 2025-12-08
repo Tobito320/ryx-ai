@@ -416,14 +416,20 @@ class RepoMap:
         if not terms:
             return []
         
+        query_lower = query.lower()
+        
         # Score each file
         scored: Dict[str, float] = {}
         
         for path, info in self.files.items():
             score = 0.0
+            path_lower = path.lower()
+            
+            # HIGHEST PRIORITY: Exact path mentioned in query (must win)
+            if path_lower in query_lower or Path(path).name.lower() in query_lower:
+                score += 100.0  # Overwhelming bonus - this file MUST be first
             
             # Path matching
-            path_lower = path.lower()
             for term in terms:
                 if term in path_lower:
                     score += 0.5

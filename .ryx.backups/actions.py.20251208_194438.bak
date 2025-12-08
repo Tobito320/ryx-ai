@@ -21,7 +21,6 @@ class ActionResult(Enum):
     TIMEOUT = "timeout"
     GO_BACK = "go_back"
     GO_FORWARD = "go_forward"
-    ZOOM_IN = "zoom_in"
     COPY_TEXT = 'copy_text'
 
 
