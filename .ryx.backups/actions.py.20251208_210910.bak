@@ -468,31 +468,3 @@ def print_page() -> str:
             return JSON.stringify({{result: visible ? 'success' : 'not_found', visible: visible}});
         }})()
         """
-
-    @staticmethod
-    def focus_first_input() -> str:
-        """Focus first input"""
-        return "document.querySelector('input')?.focus()"
-
-    @staticmethod
-    def blur_active() -> str:
-        """Remove focus from active element"""
-        return "document.activeElement?.blur(); JSON.stringify({result: 'success'})"
-
-    @staticmethod
-    def get_meta_tags() -> str:
-        """Get all meta tags"""
-        return """
-        (function() {
-            const metas = [...document.querySelectorAll('meta')].map(m => ({
-                name: m.name || m.getAttribute('property'),
-                content: m.content
-            }));
-            return JSON.stringify({result: 'success', data: metas});
-        })()
-        """
-
-    @staticmethod
-    def get_page_language() -> str:
-        """Get page language"""
-        return "JSON.stringify({result: 'success', data: document.documentElement.lang || 'unknown'})"

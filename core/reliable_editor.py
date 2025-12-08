@@ -420,3 +420,32 @@ def get_editor(project_root: str = ".") -> ReliableEditor:
 def reliable_edit(file_path: str, search: str, replace: str) -> EditResult:
     """Convenience function for quick edits"""
     return get_editor().edit(file_path, search, replace)
+
+
+def append_method_to_class(file_path: str, class_name: str, method_code: str) -> EditResult:
+    """
+    Append a method to a class - bypasses LLM anchor finding.
+    
+    The method_code should be properly indented already (4 spaces for method, 8 for body).
+    """
+    from pathlib import Path
+    import re
+    
+    path = Path(file_path)
+    if not path.exists():
+        return EditResult(False, f"File not found: {file_path}")
+    
+    content = path.read_text(encoding='utf-8', errors='replace')
+    
+    # Just append before the last line if it's a class file
+    # Find the last non-empty, non-comment line
+    lines = content.rstrip().split('\n')
+    
+    # The method code should already be properly indented
+    # Just append at the end
+    new_content = content.rstrip() + '\n\n' + method_code.rstrip() + '\n'
+    
+    # Write back
+    path.write_text(new_content, encoding='utf-8')
+    
+    return EditResult(True, f"Appended method to end of file", strategy_used="append_to_class")
