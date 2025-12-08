@@ -27,7 +27,17 @@ class ActionType(Enum):
     EXTRACT = "extract"
     READ = "read"
     ZOOM = "zoom"
+    GO_BACK = "go_back"
     GO_FORWARD = "go_forward"
+    REFRESH = "refresh"
+    STOP = "stop"
+    TOGGLE_DARK = "toggle_dark"
+    COPY = "copy"
+    FOCUS = "focus"
+    SELECT_ALL = "select_all"
+    GET_INFO = "get_info"
+    GET_MEDIA = "get_media"
+    SCREENSHOT = "screenshot"
 
 
 @dataclass
