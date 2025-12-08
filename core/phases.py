@@ -313,17 +313,21 @@ Output as JSON:
 Files you've read:
 {file_contents}
 
-Instructions:
-1. Break down the task into specific steps
-2. List exactly which files need changes
-3. Describe each change briefly
-4. Identify any risks
-5. DO NOT write any code yet
+CRITICAL RULES (follow exactly):
+1. ONE STEP PER FILE - never split file changes into multiple steps
+2. BAD: "Step 1: Identify location, Step 2: Add method, Step 3: Update imports" (3 steps for 1 file)
+3. GOOD: "Step 1: Add method X to file Y with proper imports" (1 step for 1 file)
+4. NEVER use actions like: "identify", "locate", "find", "analyze", "review", "inspect"
+5. ONLY use actions: "modify", "create", "delete", "move", "run"
+6. For creating new files: ONE step that creates the complete file
+7. For moving files: use action "move" with description "Move X to Y"
+8. If task mentions specific file/method: go straight to modify, don't "identify" first
+9. Maximum 3 steps for most tasks
 
 Output as JSON:
 {{
     "steps": [
-        {{"description": "what to do", "file": "path or null", "action": "modify/create/delete/run"}}
+        {{"description": "what to do", "file": "path or null", "action": "modify/create/delete/move/run"}}
     ],
     "files_to_modify": ["paths"],
     "files_to_create": ["paths"],
@@ -630,6 +634,8 @@ class PhaseExecutor:
                 plan_data = self._parse_json(response.response)
                 if plan_data:
                     self._build_plan_from_json(plan_data)
+                    # Optimize the plan - remove redundant steps
+                    self._optimize_plan()
                     self.ui.phase_done("PLAN", f"{len(self.state.plan.steps)} steps")
                 else:
                     self._build_simple_plan()
@@ -813,6 +819,62 @@ class PhaseExecutor:
         
         return None
     
+    def _optimize_plan(self):
+        """Optimize plan by removing redundant steps and consolidating similar actions"""
+        if not self.state.plan or not self.state.plan.steps:
+            return
+            
+        steps = self.state.plan.steps
+        optimized = []
+        seen_actions = set()
+        file_steps = {}  # Group steps by file
+        
+        # First pass: group steps by file for consolidation
+        for step in steps:
+            file_path = step.file_path or ""
+            action = step.action.lower() if step.action else ""
+            desc_lower = step.description.lower() if step.description else ""
+            
+            # Skip read/analyze/identify steps entirely - they add no value
+            skip_actions = ('read', 'analyze', 'inspect', 'identify', 'locate', 'review', 'find', 'determine')
+            if action in skip_actions:
+                continue
+            
+            # Skip steps with useless descriptions
+            skip_words = ['identify the location', 'locate the', 'find the position', 'determine the', 
+                          'understand the', 'analyze the', 'review the', 'inspect the']
+            if any(sw in desc_lower for sw in skip_words):
+                continue
+            
+            # Group by file for consolidation
+            if file_path:
+                if file_path not in file_steps:
+                    file_steps[file_path] = []
+                file_steps[file_path].append(step)
+            else:
+                # No file - keep as-is (run commands etc)
+                optimized.append(step)
+        
+        # Second pass: consolidate multiple steps per file into one
+        for file_path, file_step_list in file_steps.items():
+            if len(file_step_list) == 1:
+                optimized.append(file_step_list[0])
+            else:
+                # Multiple steps for same file - consolidate
+                descriptions = [s.description for s in file_step_list]
+                combined_desc = "; ".join(descriptions) if len(descriptions) <= 3 else f"{descriptions[0]} and {len(descriptions)-1} more changes"
+                
+                # Use the first step as base, update description
+                consolidated = file_step_list[0]
+                consolidated.description = combined_desc
+                optimized.append(consolidated)
+        
+        # Renumber steps
+        for i, step in enumerate(optimized, 1):
+            step.id = i
+        
+        self.state.plan.steps = optimized
+    
     def _execute_apply(self) -> bool:
         """Apply phase: execute changes - ACTUALLY WRITE FILES"""
         if not self.state.plan:
@@ -826,6 +888,30 @@ class PhaseExecutor:
             # Determine action type
             action = (step.action.lower() if hasattr(step, 'action') and step.action else 'create').lower()
             desc_lower = step.description.lower() if step.description else ''
+            
+            # Handle move action (but not "remove" which contains "move")
+            is_move = action == 'move' or (
+                ' move ' in f' {desc_lower} ' and 
+                'remove' not in desc_lower
+            )
+            if is_move:
+                success = self._execute_move_action(step)
+                if success:
+                    self.ui.phase_done("APPLY", f"✓ Moved file")
+                else:
+                    self.ui.phase_done("APPLY", f"✗ Move failed", success=False)
+                self.state.plan.mark_step_complete(step.id, "Completed")
+                return self._check_next_step()
+            
+            # Handle delete action
+            if action == 'delete' or 'delete' in desc_lower:
+                success = self._execute_delete_action(step)
+                if success:
+                    self.ui.phase_done("APPLY", f"✓ Deleted")
+                else:
+                    self.ui.phase_done("APPLY", f"✗ Delete failed", success=False)
+                self.state.plan.mark_step_complete(step.id, "Completed")
+                return self._check_next_step()
             
             # Check if this step should create/modify code
             should_generate = (
@@ -864,15 +950,80 @@ class PhaseExecutor:
             
             self.state.plan.mark_step_complete(step.id, "Completed")
         
-        # Check if there are more steps
+        return self._check_next_step()
+    
+    def _check_next_step(self) -> bool:
+        """Check if there are more steps and continue or move to verify"""
         next_step = self.state.plan.get_next_step()
         if next_step:
-            # Continue applying
             return self._execute_apply()
-        
-        # All steps done, move to verify
         self.state.transition_to(Phase.VERIFY)
         return True
+    
+    def _execute_move_action(self, step) -> bool:
+        """Execute a move/rename file action"""
+        import shutil
+        import re
+        
+        desc = step.description
+        # Try to extract source and destination from description
+        # Pattern: "Move X to Y" or "Move X -> Y"
+        match = re.search(r'[Mm]ove\s+(\S+)\s+(?:to|->)\s+(\S+)', desc)
+        if match:
+            src = match.group(1)
+            dst = match.group(2)
+        elif step.file_path:
+            # file_path is source, try to find destination in description
+            src = step.file_path
+            dst_match = re.search(r'to\s+(\S+\.(?:py|js|ts|go|rs|java))', desc)
+            if dst_match:
+                dst = dst_match.group(1)
+            else:
+                return False
+        else:
+            return False
+        
+        try:
+            # Ensure destination directory exists
+            dst_dir = os.path.dirname(dst)
+            if dst_dir:
+                os.makedirs(dst_dir, exist_ok=True)
+            shutil.move(src, dst)
+            self.ui.substep(f"Moved {src} → {dst}")
+            return True
+        except Exception as e:
+            self.ui.substep(f"Move failed: {e}")
+            return False
+    
+    def _execute_delete_action(self, step) -> bool:
+        """Execute a delete file/directory action"""
+        import shutil
+        
+        target = step.file_path
+        if not target:
+            # Try to extract from description
+            import re
+            match = re.search(r'[Dd]elete\s+(?:the\s+)?(\S+)', step.description)
+            if match:
+                target = match.group(1)
+        
+        if not target:
+            return False
+        
+        try:
+            if os.path.isdir(target):
+                shutil.rmtree(target)
+                self.ui.substep(f"Deleted directory {target}")
+            elif os.path.isfile(target):
+                os.remove(target)
+                self.ui.substep(f"Deleted file {target}")
+            else:
+                self.ui.substep(f"Target not found: {target}")
+                return False
+            return True
+        except Exception as e:
+            self.ui.substep(f"Delete failed: {e}")
+            return False
     
     def _generate_code_for_step(self, step) -> bool:
         """Actually generate code for a step using LLM and write to disk"""
@@ -883,11 +1034,28 @@ class PhaseExecutor:
         model_config = router.get_model_by_role(ModelRole.CODE)
         model_name = model_config.name
         
+        # Check if file exists (modification vs creation)
+        file_exists = step.file_path and os.path.exists(step.file_path)
+        existing_content = ""
+        if file_exists:
+            try:
+                with open(step.file_path, 'r') as f:
+                    existing_content = f.read()
+            except Exception:
+                pass
+        
+        # For existing files over 100 lines, use precise editing
+        if file_exists and existing_content.count('\n') > 100:
+            return self._precise_edit_for_step(step, existing_content, model_name)
+        
         # Build context from explored files
         context = ""
         if self.state.context_files:
-            context = "Existing code context:\n"
+            context = "Related code context:\n"
             for cf in self.state.context_files[:2]:
+                # Skip if it's the same file we're modifying
+                if cf['path'] == step.file_path:
+                    continue
                 context += f"\n--- {cf['path']} ---\n{cf['content'][:800]}\n"
         
         # Detect language from file extension
@@ -911,7 +1079,31 @@ class PhaseExecutor:
         }
         lang = lang_hints.get(ext, 'appropriate language')
         
-        prompt = f"""Task: {self.state.task}
+        # Different prompts for create vs modify
+        if file_exists and existing_content:
+            prompt = f"""Task: {self.state.task}
+Step: {step.description}
+Target file: {step.file_path}
+Language: {lang}
+
+EXISTING FILE CONTENT:
+```
+{existing_content}
+```
+
+{context}
+
+MODIFY the existing file to accomplish: {step.description}
+
+Requirements:
+- KEEP all existing code that is not being changed
+- ADD or MODIFY only what's necessary for this step
+- Maintain existing imports, classes, and functions
+- Follow {lang} best practices
+
+Output the COMPLETE modified file. No explanations, no markdown fences."""
+        else:
+            prompt = f"""Task: {self.state.task}
 Step: {step.description}
 Target file: {step.file_path}
 Language: {lang}
@@ -934,20 +1126,39 @@ Output ONLY the code. No explanations, no markdown fences."""
                 prompt=prompt,
                 model=model_name,
                 system=f"You are a senior {lang} developer. Output only valid, complete code. No markdown, no explanations.",
-                max_tokens=2000,
+                max_tokens=4000,
                 temperature=0.3
             )
             
             if response.response:
                 # Clean the response (remove markdown fences if present)
                 code = response.response.strip()
+                
+                # Remove leading markdown fence
                 if code.startswith('```'):
                     lines = code.split('\n')
-                    # Remove first line (```python) and last line (```)
-                    if lines[-1].strip() == '```':
-                        code = '\n'.join(lines[1:-1])
-                    else:
-                        code = '\n'.join(lines[1:])
+                    # Remove first line (```python etc)
+                    lines = lines[1:]
+                    code = '\n'.join(lines)
+                
+                # Remove trailing markdown fence and any explanation after it
+                if '```' in code:
+                    parts = code.split('```')
+                    # Take only the code before the closing fence
+                    code = parts[0].rstrip()
+                
+                # Remove trailing explanations (lines starting with common explanation patterns)
+                lines = code.split('\n')
+                clean_lines = []
+                for line in lines:
+                    # Stop if we hit explanation text
+                    stripped = line.strip().lower()
+                    if stripped.startswith('this code') or stripped.startswith('this class') or \
+                       stripped.startswith('the above') or stripped.startswith('note:') or \
+                       stripped.startswith('explanation:'):
+                        break
+                    clean_lines.append(line)
+                code = '\n'.join(clean_lines).rstrip()
                 
                 # Validate we got actual content
                 # JSON files can be very short (e.g., "[]" or "{}")
@@ -1050,6 +1261,337 @@ Output ONLY the code. No explanations, no markdown fences."""
                     return False
         
         return False
+    
+    def _precise_edit_for_step(self, step, existing_content: str, model_name: str, retry_count: int = 0) -> bool:
+        """Use surgical editing for large files - more precise than full regeneration"""
+        from core.precise_editor import PreciseCodeEditor, parse_llm_edits, PRECISE_EDIT_PROMPT
+        import os
+        
+        MAX_RETRIES = 2
+        
+        self.ui.step_start(f"Precise edit: {step.file_path}")
+        
+        # Combine task and step into a clear, focused instruction
+        # Detect indentation style in file
+        indent_spaces = 4  # default
+        for line in existing_content.split('\n'):
+            if line.startswith('    def ') or line.startswith('        '):
+                # Count leading spaces
+                stripped = line.lstrip()
+                indent_spaces = len(line) - len(stripped)
+                if 'def ' in line:
+                    break
+        
+        task_instruction = f"""Original task: {self.state.task}
+
+Current step: {step.description}
+
+INDENTATION: This file uses {indent_spaces} spaces for indentation.
+- Class methods start with {indent_spaces} spaces
+- Method body uses {indent_spaces * 2} spaces
+
+Be VERY precise. Generate the MINIMAL edit needed for this step.
+If the task specifies exact text/code to add, use that EXACT text.
+Match the file's indentation EXACTLY.
+Do NOT add anything extra or make assumptions."""
+        
+        # For large files, extract relevant portion around the target
+        file_content_for_prompt = existing_content
+        if len(existing_content) > 8000:  # ~2000 tokens
+            # Try to find a relevant section based on keywords in task
+            relevant_content = self._extract_relevant_context(existing_content, step.description, self.state.task)
+            if relevant_content:
+                file_content_for_prompt = relevant_content
+        
+        # Build the prompt for surgical edits
+        prompt = PRECISE_EDIT_PROMPT.format(
+            file_path=step.file_path,
+            file_content=file_content_for_prompt,
+            task=task_instruction
+        )
+        
+        if self.brain and hasattr(self.brain, 'llm'):
+            response = self.brain.llm.generate(
+                prompt=prompt,
+                model=model_name,
+                system="You are a surgical code editor. Generate minimal, precise edits. Match EXACT indentation from the file. Never output entire files.",
+                max_tokens=2000,
+                temperature=0.1  # Very low temperature for maximum precision
+            )
+            
+            if not response.response:
+                self.state.add_error(f"No response from LLM for precise edit")
+                return False
+            
+            # Debug: log the LLM response for troubleshooting
+            import logging
+            logging.debug(f"LLM precise edit response:\n{response.response[:1000]}")
+                
+            # Parse the edits
+            edits = parse_llm_edits(response.response)
+            
+            if not edits:
+                # No edits needed or failed to parse
+                self.ui.substep("No edits parsed from response")
+                return True
+                
+            # Apply edits using PreciseCodeEditor
+            editor = PreciseCodeEditor(step.file_path)
+            
+            applied = 0
+            for edit in edits:
+                # Debug: show what we're trying to apply
+                logging.debug(f"Applying edit: type={edit.edit_type}, search={edit.search[:100]}...")
+                result = editor.apply_edit(edit)
+                if result.success:
+                    applied += 1
+                    self.ui.substep(f"✓ {edit.description or edit.edit_type.value}")
+                else:
+                    self.ui.substep(f"✗ {result.message}")
+                    # SELF-HEALING: Try to fix failed edit by regenerating with better context
+                    if "not found" in result.message.lower() and self.brain:
+                        self.ui.substep("Attempting alternative search...")
+                        alt_edit = self._regenerate_edit_with_context(edit, existing_content, step)
+                        if alt_edit:
+                            alt_result = editor.apply_edit(alt_edit)
+                            if alt_result.success:
+                                applied += 1
+                                self.ui.substep(f"✓ (retry) {alt_edit.description}")
+                    
+            if applied == 0:
+                self.state.add_error("No edits could be applied")
+                return False
+                
+            # Validate syntax before saving
+            syntax_result = editor.validate_syntax()
+            if not syntax_result.success:
+                self.ui.substep(f"Syntax error: {syntax_result.message}")
+                
+                # SELF-HEALING: Try to fix the syntax error automatically
+                import re
+                line_match = re.search(r'line (\d+)', syntax_result.message)
+                if line_match and self.brain and hasattr(self.brain, 'llm'):
+                    line_num = int(line_match.group(1))
+                    lines = editor.current_content.split('\n')
+                    start = max(0, line_num - 5)
+                    end = min(len(lines), line_num + 5)
+                    
+                    # Extract problematic code section
+                    problem_code = '\n'.join(f"{i+1}: {lines[i]}" for i in range(start, end))
+                    
+                    # Ask LLM to fix the syntax error
+                    fix_prompt = f"""Fix this Python syntax error.
+
+ERROR: {syntax_result.message}
+
+CODE AROUND ERROR (line {line_num} marked with >>>):
+{problem_code}
+
+Respond with ONLY the corrected code for lines {start+1}-{end}. No explanation.
+Preserve exact indentation. Output the fixed lines only."""
+
+                    self.ui.substep("Attempting self-healing...")
+                    fix_response = self.brain.llm.generate(
+                        prompt=fix_prompt,
+                        model=self._get_coding_model(),
+                        system="You are a Python syntax fixer. Output only corrected code, nothing else.",
+                        max_tokens=500,
+                        temperature=0.0
+                    )
+                    
+                    if fix_response.response:
+                        # Apply the fix
+                        fixed_lines = fix_response.response.strip().split('\n')
+                        # Remove line numbers if present
+                        cleaned_lines = []
+                        for line in fixed_lines:
+                            # Strip "123: " prefixes if present
+                            stripped = re.sub(r'^\d+:\s?', '', line)
+                            cleaned_lines.append(stripped)
+                        
+                        # Replace the problematic section
+                        new_lines = lines[:start] + cleaned_lines + lines[end:]
+                        editor.current_content = '\n'.join(new_lines)
+                        
+                        # Validate again
+                        retry_result = editor.validate_syntax()
+                        if retry_result.success:
+                            self.ui.substep("✓ Self-healed syntax error")
+                            save_result = editor.save()
+                            if save_result.success:
+                                self.state.add_change(
+                                    file_path=step.file_path,
+                                    action="modified",
+                                    diff=f"Applied {applied} edits (self-healed)"
+                                )
+                                self.ui.step_done(f"Edited {os.path.basename(step.file_path)}", f"{applied} precise edits (healed)")
+                                return True
+                        else:
+                            self.ui.substep(f"Self-healing failed: {retry_result.message}")
+                
+                # If self-healing didn't work, try full retry
+                editor.rollback()
+                
+                if retry_count < MAX_RETRIES:
+                    self.ui.substep(f"Retrying with different approach ({retry_count + 1}/{MAX_RETRIES})...")
+                    # Reload file and retry with fresh content
+                    with open(step.file_path, 'r') as f:
+                        fresh_content = f.read()
+                    return self._precise_edit_for_step(step, fresh_content, model_name, retry_count + 1)
+                    
+                return False
+                
+            # Save changes
+            save_result = editor.save()
+            if save_result.success:
+                # Track the change
+                self.state.add_change(
+                    file_path=step.file_path,
+                    action="modified",
+                    diff=save_result.diff[:500] if save_result.diff else f"Applied {applied} edits"
+                )
+                self.ui.step_done(f"Edited {os.path.basename(step.file_path)}", f"{applied} precise edits")
+                return True
+            else:
+                self.state.add_error(save_result.message)
+                return False
+                
+        return False
+    
+    def _extract_relevant_context(self, content: str, step_desc: str, task: str) -> Optional[str]:
+        """Extract relevant portion of a large file for LLM context"""
+        import re
+        lines = content.split('\n')
+        
+        # Find keywords from task and step description
+        combined = (step_desc + ' ' + task).lower()
+        keywords = []
+        
+        # Extract method/function names mentioned
+        for match in re.finditer(r'_?[a-z][a-z0-9_]*(?=\s|$|[,\.])', combined):
+            word = match.group()
+            if len(word) > 3 and word not in ['this', 'that', 'with', 'from', 'after', 'before']:
+                keywords.append(word)
+        
+        if not keywords:
+            return None
+            
+        # Find lines containing keywords
+        relevant_line_nums = set()
+        for i, line in enumerate(lines):
+            line_lower = line.lower()
+            for kw in keywords:
+                if kw in line_lower:
+                    # Include context around the match
+                    for j in range(max(0, i-10), min(len(lines), i+30)):
+                        relevant_line_nums.add(j)
+        
+        if not relevant_line_nums:
+            return None
+            
+        # Also include imports (first 30 lines usually)
+        for i in range(min(30, len(lines))):
+            relevant_line_nums.add(i)
+        
+        # Build the relevant content
+        sorted_lines = sorted(relevant_line_nums)
+        
+        # Group consecutive lines
+        result_lines = []
+        prev = -2
+        for i in sorted_lines:
+            if i > prev + 1:
+                result_lines.append(f"... (lines {prev+1}-{i-1} omitted) ...")
+            result_lines.append(lines[i])
+            prev = i
+        
+        return '\n'.join(result_lines)
+    
+    def _get_coding_model(self) -> str:
+        """Get the coding model to use for precise edits"""
+        if self.brain and hasattr(self.brain, 'llm'):
+            models = self.brain.llm.list_models()
+            # Prefer coding-specific models
+            for model in models:
+                # Handle both dict and string model formats
+                model_name = model if isinstance(model, str) else model.get('id', model.get('name', str(model)))
+                if 'coder' in model_name.lower() or 'code' in model_name.lower():
+                    return model_name
+            # Fall back to any available model
+            if models:
+                first = models[0]
+                return first if isinstance(first, str) else first.get('id', first.get('name', str(first)))
+        return "qwen2.5-coder:14b"
+    
+    def _regenerate_edit_with_context(self, failed_edit, file_content: str, step) -> Optional['CodeEdit']:
+        """Regenerate a failed edit with better context"""
+        from core.precise_editor import CodeEdit, EditType, parse_llm_edits
+        
+        if not self.brain or not hasattr(self.brain, 'llm'):
+            return None
+            
+        # Find similar text in file using fuzzy matching
+        search_words = failed_edit.search.split()[:5]  # First 5 words
+        search_hint = ' '.join(search_words)
+        
+        # Find lines containing these words
+        lines = file_content.split('\n')
+        matching_lines = []
+        for i, line in enumerate(lines):
+            if any(word in line for word in search_words if len(word) > 3):
+                matching_lines.append((i, line))
+        
+        if not matching_lines:
+            return None
+            
+        # Build context around matches
+        context_lines = []
+        for line_num, line in matching_lines[:3]:  # Top 3 matches
+            start = max(0, line_num - 2)
+            end = min(len(lines), line_num + 3)
+            for i in range(start, end):
+                if i not in [l[0] for l in context_lines]:
+                    context_lines.append((i, lines[i]))
+        
+        context_lines.sort()
+        context = '\n'.join(f"{i+1}: {line}" for i, line in context_lines)
+        
+        retry_prompt = f"""The previous edit failed because the search text was not found.
+
+TASK: {step.description}
+WHAT WE TRIED TO FIND: {failed_edit.search[:200]}...
+WHAT WE WANTED TO ADD: {failed_edit.content[:200]}...
+
+ACTUAL FILE CONTENT (relevant lines):
+{context}
+
+Generate ONE edit that will work. Use the ACTUAL text from the file above.
+Format:
+TYPE: [insert_before|insert_after|replace]
+SEARCH:
+```
+[exact text from file above]
+```
+CONTENT:
+```
+[content to add]
+```
+DESCRIPTION: [what this does]"""
+
+        response = self.brain.llm.generate(
+            prompt=retry_prompt,
+            model=self._get_coding_model(),
+            system="Generate a precise code edit. Match the file's exact text.",
+            max_tokens=800,
+            temperature=0.1
+        )
+        
+        if response.response:
+            edits = parse_llm_edits(response.response)
+            if edits:
+                return edits[0]
+        
+        return None
     
     def _detect_test_command(self) -> Optional[str]:
         """Detect test command based on project files - uses TestRunner if available"""
@@ -1218,7 +1760,21 @@ Output ONLY the code. No explanations, no markdown fences."""
                     test_result = self.tools.execute("run_command", command=f"{test_cmd} 2>/dev/null || true", timeout=30)
                     if test_result.success:
                         self.state.test_output = test_result.output
-                        if "failed" in test_result.output.lower() or "error" in test_result.output.lower():
+                        output_lower = test_result.output.lower()
+                        # Check for actual failures, not "0 failed" which means success
+                        has_failures = False
+                        if "failed" in output_lower:
+                            # Check it's not "0 failed" or "0 failures"
+                            import re
+                            fail_match = re.search(r'(\d+)\s*(failed|failures)', output_lower)
+                            if fail_match and int(fail_match.group(1)) > 0:
+                                has_failures = True
+                            elif "failed" in output_lower and not re.search(r'0\s*(failed|failures)', output_lower):
+                                has_failures = True
+                        if "error" in output_lower and "0 error" not in output_lower:
+                            has_failures = True
+                        
+                        if has_failures:
                             verification_issues.append("Tests failed")
                         else:
                             self.ui.substep("✓ Tests passed")
@@ -1644,10 +2200,15 @@ IMPORTANT:
         
         # Store success experience
         if self.state.phase == Phase.COMPLETE:
+            # Convert Change objects to strings
+            changes_str = [
+                f"{c.action}: {c.file_path}" if hasattr(c, 'file_path') else str(c)
+                for c in (self.state.changes or [])
+            ]
             self._store_experience(
                 original_task,
                 success=True,
-                changes=self.state.changes,
+                changes=changes_str,
                 duration=(datetime.now() - start_time).total_seconds()
             )
         

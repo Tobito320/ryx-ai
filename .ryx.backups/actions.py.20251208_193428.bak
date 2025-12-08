@@ -19,8 +19,6 @@ class ActionResult(Enum):
     NOT_FOUND = "not_found"
     ERROR = "error"
     TIMEOUT = "timeout"
-    GO_BACK = "go_back"
-    GO_FORWARD = "go_forward"
 
 
 @dataclass
@@ -127,11 +125,6 @@ class BrowserActions:
     def go_back() -> str:
         """Go back in history"""
         return "window.history.back(); JSON.stringify({result: 'success'})"
-
-    @staticmethod
-    def go_forward() -> str:
-        """Go forward in history"""
-        return "window.history.forward(); JSON.stringify({result: 'success'})"
             
     @staticmethod
     def get_scroll_position() -> str:

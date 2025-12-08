@@ -243,3 +243,11 @@ When ANY weakness is found in Ryx:
 
 **Status**: 🟢 ACTIVE - Building RyxSurf, Training Ryx
 **Supervisor**: Tobi, I got you. You can rely on me.
+
+## UI DESIGN TODO
+- [ ] Redesign to ultra-minimal like Zen Browser
+- [ ] Thinner sidebar (icon-only mode option)
+- [ ] Compact URL bar
+- [ ] Hide-able UI elements
+- [ ] Clean Catppuccin/Nord theme
+

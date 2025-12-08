@@ -360,50 +360,35 @@ class SmartCache:
 
 
 class ModelManager:
-    """Manages model selection - vLLM only"""
-    
-    MODELS = {
-        # Small (1.5-3B) - fast tasks, search agents
-        "fast": ["/models/small/coding/qwen2.5-coder-1.5b", "/models/small/general/qwen2.5-3b"],
-        # Medium (7B) - supervisor, synthesis, general
-        "balanced": ["/models/medium/general/qwen2.5-7b-gptq", "/models/medium/coding/qwen2.5-coder-7b-gptq"],
-        # Coding (7B) - code tasks
-        "smart": ["/models/medium/coding/qwen2.5-coder-7b-gptq"],
-        # Supervisor (7B) - coordinates agents
-        "supervisor": ["/models/medium/general/qwen2.5-7b-gptq"],
-    }
+    """Manages model selection - vLLM only (auto-detects)"""
     
     def __init__(self, cache: SmartCache):
         self.cache = cache
         self.available: List[str] = []
+        self._detector = None
         self._refresh()
     
     def _refresh(self):
-        """Refresh available models from vLLM"""
-        import requests
+        """Refresh available models from vLLM using detector"""
+        from core.model_detector import get_detector
         
-        try:
-            resp = requests.get("http://localhost:8001/v1/models", timeout=3)
-            if resp.status_code == 200:
-                data = resp.json()
-                self.available = [m.get("id", "unknown") for m in data.get("data", [])]
-        except:
+        self._detector = get_detector()
+        model_info = self._detector.detect()
+        
+        if model_info:
+            self.available = [model_info.path]
+        else:
             self.available = []
     
     def get(self, role: str, precision_mode: bool = False) -> str:
-        """Get model for role"""
-        # Check user preference
-        saved = self.cache.get_model(role)
-        if saved and saved in self.available:
-            return saved
+        """Get model for role - returns whatever vLLM is serving"""
+        # Since vLLM serves one model, always return that
+        if self.available:
+            return self.available[0]
         
-        # Get from tier
-        for model in self.MODELS.get(role, self.MODELS["balanced"]):
-            if model in self.available:
-                return model
-        
-        # Fallback to first available
-        return self.available[0] if self.available else "/models/medium/general/qwen2.5-7b-gptq"
+        # Fallback - try to detect again
+        self._refresh()
+        return self.available[0] if self.available else "unknown"
     
     def find(self, query: str) -> Optional[str]:
         """Find model by natural language query"""
@@ -639,13 +624,49 @@ ANFRAGE: {prompt}'''
         
         # Direct file creation patterns (high priority)
         import re
-        file_create_pattern = r'create\s+\w+\.(py|js|ts|go|rs|java|sh|yaml|json|md)'
+        # Match: "create file.py" or "create path/to/file.py"
+        file_create_pattern = r'create\s+[\w/]+\.(py|js|ts|go|rs|java|sh|yaml|json|md)'
         if re.search(file_create_pattern, p):
             return True
         
+        # Move file patterns - these are code/file management tasks
+        if re.search(r'move\s+\S+\.(py|js|ts|go|rs|java)\s+to', p):
+            return True
+        if re.search(r'move\s+\S+/\S+\s+to', p):
+            return True
+        
+        # Delete file/directory patterns
+        if re.search(r'delete\s+(the\s+)?(file|directory|folder|src/)', p):
+            return True
+        
         # Modify file patterns - these should be code tasks, not file opens
-        file_modify_pattern = r'(modifiziere|ändere|update|modify|change|fix)\s+\w+\.(py|js|ts|html|css|go|rs|java)'
+        file_modify_pattern = r'(modifiziere|ändere|update|modify|change|fix|edit)\s+(the\s+)?(file\s+)?\w+\.(py|js|ts|html|css|go|rs|java)'
         if re.search(file_modify_pattern, p):
+            return True
+        
+        # Direct "edit file" patterns
+        if re.search(r'edit\s+(the\s+)?file', p):
+            return True
+        if re.search(r'add\s+(this\s+)?(exact\s+)?import', p):
+            return True
+        if re.search(r'add\s+.*import.*line', p):
+            return True
+        if re.search(r'add\s+.+\s+to\s+.+\.(py|js|ts|go)', p):
+            return True
+        # File path + action patterns
+        if re.search(r'in\s+\S+\.(py|js|ts|go)\s*,?\s*(add|insert|modify)', p):
+            return True
+        # Pattern: "In some/path.py, ..." or "in some/path.py:" - anything referencing a file path with action
+        if re.search(r'in\s+\S+/\S+\.(py|js|ts|go)\s*[,:.]', p):
+            return True
+        # Pattern: "replace ... with" in a file context
+        if 'replace' in p and ('.py' in p or '.js' in p or '.ts' in p):
+            return True
+        # "add this line" patterns
+        if re.search(r'add\s+(this\s+)?line', p):
+            return True
+        # Patterns with .py file mentioned
+        if '.py' in p and any(x in p for x in ['add ', 'insert ', 'modify ', 'update ', 'change ']):
             return True
         
         # Coding task indicators - actions that modify code
@@ -1272,9 +1293,11 @@ ANFRAGE: {prompt}'''
         
         self.ctx.last_result = result
         
-        # Cache successful resolutions
-        if success and self.ctx.last_query:
-            self.cache.store(self.ctx.last_query, plan, success)
+        # Cache successful resolutions (but not code tasks - they should always be re-evaluated)
+        if success and self.ctx.last_query and plan.intent != Intent.CODE_TASK:
+            # Also don't cache if the query looks like a code task (safety check)
+            if not self._is_code_task(self.ctx.last_query):
+                self.cache.store(self.ctx.last_query, plan, success)
         
         return success, result
     
@@ -2499,38 +2522,38 @@ class _VLLMWrapper:
     IMPORTANT: vLLM serves ONE model at a time. We ALWAYS use that model.
     """
     
-    # Default model - 7B for general use (lower VRAM, faster)
-    DEFAULT_MODEL = "/models/medium/general/qwen2.5-7b-gptq"
-    
     def __init__(self, backend):
         self.backend = backend
         self.base_url = backend.base_url
-        # Detect actual model from vLLM
+        self.current_model = None
+        # Detect actual model from vLLM using detector
         self._detect_model()
     
     def _detect_model(self):
         """Detect which model vLLM is actually serving"""
-        import requests
-        try:
-            resp = requests.get(f"{self.base_url}/v1/models", timeout=5)
-            if resp.status_code == 200:
-                models = resp.json().get("data", [])
-                if models:
-                    self.DEFAULT_MODEL = models[0]["id"]
-        except:
-            pass
+        from core.model_detector import get_detector
+        
+        detector = get_detector(self.base_url)
+        model_info = detector.detect()
+        
+        if model_info:
+            self.current_model = model_info.path
+            logger.info(f"Detected vLLM model: {model_info.name}")
+        else:
+            self.current_model = "unknown"
+            logger.warning("Could not detect model from vLLM")
     
     def generate(self, prompt: str, system: str = "", model: str = None, **kwargs) -> '_VLLMResponse':
         """Generate response - ALWAYS uses vLLM's served model"""
         # Ignore passed model - vLLM only serves one model
-        resp = self.backend.generate(prompt, system=system, model=self.DEFAULT_MODEL, **kwargs)
+        resp = self.backend.generate(prompt, system=system, model=self.current_model, **kwargs)
         return _VLLMResponse(response=resp.response, error=resp.error)
     
     def generate_stream(self, prompt: str, system: str = "", **kwargs):
         """Stream response - ALWAYS uses vLLM's served model"""
-        # Remove any model from kwargs - we use DEFAULT_MODEL
+        # Remove any model from kwargs - we use current_model
         kwargs.pop('model', None)
-        return self.backend.generate_stream(prompt, system=system, model=self.DEFAULT_MODEL, **kwargs)
+        return self.backend.generate_stream(prompt, system=system, model=self.current_model, **kwargs)
     
     def generate_tool_call(self, prompt: str, tools: list, **kwargs) -> '_VLLMResponse':
         """Generate with tools - for now just regular generation"""
@@ -2538,4 +2561,4 @@ class _VLLMWrapper:
     
     def list_models(self) -> list:
         """List available models"""
-        return [{"name": self.DEFAULT_MODEL}]
+        return [{"name": self.current_model}]

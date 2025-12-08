@@ -1,6 +1,6 @@
 """
-RyxSurf - Full-featured Adwaita Browser
-Professional UI with all essential features.
+RyxSurf - Ultra-minimalist Zen Browser
+Keyboard-driven, distraction-free browsing with Catppuccin Mocha theme.
 """
 
 import gi
@@ -26,6 +26,21 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 SESSION_FILE = DATA_DIR / "session.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 BOOKMARKS_FILE = DATA_DIR / "bookmarks.json"
+
+# Catppuccin Mocha colors
+COLORS = {
+    "base": "#1e1e2e",
+    "surface": "#313244",
+    "overlay": "#45475a",
+    "text": "#cdd6f4",
+    "subtext": "#a6adc8",
+    "mauve": "#cba6f7",
+    "lavender": "#b4befe",
+}
+
+# Sidebar dimensions
+SIDEBAR_COLLAPSED = 48
+SIDEBAR_EXPANDED = 200
 
 # Default settings
 DEFAULTS = {
@@ -139,7 +154,7 @@ class SessionManager:
 
 
 class RyxSurfWindow(Adw.ApplicationWindow):
-    """Main browser window"""
+    """Main browser window - Ultra-minimalist Zen design"""
     
     def __init__(self, app):
         super().__init__(application=app)
@@ -150,6 +165,9 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.tabs: List[Tab] = []
         self.active_tab = 0
         self.is_fullscreen = False
+        self.sidebar_visible = True
+        self.urlbar_visible = True
+        self.sidebar_hovered = False
         
         # Managers
         self.history = HistoryManager()
@@ -241,6 +259,7 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         settings_btn = Gtk.Button(icon_name="emblem-system-symbolic")
         settings_btn.add_css_class("flat")
         settings_btn.set_tooltip_text("Settings")
+        settings_btn.connect("clicked", lambda _: self._show_settings())
         sidebar_footer.append(settings_btn)
         
         self.sidebar.append(sidebar_footer)
@@ -1104,12 +1123,226 @@ class RyxSurfWindow(Adw.ApplicationWindow):
     # === HISTORY & BOOKMARKS VIEWS ===
     
     def _show_bookmarks(self):
-        # TODO: Full bookmarks view
-        pass
+        """Show bookmarks in a dialog"""
+        dialog = Adw.Dialog()
+        dialog.set_title("Bookmarks")
+        dialog.set_content_width(500)
+        dialog.set_content_height(400)
+        
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        
+        # Header
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(True)
+        box.append(header)
+        
+        # List
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        
+        listbox = Gtk.ListBox()
+        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        listbox.add_css_class("boxed-list")
+        
+        for b in self.bookmarks.bookmarks:
+            row = Adw.ActionRow()
+            row.set_title(b.get("title", "Untitled")[:50])
+            row.set_subtitle(b.get("url", "")[:60])
+            row.set_activatable(True)
+            
+            # Open button
+            open_btn = Gtk.Button(icon_name="go-next-symbolic")
+            open_btn.add_css_class("flat")
+            open_btn.connect("clicked", lambda _, url=b["url"]: (self._new_tab(url), dialog.close()))
+            row.add_suffix(open_btn)
+            
+            # Delete button
+            del_btn = Gtk.Button(icon_name="user-trash-symbolic")
+            del_btn.add_css_class("flat")
+            del_btn.connect("clicked", lambda _, url=b["url"], r=row: (self.bookmarks.remove(url), listbox.remove(r)))
+            row.add_suffix(del_btn)
+            
+            listbox.append(row)
+        
+        if not self.bookmarks.bookmarks:
+            empty = Adw.StatusPage()
+            empty.set_title("No Bookmarks")
+            empty.set_description("Press Ctrl+D to bookmark a page")
+            empty.set_icon_name("user-bookmarks-symbolic")
+            scroll.set_child(empty)
+        else:
+            scroll.set_child(listbox)
+        
+        box.append(scroll)
+        dialog.set_child(box)
+        dialog.present(self)
     
     def _show_history(self):
-        # TODO: Full history view
-        pass
+        """Show history in a dialog"""
+        dialog = Adw.Dialog()
+        dialog.set_title("History")
+        dialog.set_content_width(600)
+        dialog.set_content_height(500)
+        
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        
+        # Header with clear button
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(True)
+        
+        clear_btn = Gtk.Button(label="Clear All")
+        clear_btn.add_css_class("destructive-action")
+        clear_btn.connect("clicked", lambda _: (self._clear_history(), dialog.close()))
+        header.pack_start(clear_btn)
+        
+        box.append(header)
+        
+        # Search
+        search = Gtk.SearchEntry()
+        search.set_placeholder_text("Search history...")
+        search.set_margin_start(12)
+        search.set_margin_end(12)
+        search.set_margin_top(8)
+        search.set_margin_bottom(8)
+        box.append(search)
+        
+        # List
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        
+        listbox = Gtk.ListBox()
+        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        listbox.add_css_class("boxed-list")
+        
+        # Show last 100 entries
+        for h in reversed(self.history.entries[-100:]):
+            row = Adw.ActionRow()
+            row.set_title(h.get("title", "Untitled")[:50])
+            row.set_subtitle(h.get("url", "")[:60])
+            row.set_activatable(True)
+            row.connect("activated", lambda _, url=h["url"]: (self._new_tab(url), dialog.close()))
+            listbox.append(row)
+        
+        if not self.history.entries:
+            empty = Adw.StatusPage()
+            empty.set_title("No History")
+            empty.set_description("Your browsing history will appear here")
+            empty.set_icon_name("document-open-recent-symbolic")
+            scroll.set_child(empty)
+        else:
+            scroll.set_child(listbox)
+        
+        box.append(scroll)
+        dialog.set_child(box)
+        dialog.present(self)
+    
+    def _clear_history(self):
+        """Clear all history"""
+        self.history.entries = []
+        self.history.save()
+        self._show_toast("History cleared")
+    
+    def _show_settings(self):
+        """Show settings dialog"""
+        dialog = Adw.PreferencesDialog()
+        dialog.set_title("Settings")
+        
+        # General page
+        page = Adw.PreferencesPage()
+        page.set_title("General")
+        page.set_icon_name("emblem-system-symbolic")
+        
+        # Search group
+        search_group = Adw.PreferencesGroup()
+        search_group.set_title("Search")
+        
+        # Search engine selector
+        search_row = Adw.ComboRow()
+        search_row.set_title("Search Engine")
+        search_row.set_subtitle("Default search for URL bar")
+        
+        engines = Gtk.StringList()
+        engine_urls = [
+            ("DuckDuckGo", "https://duckduckgo.com/?q="),
+            ("Google", "https://www.google.com/search?q="),
+            ("Bing", "https://www.bing.com/search?q="),
+            ("Brave", "https://search.brave.com/search?q="),
+        ]
+        for name, _ in engine_urls:
+            engines.append(name)
+        search_row.set_model(engines)
+        
+        # Set current
+        current = DEFAULTS.get("search_engine", "")
+        for i, (_, url) in enumerate(engine_urls):
+            if url == current:
+                search_row.set_selected(i)
+                break
+        
+        search_row.connect("notify::selected", lambda r, p: self._set_search_engine(engine_urls[r.get_selected()][1]))
+        search_group.add(search_row)
+        page.add(search_group)
+        
+        # Privacy group
+        privacy_group = Adw.PreferencesGroup()
+        privacy_group.set_title("Privacy")
+        
+        clear_row = Adw.ActionRow()
+        clear_row.set_title("Clear Browsing Data")
+        clear_row.set_subtitle("History, cookies, cache")
+        
+        clear_btn = Gtk.Button(label="Clear")
+        clear_btn.add_css_class("destructive-action")
+        clear_btn.set_valign(Gtk.Align.CENTER)
+        clear_btn.connect("clicked", lambda _: self._clear_all_data())
+        clear_row.add_suffix(clear_btn)
+        
+        privacy_group.add(clear_row)
+        page.add(privacy_group)
+        
+        # Session group
+        session_group = Adw.PreferencesGroup()
+        session_group.set_title("Session")
+        
+        restore_row = Adw.SwitchRow()
+        restore_row.set_title("Restore Session")
+        restore_row.set_subtitle("Reopen tabs from last session")
+        restore_row.set_active(DEFAULTS.get("restore_session", True))
+        
+        session_group.add(restore_row)
+        page.add(session_group)
+        
+        # Appearance group
+        appear_group = Adw.PreferencesGroup()
+        appear_group.set_title("Appearance")
+        
+        sidebar_row = Adw.SwitchRow()
+        sidebar_row.set_title("Show Sidebar")
+        sidebar_row.set_active(self.sidebar.get_visible())
+        sidebar_row.connect("notify::active", lambda r, p: self.sidebar.set_visible(r.get_active()))
+        
+        appear_group.add(sidebar_row)
+        page.add(appear_group)
+        
+        dialog.add(page)
+        dialog.present(self)
+    
+    def _set_search_engine(self, url: str):
+        """Set the search engine"""
+        DEFAULTS["search_engine"] = url
+        self._show_toast("Search engine updated")
+    
+    def _clear_all_data(self):
+        """Clear all browsing data"""
+        self.history.entries = []
+        self.history.save()
+        self.bookmarks.bookmarks = []
+        self.bookmarks.save()
+        # Clear WebKit data
+        if self.tabs:
+            ctx = self.tabs[0].webview.get_network_session().get_website_data_manager()
+            ctx.clear(WebKit.WebsiteDataTypes.ALL, 0, None, None, None)
+        self._show_toast("All data cleared")
     
     # === SESSION ===
     

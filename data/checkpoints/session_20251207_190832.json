@@ -1,0 +1,23 @@
+{
+  "session_id": "20251207_190832",
+  "checkpoints": [
+    {
+      "id": "Create tab_suspender.py_785e58",
+      "name": "Create tab_suspender.py",
+      "description": "",
+      "changes": [
+        {
+          "path": "/home/tobi/ryx-ai/ryxsurf/src/core/tab_suspender.py",
+          "change_type": "create",
+          "old_content": null,
+          "new_content": "import time\nfrom threading import Timer\nfrom collections import defaultdict\n\nclass TabSuspender:\n    \"\"\"\n    Monitors tab activity and automatically suspends tabs that haven't been used for 5 minutes.\n    \"\"\"\n\n    def __init__(self):\n        self.tabs = defaultdict(lambda: {'last_active': time.time(), 'suspended': False})\n        self.suspension_timer = None\n        self.suspension_interval = 300  # 5 minutes in seconds\n\n    def _update_last_active(self, tab_id):\n        \"\"\"\n        Update the last active timestamp for a given tab.\n        \"\"\"\n        self.tabs[tab_id]['last_active'] = time.time()\n\n    def suspend_tab(self, tab_id):\n        \"\"\"\n        Suspend a tab by unloading it from memory.\n        \"\"\"\n        if not self.tabs[tab_id]['suspended']:\n            self.tabs[tab_id]['suspended'] = True\n            print(f\"Tab {tab_id} suspended.\")\n\n    def resume_tab(self, tab_id):\n        \"\"\"\n        Resume a tab by loading it back into memory.\n        \"\"\"\n        if self.tabs[tab_id]['suspended']:\n            self.tabs[tab_id]['suspended'] = False\n            print(f\"Tab {tab_id} resumed.\")\n\n    def get_memory_usage(self):\n        \"\"\"\n        Get the memory usage of all tabs.\n        \"\"\"\n        return {tab_id: tab['suspended'] for tab_id, tab in self.tabs.items()}\n\n    def _check_and_suspend_tabs(self):\n        \"\"\"\n        Check and suspend tabs that haven't been used for the specified interval.\n        \"\"\"\n        current_time = time.time()\n        for tab_id, tab_info in self.tabs.items():\n            if current_time - tab_info['last_active'] > self.suspension_interval:\n                self.suspend_tab(tab_id)\n        self._start_suspension_timer()\n\n    def _start_suspension_timer(self):\n        \"\"\"\n        Start a timer to periodically check and suspend inactive tabs.\n        \"\"\"\n        self.suspension_timer = Timer(self.suspension_interval, self._check_and_suspend_tabs)\n        self.suspension_timer.start()\n\n    def start_monitoring(self):\n        \"\"\"\n        Start monitoring tabs for suspension.\n        \"\"\"\n        self._start_suspension_timer()\n\n# Example usage\nif __name__ == \"__main__\":\n    tab_suspender = TabSuspender()\n    tab_suspender.start_monitoring()\n\n    # Simulate tab activity\n    tab_suspender._update_last_active(1)\n    time.sleep(301)  # Wait longer than the suspension interval\n    tab_suspender._update_last_active(2)\n\n    # Check memory usage\n    print(tab_suspender.get_memory_usage())\n```\n\nThis code defines a `TabSuspender` class that monitors tab activity and suspends tabs that haven't been used for 5 minutes. It includes methods to suspend and resume tabs, as well as to get the memory usage of all tabs. The class uses a timer to periodically check and suspend inactive tabs.",
+          "old_path": null,
+          "timestamp": "2025-12-07T19:08:32.342796"
+        }
+      ],
+      "timestamp": "2025-12-07T19:08:32.342784",
+      "task_context": "Create ryxsurf/src/core/tab_suspender.py with a TabSuspender class that monitors tab activity and automatically suspends (unloads from memory) tabs that haven't been used for 5 minutes. Include methods suspend_tab, resume_tab, and get_memory_usage"
+    }
+  ],
+  "last_updated": "2025-12-07T19:08:32.342803"
+}

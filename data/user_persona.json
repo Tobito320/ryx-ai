@@ -1,0 +1,11 @@
+{
+  "preferences": {},
+  "coding_style": {},
+  "patterns": {
+    "code_task": 2,
+    "chat": 3,
+    "open_url": 1
+  },
+  "approval_threshold": 0.7,
+  "last_updated": "2025-12-07T23:08:27.691869"
+}

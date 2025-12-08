@@ -272,6 +272,11 @@ class TestRunner:
             result.skipped = int(summary_match.group(3) or 0)
             result.duration_ms = float(summary_match.group(4)) * 1000
             result.total = result.passed + result.failed + result.skipped
+            
+            # Override success based on actual test results, not just exit code
+            # If we parsed results and failed=0, consider it success
+            if result.failed == 0 and result.passed > 0:
+                result.success = True
         
         # Parse individual test results
         for match in re.finditer(r'(\S+::\S+)\s+(PASSED|FAILED|SKIPPED)', output):

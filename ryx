@@ -205,6 +205,8 @@ cleanup_all() {
 
 # Full restart - stops everything including vLLM
 full_restart() {
+    local mode="${1:-general}"
+    
     echo -e "${RED}╔═══════════════════════════════════════╗${NC}"
     echo -e "${RED}║     FULL RESTART - Stopping All       ║${NC}"
     echo -e "${RED}╚═══════════════════════════════════════╝${NC}"
@@ -228,28 +230,100 @@ full_restart() {
     echo -e "${GREEN}All services stopped${NC}"
     sleep 2
     
-    # Restart vLLM with default model
+    # Restart vLLM with specified mode
     echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║     Starting Fresh with Default       ║${NC}"
+    echo -e "${CYAN}║     Starting with mode: ${mode}${NC}"
     echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
     
-    start_vllm
+    start_vllm_mode "$mode"
     start_searxng
     
     echo -e "\n${GREEN}Full restart complete!${NC}"
-    echo -e "  vLLM loaded with default model"
+    echo -e "  Mode: ${CYAN}${mode}${NC}"
     echo -e "  Run ${CYAN}ryx${NC} to start CLI"
     echo -e "  Run ${CYAN}ryx ryxhub${NC} to start web UI"
+}
+
+# Start vLLM with specific mode (coding, general, fast)
+start_vllm_mode() {
+    local mode="${1:-general}"
+    local compose_file="$PROJECT_ROOT/docker/vllm/modes/${mode}.yml"
+    
+    # Check if mode exists
+    if [ ! -f "$compose_file" ]; then
+        echo -e "${RED}Unknown mode: ${mode}${NC}"
+        echo -e "Available modes: coding, general, fast"
+        return 1
+    fi
+    
+    # Stop existing vLLM
+    docker stop "$VLLM_CONTAINER" 2>/dev/null
+    docker rm "$VLLM_CONTAINER" 2>/dev/null
+    
+    echo -e "${YELLOW}Starting vLLM in ${mode} mode...${NC}"
+    docker compose -f "$compose_file" up -d 2>/dev/null
+    
+    # Show mode info
+    case "$mode" in
+        coding)
+            echo -e "  Model: ${CYAN}qwen2.5-coder-14b-awq${NC}"
+            echo -e "  Context: ${CYAN}32K${NC} (FP8 KV cache)"
+            ;;
+        general)
+            echo -e "  Model: ${CYAN}qwen2.5-14b-gptq${NC}"
+            echo -e "  Context: ${CYAN}16K${NC}"
+            ;;
+        fast)
+            echo -e "  Model: ${CYAN}qwen2.5-7b-awq${NC}"
+            echo -e "  Context: ${CYAN}32K${NC}"
+            ;;
+    esac
+    
+    echo -n "Waiting for vLLM "
+    local elapsed=0
+    local max_wait=120  # Longer wait for model loading
+    while [ $elapsed -lt $max_wait ]; do
+        if curl -s http://localhost:8001/v1/models &>/dev/null; then
+            echo -e "\r${GREEN}✓${NC} vLLM ready (${elapsed}s)"
+            return 0
+        fi
+        printf "\rWaiting for vLLM ${CYAN}[${elapsed}s]${NC}"
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    echo -e "\r${YELLOW}⚠${NC} vLLM starting in background (${max_wait}s)"
+    return 0
+}
+
+# Save current mode
+save_mode() {
+    local mode="$1"
+    echo "$mode" > "$PROJECT_ROOT/data/.current_mode"
+}
+
+# Get current mode
+get_current_mode() {
+    if [ -f "$PROJECT_ROOT/data/.current_mode" ]; then
+        cat "$PROJECT_ROOT/data/.current_mode"
+    else
+        echo "general"
+    fi
 }
 
 # Show status
 show_status() {
     echo -e "${CYAN}Ryx Services:${NC}"
     
+    # Current mode
+    current_mode=$(get_current_mode)
+    echo -e "  Mode:       ${CYAN}${current_mode}${NC}"
+    echo ""
+    
     # vLLM
     if docker ps --format '{{.Names}}' | grep -q "^${VLLM_CONTAINER}$"; then
         if curl -s http://localhost:8001/v1/models &>/dev/null; then
-            echo -e "  vLLM:       ${GREEN}running${NC} (port 8001)"
+            model_name=$(curl -s http://localhost:8001/v1/models | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 | xargs basename 2>/dev/null || echo "unknown")
+            echo -e "  vLLM:       ${GREEN}running${NC} (${model_name})"
         else
             echo -e "  vLLM:       ${YELLOW}starting${NC}"
         fi
@@ -277,6 +351,14 @@ show_status() {
     else
         echo -e "  RyxHub Web: ${RED}stopped${NC}"
     fi
+    
+    echo ""
+    echo -e "${CYAN}Available modes:${NC}"
+    echo "  coding  - qwen2.5-coder-14b @ 32K (development)"
+    echo "  general - qwen2.5-14b @ 16K (chat, docs)"
+    echo "  fast    - qwen2.5-7b @ 32K (browser, quick)"
+    echo ""
+    echo -e "Switch: ${CYAN}ryx restart all for <mode>${NC}"
 }
 
 # Start RyxHub web interface
@@ -326,6 +408,25 @@ start_ryxhub() {
 
 # Handle commands
 case "$1" in
+    surf|ryxsurf|browser)
+        echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║         Starting RyxSurf              ║${NC}"
+        echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
+        
+        # Check if vLLM is running - don't restart if it's working
+        if curl -s http://localhost:8001/v1/models &>/dev/null; then
+            echo -e "${GREEN}✓${NC} vLLM already running"
+        else
+            # Start vLLM in fast mode only if not running
+            echo -e "${YELLOW}Starting vLLM...${NC}"
+            start_vllm_mode "fast"
+        fi
+        
+        # Start browser immediately (AI features work when vLLM is ready)
+        [ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"
+        cd "$PROJECT_ROOT"
+        exec python3 -m ryxsurf.main "$@"
+        ;;
     ryxhub|hub|web)
         if [ "$2" = "restart" ]; then
             echo -e "${YELLOW}Restarting RyxHub (with full rebuild)...${NC}"
@@ -379,12 +480,38 @@ case "$1" in
             start_ryxhub
             exit 0
         elif [ "$2" = "all" ]; then
-            full_restart
+            # Check for "for <mode>" syntax
+            if [ "$3" = "for" ] && [ -n "$4" ]; then
+                mode="$4"
+                # Map application names to modes
+                case "$mode" in
+                    ryxsurf|browser|surf)
+                        mode="fast"
+                        ;;
+                    ryxhub|hub|web)
+                        mode="general"
+                        ;;
+                    coding|code|dev)
+                        mode="coding"
+                        ;;
+                    ryx|cli|general)
+                        mode="general"
+                        ;;
+                esac
+                save_mode "$mode"
+                full_restart "$mode"
+            else
+                full_restart "$(get_current_mode)"
+            fi
             exit 0
         else
             echo -e "${YELLOW}Usage:${NC}"
-            echo "  ryx restart ryxhub  - Restart RyxHub with fresh build"
-            echo "  ryx restart all     - Full restart (vLLM + everything)"
+            echo "  ryx restart ryxhub           - Restart RyxHub with fresh build"
+            echo "  ryx restart all              - Full restart with current mode"
+            echo "  ryx restart all for coding   - Restart with coding model (32K context)"
+            echo "  ryx restart all for general  - Restart with general model (16K context)"
+            echo "  ryx restart all for fast     - Restart with fast model (7B, 32K context)"
+            echo "  ryx restart all for ryxsurf  - Restart optimized for browser"
             exit 1
         fi
         ;;
@@ -397,13 +524,20 @@ case "$1" in
         echo "  (none)           Start interactive CLI"
         echo "  ryxhub           Start RyxHub web interface"
         echo "  ryxhub restart   Restart RyxHub with fresh build"
-        echo "  restart ryxhub   Restart RyxHub with fresh build"
-        echo "  restart all      Full restart (vLLM + all services)"
         echo "  status           Show service status"
         echo "  stop             Stop RyxHub services (keeps vLLM running)"
-        echo "  stop all         Stop ALL services including vLLM (keeps images)"
-        echo "  cleanup          Light cleanup - free RAM, clear caches (keeps images)"
-        echo "  cleanup all      Full cleanup - remove Docker images (requires rebuild)"
+        echo "  stop all         Stop ALL services including vLLM"
+        echo "  cleanup          Light cleanup - free RAM, clear caches"
+        echo "  cleanup all      Full cleanup - remove Docker images"
+        echo ""
+        echo "Mode Switching:"
+        echo "  restart all              Restart with current mode"
+        echo "  restart all for coding   32K context, qwen2.5-coder-14b (dev work)"
+        echo "  restart all for general  16K context, qwen2.5-14b (chat, docs)"
+        echo "  restart all for fast     32K context, qwen2.5-7b (browser, quick)"
+        echo "  restart all for ryxsurf  Alias for 'fast' mode"
+        echo ""
+        echo "Current mode: $(get_current_mode)"
         exit 0
         ;;
 esac

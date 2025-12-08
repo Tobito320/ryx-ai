@@ -19,8 +19,6 @@ class ActionResult(Enum):
     NOT_FOUND = "not_found"
     ERROR = "error"
     TIMEOUT = "timeout"
-    GO_BACK = "go_back"
-    GO_FORWARD = "go_forward"
 
 
 @dataclass

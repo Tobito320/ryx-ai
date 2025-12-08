@@ -35,7 +35,7 @@ class ResponseStyle(Enum):
 @dataclass
 class SupervisorConfig:
     """Configuration for the supervisor"""
-    model: str = "/models/medium/general/qwen2.5-7b-gptq"
+    model: str = None  # Will auto-detect from vLLM
     vllm_base_url: str = "http://localhost:8001"
     num_workers: int = 5
     style: ResponseStyle = ResponseStyle.NORMAL
@@ -70,6 +70,20 @@ class Supervisor:
     
     def __init__(self, config: SupervisorConfig = None):
         self.config = config or SupervisorConfig()
+        
+        # Auto-detect model from vLLM if not specified
+        if not self.config.model:
+            from core.model_detector import get_detector
+            detector = get_detector(self.config.vllm_base_url)
+            model_info = detector.detect()
+            if model_info:
+                self.config.model = model_info.path
+                logger.info(f"Auto-detected model: {model_info.name}")
+            else:
+                # Fallback - but this will likely fail
+                self.config.model = "unknown"
+                logger.warning("Could not detect model from vLLM")
+        
         self.worker_pool = WorkerPool(
             num_workers=self.config.num_workers,
             vllm_base_url=self.config.vllm_base_url
@@ -361,13 +375,13 @@ _supervisor: Optional[Supervisor] = None
 
 
 def get_supervisor() -> Supervisor:
-    """Get supervisor singleton"""
+    """Get supervisor singleton with auto-detection"""
     global _supervisor
     if _supervisor is None:
         import os
         config = SupervisorConfig(
             vllm_base_url=os.environ.get("VLLM_BASE_URL", "http://localhost:8001"),
-            model=os.environ.get("SUPERVISOR_MODEL", "/models/medium/general/qwen2.5-7b-gptq")
+            model=None  # Will auto-detect
         )
         _supervisor = Supervisor(config)
     return _supervisor

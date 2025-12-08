@@ -1,0 +1,1950 @@
+"""
+RyxSurf Core - Browser Engine Integration
+
+Uses WebKitGTK for rendering (same engine as GNOME Web/Epiphany).
+Provides a minimal, keyboard-driven interface with modern glassmorphism UI.
+
+Features:
+- Tab management with count display, hover titles, middle-click close
+- Session persistence with auto-save/restore
+- Smart tab unloading for memory efficiency  
+- History tracking with URL bar suggestions
+- Download manager with progress tracking
+"""
+
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('WebKit', '6.0')
+
+from gi.repository import Gtk, WebKit, GLib, Gdk, Pango
+from typing import Optional, List, Callable, Dict
+from ..ui.hints import HintMode
+from dataclasses import dataclass, field
+from pathlib import Path
+from urllib.parse import quote_plus
+import json
+import time
+
+from .history import HistoryManager
+from .downloads import DownloadManager, DownloadNotification, DownloadInfo
+from .bookmarks import BookmarkManager
+
+
+# Settings file path
+SETTINGS_FILE = Path.home() / ".config" / "ryxsurf" / "settings.json"
+
+DEFAULT_SETTINGS = {
+    "homepage": "https://www.google.com",
+    "search_engine": "https://google.com/search?q=",
+    "url_bar_auto_hide": True,
+    "url_bar_hide_delay_ms": 1500,
+    "gpu_acceleration": True,
+    "dark_mode": True,
+    "font_size": 14,
+    "smooth_scrolling": True,
+    "tab_unload_timeout_seconds": 300,  # 5 minutes
+    "max_loaded_tabs": 10,
+    "restore_session_on_startup": True,
+}
+
+
+@dataclass
+class Tab:
+    """Represents a browser tab"""
+    id: int
+    webview: WebKit.WebView
+    title: str = "New Tab"
+    url: str = "about:blank"
+    is_loaded: bool = False
+    is_unloaded: bool = False  # For memory optimization
+    favicon: Optional[str] = None
+    last_active: float = field(default_factory=time.time)  # For tab unloading
+    scroll_position: int = 0  # Preserve scroll on unload
+    zoom_level: float = 1.0  # Per-tab zoom level
+
+
+@dataclass
+class Session:
+    """A named collection of tabs"""
+    name: str
+    tabs: List[dict] = field(default_factory=list)  # Serialized tab data
+    active_tab: int = 0
+    
+
+def load_settings() -> dict:
+    """Load settings from file or return defaults"""
+    if SETTINGS_FILE.exists():
+        try:
+            return {**DEFAULT_SETTINGS, **json.loads(SETTINGS_FILE.read_text())}
+        except json.JSONDecodeError:
+            return DEFAULT_SETTINGS.copy()
+    return DEFAULT_SETTINGS.copy()
+
+
+def save_settings(settings: dict):
+    """Save settings to file"""
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SETTINGS_FILE.write_text(json.dumps(settings, indent=2))
+
+
+class Browser:
+    """
+    Main browser class.
+    
+    Manages tabs, sessions, and UI state.
+    Designed for keyboard-first interaction.
+    
+    Features:
+    - Tab count in URL bar
+    - Tab title on hover
+    - Middle-click to close tabs
+    - Session auto-save on close, restore on startup
+    - Smart tab unloading (5 min timeout)
+    - History tracking
+    - Download manager
+    """
+    
+    def __init__(self, config: 'Config'):
+        self.config = config
+        self.tabs: List[Tab] = []
+        self.active_tab_idx: int = 0
+        self.sessions: dict[str, Session] = {}
+        self.current_session: str = "default"
+        
+        # Load settings
+        self.settings = load_settings()
+        
+        # UI state
+        self.sidebar_visible: bool = False
+        self.bookmarks_visible: bool = False
+        self.url_bar_visible: bool = True
+        self.url_bar_pinned: bool = False  # When user explicitly shows it
+        self.fullscreen: bool = False  # Don't start fullscreen by default
+        self._last_scroll_y: float = 0
+        self._url_bar_hide_timeout: Optional[int] = None
+        
+        # Tab unloading
+        self._tab_unload_timeout: Optional[int] = None
+        self._unload_after_seconds: int = self.settings.get("tab_unload_timeout_seconds", 300)
+        
+        # History manager
+        self.history_manager = HistoryManager()
+        
+        # Bookmark manager
+        self.bookmark_manager = BookmarkManager()
+        self.hint_mode = HintMode()
+        
+        # Download manager
+        self.download_manager = DownloadManager(
+            on_progress=self._on_download_progress,
+            on_complete=self._on_download_complete,
+            on_failed=self._on_download_failed
+        )
+        
+        # History suggestions popup
+        self._suggestions_popup: Optional[Gtk.Popover] = None
+        self._suggestions_list: Optional[Gtk.ListBox] = None
+        
+        # AI integration
+        self.ai_client = None
+        self._connect_to_ai_backend()
+        
+        # GTK setup
+        self.app = None
+        self.window = None
+        self.main_box = None
+        self.content_box = None
+        self.url_entry = None
+        self.url_bar_box = None
+        self.url_bar_indicator = None  # Thin line indicator
+        self.tab_count_label = None  # Tab count in URL bar
+        self.security_icon = None  # HTTPS lock icon
+        self.bookmark_icon = None  # Bookmark star icon
+        self.tab_sidebar = None
+        self.ai_sidebar = None
+        self.settings_dialog = None
+        self.download_notification = None
+        self.find_bar = None
+        self.bookmarks_bar = None
+        self.context_menu_handler = None
+        
+    def _connect_to_ai_backend(self):
+        """Initialize the AI client with the localhost URL."""
+        import requests
+        self.ai_client = requests.Session()
+        self.ai_client.headers.update({'Content-Type': 'application/json'})
+        self.ai_client.base_url = self.config.ai_endpoint
+
+    def run(self):
+        """Start the browser"""
+        self.app = Gtk.Application(application_id='ai.ryx.surf')
+        self.app.connect('activate', self._on_activate)
+        self.app.run(None)
+        
+    def _on_activate(self, app):
+        """Called when GTK app is ready"""
+        # Hold the application to keep it running
+        app.hold()
+        
+        self.window = Gtk.ApplicationWindow(application=app)
+        self.window.set_title("RyxSurf")
+        
+        # Set reasonable default size (not fullscreen)
+        start_fullscreen = self.settings.get("start_fullscreen", False)
+        if start_fullscreen:
+            self.window.set_default_size(1920, 1080)
+        else:
+            self.window.set_default_size(1200, 800)
+        
+        # Release hold when window is destroyed
+        self.window.connect('destroy', lambda w: self._on_window_destroy(app))
+        
+        # Apply CSS styling
+        self._apply_css()
+        
+        # Zen Browser style layout:
+        # [LEFT SIDEBAR] | [RIGHT: URL BAR + WEBVIEW]
+        
+        # Main horizontal layout: sidebar on left, content on right
+        self.main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.window.set_child(self.main_box)
+        
+        # Create tab sidebar FIRST (left side, always visible)
+        self._create_tab_sidebar()
+        self.tab_sidebar.set_visible(True)  # Always visible by default
+        self.sidebar_visible = True
+        
+        # Right side: vertical box with URL bar on top, webview below
+        self.right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.right_box.set_hexpand(True)
+        self.right_box.set_vexpand(True)
+        self.main_box.append(self.right_box)
+        
+        # Content area for webviews (must be created BEFORE url bar for auto-hide)
+        self.content_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.content_box.set_vexpand(True)
+        self.content_box.set_hexpand(True)
+        
+        # Create persistent URL bar at the top (always visible)
+        self._create_url_bar()
+        self.url_bar_visible = True
+        self.url_bar_box.set_visible(True)
+        
+        # Create bookmarks bar (hidden by default, below URL bar)
+        self._create_bookmarks_bar()
+        
+        # Create find bar (hidden by default)
+        self._create_find_bar()
+        
+        # Add content box after URL bar
+        self.right_box.append(self.content_box)
+        
+        # Create AI sidebar (hidden by default, right side of content)
+        self._create_ai_sidebar()
+        
+        # Create download notification
+        self._create_download_notification()
+        
+        # Create context menu handler
+        self._create_context_menu_handler()
+        
+        # Restore session or create initial tab
+        if self.settings.get("restore_session_on_startup", True):
+            self._restore_session()
+        
+        # Create initial tab if no tabs restored
+        if not self.tabs:
+            self._new_tab(self.config.homepage)
+        
+        # Setup keybinds
+        self._setup_keybinds()
+        
+        # Start tab unload monitor
+        self._start_tab_unload_monitor()
+        
+        # Go fullscreen only if setting is enabled
+        start_fullscreen = self.settings.get("start_fullscreen", False)
+        if start_fullscreen:
+            self.window.fullscreen()
+        
+        self.window.present()
+        
+    def _on_window_destroy(self, app):
+        """Handle window destruction - save session"""
+        self._save_session()
+        self.history_manager.close()
+        self._stop_tab_unload_monitor()
+        app.release()
+    
+    def _apply_css(self):
+        """Apply ultra-compact minimal UI styling"""
+        css = """
+        /* ═══════════════════════════════════════════════════════════════
+           BASE - Dark minimal theme
+           ═══════════════════════════════════════════════════════════════ */
+        window {
+            background: #0d0e11;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           TAB SIDEBAR - Compact icon-based (48px collapsed)
+           ═══════════════════════════════════════════════════════════════ */
+        .tab-sidebar {
+            background: #13141a;
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 6px 4px;
+            min-width: 48px;
+            min-width: 48px;
+        }
+        
+        .tab-sidebar.expanded {
+            min-width: 200px;
+            min-width: 200px;
+        }
+        
+        .tab-item {
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 2px;
+            min-width: 36px;
+            min-height: 36px;
+            transition: all 120ms ease;
+        }
+        
+        .tab-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+        
+        .tab-item.active {
+            background: rgba(139, 92, 246, 0.15);
+            box-shadow: inset 2px 0 0 #8b5cf6;
+        }
+        
+        .tab-favicon {
+            border-radius: 4px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           URL BAR - Ultra compact, full width
+           ═══════════════════════════════════════════════════════════════ */
+        .url-bar {
+            background: #13141a;
+            padding: 4px 12px;
+            min-height: 36px;
+            min-height: 36px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #666;
+            border-radius: 6px;
+            padding: 6px 8px;
+            min-width: 28px;
+            font-size: 14px;
+            transition: all 100ms ease;
+        }
+        
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #999;
+        }
+        
+        .nav-btn:disabled {
+            color: #333;
+        }
+        
+        .url-entry {
+            background: rgba(255, 255, 255, 0.04);
+            color: #ccc;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-size: 13px;
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 26px;
+            caret-color: #8b5cf6;
+        }
+        
+        .url-entry:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(139, 92, 246, 0.4);
+            outline: none;
+            color: #fff;
+        }
+        
+        .url-entry selection {
+            background: rgba(139, 92, 246, 0.3);
+        }
+        
+        .security-icon {
+            color: #666;
+            font-size: 12px;
+            padding: 0 6px;
+        }
+        
+        .security-icon.secure {
+            color: #22c55e;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           NEW TAB PAGE - Clean dashboard style
+           ═══════════════════════════════════════════════════════════════ */
+        .newtab-page {
+            background: #0d0e11;
+        }
+        
+        .newtab-search {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 14px 20px;
+            font-size: 15px;
+            color: #fff;
+            min-width: 500px;
+            transition: all 150ms ease;
+        }
+        
+        .newtab-search:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(139, 92, 246, 0.5);
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+            outline: none;
+        }
+        
+        .quick-link {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 100px;
+            transition: all 150ms ease;
+        }
+        
+        .quick-link:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .quick-link-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .quick-link-title {
+            color: #888;
+            font-size: 11px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           SCROLLBARS - Minimal
+           ═══════════════════════════════════════════════════════════════ */
+        scrollbar {
+            background: transparent;
+        }
+        
+        scrollbar slider {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            min-width: 6px;
+        }
+        
+        scrollbar slider:hover {
+            background: rgba(139, 92, 246, 0.3);
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           TOOLTIPS
+           ═══════════════════════════════════════════════════════════════ */
+        tooltip {
+            background: #1a1b23;
+            color: #ccc;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+        """
+        
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data(css.encode('utf-8'))
+        
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+    
+    def _create_url_bar(self):
+        """Create ultra-compact full-width URL bar"""
+        self.url_bar_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.url_bar_box.add_css_class("url-bar")
+        self.url_bar_box.set_spacing(6)
+        self.url_bar_box.set_hexpand(True)
+        
+        # Back button
+        back_btn = Gtk.Button(label="‹")
+        back_btn.add_css_class("nav-btn")
+        back_btn.set_tooltip_text("Back")
+        back_btn.connect("clicked", lambda _: self._history_back())
+        self.url_bar_box.append(back_btn)
+        
+        # Forward button
+        fwd_btn = Gtk.Button(label="›")
+        fwd_btn.add_css_class("nav-btn")
+        fwd_btn.set_tooltip_text("Forward")
+        fwd_btn.connect("clicked", lambda _: self._history_forward())
+        self.url_bar_box.append(fwd_btn)
+        
+        # Reload button
+        reload_btn = Gtk.Button(label="↻")
+        reload_btn.add_css_class("nav-btn")
+        reload_btn.set_tooltip_text("Reload")
+        reload_btn.connect("clicked", lambda _: self._reload())
+        self.url_bar_box.append(reload_btn)
+        
+        # Security icon
+        self.security_icon = Gtk.Label(label="")
+        self.security_icon.add_css_class("security-icon")
+        self.url_bar_box.append(self.security_icon)
+        
+        # URL entry - full width
+        self.url_entry = Gtk.Entry()
+        self.url_entry.set_hexpand(True)
+        self.url_entry.add_css_class("url-entry")
+        self.url_entry.set_placeholder_text("Search or enter URL")
+        self.url_entry.connect("activate", self._on_url_entry_activate)
+        self.url_entry.connect("changed", self._on_url_entry_changed)
+        self.url_bar_box.append(self.url_entry)
+        
+        # Create suggestions popover
+        self._create_suggestions_popover()
+        
+        # Add URL bar directly to right_box
+        self.right_box.prepend(self.url_bar_box)
+        
+    def _create_suggestions_popover(self):
+        """Create the history suggestions popover for URL bar"""
+        self._suggestions_popup = Gtk.Popover()
+        self._suggestions_popup.set_parent(self.url_entry)
+        self._suggestions_popup.add_css_class("suggestions-popover")
+        self._suggestions_popup.set_autohide(True)
+        
+        # List box for suggestions
+        self._suggestions_list = Gtk.ListBox()
+        self._suggestions_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self._suggestions_list.connect("row-activated", self._on_suggestion_activated)
+        
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_max_content_height(300)
+        scroll.set_propagate_natural_height(True)
+        scroll.set_child(self._suggestions_list)
+        
+        self._suggestions_popup.set_child(scroll)
+        
+    def _on_url_entry_changed(self, entry: Gtk.Entry):
+        """Handle URL entry text changes - show suggestions"""
+        text = entry.get_text().strip()
+        
+        if not text or text.startswith("!") or text.startswith("?"):
+            self._suggestions_popup.popdown()
+            return
+            
+        # Get suggestions from history
+        suggestions = self.history_manager.get_suggestions(text, limit=8)
+        
+        if not suggestions:
+            self._suggestions_popup.popdown()
+            return
+            
+        # Clear existing
+        while child := self._suggestions_list.get_first_child():
+            self._suggestions_list.remove(child)
+            
+        # Add suggestions
+        for entry_data in suggestions:
+            row = self._create_suggestion_row(entry_data)
+            self._suggestions_list.append(row)
+            
+        self._suggestions_popup.popup()
+        
+    def _create_suggestion_row(self, entry_data) -> Gtk.ListBoxRow:
+        """Create a suggestion row widget"""
+        row = Gtk.ListBoxRow()
+        row.suggestion_url = entry_data.url
+        row.add_css_class("suggestion-row")
+        
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        box.set_margin_top(4)
+        box.set_margin_bottom(4)
+        
+        # Title
+        title = Gtk.Label(label=entry_data.title[:50] or entry_data.url[:50])
+        title.set_halign(Gtk.Align.START)
+        title.add_css_class("suggestion-title")
+        title.set_ellipsize(Pango.EllipsizeMode.END)
+        box.append(title)
+        
+        # URL
+        url_label = Gtk.Label(label=entry_data.url[:60])
+        url_label.set_halign(Gtk.Align.START)
+        url_label.add_css_class("suggestion-url")
+        url_label.set_ellipsize(Pango.EllipsizeMode.END)
+        box.append(url_label)
+        
+        row.set_child(box)
+        return row
+        
+    def _on_suggestion_activated(self, listbox, row):
+        """Handle suggestion selection"""
+        if row and hasattr(row, 'suggestion_url'):
+            self.url_entry.set_text(row.suggestion_url)
+            self._suggestions_popup.popdown()
+            self._navigate_current(row.suggestion_url)
+    
+    def _create_tab_sidebar(self):
+        """Create the tab sidebar (left side, Zen Browser style)"""
+        self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.tab_sidebar.add_css_class("tab-sidebar")
+        self.tab_sidebar.set_size_request(48, -1)  # Fixed width for sidebar
+        
+        # Scrollable area for tabs
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_vexpand(True)
+        
+        self.tab_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        scroll.set_child(self.tab_list_box)
+        self.tab_sidebar.append(scroll)
+        
+        # Prepend to main_box so it's on the left
+        self.main_box.prepend(self.tab_sidebar)
+    
+    def _create_download_notification(self):
+        """Create the download notification widget"""
+        self.download_notification = DownloadNotification(self.download_manager)
+        # Add to right_box (bottom of content area)
+        self.right_box.append(self.download_notification)
+    
+    def _create_bookmarks_bar(self):
+        """Create the bookmarks bar (hidden by default)"""
+        from ..ui.bookmarks_bar import BookmarksBar
+        self.bookmarks_bar = BookmarksBar(
+            bookmark_manager=self.bookmark_manager,
+            on_navigate=self._navigate_current
+        )
+        self.right_box.append(self.bookmarks_bar)
+        
+    def _create_find_bar(self):
+        """Create the find-in-page bar (hidden by default)"""
+        from ..ui.find_bar import FindBar
+        self.find_bar = FindBar(get_webview_callback=self._get_current_webview)
+        self.right_box.append(self.find_bar)
+        
+    def _create_context_menu_handler(self):
+        """Create the context menu handler"""
+        from ..ui.context_menu import ContextMenuHandler
+        self.context_menu_handler = ContextMenuHandler(
+            on_open_new_tab=self._new_tab,
+            on_save_image=self._save_image,
+            on_inspect=self._inspect_element
+        )
+        
+    def _get_current_webview(self) -> Optional[WebKit.WebView]:
+        """Get the current tab's webview"""
+        if self.tabs:
+            return self.tabs[self.active_tab_idx].webview
+        return None
+        
+    def _save_image(self, url: str):
+        """Save image from URL - triggers download"""
+        if self.tabs:
+            webview = self.tabs[self.active_tab_idx].webview
+            # Navigate to image URL to trigger download
+            webview.download_uri(url)
+            
+    def _inspect_element(self):
+        """Open web inspector"""
+        if self.tabs:
+            webview = self.tabs[self.active_tab_idx].webview
+            inspector = webview.get_inspector()
+            inspector.show()
+    
+    def _create_ai_sidebar(self):
+        """Create the AI sidebar (hidden by default)"""
+        self.ai_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.ai_sidebar.add_css_class("ai-sidebar")
+        self.ai_sidebar.set_visible(False)
+        # Will be appended after webview
+    
+    def _on_url_entry_activate(self, entry: Gtk.Entry):
+        """Handle URL entry activation (Enter key)"""
+        text = entry.get_text().strip()
+        if not text:
+            return
+        
+        # Detect input type
+        if text.startswith("!"):
+            # AI command
+            self._handle_ai_command(text[1:])
+        elif text.startswith("?"):
+            # Search - URL encode the query
+            query = quote_plus(text[1:])
+            self._navigate_current(f"https://google.com/search?q={query}")
+        elif "." in text or text.startswith("http"):
+            # URL
+            url = text if text.startswith("http") else f"https://{text}"
+            self._navigate_current(url)
+        else:
+            # Default to search - URL encode the query
+            query = quote_plus(text)
+            self._navigate_current(f"https://google.com/search?q={query}")
+        
+        # Return focus to webview
+        if self.tabs:
+            self.tabs[self.active_tab_idx].webview.grab_focus()
+        
+    def _setup_keybinds(self):
+        """Setup keyboard shortcuts"""
+        # Create key controller for window-level key events
+        controller = Gtk.EventControllerKey()
+        # Use CAPTURE phase to intercept before WebView
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        controller.connect('key-pressed', self._on_key_press)
+        self.window.add_controller(controller)
+        
+    def _on_key_press(self, controller, keyval, keycode, state):
+        """Handle key press events"""
+        # Get modifier state
+        ctrl_pressed = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        shift_pressed = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        super_pressed = bool(state & Gdk.ModifierType.SUPER_MASK)
+        
+        key_name = Gdk.keyval_name(keyval)
+        if key_name is None:
+            return Gdk.EVENT_PROPAGATE
+        
+        # Debug: Print key events (remove after debugging)
+        # print(f"Key: {key_name}, Ctrl: {ctrl_pressed}, Shift: {shift_pressed}")
+        
+        # Escape - hide URL bar and close overlays
+        if key_name == 'Escape':
+            if self.url_entry and self.url_entry.has_focus():
+                # Unfocus URL entry and return to webview
+                if self.tabs:
+                    self.tabs[self.active_tab_idx].webview.grab_focus()
+                self._hide_url_bar()
+                return Gdk.EVENT_STOP
+            if self.url_bar_visible:
+                self._hide_url_bar()
+                return Gdk.EVENT_STOP
+            self._close_overlays()
+            return Gdk.EVENT_STOP
+        
+        # Ctrl-based shortcuts (case insensitive matching)
+        if ctrl_pressed and not shift_pressed:
+            if key_name in ('t', 'T'):
+                self._new_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('w', 'W'):
+                self._close_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('l', 'L'):
+                self._show_url_bar(pin=True)
+                self._focus_url_bar()
+                return Gdk.EVENT_STOP
+            elif key_name in ('g', 'G'):
+                # Super+G / Ctrl+G - show URL bar
+                self._show_url_bar(pin=True)
+                self._focus_url_bar()
+                return Gdk.EVENT_STOP
+            elif key_name in ('b', 'B'):
+                self._toggle_sidebar()
+                return Gdk.EVENT_STOP
+            elif key_name in ('r', 'R'):
+                self._reload()
+                return Gdk.EVENT_STOP
+            elif key_name in ('f', 'F'):
+                # Ctrl+F - Find in page
+                self._show_find_bar()
+                return Gdk.EVENT_STOP
+            elif key_name in ('d', 'D'):
+                # Ctrl+D - Toggle bookmark
+                self._toggle_bookmark()
+                return Gdk.EVENT_STOP
+            elif key_name == 'Tab':
+                self._next_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('1', '2', '3', '4', '5', '6', '7', '8', '9'):
+                self._goto_tab(int(key_name) - 1)
+                return Gdk.EVENT_STOP
+            elif key_name == 'comma':
+                # Ctrl+, - Open settings
+                self._show_settings()
+                return Gdk.EVENT_STOP
+            elif key_name in ('plus', 'equal', 'KP_Add'):
+                # Ctrl++ - Zoom in
+                self._zoom_in()
+                return Gdk.EVENT_STOP
+            elif key_name in ('minus', 'KP_Subtract'):
+                # Ctrl+- - Zoom out
+                self._zoom_out()
+                return Gdk.EVENT_STOP
+            elif key_name in ('0', 'KP_0'):
+                # Ctrl+0 - Reset zoom
+                self._zoom_reset()
+                return Gdk.EVENT_STOP
+        
+        # Ctrl+Shift shortcuts
+        if ctrl_pressed and shift_pressed:
+            if key_name in ('a', 'A'):
+                self._toggle_ai_sidebar()
+                return Gdk.EVENT_STOP
+            elif key_name in ('s', 'S'):
+                self._save_session()
+                return Gdk.EVENT_STOP
+            elif key_name in ('r', 'R'):
+                self._hard_reload()
+                return Gdk.EVENT_STOP
+            elif key_name in ('b', 'B'):
+                # Ctrl+Shift+B - Toggle bookmarks bar
+                self._toggle_bookmarks_bar()
+                return Gdk.EVENT_STOP
+            elif key_name == 'ISO_Left_Tab' or key_name == 'Tab':
+                self._prev_tab()
+                return Gdk.EVENT_STOP
+        
+        # Super key shortcuts (for AI features)
+        if super_pressed and not ctrl_pressed:
+            if shift_pressed and key_name in ('a', 'A'):
+                self._summarize_page()
+                return Gdk.EVENT_STOP
+            elif key_name == 'x':
+                self._dismiss_popup()
+                return Gdk.EVENT_STOP
+        
+        # F for link hints (only when Ctrl not pressed and not in URL entry)
+        if not ctrl_pressed and key_name in ('f', 'F'):
+            if self.url_entry and not self.url_entry.has_focus():
+                if not self._is_focused_on_input():
+                    self._hint_mode()
+                    return Gdk.EVENT_STOP
+            
+        return Gdk.EVENT_PROPAGATE
+        
+    def _setup_url_bar_auto_hide(self):
+        """Setup auto-hide behavior for URL bar"""
+        # Click detection on content area
+        click_controller = Gtk.GestureClick()
+        click_controller.connect("pressed", self._on_content_click)
+        self.content_box.add_controller(click_controller)
+    
+    def _on_indicator_hover(self, controller, x, y):
+        """Show URL bar when hovering over the indicator"""
+        self._show_url_bar()
+    
+    def _on_content_click(self, gesture, n_press, x, y):
+        """Hide URL bar when clicking on content"""
+        if self.url_bar_visible and not self.url_bar_pinned:
+            self._hide_url_bar()
+    
+    def _show_url_bar(self, pin: bool = False):
+        """Show the URL bar"""
+        self.url_bar_visible = True
+        self.url_bar_pinned = pin
+        self.url_bar_box.set_visible(True)
+        self.url_bar_box.remove_css_class("hidden")
+        self.url_bar_indicator.set_visible(False)
+        
+        # Cancel any pending hide timeout
+        if self._url_bar_hide_timeout:
+            GLib.source_remove(self._url_bar_hide_timeout)
+            self._url_bar_hide_timeout = None
+    
+    def _hide_url_bar(self):
+        """Hide the URL bar, show thin indicator"""
+        if self.url_bar_pinned:
+            return
+        self.url_bar_visible = False
+        self.url_bar_box.add_css_class("hidden")
+        self.url_bar_indicator.set_visible(True)
+        
+        # Actually hide after animation
+        GLib.timeout_add(200, lambda: self.url_bar_box.set_visible(False) or False)
+    
+    def _schedule_url_bar_hide(self):
+        """Schedule URL bar to hide after delay"""
+        if self._url_bar_hide_timeout:
+            GLib.source_remove(self._url_bar_hide_timeout)
+        
+        delay = self.settings.get("url_bar_hide_delay_ms", 1500)
+        self._url_bar_hide_timeout = GLib.timeout_add(delay, self._auto_hide_url_bar)
+    
+    def _auto_hide_url_bar(self):
+        """Auto-hide callback"""
+        if not self.url_bar_pinned and self.settings.get("url_bar_auto_hide", True):
+            self._hide_url_bar()
+        self._url_bar_hide_timeout = None
+        return False
+
+    def _new_tab(self, url: str = "about:blank"):
+        """Create a new tab"""
+        webview = WebKit.WebView()
+        
+        # Configure WebView settings with GPU acceleration
+        settings = webview.get_settings()
+        settings.set_enable_javascript(True)
+        settings.set_enable_developer_extras(True)
+        settings.set_javascript_can_open_windows_automatically(False)
+        
+        # GPU acceleration settings
+        settings.set_hardware_acceleration_policy(WebKit.HardwareAccelerationPolicy.ALWAYS)
+        settings.set_enable_webgl(True)
+        settings.set_enable_smooth_scrolling(self.settings.get("smooth_scrolling", True))
+        
+        # Additional performance settings
+        settings.set_enable_page_cache(True)
+        settings.set_enable_back_forward_navigation_gestures(True)
+        
+        # Media settings
+        settings.set_enable_media_stream(True)
+        settings.set_media_playback_requires_user_gesture(False)
+        
+        # Set initial title based on URL
+        initial_title = "New Tab"
+        if url and url != "about:blank":
+            # Extract domain for initial title
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                initial_title = parsed.netloc or url[:30]
+            except:
+                initial_title = url[:30]
+        
+        tab = Tab(
+            id=len(self.tabs),
+            webview=webview,
+            url=url,
+            title=initial_title,
+            last_active=time.time()
+        )
+        
+        # Connect signals for navigation
+        webview.connect('notify::title', lambda w, pspec, t=tab: self._on_title_change(t))
+        webview.connect('notify::uri', lambda w, pspec, t=tab: self._on_uri_change(t))
+        webview.connect('load-changed', lambda w, e, t=tab: self._on_load_changed(w, e, t))
+        webview.connect('load-failed', self._on_load_failed)
+        
+        # Connect download handler
+        network_session = webview.get_network_session()
+        network_session.connect('download-started', self._on_download_started)
+        
+        # Setup context menu handler
+        if self.context_menu_handler:
+            self.context_menu_handler.setup_webview(webview)
+        
+        self.tabs.append(tab)
+        self._switch_to_tab(len(self.tabs) - 1)
+        
+        # Load the URL after adding to tabs
+        if url and url != "about:blank":
+            webview.load_uri(url)
+        else:
+            # New tab - load internal new tab page and focus URL bar
+            self._load_newtab_page(webview)
+            GLib.idle_add(self._focus_url_bar)
+        
+        self._update_tab_sidebar()
+        self._update_window_title()
+    
+    def _load_newtab_page(self, webview):
+        """Load a clean new tab page with search"""
+        html = '''<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0d0e11;
+    color: #888;
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 40px;
+}
+.logo {
+    font-size: 48px;
+    font-weight: 200;
+    color: #8b5cf6;
+    letter-spacing: -2px;
+}
+.search {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 16px 24px;
+    font-size: 16px;
+    color: #fff;
+    width: 500px;
+    outline: none;
+    transition: all 150ms;
+}
+.search:focus {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(139,92,246,0.5);
+    box-shadow: 0 0 0 4px rgba(139,92,246,0.1);
+}
+.shortcuts {
+    display: flex;
+    gap: 16px;
+    margin-top: 20px;
+}
+.shortcut {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+    width: 90px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 150ms;
+    text-decoration: none;
+    color: inherit;
+}
+.shortcut:hover {
+    background: rgba(255,255,255,0.06);
+    transform: translateY(-2px);
+}
+.shortcut-icon { font-size: 24px; margin-bottom: 8px; }
+.shortcut-name { font-size: 11px; color: #666; }
+.tip {
+    position: fixed;
+    bottom: 30px;
+    font-size: 12px;
+    color: #444;
+}
+kbd {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+</style>
+</head>
+<body>
+<div class="logo">RyxSurf</div>
+<input class="search" placeholder="Search or enter URL" autofocus 
+    onkeydown="if(event.key==='Enter'){window.location=this.value.includes('.')?'https://'+this.value:'https://duckduckgo.com/?q='+encodeURIComponent(this.value)}">
+<div class="shortcuts">
+    <a class="shortcut" href="https://github.com"><div class="shortcut-icon">🐙</div><div class="shortcut-name">GitHub</div></a>
+    <a class="shortcut" href="https://youtube.com"><div class="shortcut-icon">▶️</div><div class="shortcut-name">YouTube</div></a>
+    <a class="shortcut" href="https://reddit.com"><div class="shortcut-icon">🔮</div><div class="shortcut-name">Reddit</div></a>
+    <a class="shortcut" href="https://duckduckgo.com"><div class="shortcut-icon">🦆</div><div class="shortcut-name">Search</div></a>
+</div>
+<div class="tip">Press <kbd>Ctrl+L</kbd> to focus URL bar · <kbd>Ctrl+T</kbd> new tab</div>
+</body>
+</html>'''
+        webview.load_html(html, "about:newtab")
+    
+    def _focus_url_bar(self):
+        """Focus the URL entry and select all text"""
+        if self.url_entry:
+            self.url_entry.grab_focus()
+            self.url_entry.select_region(0, -1)
+        return False
+        
+    def _close_tab(self, idx: Optional[int] = None):
+        """Close a tab"""
+        if idx is None:
+            idx = self.active_tab_idx
+            
+        if len(self.tabs) <= 1:
+            # Don't close last tab, just clear it
+            self.tabs[0].webview.load_uri("about:blank")
+            return
+            
+        self.tabs.pop(idx)
+        if self.active_tab_idx >= len(self.tabs):
+            self.active_tab_idx = len(self.tabs) - 1
+        self._switch_to_tab(self.active_tab_idx)
+        self._update_tab_sidebar()
+        
+    def _switch_to_tab(self, idx: int):
+        """Switch to a specific tab, reload if unloaded"""
+        if 0 <= idx < len(self.tabs):
+            self.active_tab_idx = idx
+            tab = self.tabs[idx]
+            
+            # Update last active time
+            tab.last_active = time.time()
+            
+            # Reload if unloaded
+            if tab.is_unloaded:
+                self._reload_unloaded_tab(tab)
+            
+            # Apply tab's zoom level
+            tab.webview.set_zoom_level(tab.zoom_level)
+            
+            self._update_content_view()
+            # Update URL bar with current tab's URL
+            if self.url_entry and self.tabs:
+                self.url_entry.set_text(self.tabs[idx].url or "")
+            
+            # Update security icon
+            self._update_security_icon(tab.url)
+            
+            # Update bookmark icon
+            self._update_bookmark_icon(tab.url)
+            
+    def _goto_tab(self, idx: int):
+        """Go to tab by number (0-indexed)"""
+        self._switch_to_tab(idx)
+        
+    def _update_content_view(self):
+        """Update the main content area with current tab's webview"""
+        # Remove old webviews from content_box
+        child = self.content_box.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            if isinstance(child, WebKit.WebView):
+                self.content_box.remove(child)
+            child = next_child
+            
+        # Add current tab's webview
+        if self.tabs:
+            tab = self.tabs[self.active_tab_idx]
+            
+            # Remove AI sidebar temporarily if it's in the way
+            if self.ai_sidebar.get_parent():
+                self.content_box.remove(self.ai_sidebar)
+            
+            # Add webview
+            tab.webview.set_hexpand(True)
+            tab.webview.set_vexpand(True)
+            self.content_box.append(tab.webview)
+            
+            # Re-add AI sidebar at the end
+            if self.ai_sidebar.get_visible():
+                self.content_box.append(self.ai_sidebar)
+    
+    def _update_tab_sidebar(self):
+        """Update the tab sidebar with compact icon tabs"""
+        if not hasattr(self, 'tab_list_box'):
+            return
+            
+        # Clear existing
+        child = self.tab_list_box.get_first_child()
+        while child:
+            next_child = child.get_next_sibling()
+            self.tab_list_box.remove(child)
+            child = next_child
+        
+        # Add compact tab buttons
+        for i, tab in enumerate(self.tabs):
+            btn = Gtk.Button(label=f"{i+1}")
+            btn.add_css_class("tab-item")
+            btn.set_size_request(36, 36)
+            
+            if i == self.active_tab_idx:
+                btn.add_css_class("active")
+            if tab.is_unloaded:
+                btn.add_css_class("unloaded")
+            
+            # Tooltip shows title
+            btn.set_tooltip_text(tab.title or "New Tab")
+            
+            # Click to switch
+            btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
+            
+            # Middle-click to close
+            middle = Gtk.GestureClick()
+            middle.set_button(2)
+            middle.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
+            btn.add_controller(middle)
+            
+            self.tab_list_box.append(btn)
+    
+    def _update_tab_count(self):
+        """Update the tab count label in URL bar"""
+        if self.tab_count_label:
+            count = len(self.tabs)
+            unloaded = sum(1 for t in self.tabs if t.is_unloaded)
+            if unloaded > 0:
+                self.tab_count_label.set_text(f"{count} ({unloaded}z)")
+            else:
+                self.tab_count_label.set_text(str(count))
+    
+    def _start_tab_unload_monitor(self):
+        """Start monitoring tabs for inactivity and unload them"""
+        # Check every 30 seconds
+        self._tab_unload_timeout = GLib.timeout_add_seconds(30, self._check_tab_unload)
+        
+    def _stop_tab_unload_monitor(self):
+        """Stop the tab unload monitor"""
+        if self._tab_unload_timeout:
+            GLib.source_remove(self._tab_unload_timeout)
+            self._tab_unload_timeout = None
+    
+    def _check_tab_unload(self) -> bool:
+        """Check for inactive tabs and unload them"""
+        now = time.time()
+        unload_threshold = self._unload_after_seconds
+        
+        for i, tab in enumerate(self.tabs):
+            # Skip active tab and already unloaded tabs
+            if i == self.active_tab_idx or tab.is_unloaded:
+                continue
+                
+            inactive_time = now - tab.last_active
+            if inactive_time > unload_threshold:
+                self._unload_tab(tab)
+                
+        return True  # Continue monitoring
+    
+    def _unload_tab(self, tab: Tab):
+        """Unload a tab to save memory"""
+        if tab.is_unloaded:
+            return
+            
+        # Save scroll position
+        tab.webview.evaluate_javascript(
+            "window.scrollY",
+            -1, None, None, None,
+            lambda src, result: self._save_scroll_position(tab, src, result)
+        )
+        
+        # Load blank page to free memory
+        tab.webview.load_uri("about:blank")
+        tab.is_unloaded = True
+        
+        self._update_tab_sidebar()
+        
+    def _save_scroll_position(self, tab: Tab, source, result):
+        """Save scroll position from JS callback"""
+        try:
+            js_result = source.evaluate_javascript_finish(result)
+            if js_result:
+                tab.scroll_position = int(js_result.to_double())
+        except:
+            pass
+    
+    def _reload_unloaded_tab(self, tab: Tab):
+        """Reload a previously unloaded tab"""
+        if not tab.is_unloaded:
+            return
+            
+        tab.is_unloaded = False
+        if tab.url and tab.url != "about:blank":
+            tab.webview.load_uri(tab.url)
+            
+            # Restore scroll position after load
+            def restore_scroll(webview, load_event, t=tab):
+                if load_event == WebKit.LoadEvent.FINISHED and t.scroll_position > 0:
+                    webview.evaluate_javascript(
+                        f"window.scrollTo(0, {t.scroll_position})",
+                        -1, None, None, None, None
+                    )
+                    t.scroll_position = 0
+                    
+            tab.webview.connect('load-changed', restore_scroll)
+        
+        self._update_tab_sidebar()
+    
+    def _on_download_started(self, session, download: WebKit.Download):
+        """Handle a new download"""
+        self.download_manager.handle_download(download)
+        
+    def _on_download_progress(self, info: DownloadInfo):
+        """Handle download progress update"""
+        # Notification widget handles display
+        pass
+        
+    def _on_download_complete(self, info: DownloadInfo):
+        """Handle download completion"""
+        print(f"Download complete: {info.filename}")
+        
+    def _on_download_failed(self, info: DownloadInfo):
+        """Handle download failure"""
+        print(f"Download failed: {info.filename} - {info.error_message}")
+    
+    def _restore_session(self):
+        """Restore session from disk on startup"""
+        session_file = Path.home() / ".config" / "ryxsurf" / "sessions" / f"{self.current_session}.json"
+        if not session_file.exists():
+            return
+            
+        try:
+            session_data = json.loads(session_file.read_text())
+            
+            for tab_data in session_data.get("tabs", []):
+                url = tab_data.get("url", "about:blank")
+                # Create tab but don't load yet (lazy loading)
+                webview = WebKit.WebView()
+                
+                # Apply WebView settings
+                settings = webview.get_settings()
+                settings.set_enable_javascript(True)
+                settings.set_hardware_acceleration_policy(WebKit.HardwareAccelerationPolicy.ALWAYS)
+                settings.set_enable_webgl(True)
+                settings.set_enable_smooth_scrolling(self.settings.get("smooth_scrolling", True))
+                settings.set_enable_page_cache(True)
+                
+                tab = Tab(
+                    id=len(self.tabs),
+                    webview=webview,
+                    title=tab_data.get("title", "New Tab"),
+                    url=url,
+                    is_unloaded=True,  # Start unloaded for memory efficiency
+                    last_active=time.time(),
+                    zoom_level=tab_data.get("zoom_level", 1.0)
+                )
+                
+                # Connect signals
+                webview.connect('notify::title', lambda w, pspec, t=tab: self._on_title_change(t))
+                webview.connect('notify::uri', lambda w, pspec, t=tab: self._on_uri_change(t))
+                webview.connect('load-changed', lambda w, e, t=tab: self._on_load_changed(w, e, t))
+                webview.connect('load-failed', self._on_load_failed)
+                
+                # Connect download handler
+                network_session = webview.get_network_session()
+                network_session.connect('download-started', self._on_download_started)
+                
+                # Setup context menu handler
+                if self.context_menu_handler:
+                    self.context_menu_handler.setup_webview(webview)
+                
+                self.tabs.append(tab)
+                
+            # Switch to active tab and load it
+            active_idx = session_data.get("active_tab", 0)
+            if 0 <= active_idx < len(self.tabs):
+                self.active_tab_idx = active_idx
+                # Load the active tab
+                if self.tabs:
+                    tab = self.tabs[active_idx]
+                    tab.is_unloaded = False
+                    if tab.url and tab.url != "about:blank":
+                        tab.webview.load_uri(tab.url)
+                        
+            self._update_tab_sidebar()
+            
+        except Exception as e:
+            print(f"Failed to restore session: {e}")
+    
+    def _navigate_current(self, url: str):
+        """Navigate the current tab to a URL"""
+        if not self.tabs:
+            return
+        
+        tab = self.tabs[self.active_tab_idx]
+        tab.url = url
+        tab.webview.load_uri(url)
+        
+        # Update URL bar
+        if self.url_entry:
+            self.url_entry.set_text(url)
+    
+    def _on_load_changed(self, webview, load_event, tab: Tab = None):
+        """Handle page load state changes"""
+        if load_event == WebKit.LoadEvent.STARTED:
+            # Page started loading - update title immediately
+            uri = webview.get_uri()
+            if uri and tab:
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(uri)
+                    tab.title = f"Loading {parsed.netloc}..." if parsed.netloc else "Loading..."
+                except:
+                    tab.title = "Loading..."
+                self._update_tab_sidebar()
+                self._update_window_title()
+        elif load_event == WebKit.LoadEvent.REDIRECTED:
+            # Handle redirects - update URL
+            uri = webview.get_uri()
+            if uri and tab:
+                tab.url = uri
+        elif load_event == WebKit.LoadEvent.COMMITTED:
+            # Page content started arriving - try to get real title
+            title = webview.get_title()
+            if title and tab:
+                tab.title = title
+                self._update_tab_sidebar()
+                self._update_window_title()
+        elif load_event == WebKit.LoadEvent.FINISHED:
+            # Update URL bar and title when page finishes loading
+            uri = webview.get_uri()
+            title = webview.get_title()
+            
+            if tab:
+                tab.title = title or tab.title
+                tab.url = uri or tab.url
+                tab.is_loaded = True
+                tab.last_active = time.time()  # Update activity time
+                self._update_tab_sidebar()
+                self._update_window_title()
+                
+                # Add to history
+                if uri and not uri.startswith("about:"):
+                    self.history_manager.add_visit(uri, title or "")
+            
+            if uri and self.url_entry:
+                # Only update if this is the active tab's webview
+                if self.tabs and self.tabs[self.active_tab_idx].webview == webview:
+                    self.url_entry.set_text(uri)
+            
+            # Schedule URL bar auto-hide after load
+            if self.settings.get("url_bar_auto_hide", True):
+                self._schedule_url_bar_hide()
+    
+    def _on_load_failed(self, webview, load_event, failing_uri, error):
+        """Handle page load failures"""
+        print(f"Load failed for {failing_uri}: {error.message if error else 'Unknown error'}")
+        # Show error page instead of white screen
+        error_html = f"""
+        <html>
+        <head><style>
+            body {{ 
+                background: #1e1f29; 
+                color: #f8f8f2; 
+                font-family: sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                margin: 0;
+            }}
+            h1 {{ color: #ff5555; }}
+            a {{ color: #bd93f9; }}
+        </style></head>
+        <body>
+            <h1>⚠️ Failed to load page</h1>
+            <p>Could not load: {failing_uri}</p>
+            <p>{error.message if error else 'Unknown error'}</p>
+            <p><a href="javascript:history.back()">← Go back</a></p>
+        </body>
+        </html>
+        """
+        webview.load_html(error_html, failing_uri)
+        return True  # Prevent default error handling
+            
+    def _scroll(self, down: bool = True):
+        """Scroll the current page"""
+        if not self.tabs:
+            return
+        webview = self.tabs[self.active_tab_idx].webview
+        direction = 100 if down else -100
+        webview.evaluate_javascript(
+            f"window.scrollBy(0, {direction})",
+            -1, None, None, None, None
+        )
+        
+    def _history_back(self):
+        """Go back in history"""
+        if self.tabs:
+            self.tabs[self.active_tab_idx].webview.go_back()
+            
+    def _history_forward(self):
+        """Go forward in history"""
+        if self.tabs:
+            self.tabs[self.active_tab_idx].webview.go_forward()
+            
+    def _focus_url_bar(self):
+        """Focus the URL bar for input"""
+        self._show_url_bar(pin=True)
+        if self.url_entry:
+            self.url_entry.grab_focus()
+            self.url_entry.select_region(0, -1)  # Select all text
+    
+    def _update_window_title(self):
+        """Update window title with current tab info"""
+        if self.tabs and self.window:
+            tab = self.tabs[self.active_tab_idx]
+            self.window.set_title(f"{tab.title} - RyxSurf")
+
+    def _handle_url_input(self, text: str, input_type):
+        """Handle input from URL bar (legacy method)"""
+        if input_type == "url":
+            url = text if text.startswith('http') else 'https://' + text
+            self._navigate_current(url)
+        elif input_type == "search":
+            query = quote_plus(text)
+            self._navigate_current(f'https://google.com/search?q={query}')
+        elif input_type == "ai":
+            self._handle_ai_command(text)
+        
+    def _send_to_ai(self, prompt: str) -> str:
+        """Send a prompt to the AI and return the response"""
+        response = self.ai_client.post(
+            self.ai_client.base_url + '/generate',
+            json={'prompt': prompt}
+        )
+        return response.json().get('response', '')
+
+    def _handle_ai_command(self, text: str):
+        """Handle AI commands"""
+        response = self._send_to_ai(text)
+        self._process_ai_response(response)
+    def _process_ai_response(self, response: str):
+        """Process AI response and display it in the browser"""
+        print(response)
+    def _show_ai_bar(self):
+        """Show AI command bar"""
+        # TODO: Implement AI command bar
+        pass
+        
+    def _toggle_sidebar(self):
+        """Toggle tab sidebar visibility"""
+        self.sidebar_visible = not self.sidebar_visible
+        self.tab_sidebar.set_visible(self.sidebar_visible)
+        
+    def _hint_mode(self):
+        """Enter hint mode for keyboard link clicking"""
+        current_webview = self.tabs[self.active_tab_idx].webview
+        hint_injection_js = self.hint_mode.get_hint_injection_js()
+        current_webview.evaluate_javascript(hint_injection_js, None)
+        self.hint_mode.active = True
+
+    def _summarize_page(self):
+        """Get and summarize the page text"""
+        current_webview = self.tabs[self.active_tab_idx].webview
+        current_webview.run_javascript(
+            "document.body.innerText",
+            None,
+            self._on_get_page_text
+        )
+
+def _dismiss_popup(self):
+        """Remove modal/popup elements via JavaScript"""
+        current_webview = self.tabs[self.active_tab_idx].webview
+        current_webview.run_javascript(
+            """
+            const popups = document.querySelectorAll('[class*="popup"], [class*="modal"], [class*="overlay"], [class*="cookie"], [class*="newsletter"]');
+            popups.forEach(popup => popup.remove());
+            document.body.style.overflow = 'auto'; // Restore body scrolling
+            """,
+            None,
+            None
+        )
+
+def _read_mode(self):
+    """Enable read mode via JavaScript"""
+    current_webview = self.tabs[self.active_tab_idx].webview
+    current_webview.run_javascript(BrowserActions.read_mode(), None, None)
+    def _on_get_page_text(self, result, error):
+        if error:
+            print(f"Error getting page text: {error}")
+            return
+        page_text = result.get_string()
+        # TODO: Integrate with AI to summarize the page_text
+        print(page_text)
+    
+    def _close_overlays(self):
+        """Close any open overlays/bars"""
+        # Also dismiss AI overlays
+        self._ai_dismiss()
+    
+    def _reload(self):
+        """Reload current page"""
+        if self.tabs:
+            self.tabs[self.active_tab_idx].webview.reload()
+    
+    def _hard_reload(self):
+        """Hard reload (bypass cache)"""
+        if self.tabs:
+            self.tabs[self.active_tab_idx].webview.reload_bypass_cache()
+    
+    def _next_tab(self):
+        """Switch to next tab"""
+        if self.tabs:
+            next_idx = (self.active_tab_idx + 1) % len(self.tabs)
+            self._switch_to_tab(next_idx)
+    
+    def _prev_tab(self):
+        """Switch to previous tab"""
+        if self.tabs:
+            prev_idx = (self.active_tab_idx - 1) % len(self.tabs)
+            self._switch_to_tab(prev_idx)
+    
+    def _toggle_ai_sidebar(self):
+        """Toggle AI sidebar visibility"""
+        visible = self.ai_sidebar.get_visible()
+        self.ai_sidebar.set_visible(not visible)
+        
+        if not visible:
+            # Add to content box if not already there
+            if not self.ai_sidebar.get_parent():
+                self.content_box.append(self.ai_sidebar)
+        else:
+            # Remove from content box
+            if self.ai_sidebar.get_parent():
+                self.content_box.remove(self.ai_sidebar)
+    
+    def _is_focused_on_input(self) -> bool:
+        """Check if focus is on an input element in the webview"""
+        # For now, return False - proper implementation would check via JS
+        # This is a placeholder that allows 'F' to work for link hints
+        return False
+        
+    def _ai_summarize(self):
+        """AI: Summarize current page"""
+        # TODO: Get page content and send to AI
+        pass
+        
+    def _ai_dismiss(self):
+        """AI: Dismiss popup/overlay"""
+        # TODO: Detect and remove overlays
+        if self.tabs:
+            webview = self.tabs[self.active_tab_idx].webview
+            # Common overlay removal script
+            webview.evaluate_javascript("""
+                // Remove common newsletter popups
+                document.querySelectorAll('[class*="popup"], [class*="modal"], [class*="overlay"], [id*="popup"], [id*="modal"]').forEach(el => {
+                    if (el.style.position === 'fixed' || el.style.position === 'absolute') {
+                        el.remove();
+                    }
+                });
+                // Remove backdrop
+                document.querySelectorAll('[class*="backdrop"]').forEach(el => el.remove());
+                // Re-enable scrolling
+                document.body.style.overflow = 'auto';
+                document.documentElement.style.overflow = 'auto';
+            """, -1, None, None, None, None)
+        
+    def _switch_session(self):
+        """Switch to a different session"""
+        # TODO: Implement session switcher UI
+        pass
+        
+    def _on_title_change(self, tab: Tab):
+        """Handle page title change"""
+        new_title = tab.webview.get_title()
+        if new_title:
+            tab.title = new_title
+            self._update_tab_sidebar()
+            self._update_window_title()
+        
+    def _on_uri_change(self, tab: Tab):
+        """Handle URL change"""
+        new_uri = tab.webview.get_uri()
+        if new_uri:
+            tab.url = new_uri
+            # Update URL bar if this is the active tab
+            if self.tabs and self.tabs[self.active_tab_idx] == tab and self.url_entry:
+                self.url_entry.set_text(new_uri)
+                # Update security icon
+                self._update_security_icon(new_uri)
+                # Update bookmark icon
+                self._update_bookmark_icon(new_uri)
+    
+    def _show_settings(self):
+        """Show settings dialog"""
+        if self.settings_dialog and self.settings_dialog.get_visible():
+            self.settings_dialog.close()
+            return
+        
+        # Create settings dialog
+        self.settings_dialog = Gtk.Window(title="RyxSurf Settings")
+        self.settings_dialog.set_transient_for(self.window)
+        self.settings_dialog.set_modal(True)
+        self.settings_dialog.set_default_size(450, 400)
+        self.settings_dialog.add_css_class("settings-dialog")
+        
+        # Main content box
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        main_box.set_margin_top(20)
+        main_box.set_margin_bottom(20)
+        main_box.set_margin_start(20)
+        main_box.set_margin_end(20)
+        
+        # Header
+        header = Gtk.Label(label="⚙️ Settings")
+        header.add_css_class("settings-header")
+        header.set_halign(Gtk.Align.START)
+        main_box.append(header)
+        
+        # Homepage setting
+        homepage_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        homepage_label = Gtk.Label(label="Homepage:")
+        homepage_label.set_halign(Gtk.Align.START)
+        homepage_label.set_hexpand(False)
+        homepage_entry = Gtk.Entry()
+        homepage_entry.set_text(self.settings.get("homepage", "https://www.google.com"))
+        homepage_entry.set_hexpand(True)
+        homepage_box.append(homepage_label)
+        homepage_box.append(homepage_entry)
+        main_box.append(homepage_box)
+        
+        # Auto-hide URL bar toggle
+        autohide_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        autohide_label = Gtk.Label(label="Auto-hide URL bar:")
+        autohide_label.set_halign(Gtk.Align.START)
+        autohide_label.set_hexpand(True)
+        autohide_switch = Gtk.Switch()
+        autohide_switch.set_active(self.settings.get("url_bar_auto_hide", True))
+        autohide_box.append(autohide_label)
+        autohide_box.append(autohide_switch)
+        main_box.append(autohide_box)
+        
+        # Smooth scrolling toggle
+        scroll_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        scroll_label = Gtk.Label(label="Smooth scrolling:")
+        scroll_label.set_halign(Gtk.Align.START)
+        scroll_label.set_hexpand(True)
+        scroll_switch = Gtk.Switch()
+        scroll_switch.set_active(self.settings.get("smooth_scrolling", True))
+        scroll_box.append(scroll_label)
+        scroll_box.append(scroll_switch)
+        main_box.append(scroll_box)
+        
+        # GPU acceleration toggle
+        gpu_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        gpu_label = Gtk.Label(label="GPU acceleration:")
+        gpu_label.set_halign(Gtk.Align.START)
+        gpu_label.set_hexpand(True)
+        gpu_switch = Gtk.Switch()
+        gpu_switch.set_active(self.settings.get("gpu_acceleration", True))
+        gpu_box.append(gpu_label)
+        gpu_box.append(gpu_switch)
+        main_box.append(gpu_box)
+        
+        # Save button
+        save_btn = Gtk.Button(label="Save Settings")
+        save_btn.set_margin_top(20)
+        
+        def on_save(_):
+            self.settings["homepage"] = homepage_entry.get_text()
+            self.settings["url_bar_auto_hide"] = autohide_switch.get_active()
+            self.settings["smooth_scrolling"] = scroll_switch.get_active()
+            self.settings["gpu_acceleration"] = gpu_switch.get_active()
+            save_settings(self.settings)
+            self.settings_dialog.close()
+        
+        save_btn.connect("clicked", on_save)
+        main_box.append(save_btn)
+        
+        # Close on Escape
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", lambda c, k, kc, s: 
+            self.settings_dialog.close() if Gdk.keyval_name(k) == "Escape" else None)
+        self.settings_dialog.add_controller(key_controller)
+        
+        self.settings_dialog.set_child(main_box)
+        self.settings_dialog.present()
+        
+    def _load_session(self, session_name: str):
+        """Load a session from a JSON file and recreate tabs"""
+        session_file = Path.home() / ".config" / "ryxsurf" / "sessions" / f"{session_name}.json"
+        if session_file.exists():
+            session_data = json.loads(session_file.read_text())
+            self.current_session = session_data["name"]
+            self.tabs = []
+            for tab_data in session_data["tabs"]:
+                webview = WebKit.WebView()
+                
+                # Apply WebView settings
+                settings = webview.get_settings()
+                settings.set_enable_javascript(True)
+                settings.set_hardware_acceleration_policy(WebKit.HardwareAccelerationPolicy.ALWAYS)
+                settings.set_enable_webgl(True)
+                settings.set_enable_smooth_scrolling(self.settings.get("smooth_scrolling", True))
+                
+                tab = Tab(
+                    id=len(self.tabs),
+                    webview=webview,
+                    title=tab_data["title"],
+                    url=tab_data["url"],
+                    zoom_level=tab_data.get("zoom_level", 1.0)
+                )
+                
+                # Connect signals with proper captured tab reference
+                webview.connect('notify::title', lambda w, pspec, t=tab: self._on_title_change(t))
+                webview.connect('notify::uri', lambda w, pspec, t=tab: self._on_uri_change(t))
+                webview.connect('load-changed', lambda w, e, t=tab: self._on_load_changed(w, e, t))
+                webview.connect('load-failed', self._on_load_failed)
+                
+                # Setup context menu handler
+                if self.context_menu_handler:
+                    self.context_menu_handler.setup_webview(webview)
+                
+                self.tabs.append(tab)
+                
+                # Load URL after tab is added
+                webview.load_uri(tab_data["url"])
+                
+                # Apply zoom level
+                webview.set_zoom_level(tab.zoom_level)
+            
+            self.active_tab_idx = session_data["active_tab"]
+            self._switch_to_tab(self.active_tab_idx)
+            self._update_window_title()
+
+    def shutdown(self):
+        """Clean shutdown"""
+        # Save session
+        self._save_session()
+        # Stop monitors
+        self._stop_tab_unload_monitor()
+        # Close history database
+        self.history_manager.close()
+        if self.app:
+            self.app.quit()
+            
+    def _save_session(self):
+        """Save current session to disk with full tab state"""
+        session_data = {
+            "name": self.current_session,
+            "tabs": [
+                {
+                    "url": t.url,
+                    "title": t.title,
+                    "scroll_position": t.scroll_position,
+                    "is_unloaded": t.is_unloaded,
+                    "zoom_level": t.zoom_level
+                }
+                for t in self.tabs
+            ],
+            "active_tab": self.active_tab_idx
+        }
+        
+        session_file = Path.home() / ".config" / "ryxsurf" / "sessions" / f"{self.current_session}.json"
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        session_file.write_text(json.dumps(session_data, indent=2))
+
+    # ==================== NEW FEATURES ====================
+    
+    def _show_find_bar(self):
+        """Show the find-in-page bar"""
+        if self.find_bar:
+            self.find_bar.show()
+            
+    def _toggle_bookmarks_bar(self):
+        """Toggle bookmarks bar visibility"""
+        if self.bookmarks_bar:
+            self.bookmarks_bar.toggle()
+            self.bookmarks_visible = self.bookmarks_bar.get_visible()
+            
+    def _toggle_bookmark(self):
+        """Toggle bookmark for current page"""
+        if not self.tabs:
+            return
+            
+        tab = self.tabs[self.active_tab_idx]
+        if not tab.url or tab.url == "about:blank":
+            return
+            
+        is_bookmarked, bookmark = self.bookmark_manager.toggle(
+            url=tab.url,
+            title=tab.title
+        )
+        
+        self._update_bookmark_icon(tab.url)
+        
+        # Refresh bookmarks bar if visible
+        if self.bookmarks_bar and self.bookmarks_bar.get_visible():
+            self.bookmarks_bar.refresh()
+            
+    def _update_bookmark_icon(self, url: str):
+        """Update bookmark icon based on whether URL is bookmarked"""
+        if not self.bookmark_icon:
+            return
+            
+        if url and self.bookmark_manager.is_bookmarked(url):
+            self.bookmark_icon.set_label("★")
+            self.bookmark_icon.add_css_class("bookmarked")
+            self.bookmark_icon.set_tooltip_text("Remove bookmark (Ctrl+D)")
+        else:
+            self.bookmark_icon.set_label("☆")
+            self.bookmark_icon.remove_css_class("bookmarked")
+            self.bookmark_icon.set_tooltip_text("Bookmark this page (Ctrl+D)")
+            
+    def _update_security_icon(self, url: str):
+        """Update security icon based on URL protocol"""
+        if not self.security_icon:
+            return
+            
+        if not url:
+            self.security_icon.set_label("")
+            self.security_icon.set_tooltip_text("")
+            return
+            
+        if url.startswith("https://"):
+            self.security_icon.set_label("🔒")
+            self.security_icon.set_tooltip_text("Secure connection (HTTPS)")
+            self.security_icon.add_css_class("secure")
+            self.security_icon.remove_css_class("insecure")
+        elif url.startswith("http://"):
+            self.security_icon.set_label("⚠️")
+            self.security_icon.set_tooltip_text("Not secure (HTTP)")
+            self.security_icon.add_css_class("insecure")
+            self.security_icon.remove_css_class("secure")
+        elif url.startswith("file://"):
+            self.security_icon.set_label("📁")
+            self.security_icon.set_tooltip_text("Local file")
+            self.security_icon.remove_css_class("secure")
+            self.security_icon.remove_css_class("insecure")
+        else:
+            self.security_icon.set_label("")
+            self.security_icon.set_tooltip_text("")
+            
+    def _zoom_in(self):
+        """Zoom in on current tab"""
+        if not self.tabs:
+            return
+            
+        tab = self.tabs[self.active_tab_idx]
+        tab.zoom_level = min(tab.zoom_level + 0.1, 3.0)  # Max 300%
+        tab.webview.set_zoom_level(tab.zoom_level)
+        
+    def _zoom_out(self):
+        """Zoom out on current tab"""
+        if not self.tabs:
+            return
+            
+        tab = self.tabs[self.active_tab_idx]
+        tab.zoom_level = max(tab.zoom_level - 0.1, 0.3)  # Min 30%
+        tab.webview.set_zoom_level(tab.zoom_level)
+        
+    def _zoom_reset(self):
+        """Reset zoom to 100% on current tab"""
+        if not self.tabs:
+            return
+            
+        tab = self.tabs[self.active_tab_idx]
+        tab.zoom_level = 1.0
+        tab.webview.set_zoom_level(1.0)
+
+
+@dataclass
+class Config:
+    """Browser configuration"""
+    homepage: str = "https://www.google.com"  # Could point to local SearXNG
+    session_dir: Path = field(default_factory=lambda: Path.home() / ".config" / "ryxsurf" / "sessions")
+    extensions_dir: Path = field(default_factory=lambda: Path.home() / ".config" / "ryxsurf" / "extensions")
+    
+    # AI settings
+    ai_endpoint: str = "http://localhost:8001/v1"
+    ai_model: str = "qwen2.5-7b-awq"  # Fast model for browser actions
+    
+    # Memory optimization
+    unload_after_seconds: int = 300  # 5 minutes
+    max_loaded_tabs: int = 10
+    
+    @classmethod
+    def load(cls) -> 'Config':
+        """Load config from file or return defaults"""
+        config_file = Path.home() / ".config" / "ryxsurf" / "config.json"
+        if config_file.exists():
+            data = json.loads(config_file.read_text())
+            return cls(**data)
+        return cls()

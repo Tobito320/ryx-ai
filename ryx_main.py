@@ -60,8 +60,12 @@ def cli_main():
         _stop_service(service)
         return
     elif first_arg == "restart":
-        service = remaining_args[1] if len(remaining_args) > 1 else "ryxhub"
-        _restart_service(service)
+        # Handle "ryx restart all for ryxsurf" or "ryx restart all for ryxhub"
+        service = remaining_args[1] if len(remaining_args) > 1 else "all"
+        target_app = None
+        if len(remaining_args) >= 4 and remaining_args[2].lower() == "for":
+            target_app = remaining_args[3].lower()
+        _restart_service(service, target_app=target_app)
         return
     elif first_arg == "status":
         _service_status()
@@ -209,9 +213,119 @@ def _start_service(service: str):
         session = SessionLoop()
         session.run()
     
+    elif service in ["ryxsurf", "surf", "browser"]:
+        import subprocess
+        import os
+        import time
+        import shutil
+        
+        print("\n╭────────────────────────────────────────────────╮")
+        print("│ 🌊 Starting RyxSurf Browser                    │")
+        print("╰────────────────────────────────────────────────╯\n")
+        
+        startup_failed = False
+        error_msg = ""
+        
+        # Step 1: Kill existing instances (exclude current process)
+        print("[1/4] Checking for existing instances...     ", end="", flush=True)
+        try:
+            current_pid = os.getpid()
+            # Only kill processes running ryxsurf/main.py, not this startup script
+            result = subprocess.run(
+                ["pgrep", "-f", "ryxsurf/main.py"],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                pids = [p.strip() for p in result.stdout.strip().split('\n') if p.strip()]
+                for pid in pids:
+                    if pid and int(pid) != current_pid:
+                        subprocess.run(["kill", pid], 
+                                      stdout=subprocess.DEVNULL, 
+                                      stderr=subprocess.DEVNULL)
+            time.sleep(0.3)
+            print("✓")
+        except Exception:
+            print("✓")  # Not critical if cleanup fails
+        
+        # Step 2: Verify dependencies
+        print("[2/4] Verifying dependencies...              ", end="", flush=True)
+        
+        # Check GTK/WebKit versions directly without importing browser module
+        try:
+            import gi
+            gi.require_version('Gtk', '4.0')
+            gi.require_version('WebKit', '6.0')
+            from gi.repository import Gtk, WebKit
+        except (ImportError, ValueError) as e:
+            print("✗")
+            startup_failed = True
+            error_msg = str(e)
+            print(f"\n❌ Missing dependencies for RyxSurf")
+            print(f"   Error: {error_msg}")
+            print("\n💡 Fix suggestions:")
+            print("   sudo pacman -S webkit2gtk-4.1 gtk4 python-gobject")
+        else:
+            print("✓")
+        
+        # Step 3: Load configuration
+        if not startup_failed:
+            print("[3/4] Loading configuration...               ", end="", flush=True)
+            ryxsurf_path = os.path.join(os.path.dirname(__file__), "ryxsurf", "main.py")
+            if os.path.exists(ryxsurf_path):
+                print("✓")
+            else:
+                print("✗")
+                startup_failed = True
+                error_msg = f"RyxSurf main.py not found at {ryxsurf_path}"
+                print(f"\n❌ {error_msg}")
+        
+        # Step 4: Launch browser
+        if not startup_failed:
+            print("[4/4] Launching browser...                   ", end="", flush=True)
+            try:
+                # Capture stderr for error detection
+                process = subprocess.Popen(
+                    ["python", ryxsurf_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True
+                )
+                
+                # Wait 2 seconds and check if process is still running
+                time.sleep(2)
+                poll_result = process.poll()
+                
+                if poll_result is not None:
+                    # Process exited - read stderr
+                    _, stderr_output = process.communicate(timeout=1)
+                    print("✗")
+                    startup_failed = True
+                    error_msg = stderr_output.decode('utf-8', errors='replace').strip()
+                    print(f"\n❌ RyxSurf exited with code {poll_result}")
+                    if error_msg:
+                        print(f"   Error: {error_msg[:200]}")
+                    print("\n💡 Fix suggestions:")
+                    print("   1. Check if X11/Wayland display is available")
+                    print("   2. Run: DISPLAY=:0 ryx start ryxsurf")
+                    print("   3. Check logs: python ryxsurf/main.py")
+                else:
+                    print("✓")
+                    
+            except Exception as e:
+                print("✗")
+                startup_failed = True
+                error_msg = str(e)
+                print(f"\n❌ Failed to start RyxSurf: {error_msg}")
+        
+        # Final status
+        if not startup_failed:
+            print("\n✨ RyxSurf started successfully!")
+            print("   Press Ctrl+L for URL bar, Ctrl+B for sidebar")
+    
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available: all, vllm, searxng, ryxhub, session")
+        print("Available: all, vllm, searxng, ryxhub, ryxsurf, session")
 
 
 def _stop_service(service: str):
@@ -265,15 +379,39 @@ def _stop_service(service: str):
         print("Available: all, vllm, searxng, ryxhub")
 
 
-def _restart_service(service: str):
-    """Restart a service with visual feedback"""
+def _restart_service(service: str, target_app: str = None):
+    """Restart a service with visual feedback
+    
+    Args:
+        service: Service to restart (all, vllm, etc)
+        target_app: Optional app to configure for (ryxsurf, ryxhub, cli)
+    """
     import time
     
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
     
+    # Model configurations for different apps
+    MODEL_CONFIGS = {
+        "ryxsurf": {
+            "vllm_model": "/home/tobi/vllm-models/general/qwen2.5-7b-awq",  # Lighter model for browser
+            "description": "RyxSurf (browser AI assistant)"
+        },
+        "ryxhub": {
+            "vllm_model": "/home/tobi/vllm-models/powerful/coding/qwen2.5-coder-14b-awq",
+            "description": "RyxHub (web interface)"
+        },
+        "cli": {
+            "vllm_model": "/home/tobi/vllm-models/powerful/coding/qwen2.5-coder-14b-awq", 
+            "description": "CLI coding assistant"
+        }
+    }
+    
     if service in ["all", ""]:
+        app_name = target_app or "cli"
+        config = MODEL_CONFIGS.get(app_name, MODEL_CONFIGS["cli"])
+        
         print("\n╭────────────────────────────────────────────────╮")
-        print("│ 🔄 Restarting All Services                     │")
+        print(f"│ 🔄 Restarting All Services for {config['description'][:20]:<20} │")
         print("╰────────────────────────────────────────────────╯\n")
         
         start_time = time.time()
@@ -286,11 +424,21 @@ def _restart_service(service: str):
         print("\nWaiting for cleanup...")
         time.sleep(2)
         
-        # Start all
-        print("\nStarting services...")
+        # Start with appropriate model
+        print(f"\nStarting services (model: {os.path.basename(config['vllm_model'])})...")
+        
+        # Set model for vLLM
+        os.environ['RYX_VLLM_MODEL'] = config['vllm_model']
+        
         for svc in ["vllm", "searxng"]:
             _start_service(svc)
             print()
+        
+        # Start the target app if specified
+        if target_app == "ryxsurf":
+            _start_service("ryxsurf")
+        elif target_app == "ryxhub":
+            _start_service("ryxhub")
         
         elapsed = time.time() - start_time
         print(f"─" * 50)

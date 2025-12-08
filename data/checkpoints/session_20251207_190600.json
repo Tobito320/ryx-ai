@@ -1,0 +1,23 @@
+{
+  "session_id": "20251207_190600",
+  "checkpoints": [
+    {
+      "id": "Create sessions.py_e1c92f",
+      "name": "Create sessions.py",
+      "description": "",
+      "changes": [
+        {
+          "path": "/home/tobi/ryx-ai/ryxsurf/src/core/sessions.py",
+          "change_type": "create",
+          "old_content": null,
+          "new_content": "import os\nimport json\nfrom pathlib import Path\nfrom typing import List, Dict, Optional\n\nclass SessionManager:\n    \"\"\"\n    Manages tab sessions by saving and loading them as JSON files.\n    Sessions are stored in ~/.config/ryxsurf/sessions/.\n    Each session contains tabs with url, title, and scroll position.\n    \"\"\"\n\n    SESSION_DIR = Path.home() / \".config\" / \"ryxsurf\" / \"sessions\"\n\n    def __init__(self):\n        self.SESSION_DIR.mkdir(parents=True, exist_ok=True)\n\n    def save_session(self, session_name: str, tabs: List[Dict[str, str]]):\n        \"\"\"\n        Saves the current session to a JSON file.\n\n        :param session_name: Name of the session (e.g., 'school', 'work')\n        :param tabs: List of tabs, each represented as a dictionary with 'url', 'title', and 'scroll_position'\n        \"\"\"\n        session_file = self.SESSION_DIR / f\"{session_name}.json\"\n        with open(session_file, 'w') as f:\n            json.dump(tabs, f, indent=4)\n\n    def load_session(self, session_name: str) -> Optional[List[Dict[str, str]]]:\n        \"\"\"\n        Loads a session from a JSON file.\n\n        :param session_name: Name of the session (e.g., 'school', 'work')\n        :return: List of tabs if the session exists, otherwise None\n        \"\"\"\n        session_file = self.SESSION_DIR / f\"{session_name}.json\"\n        if session_file.exists():\n            with open(session_file, 'r') as f:\n                return json.load(f)\n        return None\n\n    def list_sessions(self) -> List[str]:\n        \"\"\"\n        Lists all available session names.\n\n        :return: List of session names\n        \"\"\"\n        return [file.stem for file in self.SESSION_DIR.glob(\"*.json\")]\n\n    def delete_session(self, session_name: str):\n        \"\"\"\n        Deletes a session file.\n\n        :param session_name: Name of the session to delete\n        \"\"\"\n        session_file = self.SESSION_DIR / f\"{session_name}.json\"\n        if session_file.exists():\n            session_file.unlink()\n\n# Example usage:\nif __name__ == \"__main__\":\n    manager = SessionManager()\n    tabs = [\n        {\"url\": \"https://example.com\", \"title\": \"Example\", \"scroll_position\": 100},\n        {\"url\": \"https://github.com\", \"title\": \"GitHub\", \"scroll_position\": 0}\n    ]\n    manager.save_session(\"work\", tabs)\n    loaded_tabs = manager.load_session(\"work\")\n    print(loaded_tabs)\n    print(manager.list_sessions())\n    manager.delete_session(\"work\")",
+          "old_path": null,
+          "timestamp": "2025-12-07T19:06:00.863507"
+        }
+      ],
+      "timestamp": "2025-12-07T19:06:00.863495",
+      "task_context": "Create ryxsurf/src/core/sessions.py with a SessionManager class that can save and load tab sessions with names like school, work, chill. Store sessions in ~/.config/ryxsurf/sessions/ as JSON files with url, title, and scroll position for each tab"
+    }
+  ],
+  "last_updated": "2025-12-07T19:06:00.863514"
+}

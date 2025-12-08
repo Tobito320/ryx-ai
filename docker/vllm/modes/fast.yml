@@ -1,0 +1,59 @@
+version: "3.8"
+
+# Fast mode: qwen2.5-coder-14b-awq with 8K context
+# Used for: RyxSurf browser, quick responses
+# Optimized for speed with reasonable context
+
+services:
+  vllm:
+    image: rocm/vllm:rocm6.4.1_vllm_0.9.1_20250702
+    container_name: ryx-vllm
+    
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - SYS_PTRACE
+    
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+      - VLLM_LOGGING_LEVEL=INFO
+      - HF_HOME=/models
+      - VLLM_USE_TRITON_AWQ=1
+      - VLLM_USE_TRITON_FLASH_ATTN=0
+    
+    volumes:
+      - /home/tobi/vllm-models:/models
+      - /home/tobi/.cache/huggingface:/root/.cache/huggingface
+    
+    ports:
+      - "8001:8001"
+    
+    entrypoint: ["python", "-m", "vllm.entrypoints.openai.api_server"]
+    command:
+      - "--model"
+      - "/models/powerful/coding/qwen2.5-coder-14b-awq"
+      - "--max-model-len"
+      - "8192"
+      - "--gpu-memory-utilization"
+      - "0.90"
+      - "--kv-cache-dtype"
+      - "fp8"
+      - "--enable-chunked-prefill"
+      - "--tensor-parallel-size"
+      - "1"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8001"
+      - "--trust-remote-code"
+      - "--enforce-eager"
+    
+    restart: unless-stopped

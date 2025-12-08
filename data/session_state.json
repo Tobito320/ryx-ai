@@ -1,21 +1,6 @@
 {
   "history": [
     {
-      "role": "assistant",
-      "content": "What specific test do you need help with? It depends on your symptoms or the condition you are concerned about. Common tests include blood tests which can help diagnose various conditions [2,4].",
-      "ts": "2025-12-05T03:07:28.363624"
-    },
-    {
-      "role": "user",
-      "content": "/style",
-      "ts": "2025-12-05T03:07:31.552654"
-    },
-    {
-      "role": "user",
-      "content": "/style concise",
-      "ts": "2025-12-05T03:07:39.573285"
-    },
-    {
       "role": "user",
       "content": "hi",
       "ts": "2025-12-05T03:07:41.160116"
@@ -249,10 +234,25 @@
       "role": "assistant",
       "content": "I'm sorry, but I was unable to find any information about today's date from the search results you provided. Typically, determining today's date involves checking a calendar or a digital device like a phone or computer. Here\u2019s how you can do it:\n\n### Checking Today's Date\n1. **Digital Devices**: Most modern devices have built-in calendars that display the current date. For example, on a smartphone, you can open the Calendar app and see the current date at the top of the screen. On a computer, you can check your operating system\u2019s clock or open a calendar application.\n\n2. **Web Browsers**: Most web browsers also display the current date in the address bar or status bar at the bottom of the screen. Simply refresh the page if the date is not visible.\n\n3. **Online Calendars and Websites**: Websites such as Google Calendar, Yahoo Calendar, or any other online calendar service will show the current date.\n\n4. **Smart Home Devices**: Devices like smart TVs, smart speakers, or smart home hubs often have a feature to display the current date.\n\n### Example\n- **Phone**: If you have an iPhone, you can check the date by opening the Settings app, then tapping General > Date & Time. The current date will be displayed there.\n- **Computer**: If you have a Windows PC, you can check the date by looking at the clock in the taskbar or by opening the Control Panel and selecting Date and Time.\n\nIf you need assistance with a specific device or platform, feel free to ask, and I can provide more detailed instructions!\n\n### Additional Tips\n- **Time Zone Considerations**: Ensure that your device or software is set to the correct time zone to get the accurate date.\n- **Date Formats**: Dates can be formatted differently depending on the region (e.g., MM/DD/YYYY vs. DD/MM/YYYY). Make sure you know the format used in your area.\n\nIf you have access to a specific device or application and need help with it, please let me know, and I can provide more tailored guidance.",
       "ts": "2025-12-05T13:47:51.612849"
+    },
+    {
+      "role": "user",
+      "content": "read ryxsurf/src/ui/bar.py",
+      "ts": "2025-12-07T15:44:17.170065"
+    },
+    {
+      "role": "user",
+      "content": "what files are in ryxsurf/src/ai?",
+      "ts": "2025-12-07T23:05:48.457333"
+    },
+    {
+      "role": "user",
+      "content": "/model",
+      "ts": "2025-12-08T19:14:35.950045"
     }
   ],
   "stats": {
-    "prompts": 0,
+    "prompts": 1,
     "actions": 0,
     "files": 0,
     "urls": 0,
@@ -263,9 +263,9 @@
   "browsing_enabled": true,
   "context": {
     "last_path": "",
-    "last_result": "Angular Material v20 includes performance improvements and new features, but specific changes are not detailed in the provided sources. [1]\n\n[dim]'show sources' f\u00fcr Quellen[/]",
-    "last_intent": "search_web",
+    "last_result": "Loaded Models (vLLM):\n  \u2713 qwen2.5-coder-14b-awq\n    Path: /models/powerful/coding/qwen2.5-coder-14b-awq\n\nAvailable on disk:\n  \u2022 qwen2.5-3b (small/general)",
+    "last_intent": "list_models",
     "created_files": []
   },
-  "saved_at": "2025-12-07T12:53:54.635213"
+  "saved_at": "2025-12-08T19:14:43.435599"
 }

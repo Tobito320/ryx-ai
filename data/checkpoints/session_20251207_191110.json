@@ -1,0 +1,23 @@
+{
+  "session_id": "20251207_191110",
+  "checkpoints": [
+    {
+      "id": "Create browser_agent.py_816bba",
+      "name": "Create browser_agent.py",
+      "description": "",
+      "changes": [
+        {
+          "path": "/home/tobi/ryx-ai/ryxsurf/src/ai/browser_agent.py",
+          "change_type": "create",
+          "old_content": null,
+          "new_content": "import gi\ngi.require_version('WebKit2', '4.0')\nfrom gi.repository import WebKit2, Gtk, GLib\nimport requests\nfrom bs4 import BeautifulSoup\nimport re\n\nclass BrowserAgent:\n    def __init__(self):\n        self.webview = WebKit2.WebView()\n        self.webview.connect(\"load-finished\", self.on_load_finished)\n        self.window = Gtk.Window()\n        self.window.add(self.webview)\n        self.window.connect(\"destroy\", Gtk.main_quit)\n        self.window.show_all()\n\n    def on_load_finished(self, webview, load_event):\n        pass\n\n    def execute_js(self, script):\n        return self.webview.run_javascript(script, None, self.js_callback, None)\n\n    def js_callback(self, source, result):\n        try:\n            result = source.run_javascript_finish(result)\n            if result.get_js_value().is_object():\n                print(\"JS Object:\", result.get_js_value().to_string())\n            elif result.get_js_value().is_number():\n                print(\"JS Number:\", result.get_js_value().to_number())\n            elif result.get_js_value().is_string():\n                print(\"JS String:\", result.get_js_value().to_string())\n            elif result.get_js_value().is_boolean():\n                print(\"JS Boolean:\", result.get_js_value().to_boolean())\n        except Exception as e:\n            print(\"Error executing JS:\", e)\n\n    def summarize_page(self):\n        script = \"\"\"\n        let bodyText = document.body.innerText;\n        let paragraphs = document.querySelectorAll('p');\n        let summary = '';\n        paragraphs.forEach(paragraph => {\n            summary += paragraph.innerText + ' ';\n        });\n        return summary;\n        \"\"\"\n        self.execute_js(script)\n\n    def hide_element(self, selector):\n        script = f\"\"\"\n        let elements = document.querySelectorAll('{selector}');\n        elements.forEach(element => {{\n            element.style.display = 'none';\n        }});\n        \"\"\"\n        self.execute_js(script)\n\n    def click_element(self, selector):\n        script = f\"\"\"\n        let elements = document.querySelectorAll('{selector}');\n        elements.forEach(element => {{\n            element.click();\n        }});\n        \"\"\"\n        self.execute_js(script)\n\n    def search_and_open(self, query):\n        search_url = f\"https://www.google.com/search?q={query}\"\n        self.webview.load_uri(search_url)\n        GLib.timeout_add_seconds(5, self.open_first_result)\n\n    def open_first_result(self):\n        script = \"\"\"\n        let links = document.querySelectorAll('h3 a');\n        if (links.length > 0) {\n            links[0].click();\n        }\n        \"\"\"\n        self.execute_js(script)\n\nif __name__ == \"__main__\":\n    agent = BrowserAgent()\n    Gtk.main()\n```\n\nThis code sets up a basic `BrowserAgent` class using WebKit2 to perform browser actions such as summarizing a page, hiding elements, clicking elements, and searching and opening the first Google search result. The class uses GTK for the GUI and executes JavaScript within the WebView to interact with the DOM.",
+          "old_path": null,
+          "timestamp": "2025-12-07T19:11:10.399859"
+        }
+      ],
+      "timestamp": "2025-12-07T19:11:10.399849",
+      "task_context": "Create ryxsurf/src/ai/browser_agent.py with a BrowserAgent class that can execute browser actions: summarize_page (extracts and summarizes page content), hide_element (injects CSS to hide annoying popups by selector), click_element (simulates click on element), and search_and_open (searches Google and opens first result). Use WebKit2 JavaScript execution for DOM manipulation"
+    }
+  ],
+  "last_updated": "2025-12-07T19:11:10.399866"
+}

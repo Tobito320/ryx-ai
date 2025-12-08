@@ -1,21 +1,22 @@
 {
-  "total_files": 533,
-  "total_size": 5307418,
+  "total_files": 661,
+  "total_size": 6593645,
   "languages": {
-    "md": 55,
-    "txt": 11,
-    "json": 103,
-    "sh": 8,
-    "py": 197,
-    "toml": 1,
+    "txt": 12,
+    "md": 57,
+    "json": 131,
+    "sh": 10,
+    "py": 267,
+    "toml": 2,
     "xml": 1,
     "js": 6,
-    "ts": 35,
-    "tsx": 104,
+    "ts": 39,
+    "tsx": 116,
     "css": 4,
     "html": 4,
-    "yml": 4
+    "yml": 10,
+    "sql": 2
   },
-  "directories": 89,
-  "last_scan": "2025-12-03T21:41:59.134309"
+  "directories": 109,
+  "last_scan": "2025-12-07T23:20:57.197718"
 }

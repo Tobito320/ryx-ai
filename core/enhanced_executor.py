@@ -195,18 +195,24 @@ class EnhancedExecutor:
 
 User request: {prompt}
 
-IMPORTANT:
-1. Read the file contents above carefully
-2. The content in <file> tags is the ONLY truth - do not guess
-3. When editing, use EXACT text from the files
-4. Output edits using the format below
+CRITICAL INSTRUCTIONS FOR EDITING:
+1. The <old> text MUST be copied EXACTLY from the file content above - character for character
+2. Do NOT paraphrase, reformat, or summarize the <old> text
+3. Include enough context in <old> to be unique (usually 3-10 lines)
+4. For adding new code, use the END of an existing function/method as your <old> anchor
 
 For edits, use this format:
 <edit>
 <file>path/to/file.py</file>
-<old>EXACT text to find (copy from file above)</old>
-<new>replacement text</new>
-</edit>"""
+<old>
+EXACT lines copied from file above
+</old>
+<new>
+same lines plus your additions
+</new>
+</edit>
+
+If you cannot find suitable anchor text, say "I cannot find the right location" instead of guessing."""
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for code tasks"""
@@ -245,16 +251,24 @@ When adding a new method to a class, include the preceding method's last line in
         # Apply edits using reliable editor
         results = []
         all_success = True
+        applied_to_files = set()  # Track which files we've edited
         
         for file_path, old_str, new_str in edits:
             file_path = file_path.strip()
             old_str = old_str.strip()
             new_str = new_str.strip()
             
+            # Skip duplicate edits to same file (LLM sometimes generates multiple)
+            edit_key = f"{file_path}:{hash(new_str)}"
+            if edit_key in applied_to_files:
+                logger.debug(f"Skipping duplicate edit to {file_path}")
+                continue
+            
             # Apply with multi-strategy matching
             result = self.editor.edit(file_path, old_str, new_str)
             
             if result.success:
+                applied_to_files.add(edit_key)
                 strategy = result.strategy_used or "unknown"
                 results.append(f"✅ Edited: {file_path} ({strategy})")
                 logger.info(f"Edit applied to {file_path} using {strategy}")

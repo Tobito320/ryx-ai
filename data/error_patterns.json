@@ -1,0 +1,9 @@
+{
+  "ValueError:45dfd561": {
+    "error_type": "ValueError",
+    "error_msg": "x must be positive",
+    "occurrences": 3,
+    "fixes_tried": [],
+    "successful_fix": null
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "session_id": "20251207_184911",
+  "checkpoints": [
+    {
+      "id": "Create tab_bar.py_2759dd",
+      "name": "Create tab_bar.py",
+      "description": "",
+      "changes": [
+        {
+          "path": "/home/tobi/ryx-ai/ryxsurf/src/ui/tab_bar.py",
+          "change_type": "create",
+          "old_content": null,
+          "new_content": "import gi\ngi.require_version('Gtk', '4.0')\nfrom gi.repository import Gtk, GObject\n\nclass TabBar(Gtk.Box):\n    \"\"\"\n    A horizontal tab bar component.\n    It allows adding, removing, and switching between tabs.\n    \"\"\"\n    \n    def __init__(self):\n        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)\n        self.tabs = []\n        self.current_tab_index = -1\n        self.connect(\"realize\", self.on_realize)\n\n    def on_realize(self, widget):\n        # Initialize the first tab if there are any\n        if self.tabs:\n            self.switch_tab(0)\n\n    def add_tab(self, label: str, content: Gtk.Widget):\n        \"\"\"\n        Adds a new tab with the given label and content.\n        \n        :param label: The label to display on the tab.\n        :param content: The content widget to show when this tab is active.\n        \"\"\"\n        tab_button = Gtk.Button(label=label)\n        tab_button.connect(\"clicked\", self.on_tab_clicked, len(self.tabs))\n        self.append(tab_button)\n        self.tabs.append((tab_button, content))\n        if self.current_tab_index == -1:\n            self.switch_tab(0)\n\n    def remove_tab(self, index: int):\n        \"\"\"\n        Removes the tab at the specified index.\n        \n        :param index: The index of the tab to remove.\n        \"\"\"\n        if 0 <= index < len(self.tabs):\n            tab_button, content = self.tabs.pop(index)\n            tab_button.destroy()\n            content.destroy()\n            if self.current_tab_index >= index:\n                self.current_tab_index -= 1\n            if self.tabs:\n                self.switch_tab(max(0, self.current_tab_index))\n\n    def switch_tab(self, index: int):\n        \"\"\"\n        Switches to the tab at the specified index.\n        \n        :param index: The index of the tab to switch to.\n        \"\"\"\n        if 0 <= index < len(self.tabs):\n            if self.current_tab_index != -1:\n                old_tab_button, old_content = self.tabs[self.current_tab_index]\n                old_tab_button.get_style_context().remove_class(\"active\")\n                old_content.hide()\n            \n            new_tab_button, new_content = self.tabs[index]\n            new_tab_button.get_style_context().add_class(\"active\")\n            new_content.show()\n            self.current_tab_index = index\n\n    def on_tab_clicked(self, button: Gtk.Button, index: int):\n        \"\"\"\n        Callback for when a tab button is clicked.\n        \n        :param button: The button that was clicked.\n        :param index: The index of the tab associated with the button.\n        \"\"\"\n        self.switch_tab(index)",
+          "old_path": null,
+          "timestamp": "2025-12-07T18:49:11.625238"
+        }
+      ],
+      "timestamp": "2025-12-07T18:49:11.625227",
+      "task_context": "Create a new file ryxsurf/src/ui/tab_bar.py with a TabBar class that shows tabs horizontally and has methods add_tab, remove_tab, and switch_tab"
+    }
+  ],
+  "last_updated": "2025-12-07T18:49:11.625245"
+}

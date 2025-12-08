@@ -27,7 +27,6 @@ class ActionType(Enum):
     EXTRACT = "extract"
     READ = "read"
     ZOOM = "zoom"
-    GO_FORWARD = "go_forward"
 
 
 @dataclass

@@ -820,6 +820,14 @@ class CLI:
         """
         self.show_plan(plan_steps, task)
         
+        # Check for autonomous mode (Jarvis mode)
+        autonomous = os.environ.get('RYX_AUTONOMOUS', 'false').lower() == 'true'
+        
+        if autonomous:
+            # Auto-approve in autonomous mode
+            self.console.print(Text("🤖 Auto-approved (Autonomous mode)", style="success dim"))
+            return 'y'
+        
         # Options line
         options = Text("\n")
         options.append("[y]", style="success bold")
