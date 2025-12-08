@@ -168,6 +168,55 @@ class Browser:
         self.bookmarks_bar = None
         self.context_menu_handler = None
         
+        # Extension support
+        self._init_extensions()
+        
+        # Hub sync
+        self._init_hub_sync()
+        
+    def _init_extensions(self):
+        """Initialize extension and user script managers"""
+        from ..extensions import ExtensionManager, UserScriptManager
+        
+        self.extension_manager = ExtensionManager()
+        self.userscript_manager = UserScriptManager()
+        
+        try:
+            self.extension_manager.load_extensions()
+            self.userscript_manager.load_scripts()
+        except Exception as e:
+            print(f"Warning: Failed to load extensions: {e}")
+            
+    def _init_hub_sync(self):
+        """Initialize RyxHub synchronization"""
+        try:
+            from ..sync import HubSyncClient, SessionSync
+            
+            self.hub_client = HubSyncClient()
+            self.session_sync = SessionSync(self.hub_client)
+            
+            # Register AI command handler
+            self.hub_client.on("ai_command", self._handle_hub_ai_command)
+            
+            # Start in background
+            self.hub_client.start()
+        except Exception as e:
+            print(f"Warning: Hub sync disabled: {e}")
+            self.hub_client = None
+            self.session_sync = None
+            
+    def _handle_hub_ai_command(self, data: dict):
+        """Handle AI command from RyxHub"""
+        action = data.get("action", "")
+        if action == "navigate":
+            url = data.get("url", "")
+            if url:
+                self._navigate(url)
+        elif action == "close_tab":
+            self._close_current_tab()
+        elif action == "summarize":
+            self._ai_summarize_page()
+        
     def _connect_to_ai_backend(self):
         """Initialize the AI client with the localhost URL."""
         import requests
@@ -969,6 +1018,14 @@ class Browser:
         self.tabs.append(tab)
         self._switch_to_tab(len(self.tabs) - 1)
         
+        # Setup extensions for this webview
+        if hasattr(self, 'extension_manager'):
+            self.extension_manager.setup_webview(webview)
+        
+        # Sync tab opened event
+        if hasattr(self, 'hub_client') and self.hub_client:
+            self.hub_client.sync_tab_opened(tab.id, url, tab.title)
+        
         # Load the URL after adding to tabs
         if url and url != "about:blank":
             webview.load_uri(url)
@@ -1088,6 +1145,11 @@ kbd {
             # Don't close last tab, just clear it
             self.tabs[0].webview.load_uri("about:blank")
             return
+        
+        # Sync tab close event
+        closed_tab = self.tabs[idx]
+        if hasattr(self, 'hub_client') and self.hub_client:
+            self.hub_client.sync_tab_closed(closed_tab.id)
             
         self.tabs.pop(idx)
         if self.active_tab_idx >= len(self.tabs):
@@ -1480,6 +1542,10 @@ kbd {
                 # Add to history
                 if uri and not uri.startswith("about:"):
                     self.history_manager.add_visit(uri, title or "")
+                    
+                # Inject user scripts
+                if hasattr(self, 'userscript_manager') and uri:
+                    self.userscript_manager.inject_user_scripts(webview, uri, "document-idle")
             
             if uri and self.url_entry:
                 # Only update if this is the active tab's webview

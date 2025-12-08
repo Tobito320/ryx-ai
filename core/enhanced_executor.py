@@ -229,7 +229,7 @@ class Test{insight.name.title().replace("_", "")}:
         return f"✅ Test directory already exists with files"
     
     def _handle_implement_task(self, task, insight) -> str:
-        """Handle implementation tasks"""
+        """Handle implementation tasks using the LLM"""
         self.todo.start_task(task.id)
         
         # Parse what needs to be implemented from task content
@@ -243,11 +243,53 @@ class Test{insight.name.title().replace("_", "")}:
         if matching_todos:
             # Pick the first matching TODO
             todo_item = matching_todos[0]
+            
+            # Read the file content around the TODO
+            file_path = Path(todo_item['file'])
+            if file_path.exists():
+                try:
+                    file_content = file_path.read_text()
+                    lines = file_content.split('\n')
+                    todo_line = todo_item['line'] - 1  # 0-indexed
+                    
+                    # Get context around TODO (10 lines before/after)
+                    start = max(0, todo_line - 10)
+                    end = min(len(lines), todo_line + 10)
+                    context = '\n'.join(lines[start:end])
+                    
+                    # Build prompt for LLM
+                    implement_prompt = f"""Implement this TODO in {todo_item['file']}:
+
+TODO at line {todo_item['line']}: {todo_item['content']}
+
+Context around the TODO:
+```
+{context}
+```
+
+Provide the implementation that replaces or expands this TODO.
+Only output the code changes needed, no explanations."""
+
+                    # Call LLM for implementation
+                    try:
+                        from core.ai_engine import AIEngine
+                        ai = AIEngine()
+                        implementation = ai.generate(implement_prompt, max_tokens=2000)
+                        
+                        if implementation and len(implementation) > 20:
+                            self.todo.complete_task(task.id)
+                            return f"✅ Generated implementation for TODO in {todo_item['file']}:\n{implementation[:500]}..."
+                    except Exception as e:
+                        logger.warning(f"LLM call failed: {e}")
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to read file for implementation: {e}")
+            
+            # Fallback: block for manual intervention
             result = f"📋 Found matching TODO in {todo_item['file']}:{todo_item['line']}\n"
             result += f"   Content: {todo_item['content']}\n"
             result += f"   → Next: Implement this functionality"
             
-            # Block this task - needs LLM to implement
             self.todo.block_task(task.id, "Needs LLM implementation")
             return result
         
