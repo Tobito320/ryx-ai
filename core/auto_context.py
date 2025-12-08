@@ -82,14 +82,23 @@ class AutoContextBuilder:
     ]
     
     # Max context size (tokens estimate: ~4 chars per token)
-    MAX_CONTEXT_TOKENS = 8000  # Conservative - leave room for system prompt and response
+    MAX_CONTEXT_TOKENS = 12000  # Increased for better coverage of large files
     
     def __init__(self, repo_root: str = "."):
         self.repo_root = Path(repo_root).resolve()
+        # Initialize RepoMap for smarter file discovery
+        try:
+            from core.repo_map import get_repo_map
+            self.repo_map = get_repo_map(str(self.repo_root))
+        except ImportError:
+            self.repo_map = None
         
     def build_context(self, query: str, max_files: int = 10) -> ContextResult:
         """
         Build context automatically from user query.
+        
+        Uses RepoMap for semantic code understanding when available,
+        falls back to simple file search otherwise.
         
         Args:
             query: User's natural language query
@@ -107,7 +116,17 @@ class AutoContextBuilder:
         if not search_terms:
             return result
         
-        # Find relevant files
+        # Try RepoMap first (smarter, uses code structure)
+        if self.repo_map:
+            try:
+                relevant = self.repo_map.get_relevant_files(query, max_files * 2)
+                if relevant:
+                    logger.debug(f"RepoMap found {len(relevant)} relevant files")
+                    return self._build_from_repo_map(relevant, result, query, max_files)
+            except Exception as e:
+                logger.debug(f"RepoMap failed, falling back: {e}")
+        
+        # Fallback to basic file search
         relevant_files = self._find_relevant_files(search_terms, max_files * 2)
         
         # Score and sort by relevance
@@ -345,6 +364,43 @@ class AutoContextBuilder:
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored
     
+    def _build_from_repo_map(self, repo_map_results, result: ContextResult, query: str, max_files: int) -> ContextResult:
+        """Build context from RepoMap results (smarter, uses code structure)"""
+        total_chars = 0
+        max_chars = self.MAX_CONTEXT_TOKENS * 4
+        search_terms = result.search_terms
+        
+        for file_info in repo_map_results[:max_files]:
+            if total_chars >= max_chars:
+                break
+            
+            path = self.repo_root / file_info.path
+            content = self._read_file(path)
+            if content is None:
+                continue
+            
+            # Smart truncation for large files
+            if len(content) > max_chars * 0.3:
+                content = self._truncate_smart(content, int(max_chars * 0.3), search_terms)
+            
+            # Build reason from symbols
+            symbol_names = [s.name for s in file_info.symbols[:5]]
+            reason = f"symbols: {', '.join(symbol_names)}" if symbol_names else "relevant"
+            
+            file_ctx = FileContext(
+                path=file_info.path,
+                content=content,
+                relevance=0.8,  # RepoMap results are pre-scored
+                reason=reason,
+                lines=content.count('\n') + 1
+            )
+            
+            result.files.append(file_ctx)
+            total_chars += len(content)
+        
+        result.total_tokens_estimate = total_chars // 4
+        return result
+    
     def _read_file(self, path: Path) -> Optional[str]:
         """Read file content safely"""
         try:
@@ -369,6 +425,13 @@ class AutoContextBuilder:
             # Separate specific terms (with underscore, dots) from generic ones
             specific_terms = [t for t in search_terms if '_' in t or '.' in t]
             generic_terms = [t for t in search_terms if '_' not in t and '.' not in t]
+            
+            # Also look for def/class definitions that might be relevant
+            # This helps when user says "add method after X" - we find X
+            def_lines = []
+            for i, line in enumerate(lines):
+                if line.strip().startswith('def ') or line.strip().startswith('class '):
+                    def_lines.append(i)
             
             # Find ranges for specific terms first (higher priority)
             priority_ranges = []

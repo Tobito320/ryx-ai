@@ -193,7 +193,7 @@ If you can't find suitable anchor text, say so instead of guessing."""
         return True, response.response
     
     def _apply_edits(self, response: str) -> Tuple[bool, str]:
-        """Parse and apply edits from LLM response"""
+        """Parse and apply edits from LLM response using reliable multi-strategy editor"""
         import re
         
         # Parse edit blocks
@@ -203,27 +203,31 @@ If you can't find suitable anchor text, say so instead of guessing."""
         if not edits:
             return True, response  # No edits found, return response
         
+        # Use the new reliable editor with multiple matching strategies
+        from core.reliable_editor import get_editor
+        editor = get_editor(os.getcwd())
+        
         results = []
-        from core.tools import FileTool
-        file_tool = FileTool()
+        all_success = True
         
         for file_path, old_str, new_str in edits:
             file_path = file_path.strip()
             old_str = old_str.strip()
             new_str = new_str.strip()
             
-            # Handle literal \n in the strings (LLM sometimes outputs these)
-            old_str = old_str.replace('\\n', '\n')
-            new_str = new_str.replace('\\n', '\n')
-            
-            result = file_tool.edit(file_path, old_str, new_str)
+            # Apply edit using multi-strategy matching
+            result = editor.edit(file_path, old_str, new_str)
             
             if result.success:
-                results.append(f"✅ Edited: {file_path}")
+                strategy_info = f" ({result.strategy_used})" if result.strategy_used else ""
+                results.append(f"✅ Edited: {file_path}{strategy_info}")
+                logger.info(f"Edit applied to {file_path} using {result.strategy_used}")
             else:
-                results.append(f"❌ Failed to edit {file_path}: {result.error}")
+                results.append(f"❌ Failed to edit {file_path}: {result.message}")
+                all_success = False
+                logger.warning(f"Edit failed for {file_path}: {result.message}")
         
-        return True, "\n".join(results)
+        return all_success, "\n".join(results)
 
 
 # Global instance
