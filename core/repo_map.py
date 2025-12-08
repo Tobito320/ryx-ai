@@ -107,6 +107,7 @@ class RepoMap:
         '.pytest_cache', '.mypy_cache', 'htmlcov', '.coverage',
         'target', 'vendor', 'pkg', 'bin', 'obj',
         '@types', 'typings',  # TypeScript type definitions (noise)
+        'desktop', 'Tangram', 'Zen-Nebula',  # External projects in dev/
     }
     
     def __init__(self, root: str, cache_dir: Optional[str] = None):

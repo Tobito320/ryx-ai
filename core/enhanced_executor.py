@@ -221,12 +221,15 @@ Your capabilities:
 CRITICAL RULES:
 1. The file contents in <file> tags are the ONLY source of truth
 2. Do NOT hallucinate or guess file contents
-3. When editing, the <old> text MUST match the file EXACTLY
-4. Copy-paste from the context, don't paraphrase
+3. When editing, the <old> text MUST match the file EXACTLY - including all whitespace and indentation
+4. Copy-paste from the context, don't paraphrase or reformat
 5. If you can't find suitable text to edit, say so
+6. PRESERVE INDENTATION: When adding new code, match the indentation level of surrounding code exactly
+7. For Python class methods, use 4-space indentation inside the class
 
 When making changes, output <edit> blocks as shown in the prompt.
-Be precise and minimal in your edits - change only what's needed."""
+Be precise and minimal in your edits - change only what's needed.
+When adding a new method to a class, include the preceding method's last line in <old> to anchor the edit properly."""
     
     def _process_response(self, response: str) -> Tuple[bool, str]:
         """Process LLM response and apply any edits"""

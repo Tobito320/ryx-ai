@@ -74,13 +74,31 @@ class SessionLoop:
         self.backend = get_backend()  # Auto-detects vLLM
         self.brain = get_brain(self.backend)
         
-        # Supervisor for intelligent dispatch
-        self.supervisor = None
-        if HAS_SUPERVISOR:
+        # Autonomous mode - uses EnhancedExecutor with all improvements
+        self.autonomous_mode = True  # Enable Jarvis-like autonomy
+        self.enhanced_executor = None
+        self.direct_executor = None  # Legacy fallback
+        
+        if self.autonomous_mode:
             try:
-                self.supervisor = get_supervisor()
+                # Try new EnhancedExecutor first (has reliable editor, self-healing, repo map)
+                from core.enhanced_executor import get_enhanced_executor
+                self.enhanced_executor = get_enhanced_executor()
             except Exception as e:
-                pass  # Will fallback to brain
+                # Fallback to DirectExecutor
+                try:
+                    from core.direct_executor import get_direct_executor
+                    self.direct_executor = get_direct_executor()
+                except Exception:
+                    pass  # Will fallback to brain
+        
+        # Supervisor for intelligent dispatch (disabled for now)
+        self.supervisor = None
+        # if HAS_SUPERVISOR:
+        #     try:
+        #         self.supervisor = get_supervisor()
+        #     except Exception as e:
+        #         pass  # Will fallback to brain
         
         self.running = True
         self.session_start = datetime.now()
@@ -423,34 +441,91 @@ class SessionLoop:
                         self.cli.step_warn("Supervisor unavailable, using fallback")
         
         # ─────────────────────────────────────────────────────────────
-        # FALLBACK: Use brain directly
+        # AUTONOMOUS MODE: Use EnhancedExecutor with all improvements
         # ─────────────────────────────────────────────────────────────
         
-        # Show visual thinking indicator (with graceful fallback)
-        try:
-            if hasattr(self.cli, 'thinking'):
-                self.cli.thinking("Processing request...")
-            elif hasattr(self.cli, 'step_start'):
-                self.cli.step_start("Understanding")
-        except Exception:
-            pass  # Gracefully handle any UI errors
+        if self.autonomous_mode and self.enhanced_executor:
+            # Show autonomous mode indicator
+            try:
+                if hasattr(self.cli, 'thinking'):
+                    self.cli.thinking("🤖 Autonomous mode (enhanced)...")
+            except Exception:
+                pass
+            
+            # Execute with EnhancedExecutor (includes reliable editor, self-healing, repo map)
+            exec_result = self.enhanced_executor.execute(user_input)
+            success = exec_result.success
+            result = exec_result.output
+            
+            # Show stats if edits were made
+            if exec_result.edits_applied > 0 or exec_result.edits_failed > 0:
+                try:
+                    if hasattr(self.cli, 'step_done'):
+                        self.cli.step_done(
+                            f"Edits: {exec_result.edits_applied}✅ {exec_result.edits_failed}❌",
+                            f"Files: {exec_result.files_discovered}"
+                        )
+                except Exception:
+                    pass
+            
+            # Get the plan for stats (best effort)
+            try:
+                last_intent = self.enhanced_executor.autonomous_brain.brain.ctx.last_intent
+                if last_intent:
+                    plan = type('Plan', (), {'intent': last_intent})()
+                else:
+                    plan = type('Plan', (), {'intent': Intent.CHAT})()
+            except:
+                plan = type('Plan', (), {'intent': Intent.CHAT})()
         
-        # Understand the input
-        plan = self.brain.understand(user_input)
-        
-        # Show planning step (with graceful fallback)
-        try:
-            if hasattr(self.cli, 'planning'):
-                self.cli.planning(f"Plan: {plan.intent.value}")
-            elif hasattr(self.cli, 'step_done'):
-                self.cli.step_done("Understood", f"intent: {plan.intent.value}")
-        except Exception:
-            pass  # Gracefully handle any UI errors
-        
-        # Execute
-        if hasattr(self.cli, 'step_start'):
-            self.cli.step_start("Executing")
-        success, result = self.brain.execute(plan)
+        elif self.autonomous_mode and self.direct_executor:
+            # Fallback to DirectExecutor (legacy)
+            try:
+                if hasattr(self.cli, 'thinking'):
+                    self.cli.thinking("🤖 Autonomous mode...")
+            except Exception:
+                pass
+            
+            success, result = self.direct_executor.execute(user_input)
+            
+            try:
+                last_intent = self.direct_executor.autonomous_brain.brain.ctx.last_intent
+                if last_intent:
+                    plan = type('Plan', (), {'intent': last_intent})()
+                else:
+                    plan = type('Plan', (), {'intent': Intent.CHAT})()
+            except:
+                plan = type('Plan', (), {'intent': Intent.CHAT})()
+        else:
+            # ─────────────────────────────────────────────────────────────
+            # FALLBACK: Use brain directly
+            # ─────────────────────────────────────────────────────────────
+            
+            # Show visual thinking indicator (with graceful fallback)
+            try:
+                if hasattr(self.cli, 'thinking'):
+                    self.cli.thinking("Processing request...")
+                elif hasattr(self.cli, 'step_start'):
+                    self.cli.step_start("Understanding")
+            except Exception:
+                pass  # Gracefully handle any UI errors
+            
+            # Understand the input
+            plan = self.brain.understand(user_input)
+            
+            # Show planning step (with graceful fallback)
+            try:
+                if hasattr(self.cli, 'planning'):
+                    self.cli.planning(f"Plan: {plan.intent.value}")
+                elif hasattr(self.cli, 'step_done'):
+                    self.cli.step_done("Understood", f"intent: {plan.intent.value}")
+            except Exception:
+                pass  # Gracefully handle any UI errors
+            
+            # Execute
+            if hasattr(self.cli, 'step_start'):
+                self.cli.step_start("Executing")
+            success, result = self.brain.execute(plan)
         
         # Always sync sources from brain context (search can happen in CHAT too)
         if hasattr(self.brain, 'ctx') and hasattr(self.brain.ctx, 'pending_items'):

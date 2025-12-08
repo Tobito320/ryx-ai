@@ -82,7 +82,7 @@ class AutoContextBuilder:
     ]
     
     # Max context size (tokens estimate: ~4 chars per token)
-    MAX_CONTEXT_TOKENS = 12000  # Increased for better coverage of large files
+    MAX_CONTEXT_TOKENS = 6000  # Keep under 16K model limit (prompt + response)
     
     def __init__(self, repo_root: str = "."):
         self.repo_root = Path(repo_root).resolve()
@@ -144,9 +144,15 @@ class AutoContextBuilder:
             if content is None:
                 continue
                 
-            # Skip if too large - use smart truncation with search terms
-            if len(content) > max_chars * 0.3:  # Single file shouldn't be >30% of context
-                content = self._truncate_smart(content, int(max_chars * 0.3), search_terms)
+            # For very large files, try to extract only relevant functions/methods
+            if len(content) > max_chars * 0.4:
+                # Try to find specific functions mentioned in query
+                extracted = self._extract_relevant_functions(content, search_terms, query)
+                if extracted and len(extracted) < len(content) * 0.5:
+                    content = extracted
+                else:
+                    # Fall back to smart truncation
+                    content = self._truncate_smart(content, int(max_chars * 0.3), search_terms)
             
             file_ctx = FileContext(
                 path=str(path.relative_to(self.repo_root)),
@@ -160,6 +166,93 @@ class AutoContextBuilder:
             total_chars += len(content)
         
         result.total_tokens_estimate = total_chars // 4
+        return result
+    
+    def _extract_relevant_functions(self, content: str, terms: List[str], query: str) -> Optional[str]:
+        """Extract only the relevant functions/methods from a large file.
+        
+        This is crucial for files like browser.py (1900+ lines) where we need
+        to include specific methods mentioned in the query.
+        """
+        lines = content.split('\n')
+        query_lower = query.lower()
+        
+        # Find function/method names mentioned in query
+        function_patterns = re.findall(r'_?[a-z_]+(?=\s*\(|\s*method|\s*function)', query_lower)
+        function_patterns.extend(re.findall(r'def\s+(\w+)', query_lower))
+        
+        # Also extract from terms
+        for term in terms:
+            if '_' in term or term.startswith('_'):
+                function_patterns.append(term)
+        
+        if not function_patterns:
+            return None
+        
+        # Find matching functions in the file
+        sections = []
+        
+        # Always include file header (imports, class definition)
+        header_end = 0
+        for i, line in enumerate(lines):
+            if line.strip().startswith('class ') and i > 10:
+                header_end = i + 5  # Include class definition + a few lines
+                break
+            if i > 50:  # Safety limit
+                header_end = 50
+                break
+        
+        sections.append('\n'.join(lines[:header_end]))
+        
+        # Find each matching function
+        in_function = False
+        function_start = 0
+        function_indent = 0
+        current_function = []
+        
+        for i, line in enumerate(lines):
+            # Check for function definition
+            match = re.match(r'^(\s*)def\s+(\w+)', line)
+            if match:
+                # Save previous function if we were in one
+                if in_function and current_function:
+                    func_text = '\n'.join(current_function)
+                    # Check if this function matches any of our patterns
+                    func_name_lower = current_function[0].lower() if current_function else ''
+                    if any(p in func_name_lower for p in function_patterns):
+                        sections.append(f'\n# ... (line {function_start})\n{func_text}')
+                
+                # Start new function
+                in_function = True
+                function_start = i
+                function_indent = len(match.group(1))
+                current_function = [line]
+            elif in_function:
+                # Check if we're still in the function
+                if line.strip() and not line.startswith(' ' * (function_indent + 1)) and not line.strip().startswith('#'):
+                    # We've left the function
+                    func_text = '\n'.join(current_function)
+                    func_name_lower = current_function[0].lower() if current_function else ''
+                    if any(p in func_name_lower for p in function_patterns):
+                        sections.append(f'\n# ... (line {function_start})\n{func_text}')
+                    in_function = False
+                    current_function = []
+                else:
+                    current_function.append(line)
+        
+        # Don't forget last function
+        if in_function and current_function:
+            func_text = '\n'.join(current_function)
+            func_name_lower = current_function[0].lower() if current_function else ''
+            if any(p in func_name_lower for p in function_patterns):
+                sections.append(f'\n# ... (line {function_start})\n{func_text}')
+        
+        if len(sections) <= 1:  # Only header, no matching functions
+            return None
+        
+        result = '\n'.join(sections)
+        result += '\n\n# ... (file truncated - only relevant methods shown)'
+        
         return result
     
     def _extract_search_terms(self, query: str) -> List[str]:
