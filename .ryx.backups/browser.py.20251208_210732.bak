@@ -181,16 +181,6 @@ class Browser:
             active_tab = self.tabs[self.active_tab_idx]
             active_tab.webview.run_javascript("document.body.select();", None, None)
 
-    def _get_page_info(self) -> dict:
-        """Returns the current page's title and URL as a dictionary."""
-        if self.tabs and self.active_tab_idx < len(self.tabs):
-            active_tab = self.tabs[self.active_tab_idx]
-            return {
-                "title": active_tab.title,
-                "url": active_tab.url
-            }
-        return {"title": "", "url": ""}
-
     def run(self):
         """Start the browser"""
         self.app = Gtk.Application(application_id='ai.ryx.surf')
