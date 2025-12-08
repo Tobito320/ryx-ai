@@ -240,4 +240,4 @@ Sessions are stored in `~/.config/ryxsurf/sessions/`
 - [x] Hint mode (vimium-style)
 - [ ] Firefox extension support
 - [ ] Sync with RyxHub
-- [ ] Drag to reorder tabs
+- [x] Drag to reorder tabs

@@ -1154,7 +1154,7 @@ kbd {
                 self.content_box.append(self.ai_sidebar)
     
     def _update_tab_sidebar(self):
-        """Update the tab sidebar with compact icon tabs"""
+        """Update the tab sidebar with compact icon tabs (with drag support)"""
         if not hasattr(self, 'tab_list_box'):
             return
             
@@ -1188,7 +1188,75 @@ kbd {
             middle.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
             btn.add_controller(middle)
             
+            # Drag and drop to reorder
+            self._setup_tab_drag(btn, i)
+            
             self.tab_list_box.append(btn)
+    
+    def _setup_tab_drag(self, btn: Gtk.Button, tab_idx: int):
+        """Setup drag source and drop target for tab reordering"""
+        # Drag source
+        drag_source = Gtk.DragSource()
+        drag_source.set_actions(Gdk.DragAction.MOVE)
+        drag_source.connect("prepare", lambda ds, x, y, idx=tab_idx: self._on_tab_drag_prepare(idx))
+        drag_source.connect("drag-begin", self._on_tab_drag_begin)
+        btn.add_controller(drag_source)
+        
+        # Drop target
+        drop_target = Gtk.DropTarget.new(int, Gdk.DragAction.MOVE)
+        drop_target.connect("drop", lambda dt, value, x, y, idx=tab_idx: self._on_tab_drop(value, idx))
+        drop_target.connect("enter", self._on_tab_drag_enter)
+        drop_target.connect("leave", self._on_tab_drag_leave)
+        btn.add_controller(drop_target)
+    
+    def _on_tab_drag_prepare(self, tab_idx: int):
+        """Prepare drag data"""
+        return Gdk.ContentProvider.new_for_value(tab_idx)
+    
+    def _on_tab_drag_begin(self, drag_source, drag):
+        """Handle drag start"""
+        pass  # Could add visual feedback here
+    
+    def _on_tab_drag_enter(self, drop_target, x, y):
+        """Handle drag entering a tab button"""
+        widget = drop_target.get_widget()
+        if widget:
+            widget.add_css_class("drop-target")
+        return Gdk.DragAction.MOVE
+    
+    def _on_tab_drag_leave(self, drop_target):
+        """Handle drag leaving a tab button"""
+        widget = drop_target.get_widget()
+        if widget:
+            widget.remove_css_class("drop-target")
+    
+    def _on_tab_drop(self, source_idx: int, target_idx: int) -> bool:
+        """Handle tab drop - reorder tabs"""
+        if source_idx == target_idx:
+            return False
+        
+        # Get the tab being moved
+        tab = self.tabs.pop(source_idx)
+        
+        # Adjust target index if source was before target
+        if source_idx < target_idx:
+            target_idx -= 1
+        
+        # Insert at new position
+        self.tabs.insert(target_idx, tab)
+        
+        # Update active tab index if needed
+        if self.active_tab_idx == source_idx:
+            self.active_tab_idx = target_idx
+        elif source_idx < self.active_tab_idx <= target_idx:
+            self.active_tab_idx -= 1
+        elif target_idx <= self.active_tab_idx < source_idx:
+            self.active_tab_idx += 1
+        
+        # Refresh sidebar
+        self._update_tab_sidebar()
+        
+        return True
     
     def _update_tab_count(self):
         """Update the tab count label in URL bar"""
