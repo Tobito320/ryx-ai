@@ -2,7 +2,7 @@
 Ryx AI - Council v2: Multi-Model Consensus System
 
 Enhanced council system that:
-- Uses vLLM instead of Ollama for consistency
+- Uses Ollama for multi-model support
 - Supports async concurrent model queries
 - Provides rich visual feedback
 - Implements consensus algorithms
@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-from core.vllm_client import VLLMClient, VLLMConfig
+from core.ollama_client import OllamaClient
 from core.visual_steps import StepVisualizer, StepType
 from rich.console import Console
 from rich.table import Table
@@ -102,26 +102,37 @@ class Council:
         # Default members if not specified
         self.members = members or self._get_default_members()
         
-        self.config = VLLMConfig(base_url=vllm_url)
+        # Use Ollama
+        self.ollama_url = vllm_url.replace(':8001', ':11434') if ':8001' in vllm_url else 'http://localhost:11434'
+    
+    def _map_model_to_ollama(self, model_path: str) -> str:
+        """Map old vLLM model paths to Ollama model names"""
+        path_lower = model_path.lower()
+        if 'coder' in path_lower or 'coding' in path_lower:
+            return 'mistral-nemo:12b'  # Best available for coding
+        elif 'fast' in path_lower or '3b' in path_lower or '1.5b' in path_lower:
+            return 'qwen2.5:1.5b'
+        else:
+            return 'mistral-nemo:12b'  # Default
     
     def _get_default_members(self) -> List[CouncilMember]:
-        """Get default council members"""
+        """Get default council members (using Ollama models)"""
         return [
             CouncilMember(
                 name="Coder",
-                model_path="/models/medium/coding/qwen2.5-coder-7b-gptq",
+                model_path="mistral-nemo:12b",
                 weight=1.5,
                 specialization="coding"
             ),
             CouncilMember(
                 name="General",
-                model_path="/models/medium/general/qwen2.5-7b-gptq",
+                model_path="mistral-nemo:12b",
                 weight=1.0,
                 specialization="general"
             ),
             CouncilMember(
                 name="Fast",
-                model_path="/models/small/general/qwen2.5-3b",
+                model_path="qwen2.5:1.5b",
                 weight=0.8,
                 specialization="quick_analysis"
             ),
@@ -228,7 +239,7 @@ class Council:
                                    temperature: float,
                                    max_tokens: int) -> CouncilResponse:
         """Query a single council member"""
-        client = VLLMClient(self.config)
+        client = OllamaClient()
         
         try:
             start = datetime.now()
@@ -238,9 +249,12 @@ class Council:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
             
+            # Map old model paths to Ollama model names
+            model_name = self._map_model_to_ollama(member.model_path)
+            
             resp = await client.chat(
                 messages=messages,
-                model=member.model_path,
+                model=model_name,
                 temperature=temperature,
                 max_tokens=max_tokens
             )

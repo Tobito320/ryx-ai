@@ -1,7 +1,7 @@
 """
 Ryx AI - Benchmark Executor
 
-Connects benchmarks to the LLM backend (vLLM).
+Connects benchmarks to the LLM backend (Ollama).
 This is the bridge between the benchmark system and the inference engine.
 """
 
@@ -19,15 +19,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExecutorConfig:
     """Configuration for the benchmark executor"""
-    backend: str = "vllm"  # vllm, llm, openai
-    base_url: str = "http://localhost:8000"
+    backend: str = "ollama"  # ollama, openai
+    base_url: str = "http://localhost:11434"
     model: Optional[str] = None
     timeout: int = 120
     
     # Model defaults by backend
     default_models = {
-        "vllm": "Qwen/Qwen2.5-Coder-14B-Instruct-AWQ",
-        "llm": "qwen2.5-coder:14b",
+        "ollama": "mistral-nemo:12b",
         "openai": "gpt-4",
     }
     
@@ -54,36 +53,20 @@ class BenchmarkExecutor:
     async def connect(self) -> bool:
         """Connect to the LLM backend"""
         try:
-            if self.config.backend == "vllm":
-                from core.vllm_client import VLLMClient, VLLMConfig
+            if self.config.backend == "ollama":
+                from core.ollama_client import OllamaClient
                 
-                vllm_config = VLLMConfig(
-                    base_url=self.config.base_url,
-                    default_model=self.config.get_model(),
-                    timeout=self.config.timeout
-                )
-                self._client = VLLMClient(vllm_config)
+                self._client = OllamaClient()
                 
                 # Test connection
                 health = await self._client.health_check()
                 if health.get("healthy"):
                     self._connected = True
-                    logger.info(f"Connected to vLLM at {self.config.base_url}")
+                    logger.info(f"Connected to Ollama at {self.config.base_url}")
                     return True
                 else:
-                    logger.error(f"vLLM not healthy: {health}")
+                    logger.error(f"Ollama not healthy: {health}")
                     return False
-                    
-            elif self.config.backend == "llm":
-                # vLLM support (if still needed)
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"{self.config.base_url}/api/tags") as resp:
-                        if resp.status == 200:
-                            self._connected = True
-                            logger.info(f"Connected to vLLM at {self.config.base_url}")
-                            return True
-                return False
                 
             elif self.config.backend == "openai":
                 # OpenAI-compatible API

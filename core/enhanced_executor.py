@@ -492,14 +492,13 @@ Provide only the implementation code."""
         plan
     ) -> Tuple[bool, str]:
         """Execute with file context loaded"""
-        from core.vllm_client import VLLMClient, VLLMConfig
+        from core.ollama_client import OllamaClient
         
         # Build enhanced prompt
         enhanced_prompt = self._build_enhanced_prompt(prompt, context)
         
-        # Call LLM
-        config = VLLMConfig(base_url='http://localhost:8001')
-        client = VLLMClient(config)
+        # Call LLM via Ollama
+        client = OllamaClient()
         
         async def _generate():
             system_prompt = self._get_system_prompt()
@@ -507,6 +506,7 @@ Provide only the implementation code."""
             resp = await client.generate(
                 prompt=enhanced_prompt,
                 system=system_prompt,
+                model='mistral-nemo:12b',  # Use chat model for coding
                 max_tokens=2500,
                 temperature=0.3
             )

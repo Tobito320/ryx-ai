@@ -143,11 +143,10 @@ You can now read the file contents above and make precise edits. When editing, u
     ) -> Tuple[bool, str]:
         """Execute with file context loaded"""
         
-        # Use the brain's LLM to generate response with full context
-        from core.vllm_client import VLLMClient, VLLMConfig
+        # Use Ollama client for LLM
+        from core.ollama_client import OllamaClient
         
-        config = VLLMConfig(base_url='http://localhost:8001')
-        client = VLLMClient(config)
+        client = OllamaClient()
         
         import asyncio
         
