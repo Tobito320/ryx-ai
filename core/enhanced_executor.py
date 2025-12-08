@@ -189,10 +189,18 @@ class EnhancedExecutor:
     
     def _build_enhanced_prompt(self, prompt: str, context: ContextResult) -> str:
         """Build prompt with context"""
+        # For RyxSurf development, always mention the main files
+        hint = ""
+        if "action" in prompt.lower() or "browser" in prompt.lower() or "method" in prompt.lower():
+            hint = """
+HINT: For browser actions, the main file is ryxsurf/src/ai/actions.py (BrowserActions class).
+For browser UI methods, use ryxsurf/src/core/browser.py (Browser class).
+"""
+        
         return f"""I have automatically discovered and loaded relevant files for your request.
 
 {context.to_prompt()}
-
+{hint}
 User request: {prompt}
 
 CRITICAL INSTRUCTIONS FOR EDITING:
@@ -200,6 +208,7 @@ CRITICAL INSTRUCTIONS FOR EDITING:
 2. Do NOT paraphrase, reformat, or summarize the <old> text
 3. Include enough context in <old> to be unique (usually 3-10 lines)
 4. For adding new code, use the END of an existing function/method as your <old> anchor
+5. Pick a simple, short anchor point - don't try to match huge blocks
 
 For edits, use this format:
 <edit>

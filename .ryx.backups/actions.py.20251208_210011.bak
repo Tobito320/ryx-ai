@@ -241,17 +241,6 @@ class BrowserActions:
         """
         
     @staticmethod
-    def get_images() -> str:
-        """Get all image sources on the page"""
-        return """
-        (function() {
-            const images = Array.from(document.querySelectorAll('img'));
-            const sources = images.map(img => img.src);
-            return JSON.stringify({result: 'success', data: sources});
-        })()
-        """
-        
-    @staticmethod
     def dismiss_overlays() -> str:
         """Remove popups, modals, and overlays"""
         return """
