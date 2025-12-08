@@ -82,7 +82,7 @@ class AutoContextBuilder:
     ]
     
     # Max context size (tokens estimate: ~4 chars per token)
-    MAX_CONTEXT_TOKENS = 14000  # Use 14K of the 19K context (leave room for system prompt + response)
+    MAX_CONTEXT_TOKENS = 10000  # Use 10K tokens - leave 9K for system prompt + response
     
     def __init__(self, repo_root: str = "."):
         self.repo_root = Path(repo_root).resolve()

@@ -23,8 +23,6 @@ class ActionResult(Enum):
     GO_FORWARD = "go_forward"
     ZOOM_IN = "zoom_in"
     COPY_TEXT = 'copy_text'
-    REFRESH = 'refresh'
-    SCREENSHOT = 'screenshot'
 
 
 @dataclass
@@ -126,11 +124,6 @@ class BrowserActions:
     def scroll_bottom() -> str:
         """Scroll to the bottom of the page"""
         return "window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
-
-    @staticmethod
-    def refresh() -> str:
-        """Refresh the page"""
-        return "location.reload(); JSON.stringify({result: 'success'})"
 
     @staticmethod
     def copy_selection() -> str:
