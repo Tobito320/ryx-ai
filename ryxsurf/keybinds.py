@@ -75,6 +75,10 @@ KEYBINDS: Dict[str, list] = {
         Keybind("A", Modifier.SUPER_SHIFT, "summarize_page", "AI: Summarize page"),
         Keybind("x", Modifier.SUPER, "dismiss_popup", "AI: Dismiss popup/overlay"),
         Keybind("r", Modifier.SUPER, "ai_reader", "AI: Reader mode"),
+        Keybind("e", Modifier.SUPER, "extract_text", "AI: Extract main text"),
+        Keybind("i", Modifier.SUPER, "get_page_info", "AI: Show page info"),
+        Keybind("m", Modifier.SUPER, "get_media", "AI: List all media"),
+        Keybind("D", Modifier.SUPER_SHIFT, "toggle_dark", "Toggle dark mode"),
     ],
     
     "quick": [
