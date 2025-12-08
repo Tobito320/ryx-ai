@@ -1694,10 +1694,105 @@ kbd {
         
     def _hint_mode(self):
         """Enter hint mode for keyboard link clicking"""
+        if not self.tabs:
+            return
+            
         current_webview = self.tabs[self.active_tab_idx].webview
         hint_injection_js = self.hint_mode.get_hint_injection_js()
-        current_webview.evaluate_javascript(hint_injection_js, None)
-        self.hint_mode.active = True
+        
+        # Execute JS and get elements, then show overlays
+        current_webview.evaluate_javascript(
+            hint_injection_js,
+            -1,
+            None,
+            None,
+            None,
+            self._on_hints_found,
+            None
+        )
+    
+    def _on_hints_found(self, webview, result, user_data):
+        """Handle hint elements found by JS"""
+        import json
+        
+        try:
+            js_result = webview.evaluate_javascript_finish(result)
+            if js_result:
+                elements_json = js_result.to_string()
+                elements = json.loads(elements_json)
+                
+                if not elements:
+                    return
+                
+                # Generate labels for elements
+                labels = self.hint_mode.generate_labels(len(elements))
+                
+                # Create hints with labels
+                hints = []
+                for i, elem in enumerate(elements):
+                    if i < len(labels):
+                        hints.append({
+                            'label': labels[i],
+                            'selector': elem.get('selector', ''),
+                            'x': elem.get('x', 0),
+                            'y': elem.get('y', 0)
+                        })
+                
+                # Store hints for matching
+                from ..ui.hints import Hint
+                self.hint_mode.hints = [
+                    Hint(
+                        label=h['label'],
+                        selector=h['selector'],
+                        element_type='',
+                        text='',
+                        x=h['x'],
+                        y=h['y']
+                    ) for h in hints
+                ]
+                
+                # Inject overlay JS
+                overlay_js = self.hint_mode.get_overlay_js(hints)
+                self.tabs[self.active_tab_idx].webview.evaluate_javascript(
+                    overlay_js, -1, None, None, None, None, None
+                )
+                
+                self.hint_mode.active = True
+                self.hint_mode.current_input = ""
+                
+        except Exception as e:
+            print(f"Hint mode error: {e}")
+    
+    def _handle_hint_input(self, char: str):
+        """Handle keyboard input during hint mode"""
+        if not self.hint_mode.active:
+            return False
+        
+        matching = self.hint_mode.filter_hints(char)
+        
+        if len(matching) == 1:
+            # Found exact match - click it!
+            hint = matching[0]
+            click_js = self.hint_mode.get_click_js(hint.selector)
+            self.tabs[self.active_tab_idx].webview.evaluate_javascript(
+                click_js, -1, None, None, None, None, None
+            )
+            self.hint_mode.reset()
+            return True
+        elif len(matching) == 0:
+            # No match - exit hint mode
+            clear_js = self.hint_mode.get_clear_hints_js()
+            self.tabs[self.active_tab_idx].webview.evaluate_javascript(
+                clear_js, -1, None, None, None, None, None
+            )
+            self.hint_mode.reset()
+            return True
+        else:
+            # Multiple matches - highlight matching prefix
+            # Update overlay to show which hints still match
+            return True
+        
+        return False
 
     def _summarize_page(self):
         """Get and summarize the page text"""

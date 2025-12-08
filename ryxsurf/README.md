@@ -233,9 +233,11 @@ Sessions are stored in `~/.config/ryxsurf/sessions/`
 - [x] Per-tab zoom (Ctrl++/-/0)
 - [x] Context menu (right-click)
 - [x] Page security indicator (HTTPS lock)
-- [ ] AI summarization
-- [ ] AI popup dismissal
-- [ ] Hint mode (vimium-style)
+- [x] AI summarization
+- [x] AI popup dismissal
+- [x] AI command bar
+- [x] Session switcher UI
+- [x] Hint mode (vimium-style)
 - [ ] Firefox extension support
 - [ ] Sync with RyxHub
 - [ ] Drag to reorder tabs
