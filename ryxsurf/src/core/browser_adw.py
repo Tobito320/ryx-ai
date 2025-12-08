@@ -45,6 +45,8 @@ class Tab:
     loading: bool = False
     can_go_back: bool = False
     can_go_forward: bool = False
+    last_active: float = field(default_factory=time.time)
+    is_unloaded: bool = False
 
 
 class HistoryManager:
@@ -164,12 +166,18 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         
         # Auto-save session periodically
         GLib.timeout_add_seconds(30, self._auto_save)
+        
+        # Tab unloading check (every 60s)
+        GLib.timeout_add_seconds(60, self._check_unload_tabs)
     
     def _build_ui(self):
         """Build the complete UI"""
         # Main horizontal split
+        # Toast overlay for notifications
+        self.toast_overlay = Adw.ToastOverlay()
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.set_content(self.main_box)
+        self.toast_overlay.set_child(self.main_box)
+        self.set_content(self.toast_overlay)
         
         # === LEFT SIDEBAR ===
         self.sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -484,6 +492,13 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         .tab-row.loading .tab-title {
             font-style: italic;
         }
+        .tab-row.unloaded {
+            opacity: 0.6;
+        }
+        .tab-row.unloaded .tab-title {
+            font-style: italic;
+            color: alpha(@view_fg_color, 0.5);
+        }
         .suggestions-popup {
             background: @popover_bg_color;
             min-width: 400px;
@@ -634,6 +649,10 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         webview.connect("mouse-target-changed", self._on_mouse_target)
         webview.connect("decide-policy", self._on_decide_policy)
         
+        # Download handler
+        network_session = webview.get_network_session()
+        network_session.connect("download-started", self._on_download_started)
+        
         self.tabs.append(tab)
         idx = len(self.tabs) - 1
         
@@ -687,6 +706,13 @@ class RyxSurfWindow(Adw.ApplicationWindow):
             self.active_tab = idx
             tab = self.tabs[idx]
             
+            # Reload if unloaded
+            if tab.is_unloaded:
+                self._reload_unloaded_tab(idx)
+            
+            # Update last active
+            tab.last_active = time.time()
+            
             # Need to find the webview in stack
             for i, t in enumerate(self.tabs):
                 child = self.webview_stack.get_child_by_name(f"tab-{i}")
@@ -738,6 +764,9 @@ class RyxSurfWindow(Adw.ApplicationWindow):
                 row.add_css_class("loading")
                 icon = Gtk.Spinner()
                 icon.start()
+            elif tab.is_unloaded:
+                row.add_css_class("unloaded")
+                icon = Gtk.Image(icon_name="content-loading-symbolic")
             else:
                 icon = Gtk.Image(icon_name="web-browser-symbolic")
             icon.set_size_request(16, 16)
@@ -747,7 +776,10 @@ class RyxSurfWindow(Adw.ApplicationWindow):
             text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
             text_box.set_hexpand(True)
             
-            title = Gtk.Label(label=tab.title or "New Tab")
+            title_text = tab.title or "New Tab"
+            if tab.is_unloaded:
+                title_text = f"💤 {title_text}"
+            title = Gtk.Label(label=title_text)
             title.add_css_class("tab-title")
             title.set_halign(Gtk.Align.START)
             title.set_ellipsize(Pango.EllipsizeMode.END)
@@ -1097,6 +1129,111 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.session.save(self.tabs, self.active_tab)
         self.history.save()
         return True  # Keep timer running
+    
+    def _check_unload_tabs(self) -> bool:
+        """Unload inactive tabs to save memory (5 min threshold)"""
+        now = time.time()
+        threshold = 300  # 5 minutes
+        max_loaded = 8
+        
+        # Count loaded tabs
+        loaded = [t for t in self.tabs if not t.is_unloaded]
+        
+        if len(loaded) > max_loaded:
+            # Find oldest inactive tabs
+            inactive = [(i, t) for i, t in enumerate(self.tabs) 
+                       if not t.is_unloaded and i != self.active_tab 
+                       and (now - t.last_active) > threshold]
+            
+            # Sort by last active, oldest first
+            inactive.sort(key=lambda x: x[1].last_active)
+            
+            # Unload excess tabs
+            to_unload = len(loaded) - max_loaded
+            for i, (idx, tab) in enumerate(inactive):
+                if i >= to_unload:
+                    break
+                self._unload_tab(idx)
+        
+        return True  # Keep timer
+    
+    def _unload_tab(self, idx: int):
+        """Unload a tab to free memory"""
+        tab = self.tabs[idx]
+        if tab.is_unloaded or idx == self.active_tab:
+            return
+        
+        # Save URL before unloading
+        tab.is_unloaded = True
+        tab.webview.load_uri("about:blank")
+        self._update_tab_list()
+        self._show_toast(f"Unloaded: {tab.title[:30]}")
+    
+    def _reload_unloaded_tab(self, idx: int):
+        """Reload an unloaded tab"""
+        tab = self.tabs[idx]
+        if tab.is_unloaded and tab.url and tab.url != "about:blank":
+            tab.webview.load_uri(tab.url)
+            tab.is_unloaded = False
+            tab.last_active = time.time()
+    
+    # === DOWNLOADS ===
+    
+    def _on_download_started(self, session, download):
+        """Handle download start"""
+        # Set download destination
+        downloads_dir = Path.home() / "Downloads"
+        downloads_dir.mkdir(exist_ok=True)
+        
+        response = download.get_response()
+        suggested = response.get_suggested_filename() if response else None
+        if not suggested:
+            uri = download.get_request().get_uri()
+            suggested = uri.split("/")[-1].split("?")[0] or "download"
+        
+        dest = downloads_dir / suggested
+        # Handle duplicates
+        counter = 1
+        while dest.exists():
+            stem = dest.stem
+            if stem.endswith(f"_{counter-1}"):
+                stem = stem.rsplit("_", 1)[0]
+            dest = downloads_dir / f"{stem}_{counter}{dest.suffix}"
+            counter += 1
+        
+        download.set_destination(str(dest))
+        
+        # Track progress
+        download.connect("notify::estimated-progress", self._on_download_progress)
+        download.connect("finished", self._on_download_finished)
+        download.connect("failed", self._on_download_failed)
+        
+        # Show notification
+        self._show_toast(f"Downloading: {suggested}")
+    
+    def _on_download_progress(self, download, pspec):
+        """Update download progress"""
+        progress = download.get_estimated_progress()
+        # Could update a downloads panel here
+    
+    def _on_download_finished(self, download):
+        """Download completed"""
+        dest = download.get_destination()
+        filename = Path(dest).name if dest else "file"
+        self._show_toast(f"Downloaded: {filename}")
+    
+    def _on_download_failed(self, download, error):
+        """Download failed"""
+        self._show_toast("Download failed", error=True)
+    
+    def _show_toast(self, message: str, error: bool = False):
+        """Show a toast notification"""
+        toast = Adw.Toast.new(message)
+        toast.set_timeout(3)
+        # Need a toast overlay - add to window
+        if not hasattr(self, 'toast_overlay'):
+            return
+        self.toast_overlay.add_toast(toast)
     
     # === NEW TAB PAGE ===
     
