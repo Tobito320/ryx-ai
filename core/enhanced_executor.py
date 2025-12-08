@@ -224,8 +224,9 @@ RULES:
 3. Copy text directly from the context - do not paraphrase
 4. For adding code, use the last few lines of an existing function/block as your anchor
 5. Always try to make the edit - only say "cannot find" if the file content is clearly missing
+6. DO NOT use markdown code fences (```) inside <old> or <new> tags
 
-FORMAT for edits:
+FORMAT for edits (NO code fences!):
 <edit>
 <file>path/to/file.py</file>
 <old>
@@ -240,6 +241,9 @@ Be aggressive about finding anchor points. Look for unique strings like function
     
     def _process_response(self, response: str) -> Tuple[bool, str]:
         """Process LLM response and apply any edits"""
+        
+        # Clean up common LLM output issues
+        response = self._clean_llm_response(response)
         
         # Parse edit blocks
         edit_pattern = r'<edit>\s*<file>(.*?)</file>\s*<old>(.*?)</old>\s*<new>(.*?)</new>\s*</edit>'
@@ -256,8 +260,8 @@ Be aggressive about finding anchor points. Look for unique strings like function
         
         for file_path, old_str, new_str in edits:
             file_path = file_path.strip()
-            old_str = old_str.strip()
-            new_str = new_str.strip()
+            old_str = self._clean_code_block(old_str.strip())
+            new_str = self._clean_code_block(new_str.strip())
             
             # Skip duplicate edits to same file (LLM sometimes generates multiple)
             edit_key = f"{file_path}:{hash(new_str)}"
@@ -277,6 +281,25 @@ Be aggressive about finding anchor points. Look for unique strings like function
                 results.append(f"❌ Failed: {file_path} - {result.message}")
                 all_success = False
                 logger.warning(f"Edit failed for {file_path}: {result.message}")
+        
+        return all_success, "\n".join(results)
+    
+    def _clean_llm_response(self, response: str) -> str:
+        """Clean common LLM output issues"""
+        # Remove markdown code fences from inside tags
+        response = re.sub(r'<old>\s*```\w*\n?', '<old>', response)
+        response = re.sub(r'\n?```\s*</old>', '</old>', response)
+        response = re.sub(r'<new>\s*```\w*\n?', '<new>', response)
+        response = re.sub(r'\n?```\s*</new>', '</new>', response)
+        return response
+    
+    def _clean_code_block(self, code: str) -> str:
+        """Remove markdown code fences from code"""
+        # Remove leading ```python or ```
+        code = re.sub(r'^```\w*\n?', '', code)
+        # Remove trailing ```
+        code = re.sub(r'\n?```$', '', code)
+        return code
         
         return all_success, "\n".join(results)
     
