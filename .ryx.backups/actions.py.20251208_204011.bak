@@ -173,17 +173,6 @@ class BrowserActions:
         """
 
     @staticmethod
-    def clear_selection() -> str:
-        """Clear text selection"""
-        return """
-        (function() {
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            return JSON.stringify({result: 'success', message: 'Selection cleared'});
-        })()
-        """
-
-    @staticmethod
     def go_back() -> str:
         """Go back in history"""
         return "window.history.back(); JSON.stringify({result: 'success'})"

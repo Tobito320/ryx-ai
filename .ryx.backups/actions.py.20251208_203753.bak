@@ -27,7 +27,6 @@ class ActionResult(Enum):
     SCREENSHOT = 'screenshot'
     STOP = 'stop'
     HOME = 'home'
-    SELECT_ALL = 'select_all'
 
 
 @dataclass
@@ -155,31 +154,6 @@ class BrowserActions:
             } else {
                 return JSON.stringify({result: 'not_found', message: 'No text selected'});
             }
-        })()
-        """
-
-    @staticmethod
-    def select_all() -> str:
-        """Select all text on the page"""
-        return """
-        (function() {
-            const range = document.createRange();
-            range.selectNodeContents(document.body);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            return JSON.stringify({result: 'success', message: 'All text selected'});
-        })()
-        """
-
-    @staticmethod
-    def clear_selection() -> str:
-        """Clear text selection"""
-        return """
-        (function() {
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            return JSON.stringify({result: 'success', message: 'Selection cleared'});
         })()
         """
 
