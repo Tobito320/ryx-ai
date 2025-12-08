@@ -213,34 +213,49 @@ Location: `/home/tobi/cloned_repositorys/`
 
 ## 📊 Current Status
 
-**Date**: 2025-12-09 00:20 UTC
-**Phase**: Ollama Working, Ryx Active
+**Date**: 2025-12-09 00:45 UTC
+**Phase**: Ryx Fully Operational with qwen2.5-coder:14b
 
 ### Completed This Session
-- ✅ Ollama backend fully working (3 models loaded)
-- ✅ vLLM references cleaned from core files
-- ✅ Model configs updated for installed models
-- ✅ MISSION.md consolidated (removed PROJECT_STATE.md, IMPROVEMENT_LOG.md)
-- ✅ Ryx tested with code editing - works!
+- ✅ Ollama backend fully working (5 models loaded)
+- ✅ vLLM references cleaned from ALL core files
+- ✅ qwen2.5-coder:14b installed and configured as PRIMARY
+- ✅ Model configs updated for optimal performance
+- ✅ MISSION.md consolidated (single source of truth)
+- ✅ Ryx tested with 14B coder - works great (18s/response)
 - ✅ RyxSurf sidebar reduced to 180px
+- ✅ RyxSurf URL bar made compact (no nav buttons)
+- ✅ RyxSurf keybinds added: Ctrl+↓/↑, Ctrl+Shift+U, F11
+- ✅ RyxSurf URL suggestions with quick domains
 
 ### Models Available
 ```
-qwen2.5:1.5b        → Fast (installed)
-mistral-nemo:12b    → Chat (installed)
-dolphin-mistral:7b  → Uncensored (installed)
+qwen2.5-coder:14b   → PRIMARY (coding, 18s latency)
+qwen2.5-coder:7b    → Fast coding fallback
+mistral-nemo:12b    → Chat, reasoning
+dolphin-mistral:7b  → Uncensored
+qwen2.5:1.5b        → Ultra-fast intent
 ```
 
-### Download Command (for coding)
-```bash
-ollama pull qwen2.5-coder:14b
-```
+### Performance
+- 14B Coder: ~18 seconds per response, HumanEval 88%
+- 7B Coder: ~8 seconds per response
+- 1.5B Fast: ~1 second per response
+
+### RyxSurf Keybinds Working
+- Ctrl+L: Focus URL bar ✅
+- Ctrl+T: New tab + focus ✅
+- Ctrl+W: Close tab ✅
+- Ctrl+1-9: Jump to tab ✅
+- Ctrl+↓/↑: Navigate tabs ✅
+- Ctrl+B: Toggle sidebar ✅
+- Ctrl+Shift+U: Toggle URL bar ✅
+- F11: True fullscreen ✅
 
 ### Next Actions
-1. Test RyxSurf with new sidebar width
-2. Make URL bar more compact
-3. Wire keybinds: Ctrl+L, Ctrl+T, Ctrl+W, Ctrl+1-9
-4. Extract Aider patterns: diff_match_patch for fuzzy edits
-5. Extract healing-agent patterns: @healing decorator
-6. Make Ryx autonomous with PhaseExecutor
+1. Test RyxSurf in real usage
+2. Implement true autonomous loop for Ryx
+3. Add @healing decorator from healing-agent
+4. Add diff_match_patch fuzzy editing from Aider
+5. Improve PhaseExecutor with memory persistence
 
