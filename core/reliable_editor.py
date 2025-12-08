@@ -47,8 +47,9 @@ class ReliableEditor:
     1. exact_match - Search text matches file exactly
     2. whitespace_flex - Ignore leading whitespace differences
     3. fuzzy_match - Use SequenceMatcher to find similar regions
-    4. line_anchor - Find by surrounding lines context
-    5. content_only - Match non-whitespace content only
+    4. dmp_match - Use Google's diff-match-patch (like Aider)
+    5. line_anchor - Find by surrounding lines context
+    6. content_only - Match non-whitespace content only
     
     Always:
     - Create backup before modifying
@@ -63,6 +64,15 @@ class ReliableEditor:
         self.project_root = Path(project_root).resolve()
         self.backup_dir = self.project_root / self.BACKUP_DIR
         self.backup_dir.mkdir(exist_ok=True)
+        
+        # Try to import diff_match_patch
+        try:
+            from diff_match_patch import diff_match_patch
+            self.dmp = diff_match_patch()
+            self.dmp.Match_Threshold = 0.5
+            self.dmp.Match_Distance = 1000
+        except ImportError:
+            self.dmp = None
         
     def edit(
         self,
@@ -116,6 +126,7 @@ class ReliableEditor:
             ('exact_match', self._exact_match),
             ('whitespace_flex', self._whitespace_flex_match),
             ('fuzzy_match', self._fuzzy_match),
+            ('dmp_match', self._dmp_match),  # Google's diff-match-patch
             ('line_anchor', self._line_anchor_match),
             ('content_only', self._content_only_match),
         ]
@@ -288,6 +299,36 @@ class ReliableEditor:
             result = content_lines[:best_start] + [replace] + content_lines[best_end:]
             # Ensure replace ends with newline if original chunk did
             return ''.join(result)
+        
+        return None
+    
+    def _dmp_match(self, content: str, search: str, replace: str) -> Optional[str]:
+        """Strategy 4: Use Google's diff-match-patch (like Aider uses)"""
+        if not self.dmp:
+            return None
+        
+        try:
+            # Create a patch from search to replace
+            diffs = self.dmp.diff_main(search, replace)
+            self.dmp.diff_cleanupSemantic(diffs)
+            patches = self.dmp.patch_make(search, diffs)
+            
+            if not patches:
+                return None
+            
+            # Find where in content the search text might be
+            match_loc = self.dmp.match_main(content, search[:100], 0)
+            
+            if match_loc == -1:
+                return None
+            
+            # Apply the patch
+            result, success = self.dmp.patch_apply(patches, content)
+            
+            if any(success):
+                return result
+        except Exception:
+            pass
         
         return None
     
