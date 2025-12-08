@@ -496,3 +496,63 @@ def print_page() -> str:
     def get_page_language() -> str:
         """Get page language"""
         return "JSON.stringify({result: 'success', data: document.documentElement.lang || 'unknown'})"
+
+    @staticmethod
+    def get_videos() -> str:
+        """Get all video elements"""
+        return """
+        (function() {
+            const videos = [...document.querySelectorAll('video')].map(v => ({
+                src: v.src || v.querySelector('source')?.src,
+                duration: v.duration,
+                currentTime: v.currentTime
+            }));
+            return JSON.stringify({result: 'success', data: videos});
+        })()
+        """
+
+    @staticmethod
+    def get_audio() -> str:
+        """Get all audio elements"""
+        return """
+        (function() {
+            const audios = [...document.querySelectorAll('audio')].map(a => ({
+                src: a.src || a.querySelector('source')?.src,
+                duration: a.duration
+            }));
+            return JSON.stringify({result: 'success', data: audios});
+        })()
+        """
+
+    @staticmethod
+    def get_iframes() -> str:
+        """Get all iframes"""
+        return """
+        (function() {
+            const iframes = [...document.querySelectorAll('iframe')].map(f => ({
+                src: f.src,
+                name: f.name
+            }));
+            return JSON.stringify({result: 'success', data: iframes});
+        })()
+        """
+
+    @staticmethod
+    def get_scripts() -> str:
+        """Get all script sources"""
+        return """
+        (function() {
+            const scripts = [...document.querySelectorAll('script[src]')].map(s => s.src);
+            return JSON.stringify({result: 'success', data: scripts});
+        })()
+        """
+
+    @staticmethod
+    def get_stylesheets() -> str:
+        """Get all stylesheet links"""
+        return """
+        (function() {
+            const styles = [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => l.href);
+            return JSON.stringify({result: 'success', data: styles});
+        })()
+        """
