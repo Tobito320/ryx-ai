@@ -347,3 +347,67 @@ When helping with this project:
 - Test changes before suggesting
 - Consider Hyprland/keyboard-first UX
 - Remember: this aims to be as good as Claude Code CLI, but local
+
+---
+
+## 🚨 CRITICAL: Session State (2025-12-08)
+
+### Current Status
+**Ryx is ~10% as good as Claude Code CLI** - Major improvements needed.
+
+### The Autonomous Loop (YOUR JOB)
+
+```
+1. Give Ryx natural language prompts (like "resume work on ryxsurf")
+2. Ryx should automatically:
+   - Find files it needs
+   - Read context
+   - Make changes
+   - Verify they work
+3. If Ryx fails → Improve Ryx's code (NOT do the work for it)
+4. If Ryx succeeds → Continue to next task
+5. Repeat
+```
+
+**KEY RULE**: Don't do Ryx's work. Prompt Ryx, and if it fails, fix Ryx.
+
+### RyxSurf Priority Fixes
+
+1. **Sidebar**: Make 10-20% width, toggle-able
+2. **URL bar**: Compact, remove useless buttons
+3. **Keybinds**: Ctrl+L (focus URL), Ctrl+W (close tab), Ctrl+T (new tab), Ctrl+↓/↑ (navigate tabs), Ctrl+1-9 (jump to tab)
+4. **Performance**: Make fast, resource efficient
+5. **New tab**: Clean URL, auto-focus search
+
+### Ryx Autonomy Improvements Needed
+
+Study these repos at `/home/tobi/cloned_repositorys/`:
+- **aider**: RepoMap, fuzzy edit matching
+- **SWE-agent**: Autonomous coding
+- **healing-agent**: Self-healing patterns
+
+Ryx must:
+- Explore codebase automatically
+- Find files without being told paths
+- Self-heal from errors (3 retries)
+- Maintain task context
+- Continue working autonomously
+
+### Technical Stack
+
+- **Inference**: vLLM at localhost:8001 (NOT OLLAMA)
+- **Model**: qwen2.5-coder-14b-awq
+- **GPU**: AMD RX 7800 XT, 90% max utilization
+- **Context**: 16K-32K tokens
+
+### Files to Clean (Ollama→vLLM)
+
+Many files still reference Ollama. Clean these:
+- modes/session_mode.py, cli_mode.py
+- scripts/*.py
+- ryx_pkg/agents/*.py
+- README.md
+
+### Read MISSION.md
+
+Full details in `/home/tobi/ryx-ai/MISSION.md` - read it first!

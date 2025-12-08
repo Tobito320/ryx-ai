@@ -251,3 +251,213 @@ When ANY weakness is found in Ryx:
 - [ ] Hide-able UI elements
 - [ ] Clean Catppuccin/Nord theme
 
+---
+
+## 🚨 SESSION 2025-12-08 (21:35 UTC) - CRITICAL FEEDBACK
+
+### Tobi's Feedback - READ THIS FIRST
+
+**Current State**: Ryx is ~10% as good as Claude Code CLI. NOT acceptable.
+
+**Problems Identified**:
+1. ❌ Ollama references still in codebase - WE USE VLLM NOT OLLAMA
+2. ❌ RyxSurf is slow, not resource efficient
+3. ❌ Top URL bar too tall, has useless buttons (home, star, reload)
+4. ❌ Left sidebar too fat (should be 10-20% of screen, toggle-able)
+5. ❌ Can't interact with websites sometimes
+6. ❌ YouTube search hangs, doesn't load
+7. ❌ New tab opens with unknown/no URL (looks bad)
+8. ❌ Ryx not autonomous - needs explicit prompts
+
+### PRIORITY 1 - RyxSurf Fixes (IMMEDIATE)
+
+**Left Sidebar**:
+- Make minimal, 10-20% screen width max
+- Toggle-able (show/hide)
+- Clean, no clutter
+
+**Top URL Bar**:
+- Make compact, minimal height
+- Remove useless buttons (home, star, reload)
+- Focus on URL input only
+
+**Keyboard Shortcuts** (MUST WORK):
+```
+Ctrl+L          Focus URL bar, type to search
+                - Type "youtube" → show youtube.com in suggestions
+                - Press Enter → go to youtube.com directly
+                - Settings option to disable auto-go-to-site
+Ctrl+W          Close current tab
+Ctrl+T          New tab + focus URL bar (Google search preferred)
+Ctrl+↓/↑        Navigate between tabs (1st, 2nd, 3rd...)
+                OR Ctrl+Shift+↓/↑ if conflicts
+Ctrl+1-9        Jump to tab by number
+```
+
+**New Tab Behavior**:
+- Show clean URL (google.com or blank)
+- Auto-focus URL bar
+- Ready to type immediately
+
+### PRIORITY 2 - Make Ryx Autonomous
+
+**Goal**: Say "resume work on ryxsurf" and Ryx does EVERYTHING:
+- Finds files automatically
+- Reads context it needs
+- Makes changes
+- Verifies changes work
+- Continues to next task
+
+**What Ryx Must Do Automatically**:
+1. Explore codebase to understand structure
+2. Find relevant files for the task
+3. Read file contents for context
+4. Plan the changes needed
+5. Execute changes
+6. Verify changes work
+7. Self-heal if errors occur
+8. Continue to next logical task
+
+**Key Insight**: Claude Code CLI works because it:
+- Has deep codebase understanding
+- Uses RepoMap/tree-sitter for code structure
+- Fuzzy matches for edits (diff_match_patch)
+- Self-corrects on errors
+- Maintains task context across turns
+
+### PRIORITY 3 - Clean Up Ollama References
+
+Files with Ollama references to fix:
+- scripts/local_verify.sh
+- scripts/system_diagnostics.py
+- modes/session_mode.py
+- modes/cli_mode.py
+- tools/council.py
+- docs/architecture/*.md
+- README.md
+- ryx_pkg/agents/*.py
+- dev/experiments/*.py
+
+**Rule**: Replace ALL Ollama with vLLM (localhost:8001)
+
+### Repos to Study for Patterns
+
+Located at `/home/tobi/cloned_repositorys/`:
+
+**Priority 1 - Autonomous Coding**:
+- **aider** - RepoMap, fuzzy edit matching, git-aware editing
+- **SWE-agent** - Autonomous software engineering
+- **OpenDevin** / **openhands-ai** - Multi-agent sandbox
+- **gpt-engineer** - Codebase understanding
+- **gpt-pilot** - Task decomposition, developer agent
+
+**Priority 2 - Self-Healing**:
+- **healing-agent** - Self-healing decorator pattern
+- **SelfImprovingAgent** - Execute→Evaluate→Refine loop
+- **self_improving_coding_agent** - Self-improvement patterns
+- **RepairAgent** - Code repair patterns
+
+**Priority 3 - Agent Orchestration**:
+- **AutoGPT** - Autonomous goal decomposition
+- **babyagi** - Task-driven autonomy
+- **swarm** - Multi-agent handoffs
+- **crewAI** - Role-based agents
+- **langchain** / **langgraph** - Tool orchestration, state machines
+- **autogen** - Multi-agent conversations
+
+**Priority 4 - Browser Automation**:
+- **browser-use** - AI browser automation
+- **LaVague** - AI web agent
+- **playwright-python** - Browser automation
+
+**Priority 5 - Memory & Context**:
+- **MemGPT** / **letta-code** - Long-term memory
+- **anthropic-cookbook** - Claude patterns
+
+**Other Useful**:
+- **build-your-claude-code-from-scratch** - Claude Code architecture
+- **AgentGPT** - Self-improvement loops
+- **devika** - AI software engineer
+- **plandex** - Coding with planning
+- **pr-agent** - PR review patterns
+- **dgm** - Unknown (check it)
+
+### Ollama→vLLM Migration TODO
+
+**Core files with Ollama code**:
+- [ ] `core/startup_optimizer.py` - Ollama references
+- [ ] `core/ryx_engine.py` - Ollama references
+- [ ] `core/embeddings.py` - Ollama references
+
+**Mode files with Ollama code**:
+- [ ] `modes/session_mode.py:648,656,663` - ollama list/pull commands
+- [ ] `modes/cli_mode.py:65,73,508,525` - ollama list/pull commands
+
+**Other files**:
+- [ ] `scripts/local_verify.sh`
+- [ ] `scripts/system_diagnostics.py`
+- [ ] `tools/council.py`
+- [ ] `README.md`
+- [ ] `ryx_pkg/agents/orchestrator.py`
+- [ ] `ryx_pkg/agents/worker_pool.py`
+- [ ] `dev/experiments/*.py`
+
+**Fix**: Replace all Ollama with vLLM API calls to localhost:8001
+
+### The Autonomous Loop
+
+```
+1. Supervisor (Copilot CLI) gives Ryx a natural language prompt
+   Example: "continue working on ryxsurf"
+
+2. Ryx automatically:
+   - Reads MISSION.md / TODO list
+   - Explores codebase
+   - Picks next task
+   - Executes it
+   - Verifies it works
+
+3. If Ryx fails:
+   - Ryx tries to self-heal (3 attempts)
+   - If still fails, Supervisor improves Ryx's code
+   - Then retry the task
+
+4. If Ryx succeeds:
+   - Continue to next task
+   - Update progress
+
+5. Repeat forever
+```
+
+### Technical Reminders
+
+- **vLLM**: localhost:8001 (NOT Ollama 11434)
+- **Model**: qwen2.5-coder-14b-awq for coding
+- **Context**: 16K or 32K (16K is fine for most tasks)
+- **GPU**: 90% max utilization (screen flickers above)
+- **No FP8 KV cache on RDNA3** (causes crashes)
+
+### What NOT to Do
+
+1. ❌ Don't use Ollama - use vLLM
+2. ❌ Don't do Ryx's work - prompt Ryx to do it
+3. ❌ Don't give explicit file paths - Ryx finds them
+4. ❌ Don't copy-paste code - understand WHY it works
+5. ❌ Don't make RyxSurf slow - efficiency is critical
+
+### Success Criteria
+
+- [ ] Ryx works with "resume work on ryxsurf" prompt
+- [ ] Ryx finds files automatically
+- [ ] Ryx self-heals from errors
+- [ ] RyxSurf sidebar is minimal (10-20% width)
+- [ ] RyxSurf URL bar is compact
+- [ ] All keyboard shortcuts work
+- [ ] RyxSurf loads pages fast
+- [ ] No Ollama references in code
+
+---
+
+**STATUS**: 🔴 NEEDS WORK - Ryx only 10% as good as Claude Code
+**NEXT SESSION**: Focus on Ryx autonomy + RyxSurf UI fixes
+
