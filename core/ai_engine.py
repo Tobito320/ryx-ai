@@ -265,6 +265,22 @@ class AIEngineV2:
             "error": False
         }
 
+    def generate(self, prompt: str, max_tokens: int = 2000, system_context: str = "") -> str:
+        """
+        Simple generate method for backward compatibility.
+        
+        Args:
+            prompt: The prompt to generate from
+            max_tokens: Max tokens (used for options)
+            system_context: Optional system context
+            
+        Returns:
+            Generated text as string
+        """
+        options = QueryOptions(max_latency_ms=30000)  # Allow longer for code generation
+        result = self.query(prompt, system_context=system_context, options=options)
+        return result.get("response", "")
+
     def _query_with_latency_target(self,
                                     prompt: str,
                                     system_context: str,

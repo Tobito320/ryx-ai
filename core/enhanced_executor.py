@@ -168,18 +168,23 @@ Ready to start working. I'll begin with the first task.
         
         task_content = task.content.lower()
         
-        # Determine what type of task this is
-        if "test" in task_content:
-            return self._handle_test_task(task, insight)
-        elif any(kw in task_content for kw in ["implement", "add", "create", "build"]):
+        # Check for file:line format first (specific TODO items)
+        if re.search(r'In\s+\S+\.py:\d+\s*-', task.content):
             return self._handle_implement_task(task, insight)
+        
+        # Determine what type of task this is
+        if any(kw in task_content for kw in ["implement", "add", "create", "build", "stub"]):
+            return self._handle_implement_task(task, insight)
+        elif "test" in task_content and "test_" not in task_content:
+            # Avoid triggering on filenames like test_ryxsurf.py
+            return self._handle_test_task(task, insight)
         elif any(kw in task_content for kw in ["fix", "bug", "error"]):
             return self._handle_fix_task(task, insight)
         elif any(kw in task_content for kw in ["review", "improve", "refactor"]):
             return self._handle_review_task(task, insight)
         else:
-            # Generic task - try to understand from context
-            return self._handle_generic_task(task, insight)
+            # Default to implement for TODO items
+            return self._handle_implement_task(task, insight)
     
     def _handle_test_task(self, task, insight) -> str:
         """Handle test-related tasks"""
@@ -232,45 +237,50 @@ class Test{insight.name.title().replace("_", "")}:
         """Handle implementation tasks using the LLM"""
         self.todo.start_task(task.id)
         
-        # Parse what needs to be implemented from task content
         content = task.content
         
-        # Look for TODOs in the codebase that match
-        matching_todos = [t for t in insight.todos_in_code 
-                         if any(word in t['content'].lower() 
-                               for word in content.lower().split())]
+        # Check if task has file:line format (from improved suggestions)
+        # Format: "In filename.py:123 - action"
+        import re
+        file_line_match = re.search(r'In\s+(\S+\.py):(\d+)\s*-\s*(.+)', content)
         
-        if matching_todos:
-            # Pick the first matching TODO
-            todo_item = matching_todos[0]
+        if file_line_match:
+            file_name = file_line_match.group(1)
+            line_num = int(file_line_match.group(2))
+            action = file_line_match.group(3).strip()
             
-            # Read the file content around the TODO
-            file_path = Path(todo_item['file'])
-            if file_path.exists():
+            # Find the actual file path
+            file_path = None
+            for root, dirs, files in os.walk(insight.root_path):
+                if file_name in files:
+                    file_path = Path(root) / file_name
+                    break
+            
+            if file_path and file_path.exists():
                 try:
                     file_content = file_path.read_text()
                     lines = file_content.split('\n')
-                    todo_line = todo_item['line'] - 1  # 0-indexed
                     
-                    # Get context around TODO (10 lines before/after)
-                    start = max(0, todo_line - 10)
-                    end = min(len(lines), todo_line + 10)
-                    context = '\n'.join(lines[start:end])
+                    # Get context around the line
+                    start = max(0, line_num - 15)
+                    end = min(len(lines), line_num + 15)
+                    context = '\n'.join(f"{i+1}. {line}" for i, line in enumerate(lines[start:end], start=start))
                     
                     # Build prompt for LLM
-                    implement_prompt = f"""Implement this TODO in {todo_item['file']}:
+                    implement_prompt = f"""Task: {action}
 
-TODO at line {todo_item['line']}: {todo_item['content']}
+File: {file_path}
+Line: {line_num}
 
-Context around the TODO:
-```
+Context (lines {start+1}-{end}):
+```python
 {context}
 ```
 
-Provide the implementation that replaces or expands this TODO.
-Only output the code changes needed, no explanations."""
+Implement the required changes. Output only the new/modified code.
+Be concise - just the code, no explanations."""
 
-                    # Call LLM for implementation
+                    # Call LLM
                     try:
                         from core.ai_engine import AIEngine
                         ai = AIEngine()
@@ -278,23 +288,63 @@ Only output the code changes needed, no explanations."""
                         
                         if implementation and len(implementation) > 20:
                             self.todo.complete_task(task.id)
-                            return f"✅ Generated implementation for TODO in {todo_item['file']}:\n{implementation[:500]}..."
+                            return f"✅ Implemented '{action}' in {file_name}:\n```python\n{implementation[:600]}\n```"
                     except Exception as e:
                         logger.warning(f"LLM call failed: {e}")
                         
                 except Exception as e:
-                    logger.warning(f"Failed to read file for implementation: {e}")
+                    logger.warning(f"Failed to read file: {e}")
+        
+        # Fallback: Look for TODOs in the codebase that match
+        matching_todos = [t for t in insight.todos_in_code 
+                         if any(word in t['content'].lower() 
+                               for word in content.lower().split() if len(word) > 3)]
+        
+        if matching_todos:
+            todo_item = matching_todos[0]
+            file_path = Path(todo_item['file'])
             
-            # Fallback: block for manual intervention
-            result = f"📋 Found matching TODO in {todo_item['file']}:{todo_item['line']}\n"
-            result += f"   Content: {todo_item['content']}\n"
-            result += f"   → Next: Implement this functionality"
+            if file_path.exists():
+                try:
+                    file_content = file_path.read_text()
+                    lines = file_content.split('\n')
+                    todo_line = todo_item['line'] - 1
+                    
+                    start = max(0, todo_line - 10)
+                    end = min(len(lines), todo_line + 10)
+                    context = '\n'.join(lines[start:end])
+                    
+                    implement_prompt = f"""Implement this TODO in {todo_item['file']}:
+
+TODO at line {todo_item['line']}: {todo_item['content']}
+
+Context:
+```
+{context}
+```
+
+Provide only the implementation code."""
+
+                    try:
+                        from core.ai_engine import AIEngine
+                        ai = AIEngine()
+                        implementation = ai.generate(implement_prompt, max_tokens=2000)
+                        
+                        if implementation and len(implementation) > 20:
+                            self.todo.complete_task(task.id)
+                            return f"✅ Implemented TODO in {todo_item['file']}:\n{implementation[:500]}..."
+                    except Exception as e:
+                        logger.warning(f"LLM call failed: {e}")
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to read file: {e}")
             
+            result = f"📋 TODO in {todo_item['file']}:{todo_item['line']}: {todo_item['content']}\n"
             self.todo.block_task(task.id, "Needs LLM implementation")
             return result
         
-        self.todo.block_task(task.id, "Could not determine implementation target")
-        return f"⚠️ Could not find specific implementation target for: {content}"
+        self.todo.block_task(task.id, "Could not determine target")
+        return f"⚠️ Could not find implementation target for: {content}"
     
     def _handle_fix_task(self, task, insight) -> str:
         """Handle bug fix tasks"""

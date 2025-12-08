@@ -261,26 +261,39 @@ class CodebaseExplorer:
         """Suggest what to work on next based on exploration"""
         suggestions = []
         
-        # Priority 1: Incomplete features from recent work
-        for item in insight.incomplete_features[:3]:
-            if item.startswith("Recent:"):
-                suggestions.append(f"Continue: {item[8:]}")
-            elif item.startswith("Stub"):
-                suggestions.append(f"Implement: {item}")
-        
-        # Priority 2: High-impact TODOs
-        for todo in insight.todos_in_code[:3]:
+        # Priority 1: Specific TODOs with file+line info (actionable)
+        for todo in insight.todos_in_code[:5]:
             content = todo["content"]
-            if "important" in content.lower() or "critical" in content.lower():
-                suggestions.append(f"Fix: {content[:50]}")
+            file_name = Path(todo["file"]).name
+            line = todo.get("line", 0)
+            
+            # Skip meta-TODOs
+            if "## Current TODOs" in content or len(content) < 10:
+                continue
+                
+            # Make actionable suggestion
+            action = content.replace("TODO:", "").replace("TODO", "").strip()
+            if action:
+                suggestions.append(f"In {file_name}:{line} - {action[:60]}")
+        
+        # Priority 2: Stubs that need implementation
+        for item in insight.incomplete_features:
+            if item.startswith("Stub"):
+                file_name = item.replace("Stub in: ", "")
+                suggestions.append(f"Implement stub methods in {file_name}")
         
         # Priority 3: Add tests if missing
-        if not insight.test_status:
-            suggestions.append("Add tests for the project")
+        if not insight.test_status or "0 test" in str(insight.test_status):
+            suggestions.append("Create unit tests for core functionality")
         
-        # Default: Look at main files for improvements
+        # Priority 4: Review recent changes for issues
+        if insight.recent_changes:
+            suggestions.append(f"Review recent changes for potential issues")
+        
+        # Default: Improve main files
         if not suggestions and insight.main_files:
-            suggestions.append(f"Review and improve: {insight.main_files[0]}")
+            main_file = Path(insight.main_files[0]).name
+            suggestions.append(f"Review and improve {main_file}")
         
         return suggestions[:5]
 

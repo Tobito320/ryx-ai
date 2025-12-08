@@ -86,7 +86,9 @@ class ModelOrchestrator:
 
         # Configuration
         self.idle_timeout = timedelta(minutes=5)
-        self.base_model_name = "/models/medium/general/qwen2.5-7b-gptq"  # Default vLLM model
+        
+        # Detect currently loaded model from vLLM
+        self.base_model_name = self._detect_loaded_model() or "/models/powerful/coding/qwen2.5-coder-14b-awq"
 
         # Database for performance tracking
         self.db_path = get_project_root() / "data" / "model_performance.db"
@@ -206,6 +208,18 @@ class ModelOrchestrator:
         if self.base_model_name not in self.loaded_models:
             if self._is_model_available(self.base_model_name):
                 self.loaded_models[self.base_model_name] = datetime.now()
+
+    def _detect_loaded_model(self) -> Optional[str]:
+        """Detect which model is currently loaded in vLLM"""
+        try:
+            response = requests.get(f"{self.vllm_url}/v1/models", timeout=2)
+            if response.status_code == 200:
+                data = response.json().get("data", [])
+                if data:
+                    return data[0].get("id")
+            return None
+        except:
+            return None
 
     def _is_model_available(self, model_name: str) -> bool:
         """Check if model is available in Ollama"""
@@ -501,62 +515,58 @@ class ModelOrchestrator:
                      prompt: str,
                      system_context: str = "",
                      preferences: Optional[Dict] = None) -> Dict[str, Any]:
-        """Query a specific model with retry logic for handling Ollama conflicts"""
-
-        # Ensure model is loaded
-        if not self._load_model(model_name):
-            return {
-                "response": f"Model {model_name} not available",
-                "error": True
-            }
+        """Query a specific model via vLLM OpenAI-compatible API"""
 
         # Build system prompt with model identification
         system_prompt = self._build_system_prompt(system_context, preferences, model_name)
 
-        # Retry logic with exponential backoff for Ollama conflicts
+        # Use the actually loaded model from vLLM
+        actual_model = self._detect_loaded_model() or model_name
+
+        # Retry logic with exponential backoff
         max_retries = 3
         base_delay = 1.0  # seconds
 
         for attempt in range(max_retries):
             try:
+                # OpenAI-compatible chat completions format
                 response = requests.post(
                     f"{self.vllm_url}/v1/chat/completions",
                     json={
-                        "model": model_name,
-                        "prompt": f"{system_prompt}\n\nUser: {prompt}",
-                        "stream": False,
-                        "options": {
-                            "temperature": 0.3,
-                            "num_predict": 2048
-                        }
+                        "model": actual_model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.3,
+                        "max_tokens": 2048,
+                        "stream": False
                     },
                     timeout=60
                 )
 
                 if response.status_code == 200:
                     data = response.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                     return {
-                        "response": data.get("response", ""),
+                        "response": content,
                         "error": False
                     }
                 elif response.status_code == 503 or response.status_code == 429:
-                    # Service unavailable or too many requests - Ollama is busy
+                    # Service unavailable or too many requests
                     if attempt < max_retries - 1:
                         delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        logger.info(f"Ollama busy, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                        logger.info(f"vLLM busy, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
                         time.sleep(delay)
                         continue
                     else:
                         return {
-                            "response": (
-                                "⏱️  Ollama is busy with another request\n\n"
-                                "Please try again in a moment or wait for other processes to complete."
-                            ),
+                            "response": "⏱️ vLLM is busy. Please try again in a moment.",
                             "error": True
                         }
                 else:
                     return {
-                        "response": f"Error: Status {response.status_code}",
+                        "response": f"Error: Status {response.status_code} - {response.text[:100]}",
                         "error": True
                     }
 

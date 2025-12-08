@@ -1,13 +1,49 @@
 {
   "tasks": [
     {
-      "id": "task_1_214757",
-      "content": "Add tests for the project",
+      "id": "task_1_221339",
+      "content": "In test_ryxsurf.py:16 - #  Add actual import test",
       "status": "completed",
       "priority": 10,
       "context": null,
-      "created_at": "2025-12-08T21:47:57.793073",
-      "completed_at": "2025-12-08T21:47:57.800114"
+      "created_at": "2025-12-08T22:13:39.006674",
+      "completed_at": "2025-12-08T22:13:41.035190"
+    },
+    {
+      "id": "task_2_221339",
+      "content": "In test_ryxsurf.py:21 - #  Implement real tests based on functionality",
+      "status": "pending",
+      "priority": 9,
+      "context": null,
+      "created_at": "2025-12-08T22:13:39.006767",
+      "completed_at": null
+    },
+    {
+      "id": "task_3_221339",
+      "content": "In __init__.py:268 - #  Smarter conflict resolution",
+      "status": "pending",
+      "priority": 8,
+      "context": null,
+      "created_at": "2025-12-08T22:13:39.006853",
+      "completed_at": null
+    },
+    {
+      "id": "task_4_221339",
+      "content": "In browser.py.bak:1790 - #  Implement AI command bar",
+      "status": "pending",
+      "priority": 7,
+      "context": null,
+      "created_at": "2025-12-08T22:13:39.006936",
+      "completed_at": null
+    },
+    {
+      "id": "task_5_221339",
+      "content": "Implement stub methods in browser.py",
+      "status": "pending",
+      "priority": 6,
+      "context": null,
+      "created_at": "2025-12-08T22:13:39.007019",
+      "completed_at": null
     }
   ]
 }
