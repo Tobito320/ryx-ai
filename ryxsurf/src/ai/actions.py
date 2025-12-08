@@ -421,3 +421,50 @@ def print_page() -> str:
             }});
         }})()
         """
+
+    @staticmethod
+    def toggle_dark_mode() -> str:
+        """Toggle dark mode by inverting colors"""
+        return """
+        (function() {
+            const body = document.body;
+            if (body.style.filter === 'invert(1)') {
+                body.style.filter = '';
+            } else {
+                body.style.filter = 'invert(1)';
+            }
+            return JSON.stringify({result: 'success'});
+        })()
+        """
+    
+    @staticmethod
+    def element_exists(selector: str) -> str:
+        """Check if element exists"""
+        return f"JSON.stringify({{result: document.querySelector('{selector}') ? 'success' : 'not_found'}})"
+    
+    @staticmethod
+    def get_headings() -> str:
+        """Get all headings"""
+        return """
+        (function() {
+            const headings = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].map(h => ({
+                level: h.tagName,
+                text: h.innerText.substring(0, 200)
+            }));
+            return JSON.stringify({result: 'success', data: headings});
+        })()
+        """
+    
+    @staticmethod
+    def is_element_visible(selector: str) -> str:
+        """Check if element is visible"""
+        return f"""
+        (function() {{
+            const el = document.querySelector('{selector}');
+            if (!el) return JSON.stringify({{result: 'not_found'}});
+            const rect = el.getBoundingClientRect();
+            const visible = rect.width > 0 && rect.height > 0 && 
+                           rect.top < window.innerHeight && rect.bottom > 0;
+            return JSON.stringify({{result: visible ? 'success' : 'not_found', visible: visible}});
+        }})()
+        """
