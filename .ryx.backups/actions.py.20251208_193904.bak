@@ -125,24 +125,6 @@ class BrowserActions:
         return "window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
 
     @staticmethod
-    def copy_selection() -> str:
-        """Copy selected text to clipboard"""
-        return """
-        (function() {
-            const selection = window.getSelection().toString();
-            if (selection) {
-                navigator.clipboard.writeText(selection).then(() => {
-                    return JSON.stringify({result: 'success', message: 'Copied to clipboard'});
-                }).catch(err => {
-                    return JSON.stringify({result: 'error', message: 'Failed to copy: ' + err});
-                });
-            } else {
-                return JSON.stringify({result: 'not_found', message: 'No text selected'});
-            }
-        })()
-        """
-
-    @staticmethod
     def go_back() -> str:
         """Go back in history"""
         return "window.history.back(); JSON.stringify({result: 'success'})"
