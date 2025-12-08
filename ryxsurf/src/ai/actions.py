@@ -23,6 +23,8 @@ class ActionResult(Enum):
     GO_FORWARD = "go_forward"
     ZOOM_IN = "zoom_in"
     COPY_TEXT = 'copy_text'
+    REFRESH = 'refresh'
+    SCREENSHOT = 'screenshot'
 
 
 @dataclass
