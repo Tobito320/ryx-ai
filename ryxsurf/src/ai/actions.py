@@ -120,6 +120,16 @@ class BrowserActions:
     def scroll_bottom() -> str:
         """Scroll to the bottom of the page"""
         return "window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
+
+    @staticmethod
+    def go_back() -> str:
+        """Go back in history"""
+        return "window.history.back(); JSON.stringify({result: 'success'})"
+
+    @staticmethod
+    def go_forward() -> str:
+        """Go forward in history"""
+        return "window.history.forward(); JSON.stringify({result: 'success'})"
             
     @staticmethod
     def get_scroll_position() -> str:
