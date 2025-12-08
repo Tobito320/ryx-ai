@@ -1,8 +1,14 @@
 """
 Ryx AI - LLM Backend
 
-vLLM-only backend for Ryx AI.
-Provides sync interface over async vLLM client.
+Ollama-first backend for Ryx AI.
+Supports both Ollama (default) and vLLM.
+
+Ollama Benefits:
+- Multiple models simultaneously
+- Auto memory management
+- No Docker required
+- Better AMD ROCm support
 """
 
 import os
@@ -14,6 +20,9 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
+
+# Backend preference (ollama > vllm)
+PREFER_OLLAMA = os.environ.get("RYX_BACKEND", "ollama").lower() == "ollama"
 
 
 @dataclass
@@ -51,33 +60,32 @@ class LLMBackend(ABC):
         pass
 
 
-class VLLMBackend(LLMBackend):
+class OllamaBackend(LLMBackend):
     """
-    vLLM backend - wraps VLLMClient with sync interface for brain.
+    Ollama backend - native multi-model support.
     
-    Uses asyncio.run() internally to provide sync interface.
+    Preferred backend for Ryx AI:
+    - Loads multiple models as needed
+    - Better memory management
+    - No Docker required
     """
     
-    def __init__(self, base_url: str = "http://localhost:8001"):
-        from core.vllm_client import VLLMClient, VLLMConfig
-        
-        self.base_url = base_url
-        self.config = VLLMConfig(base_url=base_url)
+    def __init__(self, base_url: str = "http://localhost:11434"):
+        self.base_url = os.environ.get("OLLAMA_HOST", base_url)
         self._client = None
         self._lock = threading.Lock()
     
     def _get_client(self):
-        """Get or create the vLLM client - thread safe"""
+        """Get or create Ollama client - thread safe"""
         if self._client is None:
             with self._lock:
                 if self._client is None:
-                    from core.vllm_client import VLLMClient
-                    self._client = VLLMClient(self.config)
+                    from core.ollama_client import OllamaClient
+                    self._client = OllamaClient()
         return self._client
     
     def _run_async(self, coro):
-        """Run async code synchronously - thread safe"""
-        # Always create new event loop for thread safety
+        """Run async code synchronously"""
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)
@@ -91,25 +99,20 @@ class VLLMBackend(LLMBackend):
         system: str = "",
         model: str = None,
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_tokens: int = 4096,
         **kwargs
     ) -> LLMResponse:
         """Generate a response synchronously"""
         
         async def _gen():
-            # Create new client for this call (thread-safe)
-            from core.vllm_client import VLLMClient
-            client = VLLMClient(self.config)
+            from core.ollama_client import OllamaClient
+            client = OllamaClient()
             
             try:
-                messages = []
-                if system:
-                    messages.append({"role": "system", "content": system})
-                messages.append({"role": "user", "content": prompt})
-                
-                resp = await client.chat(
-                    messages=messages,
+                resp = await client.generate(
+                    prompt=prompt,
                     model=model,
+                    system=system,
                     temperature=temperature,
                     max_tokens=max_tokens
                 )
@@ -127,7 +130,7 @@ class VLLMBackend(LLMBackend):
                 latency_ms=resp.latency_ms
             )
         except Exception as e:
-            logger.error(f"vLLM generate error: {e}")
+            logger.error(f"Ollama generate error: {e}")
             return LLMResponse(error=str(e))
     
     def generate_stream(
@@ -136,26 +139,20 @@ class VLLMBackend(LLMBackend):
         system: str = "",
         model: str = None,
         temperature: float = 0.7,
-        max_tokens: int = 2048,
+        max_tokens: int = 4096,
         **kwargs
     ) -> Iterator[str]:
-        """Generate a response with TRUE token-by-token streaming"""
+        """Generate with streaming"""
         
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
-        
-        # Use true async streaming with a single event loop
         async def _stream_all():
-            from core.vllm_client import VLLMClient
-            client = VLLMClient(self.config)
+            from core.ollama_client import OllamaClient
+            client = OllamaClient()
             tokens = []
             try:
                 async for token in client.generate_stream(
                     prompt=prompt,
-                    system=system,
                     model=model,
+                    system=system,
                     temperature=temperature,
                     max_tokens=max_tokens
                 ):
@@ -165,7 +162,6 @@ class VLLMBackend(LLMBackend):
             return tokens
         
         try:
-            # Create a single event loop for the entire stream
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
@@ -175,20 +171,20 @@ class VLLMBackend(LLMBackend):
             finally:
                 loop.close()
         except Exception as e:
-            logger.error(f"vLLM stream error: {e}")
+            logger.error(f"Ollama stream error: {e}")
             yield f"Error: {e}"
     
-    async def generate_stream_async(self, prompt: str, system: str = "", model: str = None, 
-                                   temperature: float = 0.7, max_tokens: int = 2048, **kwargs):
-        """Generate a response with async streaming - native async version"""
-        from core.vllm_client import VLLMClient
+    async def generate_stream_async(self, prompt: str, system: str = "", model: str = None,
+                                   temperature: float = 0.7, max_tokens: int = 4096, **kwargs):
+        """Generate with async streaming"""
+        from core.ollama_client import OllamaClient
         
-        client = VLLMClient(self.config)
+        client = OllamaClient()
         try:
             async for token in client.generate_stream(
                 prompt=prompt,
-                system=system,
                 model=model,
+                system=system,
                 temperature=temperature,
                 max_tokens=max_tokens
             ):
@@ -197,39 +193,42 @@ class VLLMBackend(LLMBackend):
             await client.close()
     
     def health_check(self) -> Dict[str, Any]:
-        """Check vLLM health"""
+        """Check Ollama health"""
         import requests
         try:
-            resp = requests.get(f"{self.base_url}/health", timeout=5)
-            return {
-                "healthy": resp.status_code == 200,
-                "backend": "vllm",
-                "url": self.base_url
-            }
+            resp = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                models = [m["name"] for m in data.get("models", [])]
+                return {
+                    "healthy": True,
+                    "backend": "ollama",
+                    "models": models,
+                    "url": self.base_url
+                }
+            return {"healthy": False, "backend": "ollama", "status": f"HTTP {resp.status_code}"}
         except Exception as e:
             return {
                 "healthy": False,
-                "backend": "vllm",
+                "backend": "ollama",
                 "error": str(e)
             }
 
 
-def get_backend(prefer_vllm: bool = True) -> LLMBackend:
+def get_backend(prefer_ollama: bool = True) -> LLMBackend:
     """
-    Get the vLLM backend.
-    
+    Get Ollama backend (vLLM support removed).
+
     Returns:
-        An LLM backend instance (vLLM only)
+        Ollama backend instance
     """
-    vllm = VLLMBackend()
-    health = vllm.health_check()
+    ollama = OllamaBackend()
+    health = ollama.health_check()
     if health.get("healthy"):
-        logger.info("Using vLLM backend")
-        return vllm
-    
-    # vLLM not running - return anyway, will be started when needed
-    logger.warning("vLLM not running - start with: ryx")
-    return vllm
+        logger.info(f"Using Ollama backend with {len(health.get('models', []))} models")
+    else:
+        logger.warning("Ollama not running - start with: systemctl --user start ollama")
+    return ollama
 
 
 # Singleton

@@ -3,26 +3,6 @@
     {
       "role": "user",
       "content": "hi",
-      "ts": "2025-12-05T03:07:41.160116"
-    },
-    {
-      "role": "assistant",
-      "content": "Hi! Please provide your query or request so I can assist you.",
-      "ts": "2025-12-05T03:07:41.613219"
-    },
-    {
-      "role": "user",
-      "content": "hello",
-      "ts": "2025-12-05T03:07:55.648509"
-    },
-    {
-      "role": "assistant",
-      "content": "Hi! What can I assist you with today?",
-      "ts": "2025-12-05T03:07:56.031761"
-    },
-    {
-      "role": "user",
-      "content": "hi",
       "ts": "2025-12-05T03:14:47.081987"
     },
     {
@@ -249,11 +229,31 @@
       "role": "user",
       "content": "/model",
       "ts": "2025-12-08T19:14:35.950045"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "ts": "2025-12-08T22:42:36.486138"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today? Feel free to ask any questions or let me know if there's anything specific you'd like to discuss.",
+      "ts": "2025-12-08T22:42:38.460520"
+    },
+    {
+      "role": "user",
+      "content": "wie gehts",
+      "ts": "2025-12-08T22:42:40.583672"
+    },
+    {
+      "role": "assistant",
+      "content": "I cannot find the right location",
+      "ts": "2025-12-08T22:42:53.281893"
     }
   ],
   "stats": {
-    "prompts": 1,
-    "actions": 0,
+    "prompts": 2,
+    "actions": 2,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -263,9 +263,9 @@
   "browsing_enabled": true,
   "context": {
     "last_path": "",
-    "last_result": "Loaded Models (vLLM):\n  \u2713 qwen2.5-coder-14b-awq\n    Path: /models/powerful/coding/qwen2.5-coder-14b-awq\n\nAvailable on disk:\n  \u2022 qwen2.5-3b (small/general)",
-    "last_intent": "list_models",
+    "last_result": "__STREAMED__",
+    "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-08T19:14:43.435599"
+  "saved_at": "2025-12-08T22:42:56.530320"
 }

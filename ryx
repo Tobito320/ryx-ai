@@ -1,10 +1,13 @@
 #!/bin/bash
 # Ryx AI - Main executable
+# Primary backend: Ollama (localhost:11434)
+# Backup backend: vLLM (localhost:8001, optional)
+#
 # Usage: ryx [command] [args]
 #   ryx              - Start interactive CLI
 #   ryx ryxhub       - Start RyxHub web interface
 #   ryx status       - Show service status
-#   ryx stop         - Stop RyxHub services (keeps vLLM)
+#   ryx stop         - Stop RyxHub services (keeps vLLM/Ollama)
 #   ryx stop all     - Stop ALL services (keeps Docker images)
 #   ryx cleanup      - Light cleanup (free RAM, keeps images)
 #   ryx cleanup all  - Full cleanup (removes Docker images)

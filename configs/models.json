@@ -1,53 +1,93 @@
 {
-  "vllm_base_url": "http://localhost:8001",
+  "backend": "ollama",
+  "ollama_base_url": "http://localhost:11434",
   "searxng_url": "http://localhost:8888",
+  
+  "_comment": "Models currently installed: mistral-nemo:12b, dolphin-mistral:7b, qwen2.5:1.5b",
+  "_download_needed": "ollama pull qwen2.5-coder:14b",
+  
   "models": {
-    "supervisor": {
-      "name": "/models/medium/general/qwen2.5-7b-gptq",
-      "role": "supervisor",
-      "description": "7B Supervisor - assigns and synthesizes",
-      "vram_mb": 5000,
-      "max_tokens": 4096,
-      "timeout_seconds": 60
-    },
     "fast": {
-      "name": "/models/small/coding/qwen2.5-coder-1.5b",
+      "name": "qwen2.5:1.5b",
       "role": "fast",
-      "description": "1.5B Agent - quick tasks",
-      "vram_mb": 1500,
-      "max_tokens": 1024,
+      "description": "1.5B Ultra-Fast - Intent detection, RyxSurf AI",
+      "vram_mb": 1000,
+      "max_tokens": 2048,
+      "num_ctx": 8192,
       "timeout_seconds": 10
     },
-    "code": {
-      "name": "/models/medium/coding/qwen2.5-coder-7b-gptq",
-      "role": "code",
-      "description": "7B Coder - coding tasks",
-      "vram_mb": 5000,
-      "max_tokens": 8192,
-      "timeout_seconds": 90
+    "chat": {
+      "name": "mistral-nemo:12b",
+      "role": "chat",
+      "description": "12B Chat - 128K native context, good reasoning",
+      "vram_mb": 8000,
+      "max_tokens": 4096,
+      "num_ctx": 16384,
+      "timeout_seconds": 60
     },
-    "default": {
-      "name": "/models/medium/general/qwen2.5-7b-gptq",
-      "role": "default",
-      "description": "7B General - default responses",
+    "uncensored": {
+      "name": "dolphin-mistral:7b",
+      "role": "uncensored",
+      "description": "7B Uncensored - Fast, no restrictions",
       "vram_mb": 5000,
       "max_tokens": 4096,
+      "num_ctx": 16384,
+      "timeout_seconds": 45
+    },
+    "code": {
+      "name": "qwen2.5-coder:14b",
+      "role": "code",
+      "description": "14B Coder - Main coding model (needs download)",
+      "vram_mb": 10000,
+      "max_tokens": 8192,
+      "num_ctx": 16384,
+      "num_gpu": 99,
+      "num_thread": 12,
+      "timeout_seconds": 120
+    },
+    "default": {
+      "name": "mistral-nemo:12b",
+      "role": "default",
+      "description": "Default to Nemo for now (good balance)",
+      "vram_mb": 8000,
+      "max_tokens": 4096,
+      "num_ctx": 16384,
       "timeout_seconds": 60
     }
   },
+  
+  "ollama_options": {
+    "_comment": "GPU optimization for RX 7800 XT 16GB",
+    "num_gpu": 99,
+    "num_thread": 12,
+    "num_ctx": 16384,
+    "use_mmap": true,
+    "use_mlock": false
+  },
+  
   "task_routing": {
     "intent_detection": "fast",
-    "simple_chat": "default",
-    "search": "supervisor",
+    "simple_chat": "chat",
+    "uncensored_chat": "uncensored",
+    "search": "chat",
     "code_explore": "code",
     "code_plan": "code",
     "code_apply": "code",
-    "code_verify": "default"
+    "code_verify": "chat",
+    "ryxsurf_ai": "fast",
+    "ryxhub_chat": "chat"
   },
+  
   "phase_routing": {
     "explore": "code",
     "plan": "code",
     "apply": "code",
-    "verify": "default"
+    "verify": "chat"
+  },
+  
+  "module_defaults": {
+    "ryx_cli": "code",
+    "ryxhub": "chat",
+    "ryxsurf": "fast"
   }
 }

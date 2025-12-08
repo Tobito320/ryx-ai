@@ -59,19 +59,19 @@ MODELS: Dict[ModelRole, ModelConfig] = {
     ModelRole.FAST: ModelConfig(
         name="qwen2.5:1.5b",
         role=ModelRole.FAST,
-        vram_mb=1500,
-        max_tokens=1024,
+        vram_mb=1000,
+        max_tokens=2048,
         timeout_seconds=10,
         description="Blitzschnell für Intent-Erkennung und einfache Aufgaben"
     ),
     
     ModelRole.CHAT: ModelConfig(
-        name="gemma2:2b",
+        name="mistral-nemo:12b",
         role=ModelRole.CHAT,
-        vram_mb=2000,
-        max_tokens=2048,
-        timeout_seconds=15,
-        description="Schneller Chat, gutes Deutsch, einfache Fragen"
+        vram_mb=8000,
+        max_tokens=4096,
+        timeout_seconds=60,
+        description="Chat mit 128K context, gutes Reasoning"
     ),
     
     ModelRole.CODE: ModelConfig(
@@ -79,17 +79,17 @@ MODELS: Dict[ModelRole, ModelConfig] = {
         role=ModelRole.CODE,
         vram_mb=10000,
         max_tokens=8192,
-        timeout_seconds=90,
+        timeout_seconds=120,
         description="Code schreiben, PLAN/APPLY Phasen, 88% HumanEval"
     ),
     
     ModelRole.REASON: ModelConfig(
-        name="deepseek-r1:14b",
+        name="mistral-nemo:12b",
         role=ModelRole.REASON,
-        vram_mb=10000,
+        vram_mb=8000,
         max_tokens=8192,
         timeout_seconds=120,
-        description="Chain-of-Thought Reasoning, VERIFY Phase, komplexe Logik"
+        description="Reasoning via Nemo (fallback until deepseek installed)"
     ),
     
     ModelRole.EMBED: ModelConfig(
@@ -102,18 +102,18 @@ MODELS: Dict[ModelRole, ModelConfig] = {
     ),
     
     ModelRole.FALLBACK: ModelConfig(
-        name="gpt-oss:20b",
+        name="mistral-nemo:12b",
         role=ModelRole.FALLBACK,
-        vram_mb=13000,
+        vram_mb=8000,
         max_tokens=8192,
         timeout_seconds=120,
-        description="Backup wenn andere Modelle versagen"
+        description="Fallback zu Nemo"
     ),
     
     ModelRole.UNCENSORED: ModelConfig(
-        name="llama2-uncensored:7b",
+        name="dolphin-mistral:7b",
         role=ModelRole.UNCENSORED,
-        vram_mb=4500,
+        vram_mb=5000,
         max_tokens=4096,
         timeout_seconds=60,
         description="Keine Einschränkungen, unzensiert"
@@ -202,11 +202,11 @@ FALLBACK_CHAIN: Dict[ModelRole, List[ModelRole]] = {
 class ModelRouter:
     """
     Routes tasks to the appropriate model.
-    Now uses vLLM (single model at a time).
+    Uses Ollama backend (multi-model support).
     """
     
-    def __init__(self, vllm_base_url: str = "http://localhost:8001"):
-        self.vllm_base_url = os.environ.get('VLLM_BASE_URL', vllm_base_url)
+    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+        self.ollama_base_url = os.environ.get('OLLAMA_HOST', ollama_base_url)
         self._available_models: Optional[List[str]] = None
     
     # ─────────────────────────────────────────────────────────────
@@ -282,21 +282,21 @@ class ModelRouter:
     
     @property
     def available_models(self) -> List[str]:
-        """Get list of models from vLLM"""
+        """Get list of models from Ollama"""
         if self._available_models is None:
             self._available_models = self._fetch_available_models()
         return self._available_models
     
     def _fetch_available_models(self) -> List[str]:
-        """Fetch available models from vLLM"""
+        """Fetch available models from Ollama"""
         try:
             import requests
-            resp = requests.get(f"{self.vllm_base_url}/v1/models", timeout=5)
+            resp = requests.get(f"{self.ollama_base_url}/api/tags", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                return [m["id"] for m in data.get("data", [])]
+                return [m["name"] for m in data.get("models", [])]
         except Exception as e:
-            logger.warning(f"Failed to fetch models from vLLM: {e}")
+            logger.warning(f"Failed to fetch models from Ollama: {e}")
         return []
     
     def refresh_available(self) -> List[str]:
@@ -304,14 +304,15 @@ class ModelRouter:
         self._available_models = None
         return self.available_models
     
-    def get_vllm_url(self) -> str:
-        """Get vLLM base URL"""
-        return self.vllm_base_url
+    def get_ollama_url(self) -> str:
+        """Get Ollama base URL"""
+        return self.ollama_base_url
     
     def is_available(self, role: ModelRole) -> bool:
         """Check if the model for a role is available"""
         model = MODELS[role]
-        return model.name in self.available_models
+        # Ollama model names can have :tag, check both
+        return any(model.name in m for m in self.available_models)
     
     def get_fallback(self, role: ModelRole) -> Optional[ModelConfig]:
         """Get fallback model if primary isn't available"""
@@ -324,7 +325,7 @@ class ModelRouter:
         """Get best available model for a task (with fallback)"""
         primary = self.get_model(task)
         
-        if primary.name in self.available_models:
+        if any(primary.name in m for m in self.available_models):
             return primary
         
         # Try fallback
@@ -336,7 +337,7 @@ class ModelRouter:
         
         # Last resort: any available model
         for model in MODELS.values():
-            if model.name in self.available_models:
+            if any(model.name in m for m in self.available_models):
                 return model
         
         # Nothing available - return primary anyway (will fail gracefully)

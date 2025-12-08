@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Ryx AI** is a local, privacy-first AI terminal assistant for Arch Linux, designed to rival Claude Code CLI while being 100% self-hosted. It uses vLLM with AMD GPU (ROCm) for inference.
+**Ryx AI** is a local, privacy-first AI terminal assistant for Arch Linux, designed to rival Claude Code CLI while being 100% self-hosted. It uses Ollama (primary) with optional vLLM backup for AMD GPU (ROCm) inference.
 
 ### Core Philosophy
 - **Privacy first**: Everything runs locally, no data leaves the machine
@@ -13,7 +13,7 @@
 ## Architecture
 
 ```
-User → ryx CLI → Brain → vLLM (localhost:8001)
+User → ryx CLI → Brain → Ollama (localhost:11434)
                     ↓
               Supervisor (7B) → Agents → Tools
                     ↓
@@ -29,22 +29,23 @@ User → ryx CLI → Brain → vLLM (localhost:8001)
 - **ryxhub/**: React + Vite web interface
 
 ### Inference Backend
-- **vLLM** via Docker with ROCm 6.4.1
-- Models stored in `/home/tobi/vllm-models/`
-- API endpoint: `http://localhost:8001/v1/` (OpenAI-compatible)
-- GPU: AMD RX 7800 XT (16GB VRAM)
+- **Ollama** (PRIMARY) at localhost:11434
+- **vLLM** (BACKUP, optional) at localhost:8001
+- GPU: AMD RX 7800 XT (16GB VRAM, ROCm)
+- MAX 90% GPU utilization (screen flickers above)
 
-### Model Configuration
-| Mode | Model | Context | Use Case |
-|------|-------|---------|----------|
-| **coding** | qwen2.5-coder-14b-awq | 32K | RyxSurf development, complex code |
-| **general** | qwen2.5-14b-gptq | 16K | CLI chat, documents, letters |
-| **fast** | qwen2.5-7b-awq | 32K | Quick browser actions, summarization |
+### Model Configuration (Ollama)
+| Mode | Model | Use Case |
+|------|-------|----------|
+| **coding** | qwen2.5-coder:14b | RyxSurf development, complex code |
+| **general** | qwen2.5:7b | CLI chat, documents, letters |
+| **fast** | qwen2.5:1.5b | Quick browser actions, intent detection |
+| **reasoning** | deepseek-r1:14b | Verification, complex logic (optional)
 
-**32K context on 14B** achieved via:
-- FP8 KV cache (`--kv-cache-dtype fp8`)
-- 95% GPU utilization (`--gpu-memory-utilization 0.95`)
-- Chunked prefill (`--enable-chunked-prefill`)
+**Ollama advantages over vLLM**:
+- Multi-model loading (auto load/unload as needed)
+- Simpler setup (no Docker required)
+- Better AMD ROCm support out of the box
 
 ## Agent Architecture
 
@@ -330,12 +331,14 @@ cd ryxhub && npm run build
 
 ## Important Notes
 
-1. **vLLM over Ollama**: This project uses vLLM, not Ollama (despite README mentioning it)
-2. **ROCm specifics**: Always set `HSA_OVERRIDE_GFX_VERSION=11.0.0` for RDNA3
-3. **Port 8001**: vLLM API (not 11434 which is Ollama)
-4. **Port 8420**: RyxHub API
-5. **Port 8080**: RyxHub frontend
-6. **Port 8888**: SearXNG search
+1. **Ollama is PRIMARY**: Use Ollama at localhost:11434 (not vLLM)
+2. **vLLM is BACKUP**: Optional at localhost:8001
+3. **ROCm specifics**: Always set `HSA_OVERRIDE_GFX_VERSION=11.0.0` for RDNA3
+4. **Port 11434**: Ollama API (PRIMARY)
+5. **Port 8001**: vLLM API (BACKUP)
+6. **Port 8420**: RyxHub API
+7. **Port 8080**: RyxHub frontend
+8. **Port 8888**: SearXNG search
 
 ## Response Guidelines
 
@@ -355,6 +358,9 @@ When helping with this project:
 ### Current Status
 **Ryx is ~10% as good as Claude Code CLI** - Major improvements needed.
 
+### READ FIRST
+**`/home/tobi/ryx-ai/MEGA_PROMPT.md`** - Full instructions for this session!
+
 ### The Autonomous Loop (YOUR JOB)
 
 ```
@@ -371,20 +377,41 @@ When helping with this project:
 
 **KEY RULE**: Don't do Ryx's work. Prompt Ryx, and if it fails, fix Ryx.
 
+### Backend Migration: vLLM → Ollama (TODO)
+
+**Ollama is now PRIMARY** because:
+- Multi-model loading (no single-model limitation)
+- Auto memory management (loads/unloads as needed)
+- Simpler setup (no Docker)
+- Better AMD ROCm support
+
+**Migration Steps**:
+1. `ollama serve` - Start Ollama
+2. User pulls models manually (large downloads):
+   - `ollama pull qwen2.5-coder:14b`
+   - `ollama pull qwen2.5:7b`
+   - `ollama pull qwen2.5:1.5b`
+3. Update `core/llm_backend.py` - Ollama as default
+4. Update `configs/models.json` - Ollama model names
+5. Clean vLLM references from codebase
+
 ### RyxSurf Priority Fixes
 
 1. **Sidebar**: Make 10-20% width, toggle-able
-2. **URL bar**: Compact, remove useless buttons
+2. **URL bar**: Compact, remove useless buttons (home, star, reload)
 3. **Keybinds**: Ctrl+L (focus URL), Ctrl+W (close tab), Ctrl+T (new tab), Ctrl+↓/↑ (navigate tabs), Ctrl+1-9 (jump to tab)
-4. **Performance**: Make fast, resource efficient
+4. **Performance**: Make fast, resource efficient (YouTube hangs currently)
 5. **New tab**: Clean URL, auto-focus search
+6. **URL suggestions**: Type "youtube" → suggest youtube.com → Enter → go directly
 
 ### Ryx Autonomy Improvements Needed
 
-Study these repos at `/home/tobi/cloned_repositorys/`:
-- **aider**: RepoMap, fuzzy edit matching
-- **SWE-agent**: Autonomous coding
-- **healing-agent**: Self-healing patterns
+Study repos at `/home/tobi/cloned_repositorys/`:
+- **aider**: RepoMap, fuzzy edit matching, edit formats
+- **SWE-agent**: Autonomous software engineering
+- **healing-agent**: Self-healing decorator patterns
+- **gpt-pilot**: Task decomposition
+- **openhands-ai**: Multi-agent sandbox
 
 Ryx must:
 - Explore codebase automatically
@@ -395,19 +422,18 @@ Ryx must:
 
 ### Technical Stack
 
-- **Inference**: vLLM at localhost:8001 (NOT OLLAMA)
-- **Model**: qwen2.5-coder-14b-awq
+- **Inference**: Ollama at localhost:11434 (PRIMARY)
+- **Backup**: vLLM at localhost:8001 (optional)
+- **Models**: qwen2.5-coder:14b, qwen2.5:7b, qwen2.5:1.5b
 - **GPU**: AMD RX 7800 XT, 90% max utilization
-- **Context**: 16K-32K tokens
+- **Context**: Up to 32K with Ollama
 
-### Files to Clean (Ollama→vLLM)
+### Success Criteria
 
-Many files still reference Ollama. Clean these:
-- modes/session_mode.py, cli_mode.py
-- scripts/*.py
-- ryx_pkg/agents/*.py
-- README.md
-
-### Read MISSION.md
-
-Full details in `/home/tobi/ryx-ai/MISSION.md` - read it first!
+- [ ] Ollama running, vLLM references cleaned
+- [ ] RyxSurf sidebar minimal (10-20% width)
+- [ ] RyxSurf URL bar compact
+- [ ] All keyboard shortcuts work
+- [ ] Ryx finds files automatically
+- [ ] Ryx self-heals from errors
+- [ ] "resume work on ryxsurf" works end-to-end

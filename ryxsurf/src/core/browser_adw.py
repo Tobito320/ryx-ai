@@ -198,8 +198,9 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.set_content(self.toast_overlay)
         
         # === LEFT SIDEBAR ===
+        # Responsive sidebar: 15% of window width (min 180px, max 280px)
         self.sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.sidebar.set_size_request(240, -1)
+        self.sidebar.set_size_request(180, -1)  # Minimum width
         self.sidebar.add_css_class("sidebar")
         
         # Sidebar header
@@ -291,17 +292,8 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.fwd_btn.connect("clicked", lambda _: self._go_forward())
         toolbar.append(self.fwd_btn)
         
-        self.reload_btn = Gtk.Button(icon_name="view-refresh-symbolic")
-        self.reload_btn.add_css_class("flat")
-        self.reload_btn.set_tooltip_text("Reload (Ctrl+R)")
-        self.reload_btn.connect("clicked", lambda _: self._reload())
-        toolbar.append(self.reload_btn)
-        
-        self.home_btn = Gtk.Button(icon_name="go-home-symbolic")
-        self.home_btn.add_css_class("flat")
-        self.home_btn.set_tooltip_text("Home")
-        self.home_btn.connect("clicked", lambda _: self._go_home())
-        toolbar.append(self.home_btn)
+        # Removed reload and home buttons - use keyboard shortcuts:
+        # Ctrl+R for reload, just type URL for navigation
         
         # URL entry with suggestions
         url_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
@@ -320,13 +312,9 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.url_entry.connect("activate", self._on_url_activate)
         self.url_entry.connect("changed", self._on_url_changed)
         url_box.append(self.url_entry)
-        
-        self.bookmark_btn = Gtk.Button(icon_name="non-starred-symbolic")
-        self.bookmark_btn.add_css_class("flat")
-        self.bookmark_btn.set_tooltip_text("Bookmark (Ctrl+D)")
-        self.bookmark_btn.connect("clicked", lambda _: self._toggle_bookmark())
-        url_box.append(self.bookmark_btn)
-        
+
+        # Removed bookmark star button - use Ctrl+D instead
+
         toolbar.append(url_box)
         
         # Progress indicator (loading)
@@ -648,7 +636,7 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         """Create new tab"""
         webview = WebKit.WebView()
         
-        # Settings
+        # Settings - Performance optimized
         settings = webview.get_settings()
         settings.set_enable_javascript(True)
         settings.set_hardware_acceleration_policy(WebKit.HardwareAccelerationPolicy.ALWAYS)
@@ -657,6 +645,16 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         settings.set_enable_developer_extras(True)
         settings.set_enable_back_forward_navigation_gestures(True)
         settings.set_media_playback_requires_user_gesture(False)
+
+        # Additional performance & compatibility fixes
+        settings.set_enable_dns_prefetching(True)  # Faster page loads
+        settings.set_enable_page_cache(True)  # Faster back/forward
+        settings.set_enable_site_specific_quirks(True)  # Better compatibility
+        settings.set_enable_write_console_messages_to_stdout(True)  # Debugging
+        settings.set_javascript_can_access_clipboard(True)  # Copy/paste support
+        settings.set_enable_media_capabilities(True)  # YouTube, video support
+        settings.set_enable_encrypted_media(True)  # Netflix, DRM content
+        settings.set_allow_file_access_from_file_urls(True)  # Local file compatibility
         
         tab = Tab(webview=webview, url=url or "about:newtab")
         
@@ -1047,12 +1045,9 @@ class RyxSurfWindow(Adw.ApplicationWindow):
                 self.security_icon.remove_css_class("secure")
     
     def _update_bookmark_btn(self):
-        if self.tabs:
-            url = self.tabs[self.active_tab].url
-            if self.bookmarks.exists(url):
-                self.bookmark_btn.set_icon_name("starred-symbolic")
-            else:
-                self.bookmark_btn.set_icon_name("non-starred-symbolic")
+        # Bookmark button removed - use Ctrl+D instead
+        # No UI update needed
+        pass
     
     def _toggle_bookmark(self):
         if not self.tabs:

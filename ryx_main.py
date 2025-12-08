@@ -785,28 +785,25 @@ def handle_silent_prompt(prompt: str, safety_mode: str):
 def show_help():
     """Show help - Copilot CLI style"""
     print("""
-Ryx AI - Local AI Assistant
+Ryx AI - Local AI Assistant (Ollama Backend)
 
 USAGE:
     ryx                    Start interactive session
     ryx "prompt"           Execute prompt directly
 
 SERVICES:
-    ryx start all          Start all services (vllm + searxng)
-    ryx start vllm         Start vLLM (GPU inference) 
     ryx start searxng      Start SearXNG (search)
     ryx start ryxhub       Start web dashboard
+    ryx start ryxsurf      Start RyxSurf browser
     
     ryx stop all           Stop all services
-    ryx stop vllm          Stop vLLM
     ryx stop ryxhub        Stop web dashboard
-    
-    ryx restart all        Restart all services
-    ryx restart vllm       Restart vLLM
     
     ryx status             Show all service status
 
-    Note: Start commands show live progress with elapsed time.
+OLLAMA:
+    Backend runs on localhost:11434
+    Models are managed via: ollama list / ollama pull <model>
 
 BENCHMARKS:
     ryx benchmark list     List available benchmarks
@@ -836,11 +833,9 @@ SESSION COMMANDS:
 
 EXAMPLES:
     ryx                          Interactive session
-    ryx start all                Start all services with progress
-    ryx restart vllm             Restart GPU inference
     ryx "open hyprland config"   Open config file
     ryx "search recursion"       Web search
-    ryx "create login.py"        Generate code
+    ryx "fix sidebar in ryxsurf" Code task
 """)
 
 

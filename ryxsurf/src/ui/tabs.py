@@ -59,7 +59,7 @@ class TabSidebar(Gtk.Box):
         
     def _setup_ui(self):
         """Setup sidebar UI"""
-        self.set_size_request(250, -1)
+        self.set_size_request(180, -1)
         self.add_css_class("tab-sidebar")
         
         # Session header
