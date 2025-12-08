@@ -912,6 +912,33 @@ class Browser:
                 # Ctrl+0 - Reset zoom
                 self._zoom_reset()
                 return Gdk.EVENT_STOP
+            elif key_name in ('h', 'H'):
+                # Ctrl+H - History
+                self._show_history()
+                return Gdk.EVENT_STOP
+            elif key_name in ('j', 'J'):
+                # Ctrl+J - Downloads
+                self._show_downloads()
+                return Gdk.EVENT_STOP
+            elif key_name in ('p', 'P'):
+                # Ctrl+P - Print (disabled for now)
+                return Gdk.EVENT_STOP
+            elif key_name in ('s', 'S'):
+                # Ctrl+S - Save page
+                self._save_page()
+                return Gdk.EVENT_STOP
+            elif key_name in ('u', 'U'):
+                # Ctrl+U - View source
+                self._view_source()
+                return Gdk.EVENT_STOP
+            elif key_name == 'Left':
+                # Ctrl+Left - Back
+                self._history_back()
+                return Gdk.EVENT_STOP
+            elif key_name == 'Right':
+                # Ctrl+Right - Forward
+                self._history_forward()
+                return Gdk.EVENT_STOP
         
         # Ctrl+Shift shortcuts
         if ctrl_pressed and shift_pressed:
@@ -935,6 +962,42 @@ class Browser:
             elif key_name == 'ISO_Left_Tab' or key_name == 'Tab':
                 self._prev_tab()
                 return Gdk.EVENT_STOP
+            elif key_name in ('t', 'T'):
+                # Ctrl+Shift+T - Reopen closed tab
+                self._reopen_closed_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('n', 'N'):
+                # Ctrl+Shift+N - New private window (placeholder)
+                return Gdk.EVENT_STOP
+            elif key_name in ('Delete', 'BackSpace'):
+                # Ctrl+Shift+Delete - Clear history
+                return Gdk.EVENT_STOP
+        
+        # Alt shortcuts
+        alt_pressed = bool(state & Gdk.ModifierType.ALT_MASK)
+        if alt_pressed and not ctrl_pressed:
+            if key_name == 'Left':
+                # Alt+Left - Back
+                self._history_back()
+                return Gdk.EVENT_STOP
+            elif key_name == 'Right':
+                # Alt+Right - Forward
+                self._history_forward()
+                return Gdk.EVENT_STOP
+            elif key_name == 'Home':
+                # Alt+Home - Go home
+                self._go_home()
+                return Gdk.EVENT_STOP
+        
+        # F-keys
+        if key_name == 'F5':
+            self._reload()
+            return Gdk.EVENT_STOP
+        elif key_name == 'F6':
+            # F6 - Focus URL bar
+            self._show_url_bar(pin=True)
+            self._focus_url_bar()
+            return Gdk.EVENT_STOP
         
         # F11 - True fullscreen (hide all UI)
         if key_name == 'F11':
@@ -955,6 +1018,13 @@ class Browser:
             if self.url_entry and not self.url_entry.has_focus():
                 if not self._is_focused_on_input():
                     self._hint_mode()
+                    return Gdk.EVENT_STOP
+        
+        # Backspace - Go back (when not in input)
+        if key_name == 'BackSpace' and not ctrl_pressed and not shift_pressed:
+            if self.url_entry and not self.url_entry.has_focus():
+                if not self._is_focused_on_input():
+                    self._history_back()
                     return Gdk.EVENT_STOP
             
         return Gdk.EVENT_PROPAGATE
@@ -982,6 +1052,32 @@ class Browser:
             self.url_bar_box.set_visible(True)
             self.url_bar_indicator.set_visible(True)
             self.window.unfullscreen()
+    
+    def _show_history(self):
+        """Show browsing history in a popup"""
+        # For now, open history in new tab
+        self._new_tab("about:history")
+    
+    def _show_downloads(self):
+        """Show downloads manager"""
+        if hasattr(self, 'download_manager'):
+            self.download_manager.show()
+    
+    def _save_page(self):
+        """Save current page"""
+        if not self.tabs:
+            return
+        tab = self.tabs[self.active_tab_idx]
+        # TODO: Implement proper save dialog
+        pass
+    
+    def _view_source(self):
+        """View page source"""
+        if not self.tabs:
+            return
+        tab = self.tabs[self.active_tab_idx]
+        if tab.url:
+            self._new_tab(f"view-source:{tab.url}")
         
     def _setup_url_bar_auto_hide(self):
         """Setup auto-hide behavior for URL bar"""
@@ -1229,7 +1325,7 @@ kbd {
         return False
         
     def _close_tab(self, idx: Optional[int] = None):
-        """Close a tab"""
+        """Close a tab - save to closed_tabs for Ctrl+Shift+T restore"""
         if idx is None:
             idx = self.active_tab_idx
             
@@ -1238,8 +1334,19 @@ kbd {
             self.tabs[0].webview.load_uri("about:blank")
             return
         
-        # Sync tab close event
+        # Save closed tab info for restore
         closed_tab = self.tabs[idx]
+        if not hasattr(self, '_closed_tabs'):
+            self._closed_tabs = []
+        self._closed_tabs.append({
+            'url': closed_tab.url,
+            'title': closed_tab.title,
+            'scroll_position': closed_tab.scroll_position
+        })
+        # Keep only last 10 closed tabs
+        self._closed_tabs = self._closed_tabs[-10:]
+        
+        # Sync tab close event
         if hasattr(self, 'hub_client') and self.hub_client:
             self.hub_client.sync_tab_closed(closed_tab.id)
             
@@ -1248,6 +1355,20 @@ kbd {
             self.active_tab_idx = len(self.tabs) - 1
         self._switch_to_tab(self.active_tab_idx)
         self._update_tab_sidebar()
+    
+    def _reopen_closed_tab(self):
+        """Reopen the last closed tab (Ctrl+Shift+T)"""
+        if not hasattr(self, '_closed_tabs') or not self._closed_tabs:
+            return
+        
+        tab_info = self._closed_tabs.pop()
+        self._new_tab(tab_info['url'])
+    
+    def _go_home(self):
+        """Navigate to homepage"""
+        if self.tabs:
+            homepage = self.settings.get("homepage", "https://www.google.com")
+            self.tabs[self.active_tab_idx].webview.load_uri(homepage)
         
     def _switch_to_tab(self, idx: int):
         """Switch to a specific tab, reload if unloaded"""
