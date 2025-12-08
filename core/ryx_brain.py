@@ -2478,84 +2478,67 @@ def get_brain(llm_client=None, prefer_vllm: bool = True) -> RyxBrain:
     Get or create the global RyxBrain instance.
     
     Args:
-        llm_client: Optional LLMBackend/VLLMBackend client
-        prefer_vllm: Always True - we only use vLLM now
+        llm_client: Optional LLMBackend/OllamaBackend client
+        prefer_vllm: Deprecated, uses Ollama now
     """
     global _brain
     if _brain is None:
         # If a backend was provided, wrap it
         if llm_client is not None:
-            from core.llm_backend import VLLMBackend, LLMBackend
-            if isinstance(llm_client, (VLLMBackend, LLMBackend)):
-                _brain = RyxBrain(_VLLMWrapper(llm_client))
+            from core.llm_backend import OllamaBackend, LLMBackend
+            if isinstance(llm_client, (OllamaBackend, LLMBackend)):
+                _brain = RyxBrain(_OllamaWrapper(llm_client))
                 return _brain
             else:
                 _brain = RyxBrain(llm_client)
                 return _brain
         
-        # Try vLLM (only backend now)
+        # Try Ollama (primary backend)
         try:
-            from core.llm_backend import VLLMBackend
-            backend = VLLMBackend()
+            from core.llm_backend import OllamaBackend
+            backend = OllamaBackend()
             health = backend.health_check()
             if health.get("healthy"):
-                _brain = RyxBrain(_VLLMWrapper(backend))
+                _brain = RyxBrain(_OllamaWrapper(backend))
                 return _brain
         except Exception as e:
-            logger.warning(f"vLLM not available: {e}")
+            logger.warning(f"Ollama not available: {e}")
         
-        raise RuntimeError("vLLM not running. Start with: ryx start vllm")
+        raise RuntimeError("Ollama not running. Start with: ollama serve")
     return _brain
 
 
-class _VLLMResponse:
-    """Response object for vLLM responses"""
+class _OllamaResponse:
+    """Response object for Ollama responses"""
     def __init__(self, response: str = "", error: str = None):
         self.response = response
         self.error = error
 
 
-class _VLLMWrapper:
+class _OllamaWrapper:
     """
-    Wrapper to make VLLMBackend compatible with RyxBrain interface.
+    Wrapper to make OllamaBackend compatible with RyxBrain interface.
     
-    IMPORTANT: vLLM serves ONE model at a time. We ALWAYS use that model.
+    Ollama supports multiple models simultaneously - routes based on task.
     """
     
     def __init__(self, backend):
         self.backend = backend
         self.base_url = backend.base_url
-        self.current_model = None
-        # Detect actual model from vLLM using detector
-        self._detect_model()
+        self.current_model = "mistral-nemo:12b"  # Default
     
-    def _detect_model(self):
-        """Detect which model vLLM is actually serving"""
-        from core.model_detector import get_detector
-        
-        detector = get_detector(self.base_url)
-        model_info = detector.detect()
-        
-        if model_info:
-            self.current_model = model_info.path
-            logger.info(f"Detected vLLM model: {model_info.name}")
-        else:
-            self.current_model = "unknown"
-            logger.warning("Could not detect model from vLLM")
+    def generate(self, prompt: str, system: str = "", model: str = None, **kwargs) -> '_OllamaResponse':
+        """Generate response - uses specified model or default"""
+        use_model = model or self.current_model
+        resp = self.backend.generate(prompt, system=system, model=use_model, **kwargs)
+        return _OllamaResponse(response=resp.response, error=resp.error)
     
-    def generate(self, prompt: str, system: str = "", model: str = None, **kwargs) -> '_VLLMResponse':
-        """Generate response - ALWAYS uses vLLM's served model"""
-        # Ignore passed model - vLLM only serves one model
-        resp = self.backend.generate(prompt, system=system, model=self.current_model, **kwargs)
-        return _VLLMResponse(response=resp.response, error=resp.error)
+    def generate_stream(self, prompt: str, system: str = "", model: str = None, **kwargs):
+        """Stream response"""
+        use_model = model or self.current_model
+        return self.backend.generate_stream(prompt, system=system, model=use_model, **kwargs)
     
-    def generate_stream(self, prompt: str, system: str = "", **kwargs):
-        """Stream response - ALWAYS uses vLLM's served model"""
-        # Remove any model from kwargs - we use current_model
-        kwargs.pop('model', None)
-        return self.backend.generate_stream(prompt, system=system, model=self.current_model, **kwargs)
-    
-    def generate_tool_call(self, prompt: str, tools: list, **kwargs) -> '_VLLMResponse':
+    def generate_tool_call(self, prompt: str, tools: list, **kwargs) -> '_OllamaResponse':
         """Generate with tools - for now just regular generation"""
         return self.generate(prompt, **kwargs)
     

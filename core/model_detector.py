@@ -112,7 +112,8 @@ class ModelDetector:
             return model_info
             
         except requests.exceptions.ConnectionError:
-            logger.error("vLLM not running at {self.vllm_url}")
+            # Ollama is primary, vLLM detector is deprecated
+            logger.debug("vLLM not running (expected when using Ollama)")
             return None
         except Exception as e:
             logger.error(f"Error detecting model: {e}")
