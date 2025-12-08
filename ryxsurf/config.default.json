@@ -1,0 +1,33 @@
+{
+  "homepage": "https://www.google.com",
+  "session_dir": "~/.config/ryxsurf/sessions",
+  "extensions_dir": "~/.config/ryxsurf/extensions",
+  "ai_endpoint": "http://localhost:8001/v1",
+  "ai_model": "/models/fast/general/qwen2.5-7b-awq",
+  "unload_after_seconds": 300,
+  "max_loaded_tabs": 10,
+  "theme": "dark",
+  "default_session": "default",
+  "sessions": {
+    "default": {
+      "name": "Default",
+      "color": "#6272a4"
+    },
+    "work": {
+      "name": "Work",
+      "color": "#50fa7b"
+    },
+    "school": {
+      "name": "School",
+      "color": "#ffb86c"
+    },
+    "chill": {
+      "name": "Chill",
+      "color": "#ff79c6"
+    }
+  },
+  "keybind_prefix": "Super",
+  "scroll_amount": 100,
+  "hint_chars": "asdfghjkl",
+  "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 RyxSurf/0.1"
+}

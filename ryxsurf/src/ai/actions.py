@@ -1,0 +1,313 @@
+"""
+RyxSurf AI Actions - Browser Control Commands
+
+Low-level actions the AI can perform:
+- Click elements
+- Type text
+- Scroll
+- Navigate
+- Extract content
+"""
+
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Any
+from enum import Enum
+
+
+class ActionResult(Enum):
+    SUCCESS = "success"
+    NOT_FOUND = "not_found"
+    ERROR = "error"
+    TIMEOUT = "timeout"
+
+
+@dataclass
+class ActionResponse:
+    """Response from executing an action"""
+    result: ActionResult
+    message: str = ""
+    data: Optional[Any] = None
+
+
+class BrowserActions:
+    """
+    Collection of browser actions as JavaScript generators.
+    
+    Each method returns JS code that can be evaluated in the webview.
+    """
+    
+    @staticmethod
+    def click(selector: str) -> str:
+        """Click an element by selector"""
+        return f"""
+        (function() {{
+            const selectors = '{selector}'.split(', ');
+            for (const sel of selectors) {{
+                try {{
+                    const el = document.querySelector(sel.trim());
+                    if (el) {{
+                        // Scroll into view
+                        el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                        
+                        // Wait a bit then click
+                        setTimeout(() => {{
+                            el.focus();
+                            el.click();
+                        }}, 100);
+                        
+                        return JSON.stringify({{result: 'success', message: 'Clicked: ' + sel}});
+                    }}
+                }} catch(e) {{}}
+            }}
+            return JSON.stringify({{result: 'not_found', message: 'Element not found'}});
+        }})()
+        """
+        
+    @staticmethod
+    def zoom(level: int) -> str:
+        """Zoom the page by a given level"""
+        return f"""
+        (function() {{
+            const zoomFactor = {level};
+            document.body.style.zoom = zoomFactor;
+            return JSON.stringify({{result: 'success', message: 'Zoomed to level ' + zoomFactor}});
+        }})()
+        """
+        
+    @staticmethod
+    def type_text(selector: str, text: str, clear_first: bool = True) -> str:
+        """Type text into an input field"""
+        clear_js = "el.value = '';" if clear_first else ""
+        escaped_text = text.replace("'", "\\'").replace("\n", "\\n")
+        
+        return f"""
+        (function() {{
+            const el = document.querySelector('{selector}');
+            if (el) {{
+                el.focus();
+                {clear_js}
+                el.value = '{escaped_text}';
+                el.dispatchEvent(new Event('input', {{bubbles: true}}));
+                el.dispatchEvent(new Event('change', {{bubbles: true}}));
+                return JSON.stringify({{result: 'success', message: 'Typed text'}});
+            }}
+            return JSON.stringify({{result: 'not_found', message: 'Input not found'}});
+        }})()
+        """
+        
+    @staticmethod
+    def scroll(direction: str = "down", amount: int = 0) -> str:
+        """Scroll the page"""
+        if direction == "top":
+            return "window.scrollTo({top: 0, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
+        elif direction == "bottom":
+            return "window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); JSON.stringify({result: 'success'})"
+        elif direction == "up":
+            scroll_amount = amount or "window.innerHeight * 0.8"
+            return f"window.scrollBy({{top: -{scroll_amount}, behavior: 'smooth'}}); JSON.stringify({{result: 'success'}})"
+        else:  # down
+            scroll_amount = amount or "window.innerHeight * 0.8"
+            return f"window.scrollBy({{top: {scroll_amount}, behavior: 'smooth'}}); JSON.stringify({{result: 'success'}})"
+            
+    @staticmethod
+    def get_scroll_position() -> str:
+        """Get current scroll position"""
+        return "JSON.stringify({result: 'success', data: window.scrollY})"
+        
+    @staticmethod
+    def set_scroll_position(position: int) -> str:
+        """Restore scroll position"""
+        return f"window.scrollTo(0, {position}); JSON.stringify({{result: 'success'}})"
+        
+    @staticmethod
+    def extract_text(selector: str = "body") -> str:
+        """Extract text from an element"""
+        return f"""
+        (function() {{
+            const el = document.querySelector('{selector}');
+            if (el) {{
+                return JSON.stringify({{
+                    result: 'success',
+                    data: el.innerText.substring(0, 50000)
+                }});
+            }}
+            return JSON.stringify({{result: 'not_found'}});
+        }})()
+        """
+        
+    @staticmethod
+    def extract_html(selector: str = "body") -> str:
+        """Extract HTML from an element"""
+        return f"""
+        (function() {{
+            const el = document.querySelector('{selector}');
+            if (el) {{
+                return JSON.stringify({{
+                    result: 'success',
+                    data: el.innerHTML.substring(0, 100000)
+                }});
+            }}
+            return JSON.stringify({{result: 'not_found'}});
+        }})()
+        """
+        
+    @staticmethod
+    def dismiss_overlays() -> str:
+        """Remove popups, modals, and overlays"""
+        return """
+        (function() {
+            let removed = 0;
+            
+            // Common overlay selectors
+            const selectors = [
+                '[class*="popup"]', '[class*="modal"]', '[class*="overlay"]',
+                '[class*="dialog"]', '[id*="popup"]', '[id*="modal"]',
+                '[class*="newsletter"]', '[class*="subscribe"]',
+                '[class*="cookie"]', '[class*="consent"]', '[class*="gdpr"]',
+                '[class*="paywall"]', '[role="dialog"]', '[aria-modal="true"]'
+            ];
+            
+            selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => {
+                    const style = window.getComputedStyle(el);
+                    if (style.position === 'fixed' || style.position === 'absolute') {
+                        const rect = el.getBoundingClientRect();
+                        // Only remove if it's actually visible and large enough to be annoying
+                        if (rect.width > 100 && rect.height > 100) {
+                            el.remove();
+                            removed++;
+                        }
+                    }
+                });
+            });
+            
+            // Remove backdrop elements
+            document.querySelectorAll('[class*="backdrop"], [class*="overlay-bg"]').forEach(el => {
+                el.remove();
+                removed++;
+            });
+            
+            // Re-enable scrolling
+            document.body.style.overflow = 'auto';
+            document.body.style.position = '';
+            document.documentElement.style.overflow = 'auto';
+            
+            // Remove any blur effects
+            document.querySelectorAll('[style*="blur"]').forEach(el => {
+                el.style.filter = '';
+            });
+            
+            return JSON.stringify({result: 'success', message: `Removed ${removed} overlays`});
+        })()
+        """
+        
+    @staticmethod
+    def reader_mode() -> str:
+        """Enable reader mode - extract and display main content"""
+        return """
+        (function() {
+            // Find main content
+            const contentSelectors = ['article', 'main', '.post-content', '.article-content', '.entry-content', '.content', '#content'];
+            let content = null;
+            
+            for (const sel of contentSelectors) {
+                const el = document.querySelector(sel);
+                if (el && el.innerText.length > 500) {
+                    content = el;
+                    break;
+                }
+            }
+            
+            if (!content) {
+                // Fallback: find largest text block
+                let largest = null;
+                let maxLen = 0;
+                document.querySelectorAll('div, section').forEach(el => {
+                    if (el.innerText.length > maxLen && el.innerText.length < 100000) {
+                        maxLen = el.innerText.length;
+                        largest = el;
+                    }
+                });
+                content = largest;
+            }
+            
+            if (content) {
+                const title = document.querySelector('h1')?.innerText || document.title;
+                
+                document.body.innerHTML = `
+                    <div style="
+                        max-width: 700px;
+                        margin: 0 auto;
+                        padding: 40px 20px;
+                        font-family: Georgia, serif;
+                        font-size: 20px;
+                        line-height: 1.8;
+                        color: #f8f8f2;
+                        background: #282a36;
+                    ">
+                        <h1 style="
+                            font-size: 32px;
+                            margin-bottom: 30px;
+                            color: #bd93f9;
+                            line-height: 1.3;
+                        ">${title}</h1>
+                        ${content.innerHTML}
+                    </div>
+                `;
+                
+                // Clean up styles
+                document.body.style.background = '#282a36';
+                document.body.style.margin = '0';
+                
+                return JSON.stringify({result: 'success', message: 'Reader mode enabled'});
+            }
+            
+            return JSON.stringify({result: 'not_found', message: 'Could not find main content'});
+        })()
+        """
+        
+    @staticmethod
+    def highlight_element(selector: str) -> str:
+        """Temporarily highlight an element"""
+        return f"""
+        (function() {{
+            const el = document.querySelector('{selector}');
+            if (el) {{
+                const original = el.style.outline;
+                el.style.outline = '3px solid #ff79c6';
+                el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                setTimeout(() => {{ el.style.outline = original; }}, 2000);
+                return JSON.stringify({{result: 'success'}});
+            }}
+            return JSON.stringify({{result: 'not_found'}});
+        }})()
+        """
+        
+    @staticmethod
+    def fill_form(form_data: Dict[str, str]) -> str:
+        """Fill multiple form fields"""
+        fields_js = []
+        for selector, value in form_data.items():
+            escaped_value = value.replace("'", "\\'")
+            fields_js.append(f"""
+                (function() {{
+                    const el = document.querySelector('{selector}');
+                    if (el) {{
+                        el.value = '{escaped_value}';
+                        el.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        return true;
+                    }}
+                    return false;
+                }})()
+            """)
+            
+        return f"""
+        (function() {{
+            const results = [{', '.join(fields_js)}];
+            const filled = results.filter(r => r).length;
+            return JSON.stringify({{
+                result: filled > 0 ? 'success' : 'not_found',
+                message: `Filled ${{filled}}/${{results.length}} fields`
+            }});
+        }})()
+        """

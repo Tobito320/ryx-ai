@@ -1,0 +1,64 @@
+{
+  "commands": {
+    "new_tab": {
+      "description": "Open a new tab",
+      "shortcut": "Ctrl + T",
+      "action": "BrowserActions.new_tab()"
+    },
+    "close_tab": {
+      "description": "Close the current tab",
+      "shortcut": "Ctrl + W",
+      "action": "BrowserActions.close_tab()"
+    },
+    "reload": {
+      "description": "Reload the current page",
+      "shortcut": "F5",
+      "action": "BrowserActions.reload()"
+    },
+    "go_back": {
+      "description": "Navigate to the previous page",
+      "shortcut": "Alt + Left Arrow",
+      "action": "BrowserActions.go_back()"
+    },
+    "go_forward": {
+      "description": "Navigate to the next page",
+      "shortcut": "Alt + Right Arrow",
+      "action": "BrowserActions.go_forward()"
+    },
+    "toggle_sidebar": {
+      "description": "Toggle the sidebar visibility",
+      "shortcut": "Ctrl + B",
+      "action": "BrowserActions.toggle_sidebar()"
+    },
+    "summarize_page": {
+      "description": "Summarize the current page content",
+      "shortcut": "Ctrl + Shift + S",
+      "action": "BrowserActions.summarize_page()"
+    },
+    "hide_popups": {
+      "description": "Hide all popups on the page",
+      "shortcut": "Ctrl + Shift + H",
+      "action": "BrowserActions.hide_popups()"
+    },
+    "switch_session": {
+      "description": "Switch to a different session",
+      "shortcut": "Ctrl + Shift + N",
+      "action": "BrowserActions.switch_session()"
+    },
+    "save_session": {
+      "description": "Save the current session",
+      "shortcut": "Ctrl + Shift + S",
+      "action": "BrowserActions.save_session()"
+    },
+    "open_devtools": {
+      "description": "Open the developer tools",
+      "shortcut": "Ctrl + Shift + I",
+      "action": "BrowserActions.open_devtools()"
+    },
+    "toggle_fullscreen": {
+      "description": "Toggle fullscreen mode",
+      "shortcut": "F11",
+      "action": "BrowserActions.toggle_fullscreen()"
+    }
+  }
+}
