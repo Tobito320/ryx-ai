@@ -234,46 +234,46 @@ Location: `/home/tobi/cloned_repositorys/`
 
 ## 🚀 RyxSurf Roadmap
 
-### Phase 1: Core UX (Current Sprint)
-Priority: Make sidebar compact + workspaces
+### Phase 1: Core UX ✅ DONE
+- [x] **Sidebar 80px** - Icon-only mode
+- [x] **Workspaces** - 🎮📚💼🔬🔒 icons
+- [x] **Super+1-5** - Switch workspace
+- [x] **Quick escape** - Super+Escape → neutral tab
+- [x] **Ctrl+Shift+E** - Restore after escape
 
-- [ ] **Sidebar 80px** - Icon-only mode by default
-- [ ] **Workspaces** - School/Work/Chill/Research icons
-- [ ] **Super+1-5** - Switch workspace (like Hyprland)
-- [ ] **Workspace indicator** - Left of URL bar
-- [ ] **Quick escape** - Hide all, show neutral tab
+### Phase 2: Settings & Customization ✅ DONE
+- [x] **Extended settings** - Bookmarks, downloads, trackers toggles
+- [x] **Per-site zoom** - Remembered per domain
+- [x] **Clear cache** - Soft/Hard buttons
+- [x] **Site data wipe** - Ctrl+Shift+X
+- [ ] **Hyprland theme sync** - Read GTK/Hyprland colors (TODO)
+- [ ] **Transparency** - Dynamic (low when video plays) (TODO)
 
-### Phase 2: Settings & Customization
-- [ ] **Global MainMod** - Configurable (default: Super)
-- [ ] **Toggle UI elements** - Hide bookmarks, downloads, etc.
-- [ ] **Per-site zoom profiles** - Remember zoom per domain
-- [ ] **Hyprland theme sync** - Read GTK/Hyprland colors
-- [ ] **Transparency** - Dynamic (low when video plays)
+### Phase 3: Tab Intelligence ✅ DONE
+- [x] **Smart tab sleep** - Auto-unload after 5min inactive
+- [x] **Performance overlay** - Ctrl+Shift+M
+- [x] **Kill tab scripts** - Ctrl+Shift+K
+- [x] **Split view** - Ctrl+Shift+V
+- [ ] **Tab groups** - Visual grouping (TODO)
 
-### Phase 3: Tab Intelligence
-- [ ] **Smart tab sleep** - Unload based on memory pressure
-- [ ] **CPU/GPU overlay** - Per-tab resource usage
-- [ ] **Kill tab timers** - Stop animations/scripts
-- [ ] **Tab groups** - Visual grouping within workspace
-
-### Phase 4: Site Tools
-- [ ] **Permission manager** - Reset per-site
-- [ ] **Cookie control** - Session-only, delete on close
-- [ ] **Tracker blocker** - Built-in, toggleable
-- [ ] **Site data wipe** - One-click clear for current site
-- [ ] **Auto-clean mode** - Remove popups/overlays permanently
+### Phase 4: Site Tools (In Progress)
+- [x] **Site data wipe** - Ctrl+Shift+X
+- [x] **Tracker blocker toggle** - In settings
+- [ ] **Permission manager** - Reset per-site (TODO)
+- [ ] **Cookie control** - Session-only (TODO)
+- [ ] **Auto-clean mode** - Remove popups permanently (TODO)
 
 ### Phase 5: Productivity
-- [ ] **Split view** - Keybind to split 50/50
-- [ ] **Global backstack search** - Timeline of actions
-- [ ] **Download routing** - Rules: PDF→Docs, zip→Dev
-- [ ] **Inline PDF tools** - Highlight, sign, fill
+- [x] **Split view** - Ctrl+Shift+V
+- [ ] **Global backstack search** - Timeline (TODO)
+- [ ] **Download routing** - Rules (TODO)
+- [ ] **Inline PDF tools** - (TODO)
 
-### Phase 6: Advanced
-- [ ] **Session profiles** - "Secure mode" (no JS, HTTPS only)
-- [ ] **Extension quick toggle** - On/off + settings access
-- [ ] **iPhone sync** - Notes, Calendar (if possible via iCloud web)
-- [ ] **Calendar integration** - Add events from page
+### Phase 6: Advanced (Future)
+- [ ] **Session profiles** - Secure mode
+- [ ] **Extension toggle** - Quick on/off
+- [ ] **iPhone sync** - iCloud web
+- [ ] **Calendar integration**
 
 ### Transparency Behavior
 ```

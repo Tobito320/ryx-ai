@@ -1298,6 +1298,10 @@ class Browser:
             elif key_name == 'x':
                 self._dismiss_popup()
                 return Gdk.EVENT_STOP
+            elif key_name in ('c', 'C'):
+                # Super+C - Auto-clean page (aggressive)
+                self._auto_clean_page()
+                return Gdk.EVENT_STOP
             elif key_name in ('r', 'R'):
                 # Super+R - Reader mode
                 self._toggle_reader_mode()
@@ -2480,6 +2484,8 @@ body {
 
     def _dismiss_popup(self):
         """Remove modal/popup elements via JavaScript"""
+        if not self.tabs:
+            return
         current_webview = self.tabs[self.active_tab_idx].webview
         current_webview.run_javascript(
             """
@@ -2490,6 +2496,78 @@ body {
             None,
             None
         )
+    
+    def _auto_clean_page(self):
+        """Aggressive page cleaning - remove all annoyances permanently"""
+        if not self.tabs:
+            return
+        
+        tab = self.tabs[self.active_tab_idx]
+        
+        # Get domain for saving clean rules
+        from urllib.parse import urlparse
+        domain = urlparse(tab.url).netloc if tab.url else ""
+        
+        js = """
+        (function() {
+            // Common annoyance selectors
+            const annoyances = [
+                // Popups and modals
+                '[class*="popup"]', '[class*="modal"]', '[class*="overlay"]',
+                '[class*="dialog"]', '[class*="lightbox"]',
+                // Cookie banners
+                '[class*="cookie"]', '[class*="gdpr"]', '[class*="consent"]',
+                '[class*="privacy"]', '#cookie', '.cookie-banner',
+                // Newsletter popups
+                '[class*="newsletter"]', '[class*="subscribe"]', '[class*="signup"]',
+                // Social widgets
+                '[class*="social-share"]', '.fb-like', '.twitter-share',
+                // Fixed elements that cover content
+                '[style*="position: fixed"]',
+                // Ads
+                '[class*="ad-"]', '[class*="ads-"]', '[id*="google_ads"]',
+                '.adsbygoogle', '[class*="advertisement"]',
+                // Interstitials
+                '[class*="interstitial"]', '[class*="paywall"]'
+            ];
+            
+            let removed = 0;
+            annoyances.forEach(sel => {
+                try {
+                    document.querySelectorAll(sel).forEach(el => {
+                        // Don't remove if it's the main content
+                        if (!el.matches('main, article, #content, .content, .post, .article')) {
+                            el.remove();
+                            removed++;
+                        }
+                    });
+                } catch(e) {}
+            });
+            
+            // Restore scrolling
+            document.body.style.overflow = 'auto';
+            document.documentElement.style.overflow = 'auto';
+            
+            // Remove blur effects
+            document.querySelectorAll('[style*="blur"]').forEach(el => {
+                el.style.filter = 'none';
+            });
+            
+            console.log('RyxSurf: Removed ' + removed + ' annoyances');
+            return removed;
+        })();
+        """
+        
+        def on_clean_done(webview, result):
+            try:
+                js_result = webview.evaluate_javascript_finish(result)
+                if js_result:
+                    count = int(js_result.to_double())
+                    print(f"Auto-clean: Removed {count} annoyances from {domain}")
+            except Exception as e:
+                print(f"Auto-clean error: {e}")
+        
+        tab.webview.evaluate_javascript(js, -1, None, None, None, on_clean_done)
 
     def _on_get_page_text(self, result, error):
         if error:
