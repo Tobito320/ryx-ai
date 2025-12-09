@@ -213,68 +213,86 @@ Location: `/home/tobi/cloned_repositorys/`
 
 ## 📊 Current Status
 
-**Date**: 2025-12-09 00:58 UTC
-**Phase**: RyxSurf Browser Complete
+**Date**: 2025-12-09 01:42 UTC
+**Phase**: RyxSurf v0.2 - Productivity Browser
 
-### RyxSurf Features (Complete Browser)
-- ✅ 2800+ lines of browser code (9500+ total)
-- ✅ Full dark mode (Dracula theme)
-- ✅ Tab management with unload/restore
+### RyxSurf Completed Features
+- ✅ Ultra-minimal dark UI (#0a0a0c)
+- ✅ 140px sidebar with titles
+- ✅ Centered URL bar with nav buttons
+- ✅ Tab management + unload/restore
 - ✅ Session persistence
-- ✅ History tracking with suggestions
-- ✅ Bookmark manager
-- ✅ Download manager with progress
-- ✅ Find in page (Ctrl+F)
-- ✅ Link hints (Vimium-style, press F)
-- ✅ Settings dialog
-- ✅ Context menu (right-click)
-- ✅ Quick domain suggestions
-- ✅ Closed tab restore (Ctrl+Shift+T)
+- ✅ Reader mode (Super+R)
+- ✅ Screenshot (Ctrl+Shift+P)
+- ✅ Picture-in-Picture (Ctrl+I)
+- ✅ Link hints (F)
+- ✅ Copy URL (Ctrl+Y)
+- ✅ Download manager
+- ✅ Dark error pages
 
-### Complete Keybinds
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+T | New tab + focus URL |
-| Ctrl+W | Close tab (no confirm) |
-| Ctrl+L / F6 | Focus URL bar |
-| Ctrl+Tab | Next tab |
-| Ctrl+Shift+Tab | Previous tab |
-| Ctrl+1-9 | Jump to tab |
-| Ctrl+↓/↑ | Navigate tabs |
-| Ctrl+B | Toggle sidebar |
-| Ctrl+F | Find in page |
-| Ctrl+H | History |
-| Ctrl+J | Downloads |
-| Ctrl+D | Toggle bookmark |
-| Ctrl+R / F5 | Reload |
-| Ctrl+Shift+R | Hard reload |
-| Ctrl+Shift+T | Reopen closed tab |
-| Ctrl++/- | Zoom in/out |
-| Ctrl+0 | Reset zoom |
-| Alt+Left/Right | Back/Forward |
-| Alt+Home | Homepage |
-| F | Link hints (Vimium) |
-| F11 | Fullscreen |
-| Escape | Close overlays |
-| Backspace | Go back |
+---
 
-### AI Power Mode
-- Alt+Shift+P → Select "AI (Ryx Power)"
-- Maximum GPU/CPU performance
-- Visual effects disabled
-- Ollama prioritized
+## 🚀 RyxSurf Roadmap
 
-### Models Available
+### Phase 1: Core UX (Current Sprint)
+Priority: Make sidebar compact + workspaces
+
+- [ ] **Sidebar 80px** - Icon-only mode by default
+- [ ] **Workspaces** - School/Work/Chill/Research icons
+- [ ] **Super+1-5** - Switch workspace (like Hyprland)
+- [ ] **Workspace indicator** - Left of URL bar
+- [ ] **Quick escape** - Hide all, show neutral tab
+
+### Phase 2: Settings & Customization
+- [ ] **Global MainMod** - Configurable (default: Super)
+- [ ] **Toggle UI elements** - Hide bookmarks, downloads, etc.
+- [ ] **Per-site zoom profiles** - Remember zoom per domain
+- [ ] **Hyprland theme sync** - Read GTK/Hyprland colors
+- [ ] **Transparency** - Dynamic (low when video plays)
+
+### Phase 3: Tab Intelligence
+- [ ] **Smart tab sleep** - Unload based on memory pressure
+- [ ] **CPU/GPU overlay** - Per-tab resource usage
+- [ ] **Kill tab timers** - Stop animations/scripts
+- [ ] **Tab groups** - Visual grouping within workspace
+
+### Phase 4: Site Tools
+- [ ] **Permission manager** - Reset per-site
+- [ ] **Cookie control** - Session-only, delete on close
+- [ ] **Tracker blocker** - Built-in, toggleable
+- [ ] **Site data wipe** - One-click clear for current site
+- [ ] **Auto-clean mode** - Remove popups/overlays permanently
+
+### Phase 5: Productivity
+- [ ] **Split view** - Keybind to split 50/50
+- [ ] **Global backstack search** - Timeline of actions
+- [ ] **Download routing** - Rules: PDF→Docs, zip→Dev
+- [ ] **Inline PDF tools** - Highlight, sign, fill
+
+### Phase 6: Advanced
+- [ ] **Session profiles** - "Secure mode" (no JS, HTTPS only)
+- [ ] **Extension quick toggle** - On/off + settings access
+- [ ] **iPhone sync** - Notes, Calendar (if possible via iCloud web)
+- [ ] **Calendar integration** - Add events from page
+
+### Transparency Behavior
 ```
-qwen2.5-coder:14b   → PRIMARY (coding)
-qwen2.5-coder:7b    → Fast coding
-mistral-nemo:12b    → Chat
-dolphin-mistral:7b  → Uncensored
-qwen2.5:1.5b        → Intent
+Focus + No Video:    85% transparent
+Focus + Video:       5% transparent (nearly opaque)
+Unfocused:           70% transparent
 ```
 
-### Test RyxSurf
+### Workspace Icons
+```
+🎮 Chill     - Gaming, YouTube, Reddit
+📚 School    - Uni, Research, Papers  
+💼 Work      - GitHub, Docs, Email
+🔬 Research  - Papers, Stack, Docs
+🔒 Private   - Clean session, no history
+```
+
+### Launch
 ```bash
-cd ~/ryx-ai/ryxsurf && python main.py
+Alt+D → "ryxsurf"
 ```
 

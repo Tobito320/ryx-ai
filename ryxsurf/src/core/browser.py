@@ -69,7 +69,17 @@ class Session:
     name: str
     tabs: List[dict] = field(default_factory=list)  # Serialized tab data
     active_tab: int = 0
-    
+
+
+# Workspace definitions with icons
+WORKSPACES = {
+    "chill": {"icon": "🎮", "name": "Chill", "color": "#22c55e"},
+    "school": {"icon": "📚", "name": "School", "color": "#3b82f6"},
+    "work": {"icon": "💼", "name": "Work", "color": "#f59e0b"},
+    "research": {"icon": "🔬", "name": "Research", "color": "#8b5cf6"},
+    "private": {"icon": "🔒", "name": "Private", "color": "#ef4444"},
+}
+
 
 def load_settings() -> dict:
     """Load settings from file or return defaults"""
@@ -110,6 +120,10 @@ class Browser:
         self.active_tab_idx: int = 0
         self.sessions: dict[str, Session] = {}
         self.current_session: str = "default"
+        
+        # Workspace support
+        self.current_workspace: str = "chill"
+        self.workspace_tabs: dict[str, List[Tab]] = {ws: [] for ws in WORKSPACES}
         
         # Load settings
         self.settings = load_settings()
@@ -352,26 +366,91 @@ class Browser:
         }
         
         /* ═══════════════════════════════════════════════════════════════
-           TAB SIDEBAR - 10-15% width, super compact
+           TAB SIDEBAR - Ultra compact icon mode (80px)
            ═══════════════════════════════════════════════════════════════ */
         .tab-sidebar {
-            background: #0e0e12;
-            border-right: 1px solid #1a1a1f;
-            padding: 2px;
-            min-width: 140px;
+            background: #0a0a0c;
+            border-right: 1px solid #151518;
+            padding: 4px 2px;
+            min-width: 80px;
+        }
+        
+        /* Workspace bar at top of sidebar */
+        .workspace-bar {
+            padding: 4px 2px 8px 2px;
+            border-bottom: 1px solid #151518;
+        }
+        
+        .workspace-btn {
+            background: transparent;
+            border: none;
+            color: #444;
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 28px;
+            min-height: 28px;
+        }
+        
+        .workspace-btn:hover {
+            background: #1a1a20;
+            color: #888;
+        }
+        
+        .workspace-btn.active {
+            background: #1f1f28;
+            color: #7c3aed;
         }
         
         .tab-btn {
             background: transparent;
             border: none;
-            padding: 0;
-            margin: 0;
+            border-radius: 6px;
+            padding: 4px;
         }
         
         .tab-btn:hover {
-            background: transparent;
+            background: #1a1a20;
         }
         
+        .tab-btn.active {
+            background: #1f1f28;
+        }
+        
+        .tab-btn.unloaded {
+            opacity: 0.5;
+        }
+        
+        .tab-icon {
+            color: #666;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: system-ui, sans-serif;
+        }
+        
+        .tab-btn.active .tab-icon {
+            color: #7c3aed;
+        }
+        
+        .tab-btn:hover .tab-icon {
+            color: #888;
+        }
+        
+        .new-tab-btn {
+            background: transparent;
+            border: none;
+            color: #444;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 16px;
+        }
+        
+        .new-tab-btn:hover {
+            background: #1a1a20;
+            color: #7c3aed;
+        }
+        
+        /* Legacy tab-item styles (for expanded mode) */
         .tab-item {
             background: transparent;
             border: none;
@@ -381,19 +460,10 @@ class Browser:
             min-height: 24px;
         }
         
-        .tab-btn:hover .tab-item {
-            background: #1a1a20;
-        }
-        
         .tab-item.active {
             background: #1f1f28;
             border-left: 2px solid #7c3aed;
             padding-left: 4px;
-        }
-        
-        .tab-item.unloaded .tab-title {
-            color: #555;
-            font-style: italic;
         }
         
         .tab-title {
@@ -859,10 +929,28 @@ class Browser:
             self._navigate_current(row.suggestion_url)
     
     def _create_tab_sidebar(self):
-        """Create the tab sidebar (left side, Zen Browser style)"""
+        """Create ultra-compact sidebar with workspace icons + tabs"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        self.tab_sidebar.set_size_request(48, -1)  # Fixed width for sidebar
+        self.tab_sidebar.set_size_request(80, -1)  # 80px compact
+        
+        # Workspace bar at top
+        self.workspace_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.workspace_bar.add_css_class("workspace-bar")
+        self.workspace_bar.set_halign(Gtk.Align.CENTER)
+        
+        self.workspace_buttons = {}
+        for ws_id, ws_info in WORKSPACES.items():
+            btn = Gtk.Button(label=ws_info["icon"])
+            btn.add_css_class("workspace-btn")
+            btn.set_tooltip_text(ws_info["name"])
+            if ws_id == self.current_workspace:
+                btn.add_css_class("active")
+            btn.connect("clicked", lambda _, wid=ws_id: self._switch_workspace(wid))
+            self.workspace_bar.append(btn)
+            self.workspace_buttons[ws_id] = btn
+        
+        self.tab_sidebar.append(self.workspace_bar)
         
         # Scrollable area for tabs
         scroll = Gtk.ScrolledWindow()
@@ -872,6 +960,13 @@ class Browser:
         self.tab_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         scroll.set_child(self.tab_list_box)
         self.tab_sidebar.append(scroll)
+        
+        # New tab button at bottom
+        new_tab_btn = Gtk.Button(label="+")
+        new_tab_btn.add_css_class("new-tab-btn")
+        new_tab_btn.set_tooltip_text("New Tab (Ctrl+T)")
+        new_tab_btn.connect("clicked", lambda _: self._new_tab())
+        self.tab_sidebar.append(new_tab_btn)
         
         # Prepend to main_box so it's on the left
         self.main_box.prepend(self.tab_sidebar)
@@ -1124,11 +1219,28 @@ class Browser:
                 # Ctrl+Shift+P - Screenshot
                 self._take_screenshot()
                 return Gdk.EVENT_STOP
+            elif key_name in ('e', 'E'):
+                # Ctrl+Shift+E - Restore from escape
+                self._restore_from_escape()
+                return Gdk.EVENT_STOP
             elif key_name in ('n', 'N'):
                 # Ctrl+Shift+N - New private window (placeholder)
                 return Gdk.EVENT_STOP
             elif key_name in ('Delete', 'BackSpace'):
                 # Ctrl+Shift+Delete - Clear history
+                return Gdk.EVENT_STOP
+        
+        # Super key shortcuts (workspaces like Hyprland)
+        super_pressed = bool(state & Gdk.ModifierType.SUPER_MASK)
+        if super_pressed and not ctrl_pressed and not alt_pressed:
+            # Super+1-5 for workspaces
+            workspace_keys = {'1': 'chill', '2': 'school', '3': 'work', '4': 'research', '5': 'private'}
+            if key_name in workspace_keys:
+                self._switch_workspace(workspace_keys[key_name])
+                return Gdk.EVENT_STOP
+            elif key_name == 'Escape':
+                # Super+Escape - Quick escape (panic button)
+                self._quick_escape()
                 return Gdk.EVENT_STOP
         
         # Alt shortcuts
@@ -1549,7 +1661,7 @@ body {
                 self.content_box.append(self.ai_sidebar)
     
     def _update_tab_sidebar(self):
-        """Update the tab sidebar with compact tabs showing favicon + title"""
+        """Update the tab sidebar with compact icon tabs"""
         if not hasattr(self, 'tab_list_box'):
             return
             
@@ -1560,49 +1672,50 @@ body {
             self.tab_list_box.remove(child)
             child = next_child
         
-        # Add compact tab rows
+        # Add compact tab icons (no titles in 80px mode)
         for i, tab in enumerate(self.tabs):
-            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            row.add_css_class("tab-item")
-            row.set_margin_start(4)
-            row.set_margin_end(4)
-            row.set_margin_top(2)
-            row.set_margin_bottom(2)
+            btn = Gtk.Button()
+            btn.add_css_class("tab-btn")
+            btn.set_size_request(36, 36)
+            btn.set_halign(Gtk.Align.CENTER)
             
             if i == self.active_tab_idx:
-                row.add_css_class("active")
+                btn.add_css_class("active")
             if tab.is_unloaded:
-                row.add_css_class("unloaded")
+                btn.add_css_class("unloaded")
             
-            # Loading/favicon indicator
-            if tab.is_loading if hasattr(tab, 'is_loading') else False:
+            # Icon based on state
+            if hasattr(tab, 'is_loading') and tab.is_loading:
                 indicator = Gtk.Spinner()
                 indicator.start()
-                indicator.set_size_request(14, 14)
+                indicator.set_size_request(16, 16)
+                btn.set_child(indicator)
             else:
-                indicator = Gtk.Label(label="●" if not tab.is_unloaded else "○")
-                indicator.add_css_class("tab-favicon")
-            row.append(indicator)
+                # Use first letter of title or dot
+                first_char = tab.title[0].upper() if tab.title else "●"
+                if first_char.isalpha():
+                    label = Gtk.Label(label=first_char)
+                else:
+                    label = Gtk.Label(label="●" if not tab.is_unloaded else "○")
+                label.add_css_class("tab-icon")
+                btn.set_child(label)
             
-            # Title (truncated)
-            title_text = tab.title[:18] if tab.title else "New Tab"
-            title = Gtk.Label(label=title_text)
-            title.set_halign(Gtk.Align.START)
-            title.set_hexpand(True)
-            title.set_ellipsize(Pango.EllipsizeMode.END)
-            title.add_css_class("tab-title")
-            row.append(title)
+            btn.set_tooltip_text(tab.title or "New Tab")
+            btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
             
-            # Close button (visible on hover via CSS)
-            close_btn = Gtk.Button(label="×")
-            close_btn.add_css_class("tab-close")
-            close_btn.connect("clicked", lambda _, idx=i: self._close_tab(idx))
-            row.append(close_btn)
+            # Middle-click to close
+            middle = Gtk.GestureClick()
+            middle.set_button(2)
+            middle.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
+            btn.add_controller(middle)
             
-            # Wrap in a button for click handling
-            btn = Gtk.Button()
-            btn.set_child(row)
-            btn.add_css_class("tab-btn")
+            # Right-click to close
+            right = Gtk.GestureClick()
+            right.set_button(3)
+            right.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
+            btn.add_controller(right)
+            
+            self.tab_list_box.append(btn)
             btn.set_tooltip_text(tab.title or "New Tab")
             btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
             
@@ -3104,6 +3217,87 @@ body {
             clipboard = Gdk.Display.get_default().get_clipboard()
             clipboard.set(url)
             print(f"Copied: {url}")
+    
+    def _switch_workspace(self, workspace_id: str):
+        """Switch to a different workspace"""
+        if workspace_id == self.current_workspace:
+            return
+        
+        # Save current tabs to current workspace
+        self.workspace_tabs[self.current_workspace] = self.tabs.copy()
+        
+        # Update UI
+        if hasattr(self, 'workspace_buttons'):
+            for ws_id, btn in self.workspace_buttons.items():
+                if ws_id == workspace_id:
+                    btn.add_css_class("active")
+                else:
+                    btn.remove_css_class("active")
+        
+        # Switch workspace
+        self.current_workspace = workspace_id
+        
+        # Load tabs from new workspace
+        if self.workspace_tabs[workspace_id]:
+            self.tabs = self.workspace_tabs[workspace_id]
+            self.active_tab_idx = min(self.active_tab_idx, len(self.tabs) - 1)
+            self._switch_to_tab(self.active_tab_idx)
+        else:
+            # New workspace - create empty tab
+            self.tabs = []
+            self._new_tab()
+        
+        self._update_tab_sidebar()
+        self._update_window_title()
+        
+        ws_info = WORKSPACES.get(workspace_id, {})
+        print(f"Switched to workspace: {ws_info.get('name', workspace_id)}")
+    
+    def _quick_escape(self):
+        """Hide all tabs and show neutral page (panic button)"""
+        # Save current state
+        self._escape_backup = {
+            'tabs': self.tabs.copy(),
+            'active': self.active_tab_idx,
+            'workspace': self.current_workspace
+        }
+        
+        # Clear and show neutral tab
+        self.tabs = []
+        webview = WebKit.WebView()
+        self._apply_webview_settings(webview)
+        
+        # Neutral page
+        html = '''<!DOCTYPE html>
+<html><head><style>
+body { background: #0a0a0c; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+.msg { color: #333; font-size: 11px; font-family: monospace; }
+</style></head>
+<body><div class="msg">Press Ctrl+Shift+E to restore</div></body></html>'''
+        webview.load_html(html, "about:blank")
+        
+        tab = Tab(
+            webview=webview,
+            id=str(int(time.time() * 1000)),
+            url="about:blank",
+            title="New Tab",
+            last_active=time.time()
+        )
+        self.tabs.append(tab)
+        self.active_tab_idx = 0
+        self._switch_to_tab(0)
+        self._update_tab_sidebar()
+        self._update_window_title()
+    
+    def _restore_from_escape(self):
+        """Restore tabs after quick escape"""
+        if hasattr(self, '_escape_backup') and self._escape_backup:
+            self.tabs = self._escape_backup['tabs']
+            self.active_tab_idx = self._escape_backup['active']
+            self._switch_to_tab(self.active_tab_idx)
+            self._update_tab_sidebar()
+            self._update_window_title()
+            self._escape_backup = None
 
 
 @dataclass
