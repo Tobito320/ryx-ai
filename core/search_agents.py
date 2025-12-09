@@ -205,6 +205,7 @@ class SearchAgent:
                         ]
                     
                     last_error = f"{base_url} returned no results"
+                    logger.warning(last_error)
             except Exception as e:
                 last_error = f"{base_url} search failed: {e}"
                 logger.error(last_error)

@@ -40,17 +40,16 @@ async def test_search_agent_uses_backup_on_primary_failure():
         
         from core.search_agents import SearchAgent
         
-        agent = SearchAgent(
+        class TestSearchAgent(SearchAgent):
+            async def _summarize_results(self, query, results):
+                return "summary"
+        
+        agent = TestSearchAgent(
             "test-agent",
-            vllm_url="http://localhost:0",  # avoid real model call
+            vllm_url="http://127.0.0.1:1",  # avoid real model call
             searxng_url=primary_url,
             backup_searxng_url=backup_url,
         )
-        
-        async def fake_summary(self, query, results):
-            return "summary"
-        
-        agent._summarize_results = fake_summary.__get__(agent, SearchAgent)
         
         result = await agent.search("ryx ai", num_results=1)
         
