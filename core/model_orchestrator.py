@@ -73,11 +73,17 @@ class ModelOrchestrator:
 
     def __init__(self, config_path: Optional[Path] = None, metrics_collector=None) -> None:
         """Initialize model orchestrator with lazy loading and performance tracking"""
+        import os
+        
         if config_path is None:
             config_path = get_project_root() / "configs" / "models.json"
 
         self.config_path = config_path
-        self.vllm_url = "http://localhost:8001"  # vLLM API
+        
+        # Support both Ollama (primary) and vLLM (backup)
+        self.ollama_url = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        self.vllm_url = "http://localhost:8001"  # vLLM API (backup)
+        self.use_ollama = self._check_ollama_available()
 
         # Model tiers
         self.model_tiers: Dict[str, ModelTier] = {}
@@ -87,8 +93,8 @@ class ModelOrchestrator:
         # Configuration
         self.idle_timeout = timedelta(minutes=5)
         
-        # Detect currently loaded model from vLLM
-        self.base_model_name = self._detect_loaded_model() or "/models/powerful/coding/qwen2.5-coder-14b-awq"
+        # Detect currently loaded model from Ollama or vLLM
+        self.base_model_name = self._detect_loaded_model() or "qwen2.5-coder:14b"
 
         # Database for performance tracking
         self.db_path = get_project_root() / "data" / "model_performance.db"
@@ -97,7 +103,7 @@ class ModelOrchestrator:
         # Load configuration
         self._load_config()
 
-        # Base model is loaded by vLLM container
+        # Base model is loaded by Ollama/vLLM container
         self._ensure_base_model_loaded()
 
         # Start cleanup thread
@@ -106,6 +112,14 @@ class ModelOrchestrator:
 
         # Metrics collector (optional integration)
         self.metrics_collector = metrics_collector
+    
+    def _check_ollama_available(self) -> bool:
+        """Check if Ollama is available (preferred backend)"""
+        try:
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=2)
+            return response.status_code == 200
+        except:
+            return False
 
     def _init_db(self):
         """Initialize performance tracking database"""
@@ -210,7 +224,21 @@ class ModelOrchestrator:
                 self.loaded_models[self.base_model_name] = datetime.now()
 
     def _detect_loaded_model(self) -> Optional[str]:
-        """Detect which model is currently loaded in vLLM"""
+        """Detect which model is currently loaded in Ollama or vLLM"""
+        # Try Ollama first (primary backend)
+        if self.use_ollama:
+            try:
+                response = requests.get(f"{self.ollama_url}/api/tags", timeout=2)
+                if response.status_code == 200:
+                    models = response.json().get("models", [])
+                    if models:
+                        # Return the first loaded model
+                        return models[0].get("name")
+                return None
+            except:
+                pass
+        
+        # Fall back to vLLM
         try:
             response = requests.get(f"{self.vllm_url}/v1/models", timeout=2)
             if response.status_code == 200:
@@ -222,7 +250,18 @@ class ModelOrchestrator:
             return None
 
     def _is_model_available(self, model_name: str) -> bool:
-        """Check if model is available in Ollama"""
+        """Check if model is available in Ollama or vLLM"""
+        # Try Ollama first
+        if self.use_ollama:
+            try:
+                response = requests.get(f"{self.ollama_url}/api/tags", timeout=2)
+                if response.status_code == 200:
+                    models = response.json().get("models", [])
+                    return any(m.get("name", "").startswith(model_name.split(":")[0]) for m in models)
+            except:
+                pass
+        
+        # Fall back to vLLM
         try:
             response = requests.get(f"{self.vllm_url}/v1/models", timeout=2)
             if response.status_code == 200:
