@@ -1077,6 +1077,10 @@ class Browser:
                 # Ctrl+U - View source
                 self._view_source()
                 return Gdk.EVENT_STOP
+            elif key_name in ('y', 'Y'):
+                # Ctrl+Y - Copy URL
+                self._copy_url()
+                return Gdk.EVENT_STOP
             elif key_name == 'Left':
                 # Ctrl+Left - Back
                 self._history_back()
@@ -1084,6 +1088,10 @@ class Browser:
             elif key_name == 'Right':
                 # Ctrl+Right - Forward
                 self._history_forward()
+                return Gdk.EVENT_STOP
+            elif key_name in ('i', 'I'):
+                # Ctrl+I - Picture-in-Picture
+                self._toggle_pip()
                 return Gdk.EVENT_STOP
         
         # Ctrl+Shift shortcuts
@@ -1941,16 +1949,16 @@ body {
         webview.evaluate_javascript(js, -1, None, None, None, None, None)
     
     def _on_load_failed(self, webview, load_event, failing_uri, error):
-        """Handle page load failures"""
+        """Handle page load failures with minimal dark error page"""
         print(f"Load failed for {failing_uri}: {error.message if error else 'Unknown error'}")
-        # Show error page instead of white screen
+        error_msg = error.message if error else 'Unknown error'
         error_html = f"""
         <html>
         <head><style>
             body {{ 
-                background: #1e1f29; 
-                color: #f8f8f2; 
-                font-family: sans-serif;
+                background: #0a0a0c; 
+                color: #666; 
+                font-family: 'JetBrains Mono', monospace;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
@@ -1958,19 +1966,33 @@ body {
                 height: 100vh;
                 margin: 0;
             }}
-            h1 {{ color: #ff5555; }}
-            a {{ color: #bd93f9; }}
+            h1 {{ color: #ff4444; font-size: 18px; margin-bottom: 20px; }}
+            .url {{ color: #444; font-size: 12px; word-break: break-all; max-width: 500px; text-align: center; }}
+            .error {{ color: #555; font-size: 11px; margin-top: 10px; }}
+            .actions {{ margin-top: 30px; }}
+            a {{ 
+                color: #7c3aed; 
+                text-decoration: none;
+                padding: 8px 16px;
+                border: 1px solid #7c3aed;
+                border-radius: 4px;
+                margin: 0 8px;
+            }}
+            a:hover {{ background: #7c3aed; color: #fff; }}
         </style></head>
         <body>
-            <h1>⚠️ Failed to load page</h1>
-            <p>Could not load: {failing_uri}</p>
-            <p>{error.message if error else 'Unknown error'}</p>
-            <p><a href="javascript:history.back()">← Go back</a></p>
+            <h1>Page failed to load</h1>
+            <p class="url">{failing_uri}</p>
+            <p class="error">{error_msg}</p>
+            <div class="actions">
+                <a href="javascript:location.reload()">Retry</a>
+                <a href="javascript:history.back()">Back</a>
+            </div>
         </body>
         </html>
         """
         webview.load_html(error_html, failing_uri)
-        return True  # Prevent default error handling
+        return True
             
     def _scroll(self, down: bool = True):
         """Scroll the current page"""
@@ -3046,6 +3068,42 @@ body {
             None,
             on_snapshot_ready
         )
+    
+    def _toggle_pip(self):
+        """Toggle Picture-in-Picture for video on current page"""
+        if not self.tabs:
+            return
+        
+        tab = self.tabs[self.active_tab_idx]
+        
+        # JavaScript to toggle PiP on the first video found
+        js = """
+        (function() {
+            const video = document.querySelector('video');
+            if (!video) {
+                console.log('No video found');
+                return;
+            }
+            
+            if (document.pictureInPictureElement) {
+                document.exitPictureInPicture();
+            } else if (document.pictureInPictureEnabled) {
+                video.requestPictureInPicture().catch(e => console.log(e));
+            }
+        })();
+        """
+        tab.webview.evaluate_javascript(js, -1, None, None, None, None, None)
+    
+    def _copy_url(self):
+        """Copy current URL to clipboard"""
+        if not self.tabs:
+            return
+        
+        url = self.tabs[self.active_tab_idx].url
+        if url:
+            clipboard = Gdk.Display.get_default().get_clipboard()
+            clipboard.set(url)
+            print(f"Copied: {url}")
 
 
 @dataclass
