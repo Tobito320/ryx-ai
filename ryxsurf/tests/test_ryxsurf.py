@@ -65,6 +65,36 @@ class TestKeybinds:
         assert "RyxSurf Keybinds" in help_text
         assert "NAVIGATION" in help_text
         assert "TABS" in help_text
+    
+    def test_action_map(self):
+        """Test action map generation"""
+        from ryxsurf.keybinds import get_action_map
+        
+        action_map = get_action_map()
+        assert isinstance(action_map, dict)
+        assert "new_tab" in action_map
+        assert "close_tab" in action_map
+        assert "toggle_sidebar" in action_map
+    
+    def test_gtk_accelerators(self):
+        """Test GTK accelerator generation"""
+        from ryxsurf.keybinds import get_gtk_accelerators
+        
+        accels = get_gtk_accelerators()
+        assert isinstance(accels, dict)
+        assert len(accels) > 20
+        # Check format
+        for action, accel in accels.items():
+            assert isinstance(accel, str)
+    
+    def test_modifier_to_gtk(self):
+        """Test modifier to GTK conversion"""
+        from ryxsurf.keybinds import modifier_to_gtk, Modifier
+        
+        assert modifier_to_gtk(Modifier.NONE) == ""
+        assert modifier_to_gtk(Modifier.SUPER) == "<Super>"
+        assert modifier_to_gtk(Modifier.CTRL) == "<Control>"
+        assert modifier_to_gtk(Modifier.SUPER_SHIFT) == "<Super><Shift>"
 
 
 class TestSessionSync:
