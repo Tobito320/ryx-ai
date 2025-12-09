@@ -34,6 +34,49 @@ def create_dummy_executor():
     return executor
 
 
+def create_ollama_executor(model: str = "qwen2.5-coder:14b", base_url: str = "http://localhost:11434"):
+    """Create an LLM executor using Ollama"""
+    import requests
+    
+    async def executor(problem, config):
+        """Execute a benchmark problem using Ollama"""
+        prompt = f"""You are a coding assistant. Solve the following problem:
+
+Problem: {problem.description}
+
+{problem.context if hasattr(problem, 'context') and problem.context else ''}
+
+Provide a complete, working solution in Python. Return ONLY the code, no explanations."""
+
+        try:
+            response = requests.post(
+                f"{base_url}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.2,  # Lower for more consistent code
+                        "num_predict": 2000
+                    }
+                },
+                timeout=120
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("response", "")
+            else:
+                return f"# Error: HTTP {response.status_code}"
+                
+        except requests.exceptions.ConnectionError:
+            return "# Error: Cannot connect to Ollama at " + base_url
+        except Exception as e:
+            return f"# Error: {str(e)}"
+    
+    return executor
+
+
 async def cmd_list(args):
     """List available benchmarks"""
     print("\n📊 Available Benchmarks:\n")
@@ -51,13 +94,15 @@ async def cmd_run(args):
     """Run a benchmark"""
     runner = BenchmarkRunner()
     
-    # For now, use dummy executor
-    # TODO: Replace with actual LLM executor
-    if not args.dry_run:
-        print("⚠️  No LLM executor configured. Use --dry-run or configure vLLM.")
-        return
-    
-    runner.set_executor(create_dummy_executor())
+    # Use Ollama executor if available, otherwise fall back to dummy
+    if args.dry_run:
+        print("🔄 Dry run mode - using dummy executor")
+        runner.set_executor(create_dummy_executor())
+    else:
+        model = getattr(args, 'model', 'qwen2.5-coder:14b')
+        base_url = getattr(args, 'ollama_url', 'http://localhost:11434')
+        print(f"🤖 Using Ollama executor (model: {model})")
+        runner.set_executor(create_ollama_executor(model, base_url))
     
     config = RunConfig(
         verbose=args.verbose,

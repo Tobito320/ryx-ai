@@ -76,8 +76,7 @@
 - Fast startup, efficient memory
 
 ### High Priority (P1)
-- [ ] **Sidebar too wide** - Should be 10-15% (currently ~40% visually)
-  - CSS says 120px but something overrides it
+- [x] **Sidebar too wide** - Fixed with set_hexpand(False)
   
 - [ ] **Workspaces in wrong location**
   - Currently in left sidebar, should be in URL bar (after reload button)
@@ -87,7 +86,9 @@
   - Sidebar expands to fill space incorrectly
 
 ### Medium Priority (P2)
-- [ ] Dark mode enforcement on all pages
+- [x] Dark mode enforcement on all pages - **Added aggressive invert filter for light pages**
+- [x] Tab title display - **Extended to 25 chars**
+- [x] Keybinds.py integration - **Added GTK accelerator helper functions**
 - [ ] Performance optimization (4s load time → instant)
 - [ ] Session restore reliability
 - [ ] Bookmark sync
@@ -97,6 +98,11 @@
 - [x] Analyzed browser.py structure (~3900 lines)
 - [x] Identified keybind issues
 - [x] Identified layout issues
+- [x] Fixed sidebar width
+- [x] Fixed duplicate _focus_url_bar
+- [x] Extended tab title to 25 chars
+- [x] Added dark mode enforcement for light pages
+- [x] Added keybind GTK integration helpers
 
 ## Feature Roadmap
 

@@ -1896,13 +1896,14 @@ class Browser:
                 box.append(icon_label)
             
             # Title - show actual title or domain or "New Tab"
+            # Extended to 25 chars for better readability
             if tab.title and tab.title != "New Tab":
-                title_text = tab.title[:15]
+                title_text = tab.title[:25]
             elif tab.url and tab.url != "about:blank":
                 try:
                     from urllib.parse import urlparse
                     parsed = urlparse(tab.url)
-                    title_text = parsed.netloc[:15] if parsed.netloc else "New Tab"
+                    title_text = parsed.netloc[:25] if parsed.netloc else "New Tab"
                 except:
                     title_text = "New Tab"
             else:
@@ -2269,20 +2270,51 @@ class Browser:
                 self._schedule_url_bar_hide()
     
     def _inject_dark_mode_css(self, webview):
-        """Inject CSS to help pages respect dark mode"""
-        js = """
-        (function() {
+        """Inject CSS to enforce dark mode on pages that don't support it natively"""
+        # Check if dark mode enforcement is enabled
+        enforce_dark = self.settings.get("force_dark_mode", True)
+        
+        js = f"""
+        (function() {{
             // Set color-scheme meta tag if not present
-            if (!document.querySelector('meta[name="color-scheme"]')) {
+            if (!document.querySelector('meta[name="color-scheme"]')) {{
                 var meta = document.createElement('meta');
                 meta.name = 'color-scheme';
                 meta.content = 'dark light';
                 document.head.appendChild(meta);
-            }
+            }}
             
-            // Add dark mode class to html element
+            // Set color-scheme on html element
             document.documentElement.style.colorScheme = 'dark';
-        })();
+            
+            // Aggressive dark mode for sites that don't support it
+            var enforceDark = {str(enforce_dark).lower()};
+            if (enforceDark) {{
+                // Check if page is already dark (bg color check)
+                var bg = window.getComputedStyle(document.body).backgroundColor;
+                var rgb = bg.match(/\\d+/g);
+                if (rgb && rgb.length >= 3) {{
+                    var brightness = (parseInt(rgb[0]) + parseInt(rgb[1]) + parseInt(rgb[2])) / 3;
+                    // Only inject if background is light (brightness > 128)
+                    if (brightness > 128) {{
+                        var darkStyle = document.getElementById('ryxsurf-dark-mode');
+                        if (!darkStyle) {{
+                            darkStyle = document.createElement('style');
+                            darkStyle.id = 'ryxsurf-dark-mode';
+                            darkStyle.textContent = `
+                                html {{
+                                    filter: invert(90%) hue-rotate(180deg) !important;
+                                }}
+                                img, video, picture, canvas, svg, [style*="background-image"] {{
+                                    filter: invert(100%) hue-rotate(180deg) !important;
+                                }}
+                            `;
+                            document.head.appendChild(darkStyle);
+                        }}
+                    }}
+                }}
+            }}
+        }})();
         """
         webview.evaluate_javascript(js, -1, None, None, None, None, None)
     

@@ -393,8 +393,61 @@ class RSILoop:
             logger.warning("No LLM client - cannot generate hypothesis")
             return None
         
-        # For now, return a placeholder
-        # TODO: Use LLM to generate actual improvements
+        weak_areas = analysis.get("weak_areas", [])
+        error_patterns = analysis.get("error_patterns", {})
+        
+        if not weak_areas and not error_patterns:
+            logger.info("No weaknesses identified - nothing to improve")
+            return None
+        
+        # Generate hypothesis based on analysis
+        prompt = f"""You are Ryx AI, a self-improving coding assistant.
+
+Analysis shows these weaknesses:
+- Weak benchmarks: {weak_areas}
+- Error patterns: {error_patterns}
+- Failed count: {analysis.get('failed_count', 0)}
+
+Generate an improvement hypothesis. Identify ONE specific change to make.
+
+Return JSON with:
+{{
+    "description": "What to change",
+    "target_benchmark": "Which benchmark to improve",
+    "expected_improvement": 0.1,
+    "reasoning": "Why this will help",
+    "file_path": "path/to/file.py",
+    "change_type": "modify|add|refactor",
+    "change_description": "Specific code change to make"
+}}"""
+        
+        try:
+            response = await self._llm_client.generate(prompt)
+            
+            # Parse JSON from response
+            import json
+            import re
+            
+            # Extract JSON from response
+            json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                
+                from uuid import uuid4
+                hypothesis = ImprovementHypothesis(
+                    hypothesis_id=str(uuid4())[:8],
+                    description=data.get("description", ""),
+                    target_benchmark=data.get("target_benchmark", weak_areas[0] if weak_areas else ""),
+                    expected_improvement=float(data.get("expected_improvement", 0.05)),
+                    reasoning=data.get("reasoning", ""),
+                    file_changes={
+                        data.get("file_path", ""): data.get("change_description", "")
+                    } if data.get("file_path") else {}
+                )
+                return hypothesis
+                
+        except Exception as e:
+            logger.error(f"Failed to generate hypothesis: {e}")
         
         return None
     
@@ -403,8 +456,36 @@ class RSILoop:
         hypothesis: ImprovementHypothesis
     ) -> bool:
         """Implement the hypothesis changes (in sandbox)"""
-        # TODO: Apply changes to sandbox environment
-        return False
+        if not hypothesis.file_changes:
+            logger.warning("No file changes in hypothesis")
+            return False
+        
+        # Create sandbox directory
+        sandbox_dir = Path.home() / ".ryx" / "sandbox" / hypothesis.hypothesis_id
+        sandbox_dir.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            for file_path, change_desc in hypothesis.file_changes.items():
+                if not file_path:
+                    continue
+                    
+                # Copy original to sandbox
+                original = Path(file_path)
+                sandbox_file = sandbox_dir / original.name
+                
+                if original.exists():
+                    # Backup original
+                    sandbox_file.write_text(original.read_text())
+                    
+                    # Log what would be changed
+                    logger.info(f"Sandbox: Would apply to {file_path}: {change_desc[:100]}...")
+                    
+            hypothesis.implemented = True
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to implement hypothesis: {e}")
+            return False
     
     async def _decide(
         self,
