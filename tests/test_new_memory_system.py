@@ -408,5 +408,50 @@ class TestEncryption:
         assert decrypted == original
 
 
+# ═══════════════════════════════════════════════════════════════
+# Health Monitor Tests
+# ═══════════════════════════════════════════════════════════════
+
+class TestHealthMonitor:
+    """Tests for the HealthMonitor Ollama integration"""
+    
+    @pytest.fixture
+    def health_monitor(self, tmp_path):
+        """Create a temporary health monitor instance"""
+        from core.health_monitor import HealthMonitor
+        db_path = tmp_path / "test_health.db"
+        return HealthMonitor(db_path=db_path)
+    
+    def test_health_monitor_initialization(self, health_monitor):
+        """Test that health monitor initializes correctly"""
+        assert health_monitor.ollama_url == "http://localhost:11434"
+        assert health_monitor.vllm_url == "http://localhost:8001"
+        assert health_monitor.check_interval == 30
+    
+    def test_health_check_ollama_method_exists(self, health_monitor):
+        """Test that _check_ollama method exists"""
+        assert hasattr(health_monitor, '_check_ollama')
+        assert callable(health_monitor._check_ollama)
+    
+    def test_health_check_ollama_returns_health_check(self, health_monitor):
+        """Test that _check_ollama returns a HealthCheck object"""
+        from core.health_monitor import HealthCheck
+        
+        result = health_monitor._check_ollama()
+        assert isinstance(result, HealthCheck)
+        assert result.component == "ollama"
+    
+    def test_fix_ollama_method_exists(self, health_monitor):
+        """Test that _fix_ollama method exists"""
+        assert hasattr(health_monitor, '_fix_ollama')
+        assert callable(health_monitor._fix_ollama)
+    
+    def test_run_health_checks_includes_ollama(self, health_monitor):
+        """Test that run_health_checks includes Ollama"""
+        checks = health_monitor.run_health_checks()
+        assert "ollama" in checks
+        assert "vllm" in checks
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

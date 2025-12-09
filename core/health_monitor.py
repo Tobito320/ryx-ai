@@ -3,6 +3,7 @@ Ryx AI - Health Monitor
 Continuous system monitoring with automatic healing capabilities
 """
 
+import os
 import time
 import sqlite3
 import requests
@@ -76,7 +77,11 @@ class HealthMonitor:
             db_path = get_project_root() / "data" / "health_monitor.db"
 
         self.db_path = db_path
-        self.vllm_url = "http://localhost:8001"  # vLLM API endpoint
+        
+        # LLM backend URLs
+        self.ollama_url = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+        self.vllm_url = "http://localhost:8001"  # vLLM API endpoint (backup)
+        
         self.check_interval = 30  # seconds
         self.monitoring = False
         self.monitor_thread: Optional[threading.Thread] = None
@@ -167,7 +172,10 @@ class HealthMonitor:
         """Run all health checks"""
         checks = {}
 
-        # Check vLLM service
+        # Check Ollama service (primary backend)
+        checks["ollama"] = self._check_ollama()
+        
+        # Check vLLM service (backup backend)
         checks["vllm"] = self._check_vllm()
 
         # Check database
@@ -193,6 +201,58 @@ class HealthMonitor:
         self._handle_issues(checks)
 
         return checks
+
+    def _check_ollama(self) -> HealthCheck:
+        """Check Ollama service health (primary backend)"""
+        try:
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+                models = data.get("models", [])
+                model_names = [m.get("name", "unknown") for m in models]
+                
+                if models:
+                    return HealthCheck(
+                        component="ollama",
+                        status=HealthStatus.HEALTHY,
+                        message=f"Ollama running with {len(models)} models",
+                        timestamp=datetime.now(),
+                        details={"models": model_names, "model_count": len(models)}
+                    )
+                else:
+                    return HealthCheck(
+                        component="ollama",
+                        status=HealthStatus.DEGRADED,
+                        message="Ollama running but no models loaded. Run: ollama pull qwen2.5-coder:14b",
+                        timestamp=datetime.now(),
+                        details={"models": [], "model_count": 0}
+                    )
+            else:
+                return HealthCheck(
+                    component="ollama",
+                    status=HealthStatus.DEGRADED,
+                    message=f"Ollama returned status {response.status_code}",
+                    timestamp=datetime.now(),
+                    details={"status_code": response.status_code}
+                )
+
+        except requests.exceptions.ConnectionError:
+            return HealthCheck(
+                component="ollama",
+                status=HealthStatus.CRITICAL,
+                message="Ollama not running. Run: ollama serve",
+                timestamp=datetime.now(),
+                details={"error": "connection_refused"}
+            )
+        except Exception as e:
+            return HealthCheck(
+                component="ollama",
+                status=HealthStatus.UNHEALTHY,
+                message=f"Ollama check failed: {str(e)}",
+                timestamp=datetime.now(),
+                details={"error": str(e)}
+            )
 
     def _check_vllm(self) -> HealthCheck:
         """Check vLLM service health"""
@@ -465,7 +525,9 @@ class HealthMonitor:
         # Try component-specific fixes
         fixed = False
 
-        if component == "vllm":
+        if component == "ollama":
+            fixed = self._fix_ollama()
+        elif component == "vllm":
             fixed = self._fix_vllm()
         elif component == "database":
             fixed = self._fix_database()
@@ -482,6 +544,54 @@ class HealthMonitor:
             del self.active_incidents[component]
         else:
             self._log_incident(incident)
+
+    def _fix_ollama(self) -> bool:
+        """
+        Try to fix Ollama service by restarting it.
+        Ollama is simpler than vLLM - just restart the service.
+        """
+        try:
+            # Try systemctl restart first (if running as service)
+            result = subprocess.run(
+                ["systemctl", "--user", "restart", "ollama"],
+                capture_output=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                # Wait for service to be ready
+                for delay in [1, 2, 4]:
+                    time.sleep(delay)
+                    try:
+                        response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+                        if response.status_code == 200:
+                            return True
+                    except:
+                        continue
+                return False
+
+            # Try starting ollama directly
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True
+            )
+
+            # Wait for service to be ready
+            for delay in [1, 2, 4]:
+                time.sleep(delay)
+                try:
+                    response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+                    if response.status_code == 200:
+                        return True
+                except:
+                    continue
+
+            return False
+
+        except Exception:
+            return False
 
     def _fix_vllm(self) -> bool:
         """
