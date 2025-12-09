@@ -342,113 +342,111 @@ class Browser:
         app.release()
     
     def _apply_css(self):
-        """Apply ultra-compact minimal UI styling"""
+        """Apply ultra-minimal compact UI styling"""
         css = """
         /* ═══════════════════════════════════════════════════════════════
-           BASE - Dark minimal theme
+           ULTRA MINIMAL - Pure dark, no fluff
            ═══════════════════════════════════════════════════════════════ */
         window {
-            background: #0d0e11;
+            background: #0a0a0c;
         }
         
         /* ═══════════════════════════════════════════════════════════════
-           TAB SIDEBAR - Compact icon-based (48px collapsed)
+           TAB SIDEBAR - 10-15% width, super compact
            ═══════════════════════════════════════════════════════════════ */
         .tab-sidebar {
-            background: #13141a;
-            border-right: 1px solid rgba(255, 255, 255, 0.05);
-            padding: 6px 4px;
-            min-width: 48px;
-            min-width: 48px;
-        }
-        
-        .tab-sidebar.expanded {
-            min-width: 200px;
-            min-width: 200px;
+            background: #0e0e12;
+            border-right: 1px solid #1a1a1f;
+            padding: 2px;
+            min-width: 140px;
+            max-width: 180px;
         }
         
         .tab-item {
             background: transparent;
             border: none;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 2px;
-            min-width: 36px;
-            min-height: 36px;
-            transition: all 120ms ease;
+            border-radius: 4px;
+            padding: 6px 8px;
+            margin: 1px 2px;
+            min-height: 28px;
         }
         
         .tab-item:hover {
-            background: rgba(255, 255, 255, 0.06);
+            background: #1a1a20;
         }
         
         .tab-item.active {
-            background: rgba(139, 92, 246, 0.15);
-            box-shadow: inset 2px 0 0 #8b5cf6;
+            background: #1f1f28;
+            border-left: 2px solid #7c3aed;
+        }
+        
+        .tab-title {
+            color: #888;
+            font-size: 11px;
+            font-weight: 400;
+        }
+        
+        .tab-item.active .tab-title {
+            color: #ccc;
         }
         
         .tab-favicon {
-            border-radius: 4px;
+            border-radius: 2px;
         }
         
-        /* ═══════════════════════════════════════════════════════════════
-           URL BAR - Ultra compact, full width
-           ═══════════════════════════════════════════════════════════════ */
-        .url-bar {
-            background: #13141a;
-            padding: 4px 12px;
-            min-height: 36px;
-            min-height: 36px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-        }
-        
-        .nav-btn {
+        .tab-close {
             background: transparent;
             border: none;
-            color: #666;
-            border-radius: 6px;
-            padding: 6px 8px;
-            min-width: 28px;
-            font-size: 14px;
-            transition: all 100ms ease;
+            color: #555;
+            padding: 2px;
+            border-radius: 3px;
+            font-size: 10px;
+            min-width: 16px;
+            min-height: 16px;
+            opacity: 0;
         }
         
-        .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.06);
-            color: #999;
+        .tab-item:hover .tab-close {
+            opacity: 1;
         }
         
-        .nav-btn:disabled {
-            color: #333;
-        }
-        
-        .url-entry {
-            background: rgba(255, 255, 255, 0.04);
-            color: #ccc;
-            border: 1px solid transparent;
-            border-radius: 6px;
-            padding: 4px 12px;
-            font-size: 13px;
-            font-family: system-ui, -apple-system, sans-serif;
-            min-height: 26px;
-            caret-color: #8b5cf6;
-        }
-        
-        .url-entry:focus {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(139, 92, 246, 0.4);
-            outline: none;
+        .tab-close:hover {
+            background: #ff4444;
             color: #fff;
         }
         
-        .url-entry selection {
-            background: rgba(139, 92, 246, 0.3);
+        /* ═══════════════════════════════════════════════════════════════
+           URL BAR - Minimal thin bar
+           ═══════════════════════════════════════════════════════════════ */
+        .url-bar {
+            background: #0e0e12;
+            padding: 3px 8px;
+            min-height: 28px;
+            border-bottom: 1px solid #1a1a1f;
+        }
+        
+        .url-entry {
+            background: #151518;
+            color: #999;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            min-height: 22px;
+            caret-color: #7c3aed;
+        }
+        
+        .url-entry:focus {
+            background: #1a1a20;
+            color: #ddd;
+            outline: none;
         }
         
         .security-icon {
-            color: #666;
-            font-size: 12px;
-            padding: 0 6px;
+            color: #555;
+            font-size: 11px;
+            padding: 0 4px;
         }
         
         .security-icon.secure {
@@ -456,82 +454,126 @@ class Browser:
         }
         
         /* ═══════════════════════════════════════════════════════════════
-           NEW TAB PAGE - Clean dashboard style
-           ═══════════════════════════════════════════════════════════════ */
-        .newtab-page {
-            background: #0d0e11;
-        }
-        
-        .newtab-search {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 14px 20px;
-            font-size: 15px;
-            color: #fff;
-            min-width: 500px;
-            transition: all 150ms ease;
-        }
-        
-        .newtab-search:focus {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(139, 92, 246, 0.5);
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
-            outline: none;
-        }
-        
-        .quick-link {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 16px;
-            min-width: 100px;
-            transition: all 150ms ease;
-        }
-        
-        .quick-link:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(255, 255, 255, 0.1);
-            transform: translateY(-2px);
-        }
-        
-        .quick-link-icon {
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-        
-        .quick-link-title {
-            color: #888;
-            font-size: 11px;
-        }
-        
-        /* ═══════════════════════════════════════════════════════════════
-           SCROLLBARS - Minimal
+           SCROLLBARS - Invisible until hover
            ═══════════════════════════════════════════════════════════════ */
         scrollbar {
             background: transparent;
         }
         
         scrollbar slider {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            min-width: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            min-width: 4px;
         }
         
         scrollbar slider:hover {
-            background: rgba(139, 92, 246, 0.3);
+            background: rgba(124, 58, 237, 0.4);
         }
         
         /* ═══════════════════════════════════════════════════════════════
-           TOOLTIPS
+           SUGGESTIONS POPUP
+           ═══════════════════════════════════════════════════════════════ */
+        .suggestions-popover {
+            background: #0e0e12;
+            border: 1px solid #1a1a1f;
+            border-radius: 6px;
+        }
+        
+        .suggestion-row {
+            padding: 6px 10px;
+        }
+        
+        .suggestion-row:hover {
+            background: #1a1a20;
+        }
+        
+        .suggestion-title {
+            color: #ccc;
+            font-size: 12px;
+        }
+        
+        .suggestion-url {
+            color: #555;
+            font-size: 10px;
+        }
+        
+        .quick-suggestion {
+            background: #1a1a20;
+        }
+        
+        .quick-icon {
+            color: #7c3aed;
+        }
+        
+        .quick-domain {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           FIND BAR - Minimal
+           ═══════════════════════════════════════════════════════════════ */
+        .find-bar {
+            background: #0e0e12;
+            border-top: 1px solid #1a1a1f;
+            padding: 4px 8px;
+        }
+        
+        .find-entry {
+            background: #151518;
+            color: #ccc;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            min-height: 22px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           TOOLTIPS - Minimal
            ═══════════════════════════════════════════════════════════════ */
         tooltip {
-            background: #1a1b23;
-            color: #ccc;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-size: 11px;
+            background: #151518;
+            color: #999;
+            border: 1px solid #1a1a1f;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           AI SIDEBAR - Hidden by default
+           ═══════════════════════════════════════════════════════════════ */
+        .ai-sidebar {
+            background: #0e0e12;
+            border-left: 1px solid #1a1a1f;
+            min-width: 280px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           TAB COUNT - Subtle
+           ═══════════════════════════════════════════════════════════════ */
+        .tab-count {
+            color: #444;
+            font-size: 10px;
+            padding: 4px;
+        }
+        
+        /* ═══════════════════════════════════════════════════════════════
+           NEW TAB BUTTON
+           ═══════════════════════════════════════════════════════════════ */
+        .new-tab-btn {
+            background: transparent;
+            border: none;
+            color: #444;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 14px;
+        }
+        
+        .new-tab-btn:hover {
+            background: #1a1a20;
+            color: #888;
         }
         """
         
@@ -1226,93 +1268,51 @@ class Browser:
         self._update_window_title()
     
     def _load_newtab_page(self, webview):
-        """Load a clean new tab page with search"""
+        """Load ultra-minimal new tab page"""
         html = '''<!DOCTYPE html>
 <html>
 <head>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-    background: #0d0e11;
-    color: #888;
-    font-family: system-ui, -apple-system, sans-serif;
+    background: #0a0a0c;
+    color: #444;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100vh;
-    gap: 40px;
-}
-.logo {
-    font-size: 48px;
-    font-weight: 200;
-    color: #8b5cf6;
-    letter-spacing: -2px;
 }
 .search {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 16px 24px;
-    font-size: 16px;
-    color: #fff;
-    width: 500px;
+    background: #151518;
+    border: 1px solid #1a1a1f;
+    border-radius: 6px;
+    padding: 12px 20px;
+    font-size: 14px;
+    color: #999;
+    width: 400px;
     outline: none;
-    transition: all 150ms;
+    font-family: inherit;
 }
 .search:focus {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(139,92,246,0.5);
-    box-shadow: 0 0 0 4px rgba(139,92,246,0.1);
+    background: #1a1a20;
+    border-color: #7c3aed;
+    color: #ddd;
 }
-.shortcuts {
-    display: flex;
-    gap: 16px;
-    margin-top: 20px;
-}
-.shortcut {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 12px;
-    padding: 20px;
-    width: 90px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 150ms;
-    text-decoration: none;
-    color: inherit;
-}
-.shortcut:hover {
-    background: rgba(255,255,255,0.06);
-    transform: translateY(-2px);
-}
-.shortcut-icon { font-size: 24px; margin-bottom: 8px; }
-.shortcut-name { font-size: 11px; color: #666; }
+.search::placeholder { color: #333; }
 .tip {
     position: fixed;
-    bottom: 30px;
-    font-size: 12px;
-    color: #444;
-}
-kbd {
-    background: rgba(255,255,255,0.1);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: monospace;
+    bottom: 20px;
+    font-size: 10px;
+    color: #333;
 }
 </style>
 </head>
 <body>
-<div class="logo">RyxSurf</div>
-<input class="search" placeholder="Search or enter URL" autofocus 
+<input class="search" placeholder="Search or URL" autofocus 
     onkeydown="if(event.key==='Enter'){window.location=this.value.includes('.')?'https://'+this.value:'https://duckduckgo.com/?q='+encodeURIComponent(this.value)}">
-<div class="shortcuts">
-    <a class="shortcut" href="https://github.com"><div class="shortcut-icon">🐙</div><div class="shortcut-name">GitHub</div></a>
-    <a class="shortcut" href="https://youtube.com"><div class="shortcut-icon">▶️</div><div class="shortcut-name">YouTube</div></a>
-    <a class="shortcut" href="https://reddit.com"><div class="shortcut-icon">🔮</div><div class="shortcut-name">Reddit</div></a>
-    <a class="shortcut" href="https://duckduckgo.com"><div class="shortcut-icon">🦆</div><div class="shortcut-name">Search</div></a>
-</div>
-<div class="tip">Press <kbd>Ctrl+L</kbd> to focus URL bar · <kbd>Ctrl+T</kbd> new tab</div>
+<div class="tip">Ctrl+L focus · Ctrl+T new · Ctrl+W close</div>
 </body>
 </html>'''
         webview.load_html(html, "about:newtab")

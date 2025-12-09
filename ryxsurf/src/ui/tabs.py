@@ -58,8 +58,8 @@ class TabSidebar(Gtk.Box):
         self._apply_css()
         
     def _setup_ui(self):
-        """Setup sidebar UI"""
-        self.set_size_request(180, -1)
+        """Setup sidebar UI - minimal 140px width"""
+        self.set_size_request(140, -1)  # 10-15% of 1920px screen
         self.add_css_class("tab-sidebar")
         
         # Session header
@@ -112,7 +112,7 @@ class TabSidebar(Gtk.Box):
             self.tab_list.append(row)
             
     def _create_tab_row(self, tab: TabInfo) -> Gtk.Button:
-        """Create a single tab row"""
+        """Create a single tab row - compact"""
         btn = Gtk.Button()
         btn.add_css_class("tab-row")
         if tab.is_active:
@@ -120,19 +120,19 @@ class TabSidebar(Gtk.Box):
         if tab.is_unloaded:
             btn.add_css_class("unloaded")
             
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        box.set_margin_start(8)
-        box.set_margin_end(8)
-        box.set_margin_top(6)
-        box.set_margin_bottom(6)
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        box.set_margin_start(4)
+        box.set_margin_end(4)
+        box.set_margin_top(3)
+        box.set_margin_bottom(3)
         
-        # Favicon placeholder
-        favicon = Gtk.Label(label="●")
+        # Favicon placeholder - smaller
+        favicon = Gtk.Label(label="·")
         favicon.add_css_class("favicon")
         box.append(favicon)
         
-        # Title (truncated)
-        title = Gtk.Label(label=tab.title[:30])
+        # Title (truncated more aggressively)
+        title = Gtk.Label(label=tab.title[:20])
         title.set_halign(Gtk.Align.START)
         title.set_hexpand(True)
         title.set_ellipsize(Pango.EllipsizeMode.END)
@@ -160,67 +160,76 @@ class TabSidebar(Gtk.Box):
         self.session_indicator.set_name(f"session-{color.replace('#', '')}")
         
     def _apply_css(self):
-        """Apply sidebar CSS"""
+        """Apply sidebar CSS - ultra minimal"""
         css = b"""
         .tab-sidebar {
-            background: #21222c;
-            border-right: 1px solid #44475a;
+            background: #0e0e12;
+            border-right: 1px solid #1a1a1f;
         }
         
         .session-button {
             background: transparent;
             border: none;
             border-radius: 0;
-            padding: 12px;
+            padding: 6px 8px;
+            min-height: 24px;
         }
         
         .session-button:hover {
-            background: #44475a;
+            background: #1a1a20;
         }
         
         .session-indicator {
-            background: #bd93f9;
+            background: #7c3aed;
             border-radius: 50%;
         }
         
         .tab-row {
             background: transparent;
             border: none;
-            border-radius: 4px;
-            margin: 0 4px;
+            border-radius: 3px;
+            margin: 1px 2px;
+            min-height: 24px;
         }
         
         .tab-row:hover {
-            background: #44475a;
+            background: #1a1a20;
         }
         
         .tab-row.active {
-            background: #44475a;
-            border-left: 3px solid #bd93f9;
+            background: #1f1f28;
+            border-left: 2px solid #7c3aed;
         }
         
         .tab-row.unloaded .tab-title {
-            color: #6272a4;
+            color: #444;
             font-style: italic;
         }
         
         .favicon {
-            color: #6272a4;
-            font-size: 10px;
+            color: #444;
+            font-size: 8px;
         }
         
         .tab-title {
-            color: #f8f8f2;
-            font-size: 13px;
+            color: #888;
+            font-size: 11px;
+        }
+        
+        .tab-row.active .tab-title {
+            color: #ccc;
         }
         
         .tab-close {
             background: transparent;
             border: none;
-            color: #6272a4;
+            color: #444;
             opacity: 0;
-            padding: 2px 6px;
-            border-radius: 4px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            min-width: 14px;
+            min-height: 14px;
         }
         
         .tab-row:hover .tab-close {
@@ -228,8 +237,8 @@ class TabSidebar(Gtk.Box):
         }
         
         .tab-close:hover {
-            background: #ff5555;
-            color: #f8f8f2;
+            background: #ff4444;
+            color: #fff;
         }
         """
         
