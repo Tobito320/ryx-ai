@@ -15,6 +15,7 @@ Usage:
 import sys
 import asyncio
 import argparse
+import requests
 from pathlib import Path
 
 # Add project root to path
@@ -36,7 +37,6 @@ def create_dummy_executor():
 
 def create_ollama_executor(model: str = "qwen2.5-coder:14b", base_url: str = "http://localhost:11434"):
     """Create an LLM executor using Ollama"""
-    import requests
     
     async def executor(problem, config):
         """Execute a benchmark problem using Ollama"""

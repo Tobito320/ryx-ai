@@ -20,11 +20,13 @@ This is inspired by:
 import asyncio
 import logging
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field, asdict
 from enum import Enum
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -424,16 +426,34 @@ Return JSON with:
         try:
             response = await self._llm_client.generate(prompt)
             
-            # Parse JSON from response
-            import json
-            import re
-            
-            # Extract JSON from response
-            json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
+            # Extract JSON from response - handle nested braces properly
+            # Try to find JSON object with balanced braces
+            def extract_json(text: str) -> Optional[dict]:
+                """Extract first valid JSON object from text"""
+                start = text.find('{')
+                if start == -1:
+                    return None
                 
-                from uuid import uuid4
+                depth = 0
+                end = start
+                for i, char in enumerate(text[start:], start):
+                    if char == '{':
+                        depth += 1
+                    elif char == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:end])
+                    except json.JSONDecodeError:
+                        return None
+                return None
+            
+            data = extract_json(response)
+            if data:
                 hypothesis = ImprovementHypothesis(
                     hypothesis_id=str(uuid4())[:8],
                     description=data.get("description", ""),
