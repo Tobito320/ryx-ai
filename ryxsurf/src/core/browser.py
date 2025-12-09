@@ -1112,6 +1112,10 @@ class Browser:
                 # Ctrl+Shift+T - Reopen closed tab
                 self._reopen_closed_tab()
                 return Gdk.EVENT_STOP
+            elif key_name in ('p', 'P'):
+                # Ctrl+Shift+P - Screenshot
+                self._take_screenshot()
+                return Gdk.EVENT_STOP
             elif key_name in ('n', 'N'):
                 # Ctrl+Shift+N - New private window (placeholder)
                 return Gdk.EVENT_STOP
@@ -1157,6 +1161,10 @@ class Browser:
                 return Gdk.EVENT_STOP
             elif key_name == 'x':
                 self._dismiss_popup()
+                return Gdk.EVENT_STOP
+            elif key_name in ('r', 'R'):
+                # Super+R - Reader mode
+                self._toggle_reader_mode()
                 return Gdk.EVENT_STOP
         
         # F for link hints (only when Ctrl not pressed and not in URL entry)
@@ -2947,6 +2955,97 @@ body {
         tab = self.tabs[self.active_tab_idx]
         tab.zoom_level = 1.0
         tab.webview.set_zoom_level(1.0)
+    
+    def _toggle_reader_mode(self):
+        """Toggle reader mode - clean article view"""
+        if not self.tabs:
+            return
+        
+        tab = self.tabs[self.active_tab_idx]
+        
+        # JavaScript to extract and display article content
+        js = """
+        (function() {
+            if (document.body.classList.contains('ryxsurf-reader')) {
+                // Exit reader mode
+                location.reload();
+                return;
+            }
+            
+            // Simple reader mode implementation
+            let article = document.querySelector('article') || 
+                         document.querySelector('[role="main"]') ||
+                         document.querySelector('main') ||
+                         document.querySelector('.post-content') ||
+                         document.querySelector('.article-content');
+            
+            if (!article) {
+                // Fallback: use body content
+                article = document.body;
+            }
+            
+            let title = document.title;
+            let content = article.innerHTML;
+            
+            document.body.innerHTML = `
+                <style>
+                    body.ryxsurf-reader {
+                        background: #0a0a0c !important;
+                        color: #ccc !important;
+                        font-family: Georgia, serif !important;
+                        font-size: 18px !important;
+                        line-height: 1.8 !important;
+                        max-width: 700px !important;
+                        margin: 40px auto !important;
+                        padding: 20px !important;
+                    }
+                    body.ryxsurf-reader h1, body.ryxsurf-reader h2 {
+                        color: #fff !important;
+                    }
+                    body.ryxsurf-reader a {
+                        color: #7c3aed !important;
+                    }
+                    body.ryxsurf-reader img {
+                        max-width: 100% !important;
+                        height: auto !important;
+                    }
+                </style>
+                <h1>${title}</h1>
+                ${content}
+            `;
+            document.body.classList.add('ryxsurf-reader');
+        })();
+        """
+        tab.webview.evaluate_javascript(js, -1, None, None, None, None, None)
+    
+    def _take_screenshot(self):
+        """Take a screenshot of the current page"""
+        if not self.tabs:
+            return
+        
+        tab = self.tabs[self.active_tab_idx]
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = Path.home() / "Pictures" / f"ryxsurf_{timestamp}.png"
+        
+        # Ensure directory exists
+        filename.parent.mkdir(parents=True, exist_ok=True)
+        
+        def on_snapshot_ready(webview, result):
+            try:
+                texture = webview.get_snapshot_finish(result)
+                if texture:
+                    # Save texture to file
+                    texture.save_to_png(str(filename))
+                    print(f"Screenshot saved: {filename}")
+            except Exception as e:
+                print(f"Screenshot failed: {e}")
+        
+        tab.webview.get_snapshot(
+            WebKit.SnapshotRegion.VISIBLE,
+            WebKit.SnapshotOptions.NONE,
+            None,
+            on_snapshot_ready
+        )
 
 
 @dataclass
