@@ -409,8 +409,27 @@ class ModelManager:
                 return False, decision.suggestion
         
         elif decision.action == LoadAction.OFFLOAD_CPU:
-            # TODO: Implement CPU offload via Ollama options
-            return False, decision.suggestion
+            # Use Ollama's num_gpu option for CPU offloading
+            # Setting num_gpu=0 forces full CPU inference
+            try:
+                import requests
+                resp = requests.post(
+                    f"{self._ollama_url}/api/generate",
+                    json={
+                        "model": model_name,
+                        "prompt": "",
+                        "options": {
+                            "num_predict": 1,
+                            "num_gpu": 0  # Force CPU-only inference
+                        }
+                    },
+                    timeout=120
+                )
+                if resp.status_code == 200:
+                    return True, f"Loaded {model_name} (CPU offload mode)"
+                return False, f"Failed to load with CPU offload: HTTP {resp.status_code}"
+            except Exception as e:
+                return False, f"CPU offload failed: {e}"
         
         else:  # REFUSE
             return False, decision.suggestion

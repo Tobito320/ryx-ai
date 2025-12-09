@@ -357,7 +357,29 @@ class RSILoop:
             if result.get("score", 1.0) < 0.8:
                 analysis["weak_areas"].append(benchmark)
         
-        # TODO: Get specific failed problems and analyze patterns
+        # Analyze patterns in failed problems
+        failed_problems = []
+        for benchmark, result in results.items():
+            if "problems" in result:
+                for problem in result.get("problems", []):
+                    if problem.get("passed") is False:
+                        failed_problems.append({
+                            "benchmark": benchmark,
+                            "problem_id": problem.get("id"),
+                            "error": problem.get("error", "unknown"),
+                            "expected": problem.get("expected"),
+                            "actual": problem.get("actual")
+                        })
+        
+        if failed_problems:
+            # Group failures by error type
+            error_types = {}
+            for fp in failed_problems:
+                err_type = fp["error"].split(":")[0] if ":" in fp["error"] else fp["error"]
+                error_types[err_type] = error_types.get(err_type, 0) + 1
+            
+            analysis["error_patterns"] = error_types
+            analysis["failed_count"] = len(failed_problems)
         
         return analysis
     
@@ -415,12 +437,77 @@ class RSILoop:
     
     async def _apply_changes(self, hypothesis: ImprovementHypothesis):
         """Apply accepted changes permanently"""
-        # TODO: Apply changes from hypothesis.file_changes
-        logger.info(f"Applied changes from hypothesis: {hypothesis.hypothesis_id}")
+        from pathlib import Path
+        
+        if not hypothesis.file_changes:
+            logger.warning(f"No file changes in hypothesis: {hypothesis.hypothesis_id}")
+            return
+        
+        for change in hypothesis.file_changes:
+            file_path = Path(change.get("file", ""))
+            if not file_path.exists():
+                logger.warning(f"File not found: {file_path}")
+                continue
+            
+            action = change.get("action", "modify")
+            
+            if action == "modify":
+                # Read, apply diff, write
+                content = file_path.read_text()
+                old_text = change.get("old", "")
+                new_text = change.get("new", "")
+                if old_text in content:
+                    content = content.replace(old_text, new_text, 1)
+                    file_path.write_text(content)
+                    logger.info(f"Applied change to {file_path}")
+            
+            elif action == "create":
+                file_path.write_text(change.get("content", ""))
+                logger.info(f"Created file: {file_path}")
+            
+            elif action == "delete":
+                if file_path.exists():
+                    file_path.unlink()
+                    logger.info(f"Deleted file: {file_path}")
+        
+        logger.info(f"Applied all changes from hypothesis: {hypothesis.hypothesis_id}")
     
     async def _rollback_changes(self, hypothesis: ImprovementHypothesis):
         """Rollback changes from a rejected hypothesis"""
-        # TODO: Rollback from sandbox
+        from pathlib import Path
+        
+        if not hypothesis.file_changes:
+            return
+        
+        # Rollback in reverse order
+        for change in reversed(hypothesis.file_changes):
+            file_path = Path(change.get("file", ""))
+            action = change.get("action", "modify")
+            
+            if action == "modify":
+                # Reverse the modification
+                if file_path.exists():
+                    content = file_path.read_text()
+                    old_text = change.get("old", "")
+                    new_text = change.get("new", "")
+                    if new_text in content:
+                        content = content.replace(new_text, old_text, 1)
+                        file_path.write_text(content)
+                        logger.info(f"Rolled back change in {file_path}")
+            
+            elif action == "create":
+                # Delete created file
+                if file_path.exists():
+                    file_path.unlink()
+                    logger.info(f"Removed created file: {file_path}")
+            
+            elif action == "delete":
+                # Restore deleted file from backup (if available)
+                backup_content = change.get("backup_content")
+                if backup_content:
+                    file_path.write_text(backup_content)
+                    logger.info(f"Restored file: {file_path}")
+        
         logger.info(f"Rolled back changes from hypothesis: {hypothesis.hypothesis_id}")
     
     def _store_iteration_experience(self, iteration: RSIIteration):
