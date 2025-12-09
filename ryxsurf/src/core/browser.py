@@ -416,13 +416,33 @@ class Browser:
         }
         
         /* ═══════════════════════════════════════════════════════════════
-           URL BAR - Minimal thin bar
+           URL BAR - Compact centered layout
            ═══════════════════════════════════════════════════════════════ */
         .url-bar {
             background: #0e0e12;
-            padding: 3px 8px;
-            min-height: 28px;
+            padding: 4px 12px;
+            min-height: 32px;
             border-bottom: 1px solid #1a1a1f;
+        }
+        
+        .nav-btn {
+            background: transparent;
+            border: none;
+            color: #555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-width: 24px;
+            min-height: 24px;
+            font-size: 12px;
+        }
+        
+        .nav-btn:hover {
+            background: #1a1a20;
+            color: #999;
+        }
+        
+        .nav-btn:disabled {
+            color: #333;
         }
         
         .url-entry {
@@ -587,30 +607,93 @@ class Browser:
         )
     
     def _create_url_bar(self):
-        """Create ultra-compact full-width URL bar (minimal, no nav buttons)"""
+        """Create compact URL bar with useful controls"""
         self.url_bar_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.url_bar_box.add_css_class("url-bar")
-        self.url_bar_box.set_spacing(4)
+        self.url_bar_box.set_spacing(8)
         self.url_bar_box.set_hexpand(True)
         
-        # Security icon (compact)
+        # Left side: Back/Forward buttons (compact)
+        nav_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        
+        self.back_btn = Gtk.Button(label="←")
+        self.back_btn.add_css_class("nav-btn")
+        self.back_btn.set_tooltip_text("Back (Alt+←)")
+        self.back_btn.connect("clicked", lambda _: self._history_back())
+        nav_box.append(self.back_btn)
+        
+        self.forward_btn = Gtk.Button(label="→")
+        self.forward_btn.add_css_class("nav-btn")
+        self.forward_btn.set_tooltip_text("Forward (Alt+→)")
+        self.forward_btn.connect("clicked", lambda _: self._history_forward())
+        nav_box.append(self.forward_btn)
+        
+        self.reload_btn = Gtk.Button(label="↻")
+        self.reload_btn.add_css_class("nav-btn")
+        self.reload_btn.set_tooltip_text("Reload (F5)")
+        self.reload_btn.connect("clicked", lambda _: self._reload())
+        nav_box.append(self.reload_btn)
+        
+        self.url_bar_box.append(nav_box)
+        
+        # Center: URL entry (60% width)
+        url_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        url_container.set_hexpand(True)
+        url_container.set_halign(Gtk.Align.CENTER)
+        
+        # Security icon
         self.security_icon = Gtk.Label(label="")
         self.security_icon.add_css_class("security-icon")
-        self.url_bar_box.append(self.security_icon)
+        url_container.append(self.security_icon)
         
-        # URL entry - full width, minimal padding
+        # URL entry - NOT full width
         self.url_entry = Gtk.Entry()
-        self.url_entry.set_hexpand(True)
+        self.url_entry.set_size_request(500, -1)  # Fixed 500px width
         self.url_entry.add_css_class("url-entry")
-        self.url_entry.set_placeholder_text("Search or enter URL")
+        self.url_entry.set_placeholder_text("Search or URL")
         self.url_entry.connect("activate", self._on_url_entry_activate)
         self.url_entry.connect("changed", self._on_url_entry_changed)
-        self.url_bar_box.append(self.url_entry)
+        url_container.append(self.url_entry)
+        
+        self.url_bar_box.append(url_container)
+        
+        # Right side: Useful buttons
+        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        right_box.set_halign(Gtk.Align.END)
+        
+        # Bookmark button
+        self.bookmark_btn = Gtk.Button(label="☆")
+        self.bookmark_btn.add_css_class("nav-btn")
+        self.bookmark_btn.set_tooltip_text("Bookmark (Ctrl+D)")
+        self.bookmark_btn.connect("clicked", lambda _: self._toggle_bookmark())
+        right_box.append(self.bookmark_btn)
+        
+        # Tab count
+        self.tab_count_label = Gtk.Label(label="1")
+        self.tab_count_label.add_css_class("tab-count")
+        self.tab_count_label.set_tooltip_text("Open tabs")
+        right_box.append(self.tab_count_label)
+        
+        # Downloads button
+        downloads_btn = Gtk.Button(label="↓")
+        downloads_btn.add_css_class("nav-btn")
+        downloads_btn.set_tooltip_text("Downloads (Ctrl+J)")
+        downloads_btn.connect("clicked", lambda _: self._show_downloads())
+        right_box.append(downloads_btn)
+        
+        # Menu button
+        menu_btn = Gtk.Button(label="≡")
+        menu_btn.add_css_class("nav-btn")
+        menu_btn.set_tooltip_text("Menu")
+        menu_btn.connect("clicked", lambda _: self._show_settings())
+        right_box.append(menu_btn)
+        
+        self.url_bar_box.append(right_box)
         
         # Create suggestions popover
         self._create_suggestions_popover()
         
-        # Add URL bar directly to right_box
+        # Add URL bar to right_box
         self.right_box.prepend(self.url_bar_box)
         
     def _create_suggestions_popover(self):
