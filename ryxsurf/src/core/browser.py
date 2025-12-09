@@ -1223,6 +1223,14 @@ class Browser:
                 # Ctrl+Shift+E - Restore from escape
                 self._restore_from_escape()
                 return Gdk.EVENT_STOP
+            elif key_name in ('v', 'V'):
+                # Ctrl+Shift+V - Split view
+                self._toggle_split_view()
+                return Gdk.EVENT_STOP
+            elif key_name in ('x', 'X'):
+                # Ctrl+Shift+X - Clear site data
+                self._clear_site_data()
+                return Gdk.EVENT_STOP
             elif key_name in ('n', 'N'):
                 # Ctrl+Shift+N - New private window (placeholder)
                 return Gdk.EVENT_STOP
@@ -2022,6 +2030,12 @@ body {
                 tab.last_active = time.time()  # Update activity time
                 self._update_tab_sidebar()
                 self._update_window_title()
+                
+                # Apply per-site zoom
+                saved_zoom = self._get_site_zoom(uri)
+                if saved_zoom != 1.0:
+                    tab.zoom_level = saved_zoom
+                    webview.set_zoom_level(saved_zoom)
                 
                 # Add to history
                 if uri and not uri.startswith("about:"):
@@ -2885,6 +2899,77 @@ body {
         gpu_box.append(gpu_switch)
         main_box.append(gpu_box)
         
+        # Separator
+        sep1 = Gtk.Separator()
+        sep1.set_margin_top(8)
+        sep1.set_margin_bottom(8)
+        main_box.append(sep1)
+        
+        # UI Section header
+        ui_header = Gtk.Label(label="UI Elements")
+        ui_header.add_css_class("settings-section")
+        ui_header.set_halign(Gtk.Align.START)
+        main_box.append(ui_header)
+        
+        # Show bookmarks bar toggle
+        bookmarks_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        bookmarks_label = Gtk.Label(label="Show bookmarks bar:")
+        bookmarks_label.set_halign(Gtk.Align.START)
+        bookmarks_label.set_hexpand(True)
+        bookmarks_switch = Gtk.Switch()
+        bookmarks_switch.set_active(self.settings.get("show_bookmarks_bar", False))
+        bookmarks_box.append(bookmarks_label)
+        bookmarks_box.append(bookmarks_switch)
+        main_box.append(bookmarks_box)
+        
+        # Show download notifications toggle
+        downloads_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        downloads_label = Gtk.Label(label="Download notifications:")
+        downloads_label.set_halign(Gtk.Align.START)
+        downloads_label.set_hexpand(True)
+        downloads_switch = Gtk.Switch()
+        downloads_switch.set_active(self.settings.get("show_download_notifications", True))
+        downloads_box.append(downloads_label)
+        downloads_box.append(downloads_switch)
+        main_box.append(downloads_box)
+        
+        # Separator
+        sep2 = Gtk.Separator()
+        sep2.set_margin_top(8)
+        sep2.set_margin_bottom(8)
+        main_box.append(sep2)
+        
+        # Privacy Section header
+        privacy_header = Gtk.Label(label="Privacy & Data")
+        privacy_header.add_css_class("settings-section")
+        privacy_header.set_halign(Gtk.Align.START)
+        main_box.append(privacy_header)
+        
+        # Block trackers toggle
+        tracker_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        tracker_label = Gtk.Label(label="Block known trackers:")
+        tracker_label.set_halign(Gtk.Align.START)
+        tracker_label.set_hexpand(True)
+        tracker_switch = Gtk.Switch()
+        tracker_switch.set_active(self.settings.get("block_trackers", True))
+        tracker_box.append(tracker_label)
+        tracker_box.append(tracker_switch)
+        main_box.append(tracker_box)
+        
+        # Clear data buttons
+        clear_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        
+        clear_cache_btn = Gtk.Button(label="Clear Cache")
+        clear_cache_btn.connect("clicked", lambda _: self._clear_cache("soft"))
+        clear_box.append(clear_cache_btn)
+        
+        clear_all_btn = Gtk.Button(label="Clear All Data")
+        clear_all_btn.add_css_class("destructive-action")
+        clear_all_btn.connect("clicked", lambda _: self._clear_cache("hard"))
+        clear_box.append(clear_all_btn)
+        
+        main_box.append(clear_box)
+        
         # Save button
         save_btn = Gtk.Button(label="Save Settings")
         save_btn.set_margin_top(20)
@@ -2894,6 +2979,9 @@ body {
             self.settings["url_bar_auto_hide"] = autohide_switch.get_active()
             self.settings["smooth_scrolling"] = scroll_switch.get_active()
             self.settings["gpu_acceleration"] = gpu_switch.get_active()
+            self.settings["show_bookmarks_bar"] = bookmarks_switch.get_active()
+            self.settings["show_download_notifications"] = downloads_switch.get_active()
+            self.settings["block_trackers"] = tracker_switch.get_active()
             save_settings(self.settings)
             self.settings_dialog.close()
         
@@ -3065,22 +3153,24 @@ body {
             self.security_icon.set_tooltip_text("")
             
     def _zoom_in(self):
-        """Zoom in on current tab"""
+        """Zoom in on current tab and save per-site preference"""
         if not self.tabs:
             return
             
         tab = self.tabs[self.active_tab_idx]
         tab.zoom_level = min(tab.zoom_level + 0.1, 3.0)  # Max 300%
         tab.webview.set_zoom_level(tab.zoom_level)
+        self._save_site_zoom(tab.url, tab.zoom_level)
         
     def _zoom_out(self):
-        """Zoom out on current tab"""
+        """Zoom out on current tab and save per-site preference"""
         if not self.tabs:
             return
             
         tab = self.tabs[self.active_tab_idx]
         tab.zoom_level = max(tab.zoom_level - 0.1, 0.3)  # Min 30%
         tab.webview.set_zoom_level(tab.zoom_level)
+        self._save_site_zoom(tab.url, tab.zoom_level)
         
     def _zoom_reset(self):
         """Reset zoom to 100% on current tab"""
@@ -3090,6 +3180,50 @@ body {
         tab = self.tabs[self.active_tab_idx]
         tab.zoom_level = 1.0
         tab.webview.set_zoom_level(1.0)
+        self._save_site_zoom(tab.url, 1.0)
+    
+    def _save_site_zoom(self, url: str, zoom: float):
+        """Save zoom level for a site"""
+        if not url:
+            return
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+        if not domain:
+            return
+        
+        zoom_file = Path.home() / ".config" / "ryxsurf" / "site_zoom.json"
+        zoom_data = {}
+        if zoom_file.exists():
+            try:
+                zoom_data = json.loads(zoom_file.read_text())
+            except:
+                pass
+        
+        if zoom == 1.0 and domain in zoom_data:
+            del zoom_data[domain]  # Remove default zoom
+        elif zoom != 1.0:
+            zoom_data[domain] = zoom
+        
+        zoom_file.parent.mkdir(parents=True, exist_ok=True)
+        zoom_file.write_text(json.dumps(zoom_data, indent=2))
+    
+    def _get_site_zoom(self, url: str) -> float:
+        """Get saved zoom level for a site"""
+        if not url:
+            return 1.0
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+        if not domain:
+            return 1.0
+        
+        zoom_file = Path.home() / ".config" / "ryxsurf" / "site_zoom.json"
+        if zoom_file.exists():
+            try:
+                zoom_data = json.loads(zoom_file.read_text())
+                return zoom_data.get(domain, 1.0)
+            except:
+                pass
+        return 1.0
     
     def _toggle_reader_mode(self):
         """Toggle reader mode - clean article view"""
@@ -3218,6 +3352,66 @@ body {
             clipboard.set(url)
             print(f"Copied: {url}")
     
+    def _clear_cache(self, level: str = "soft"):
+        """Clear browser cache and data
+        
+        level: "soft" = just cache, "hard" = cache + cookies + history
+        """
+        context = WebKit.WebContext.get_default()
+        data_manager = context.get_website_data_manager()
+        
+        if level == "soft":
+            # Just cache
+            types = WebKit.WebsiteDataTypes.DISK_CACHE | WebKit.WebsiteDataTypes.MEMORY_CACHE
+            print("Clearing cache...")
+        else:
+            # Everything
+            types = (
+                WebKit.WebsiteDataTypes.DISK_CACHE |
+                WebKit.WebsiteDataTypes.MEMORY_CACHE |
+                WebKit.WebsiteDataTypes.COOKIES |
+                WebKit.WebsiteDataTypes.LOCAL_STORAGE |
+                WebKit.WebsiteDataTypes.SESSION_STORAGE |
+                WebKit.WebsiteDataTypes.INDEXEDDB_DATABASES
+            )
+            print("Clearing all data...")
+        
+        data_manager.clear(types, 0, None, None)
+        print(f"Cache cleared ({level})")
+    
+    def _clear_site_data(self):
+        """Clear data for current site only"""
+        if not self.tabs:
+            return
+        
+        url = self.tabs[self.active_tab_idx].url
+        if not url:
+            return
+        
+        from urllib.parse import urlparse
+        domain = urlparse(url).netloc
+        
+        context = WebKit.WebContext.get_default()
+        data_manager = context.get_website_data_manager()
+        
+        # Fetch and clear data for this domain
+        def on_fetch(dm, result):
+            try:
+                data_list = dm.fetch_finish(result)
+                for data in data_list:
+                    if domain in data.get_name():
+                        types = data.get_types()
+                        dm.remove(types, [data], None, None)
+                        print(f"Cleared data for: {domain}")
+            except Exception as e:
+                print(f"Error clearing site data: {e}")
+        
+        data_manager.fetch(
+            WebKit.WebsiteDataTypes.ALL,
+            None,
+            on_fetch
+        )
+    
     def _switch_workspace(self, workspace_id: str):
         """Switch to a different workspace"""
         if workspace_id == self.current_workspace:
@@ -3298,6 +3492,56 @@ body { background: #0a0a0c; display: flex; align-items: center; justify-content:
             self._update_tab_sidebar()
             self._update_window_title()
             self._escape_backup = None
+    
+    def _toggle_split_view(self):
+        """Toggle split view - show two tabs side by side"""
+        if len(self.tabs) < 2:
+            print("Need at least 2 tabs for split view")
+            return
+        
+        if hasattr(self, '_split_mode') and self._split_mode:
+            # Exit split mode
+            self._split_mode = False
+            self._switch_to_tab(self.active_tab_idx)
+            print("Split view disabled")
+        else:
+            # Enter split mode - show current tab + next tab
+            self._split_mode = True
+            
+            # Clear content
+            while child := self.content_box.get_first_child():
+                self.content_box.remove(child)
+            
+            # Create paned container
+            paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+            paned.set_hexpand(True)
+            paned.set_vexpand(True)
+            
+            # Left tab (current)
+            left_tab = self.tabs[self.active_tab_idx]
+            left_tab.webview.set_hexpand(True)
+            left_tab.webview.set_vexpand(True)
+            paned.set_start_child(left_tab.webview)
+            
+            # Right tab (next)
+            right_idx = (self.active_tab_idx + 1) % len(self.tabs)
+            right_tab = self.tabs[right_idx]
+            right_tab.webview.set_hexpand(True)
+            right_tab.webview.set_vexpand(True)
+            paned.set_end_child(right_tab.webview)
+            
+            # Set 50/50 split
+            paned.set_position(self.window.get_width() // 2)
+            
+            self.content_box.append(paned)
+            print("Split view enabled")
+    
+    def _hard_reload(self):
+        """Hard reload - bypass cache"""
+        if not self.tabs:
+            return
+        webview = self.tabs[self.active_tab_idx].webview
+        webview.reload_bypass_cache()
 
 
 @dataclass
