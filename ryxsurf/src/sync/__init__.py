@@ -272,11 +272,12 @@ class SessionSync:
         local_tabs = local.get("tabs", [])
         local_updated = local.get("updated", 0)
         
-        # Calculate remote timestamp (use most recent tab if available)
-        remote_updated = max(
-            (tab.get("last_active", 0) for tab in remote_tabs),
-            default=time.time()
-        )
+        # Calculate remote timestamp (use most recent tab if available, or 0 if none)
+        remote_tabs_with_time = [t for t in remote_tabs if t.get("last_active", 0) > 0]
+        if remote_tabs_with_time:
+            remote_updated = max(t.get("last_active", 0) for t in remote_tabs_with_time)
+        else:
+            remote_updated = 0  # No timestamp info - treat as old
         
         # Time difference threshold (1 hour)
         TIME_THRESHOLD = 3600

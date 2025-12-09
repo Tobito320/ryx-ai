@@ -65,6 +65,15 @@ export function FormFillingModal({
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Update values when suggestions change
+  React.useEffect(() => {
+    const newValues: Record<string, string> = {};
+    suggestions.forEach((s) => {
+      newValues[s.fieldId] = s.suggestedValue;
+    });
+    setValues(newValues);
+  }, [suggestions]);
+
   const handleValueChange = (fieldId: string, value: string) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
   };
