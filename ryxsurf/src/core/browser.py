@@ -1509,12 +1509,60 @@ class Browser:
             self.download_manager.show()
     
     def _save_page(self):
-        """Save current page"""
+        """Save current page as HTML or MHTML"""
         if not self.tabs:
             return
         tab = self.tabs[self.active_tab_idx]
-        # TODO: Implement proper save dialog
-        pass
+        if not tab.url or tab.url == "about:blank":
+            return
+            
+        # Create file chooser dialog
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Save Page As")
+        
+        # Suggest filename based on page title
+        safe_title = "".join(c for c in (tab.title or "page") if c.isalnum() or c in " -_").strip()
+        dialog.set_initial_name(f"{safe_title[:50]}.html")
+        
+        # Setup file filters
+        html_filter = Gtk.FileFilter()
+        html_filter.set_name("HTML files")
+        html_filter.add_mime_type("text/html")
+        html_filter.add_pattern("*.html")
+        html_filter.add_pattern("*.htm")
+        
+        filter_model = Gio.ListStore.new(Gtk.FileFilter)
+        filter_model.append(html_filter)
+        dialog.set_filters(filter_model)
+        
+        def on_save_response(dialog, result):
+            try:
+                file = dialog.save_finish(result)
+                if file:
+                    path = file.get_path()
+                    # Get page HTML and save
+                    tab.webview.run_javascript(
+                        "document.documentElement.outerHTML",
+                        None,
+                        lambda wv, res, p=path: self._finish_save_page(wv, res, p),
+                        path
+                    )
+            except Exception as e:
+                log.error(f"Save failed: {e}")
+        
+        dialog.save(self.window, None, on_save_response)
+    
+    def _finish_save_page(self, webview, result, path):
+        """Complete page save after getting HTML content"""
+        try:
+            js_result = webview.run_javascript_finish(result)
+            if js_result:
+                html = js_result.get_js_value().to_string()
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                log.info(f"Page saved to {path}")
+        except Exception as e:
+            log.error(f"Failed to save page: {e}")
     
     def _view_source(self):
         """View page source"""

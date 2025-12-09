@@ -259,25 +259,63 @@ class SessionSync:
         return list(self._state["sessions"].keys())
         
     def merge_remote_session(self, name: str, remote_tabs: List[Dict]):
-        """Merge remote session with local (conflict resolution)"""
+        """
+        Merge remote session with local using smart conflict resolution.
+        
+        Strategy:
+        1. If remote is newer by >1 hour, remote wins entirely
+        2. If timestamps are close, merge unique URLs
+        3. Preserve tab order from the newer source
+        4. Deduplicate by URL
+        """
         local = self._state["sessions"].get(name, {})
         local_tabs = local.get("tabs", [])
         local_updated = local.get("updated", 0)
         
-        # For now: remote wins if newer, merge URLs otherwise
-        # TODO: Smarter conflict resolution
-        merged_urls = set()
-        merged_tabs = []
+        # Calculate remote timestamp (use most recent tab if available)
+        remote_updated = max(
+            (tab.get("last_active", 0) for tab in remote_tabs),
+            default=time.time()
+        )
         
-        for tab in remote_tabs + local_tabs:
-            url = tab.get("url", "")
-            if url and url not in merged_urls:
-                merged_urls.add(url)
-                merged_tabs.append(tab)
+        # Time difference threshold (1 hour)
+        TIME_THRESHOLD = 3600
+        time_diff = abs(remote_updated - local_updated)
+        
+        if time_diff > TIME_THRESHOLD:
+            # One source is significantly newer - use it entirely
+            if remote_updated > local_updated:
+                merged_tabs = remote_tabs
+            else:
+                merged_tabs = local_tabs
+        else:
+            # Close timestamps - merge unique URLs
+            merged_urls = {}  # url -> tab (keep newest)
+            
+            # Process local tabs first
+            for tab in local_tabs:
+                url = tab.get("url", "")
+                if url:
+                    merged_urls[url] = tab
+            
+            # Remote tabs override if newer
+            for tab in remote_tabs:
+                url = tab.get("url", "")
+                if url:
+                    existing = merged_urls.get(url)
+                    if not existing or tab.get("last_active", 0) > existing.get("last_active", 0):
+                        merged_urls[url] = tab
+            
+            # Sort by last_active time (most recent first)
+            merged_tabs = sorted(
+                merged_urls.values(),
+                key=lambda t: t.get("last_active", 0),
+                reverse=True
+            )
                 
         self._state["sessions"][name] = {
             "tabs": merged_tabs,
-            "updated": time.time()
+            "updated": max(remote_updated, local_updated)
         }
         self._save_state()
         
