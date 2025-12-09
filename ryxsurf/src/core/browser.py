@@ -1231,6 +1231,14 @@ class Browser:
                 # Ctrl+Shift+X - Clear site data
                 self._clear_site_data()
                 return Gdk.EVENT_STOP
+            elif key_name in ('m', 'M'):
+                # Ctrl+Shift+M - Performance overlay
+                self._show_performance_overlay()
+                return Gdk.EVENT_STOP
+            elif key_name in ('k', 'K'):
+                # Ctrl+Shift+K - Kill tab scripts
+                self._kill_tab_scripts()
+                return Gdk.EVENT_STOP
             elif key_name in ('n', 'N'):
                 # Ctrl+Shift+N - New private window (placeholder)
                 return Gdk.EVENT_STOP
@@ -3542,6 +3550,107 @@ body { background: #0a0a0c; display: flex; align-items: center; justify-content:
             return
         webview = self.tabs[self.active_tab_idx].webview
         webview.reload_bypass_cache()
+    
+    def _show_performance_overlay(self):
+        """Show performance overlay with tab resource usage"""
+        if hasattr(self, '_perf_overlay') and self._perf_overlay:
+            self._perf_overlay.destroy()
+            self._perf_overlay = None
+            return
+        
+        # Create overlay window
+        self._perf_overlay = Gtk.Window(title="Tab Performance")
+        self._perf_overlay.set_transient_for(self.window)
+        self._perf_overlay.set_default_size(300, 200)
+        self._perf_overlay.add_css_class("perf-overlay")
+        
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        
+        header = Gtk.Label(label="📊 Tab Performance")
+        header.set_halign(Gtk.Align.START)
+        header.add_css_class("perf-header")
+        box.append(header)
+        
+        # Tab list with status
+        for i, tab in enumerate(self.tabs):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            
+            # Status indicator
+            if tab.is_unloaded:
+                status = "💤"
+                status_text = "Unloaded"
+            elif i == self.active_tab_idx:
+                status = "🟢"
+                status_text = "Active"
+            else:
+                status = "🔵"
+                status_text = "Loaded"
+            
+            status_label = Gtk.Label(label=status)
+            row.append(status_label)
+            
+            # Title (truncated)
+            title = tab.title[:25] if tab.title else "New Tab"
+            title_label = Gtk.Label(label=title)
+            title_label.set_hexpand(True)
+            title_label.set_halign(Gtk.Align.START)
+            title_label.set_ellipsize(Pango.EllipsizeMode.END)
+            row.append(title_label)
+            
+            # Kill button for active tabs
+            if not tab.is_unloaded and i != self.active_tab_idx:
+                kill_btn = Gtk.Button(label="⏸")
+                kill_btn.set_tooltip_text("Unload tab")
+                kill_btn.connect("clicked", lambda _, t=tab: self._unload_tab(t))
+                row.append(kill_btn)
+            
+            box.append(row)
+        
+        # Summary
+        loaded = sum(1 for t in self.tabs if not t.is_unloaded)
+        unloaded = len(self.tabs) - loaded
+        summary = Gtk.Label(label=f"Loaded: {loaded} | Unloaded: {unloaded}")
+        summary.set_margin_top(8)
+        summary.add_css_class("perf-summary")
+        box.append(summary)
+        
+        # Close on Escape
+        key_controller = Gtk.EventControllerKey()
+        key_controller.connect("key-pressed", lambda c, k, kc, s: 
+            self._perf_overlay.destroy() if Gdk.keyval_name(k) == "Escape" else None)
+        self._perf_overlay.add_controller(key_controller)
+        
+        self._perf_overlay.set_child(box)
+        self._perf_overlay.present()
+    
+    def _kill_tab_scripts(self):
+        """Stop all scripts/timers in current tab"""
+        if not self.tabs:
+            return
+        
+        tab = self.tabs[self.active_tab_idx]
+        # Inject script to clear intervals and timeouts
+        js = """
+        (function() {
+            // Clear all intervals
+            for (let i = 1; i < 99999; i++) {
+                window.clearInterval(i);
+                window.clearTimeout(i);
+            }
+            // Stop animations
+            document.querySelectorAll('*').forEach(el => {
+                el.style.animation = 'none';
+                el.style.transition = 'none';
+            });
+            console.log('RyxSurf: Killed all timers and animations');
+        })();
+        """
+        tab.webview.evaluate_javascript(js, -1, None, None, None, None, None)
+        print("Killed scripts and animations in current tab")
 
 
 @dataclass
