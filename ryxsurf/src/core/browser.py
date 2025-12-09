@@ -359,54 +359,75 @@ class Browser:
             border-right: 1px solid #1a1a1f;
             padding: 2px;
             min-width: 140px;
-            max-width: 180px;
+        }
+        
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .tab-btn:hover {
+            background: transparent;
         }
         
         .tab-item {
             background: transparent;
             border: none;
             border-radius: 4px;
-            padding: 6px 8px;
-            margin: 1px 2px;
-            min-height: 28px;
+            padding: 4px 6px;
+            margin: 1px 0;
+            min-height: 24px;
         }
         
-        .tab-item:hover {
+        .tab-btn:hover .tab-item {
             background: #1a1a20;
         }
         
         .tab-item.active {
             background: #1f1f28;
             border-left: 2px solid #7c3aed;
+            padding-left: 4px;
+        }
+        
+        .tab-item.unloaded .tab-title {
+            color: #555;
+            font-style: italic;
         }
         
         .tab-title {
-            color: #888;
+            color: #777;
             font-size: 11px;
             font-weight: 400;
         }
         
         .tab-item.active .tab-title {
-            color: #ccc;
+            color: #bbb;
         }
         
         .tab-favicon {
-            border-radius: 2px;
+            color: #555;
+            font-size: 8px;
+        }
+        
+        .tab-item.active .tab-favicon {
+            color: #7c3aed;
         }
         
         .tab-close {
             background: transparent;
             border: none;
-            color: #555;
-            padding: 2px;
+            color: #444;
+            padding: 2px 4px;
             border-radius: 3px;
             font-size: 10px;
-            min-width: 16px;
-            min-height: 16px;
+            min-width: 14px;
+            min-height: 14px;
             opacity: 0;
         }
         
-        .tab-item:hover .tab-close {
+        .tab-btn:hover .tab-close {
             opacity: 1;
         }
         
@@ -1512,7 +1533,7 @@ body {
                 self.content_box.append(self.ai_sidebar)
     
     def _update_tab_sidebar(self):
-        """Update the tab sidebar with compact icon tabs (with drag support)"""
+        """Update the tab sidebar with compact tabs showing favicon + title"""
         if not hasattr(self, 'tab_list_box'):
             return
             
@@ -1523,21 +1544,50 @@ body {
             self.tab_list_box.remove(child)
             child = next_child
         
-        # Add compact tab buttons
+        # Add compact tab rows
         for i, tab in enumerate(self.tabs):
-            btn = Gtk.Button(label=f"{i+1}")
-            btn.add_css_class("tab-item")
-            btn.set_size_request(36, 36)
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            row.add_css_class("tab-item")
+            row.set_margin_start(4)
+            row.set_margin_end(4)
+            row.set_margin_top(2)
+            row.set_margin_bottom(2)
             
             if i == self.active_tab_idx:
-                btn.add_css_class("active")
+                row.add_css_class("active")
             if tab.is_unloaded:
-                btn.add_css_class("unloaded")
+                row.add_css_class("unloaded")
             
-            # Tooltip shows title
+            # Loading/favicon indicator
+            if tab.is_loading if hasattr(tab, 'is_loading') else False:
+                indicator = Gtk.Spinner()
+                indicator.start()
+                indicator.set_size_request(14, 14)
+            else:
+                indicator = Gtk.Label(label="●" if not tab.is_unloaded else "○")
+                indicator.add_css_class("tab-favicon")
+            row.append(indicator)
+            
+            # Title (truncated)
+            title_text = tab.title[:18] if tab.title else "New Tab"
+            title = Gtk.Label(label=title_text)
+            title.set_halign(Gtk.Align.START)
+            title.set_hexpand(True)
+            title.set_ellipsize(Pango.EllipsizeMode.END)
+            title.add_css_class("tab-title")
+            row.append(title)
+            
+            # Close button (visible on hover via CSS)
+            close_btn = Gtk.Button(label="×")
+            close_btn.add_css_class("tab-close")
+            close_btn.connect("clicked", lambda _, idx=i: self._close_tab(idx))
+            row.append(close_btn)
+            
+            # Wrap in a button for click handling
+            btn = Gtk.Button()
+            btn.set_child(row)
+            btn.add_css_class("tab-btn")
             btn.set_tooltip_text(tab.title or "New Tab")
-            
-            # Click to switch
             btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
             
             # Middle-click to close
@@ -1550,6 +1600,15 @@ body {
             self._setup_tab_drag(btn, i)
             
             self.tab_list_box.append(btn)
+        
+        # Update tab count
+        if hasattr(self, 'tab_count_label') and self.tab_count_label:
+            count = len(self.tabs)
+            unloaded = sum(1 for t in self.tabs if t.is_unloaded)
+            if unloaded > 0:
+                self.tab_count_label.set_text(f"{count}({unloaded})")
+            else:
+                self.tab_count_label.set_text(str(count))
     
     def _setup_tab_drag(self, btn: Gtk.Button, tab_idx: int):
         """Setup drag source and drop target for tab reordering"""
@@ -2340,18 +2399,18 @@ body {
         # Style
         css = b"""
         .summary-overlay {
-            background: rgba(40, 42, 54, 0.95);
-            border-radius: 12px;
-            padding: 16px;
-            max-width: 400px;
+            background: rgba(14, 14, 18, 0.95);
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 300px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(80, 250, 123, 0.3);
+            border: 1px solid #1a1a1f;
         }
         .summary-title {
-            color: #50fa7b;
-            font-size: 14px;
+            color: #7c3aed;
+            font-size: 12px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .summary-text {
             color: #f8f8f2;
