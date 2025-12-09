@@ -566,7 +566,7 @@ class HealthMonitor:
                         response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
                         if response.status_code == 200:
                             return True
-                    except:
+                    except requests.RequestException:
                         continue
                 return False
 
@@ -585,7 +585,7 @@ class HealthMonitor:
                     response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
                     if response.status_code == 200:
                         return True
-                except:
+                except requests.RequestException:
                     continue
 
             return False
@@ -598,8 +598,6 @@ class HealthMonitor:
         Try to fix vLLM service by restarting the Docker container
         """
         try:
-            import subprocess
-            
             # Try to restart vLLM container
             result = subprocess.run(
                 ["docker", "restart", "ryx-vllm"],
