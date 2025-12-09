@@ -165,9 +165,17 @@ class AutonomousBrain:
         
         # Check if we should ask permission
         if self.persona.should_ask_permission(action_type, confidence):
-            # TODO: Implement async permission request
-            # For now, just proceed with caution
-            logger.info(f"Low confidence ({confidence:.2f}) but proceeding")
+            # For now, log and proceed with caution
+            # In interactive mode, this could prompt the user
+            logger.info(f"Low confidence ({confidence:.2f}), proceeding cautiously")
+            if hasattr(self, 'permission_callback') and self.permission_callback:
+                # If async permission callback is set, use it
+                try:
+                    approved = self.permission_callback(action_type, confidence, str(plan))
+                    if not approved:
+                        return False, "Action not approved by user"
+                except Exception as e:
+                    logger.warning(f"Permission callback failed: {e}")
         
         # Execute with retry loop
         for attempt in range(self.max_retries):
@@ -211,11 +219,32 @@ class AutonomousBrain:
             "timestamp": datetime.now().isoformat()
         })
         
-        # Adjust plan based on reflection
-        # For now, just return original (brain will try with same plan)
-        # TODO: Use LLM to generate improved plan
+        # Try to improve the plan based on error analysis
+        if hasattr(plan, 'intent'):
+            # Look for patterns in error memory
+            similar_errors = [
+                e for e in self.error_memory[-10:]
+                if self._error_similarity(e['error'], error) > 0.5
+            ]
+            
+            if len(similar_errors) >= 2:
+                # Repeated error - try different approach
+                logger.warning(f"Repeated error pattern detected, adjusting strategy")
+                # Add modification hints to plan if possible
+                if hasattr(plan, 'context'):
+                    plan.context = f"{plan.context}\n[RETRY] Previous attempts failed with: {reflection}"
         
         return plan
+    
+    def _error_similarity(self, error1: str, error2: str) -> float:
+        """Calculate simple similarity between two error messages"""
+        words1 = set(error1.lower().split())
+        words2 = set(error2.lower().split())
+        if not words1 or not words2:
+            return 0.0
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+        return intersection / union if union > 0 else 0.0
     
     def _analyze_error(self, error: str) -> str:
         """Analyze why the error occurred"""

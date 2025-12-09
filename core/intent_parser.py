@@ -57,7 +57,7 @@ class IntentParser:
     NON_ACTION_PHRASES = ['open source']
 
     # Modifier keywords that change how action is performed
-    NEW_TERMINAL_KEYWORDS = ['new terminal', 'new window', 'separate terminal', 'separate window']
+    NEW_TERMINAL_KEYWORDS = ['new terminal', 'new window', 'separate terminal', 'separate window', 'in new terminal', 'in separate window']
 
     # Model fallback chains (if preferred model not available, try these in order)
     MODEL_FALLBACKS = {
@@ -408,6 +408,18 @@ class IntentParser:
         Returns:
             dict with 'action' and 'service' if detected, None otherwise
         """
+        # Exclude modifier patterns from service detection
+        # "in new terminal" should be treated as a modifier, not a service
+        if any(kw in prompt_lower for kw in self.NEW_TERMINAL_KEYWORDS):
+            # Check if "terminal" is only part of a modifier phrase
+            terminal_in_modifier = any(mod_kw in prompt_lower for mod_kw in ['new terminal', 'separate terminal', 'in new terminal'])
+            if terminal_in_modifier:
+                # Remove the modifier phrase before checking for services
+                temp_prompt = prompt_lower
+                for mod_kw in ['in new terminal', 'new terminal', 'separate terminal', 'in separate window', 'new window']:
+                    temp_prompt = temp_prompt.replace(mod_kw, ' ')
+                prompt_lower = temp_prompt
+        
         # First try fuzzy matching on service aliases
         found_service = None
         for alias, canonical in self.SERVICE_ALIASES.items():

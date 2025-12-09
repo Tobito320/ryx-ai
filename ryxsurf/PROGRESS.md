@@ -37,33 +37,32 @@
 ## Issues to Fix (Prioritized)
 
 ### P0 - Critical
-- [ ] **Keybinds not working** after page loads
+- [x] **Keybinds not working** after page loads
   - EventControllerKey IS attached on WebView creation (line 1591)
   - Handler logic IS correct (lines 1154-1206)
-  - **Hypothesis**: WebKit steals focus before GTK can capture
-  - **Fix**: May need to use a different approach (e.g., window-level grab)
+  - **Fixed**: Added more shortcuts to GIO app actions (Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+F, Ctrl+D, Ctrl+Shift+T)
 
 - [ ] **URL navigation not working**
   - Code path looks correct
   - Need live testing with fresh log to see actual error
 
 ### P1 - High
-- [ ] **Sidebar too wide** (appears ~40% but CSS says 120px)
+- [x] **Sidebar too wide** (appears ~40% but CSS says 120px)
   - CSS: `min-width: 120px; max-width: 120px;`
-  - May be GTK widget sizing issue
+  - **Fixed**: Added `set_hexpand(False)` to prevent horizontal expansion of sidebar and its children
   
 - [ ] **Workspaces in wrong location**
   - Currently in sidebar, should be in URL bar
 
 ### P2 - Medium  
-- [ ] Remove duplicate `_focus_url_bar` method
+- [x] Remove duplicate `_focus_url_bar` method - **FIXED**
 - [ ] Integrate keybinds.py properly (currently unused)
 - [ ] Tab title display (15 chars may be too short)
 
 ## Next Steps (Priority Order)
 1. Test browser with fresh log to see actual errors
-2. Fix keybinds by testing different capture methods
-3. Fix sidebar width with explicit widget sizing
+2. ~~Fix keybinds by testing different capture methods~~ Done
+3. ~~Fix sidebar width with explicit widget sizing~~ Done
 4. Move workspaces to URL bar
 5. Test navigation with logging
 
@@ -77,8 +76,7 @@
 - Fast startup, efficient memory
 
 ### High Priority (P1)
-- [ ] **Sidebar too wide** - Should be 10-15% (currently ~40% visually)
-  - CSS says 120px but something overrides it
+- [x] **Sidebar too wide** - Fixed with set_hexpand(False)
   
 - [ ] **Workspaces in wrong location**
   - Currently in left sidebar, should be in URL bar (after reload button)
@@ -88,7 +86,9 @@
   - Sidebar expands to fill space incorrectly
 
 ### Medium Priority (P2)
-- [ ] Dark mode enforcement on all pages
+- [x] Dark mode enforcement on all pages - **Added aggressive invert filter for light pages**
+- [x] Tab title display - **Extended to 25 chars**
+- [x] Keybinds.py integration - **Added GTK accelerator helper functions**
 - [ ] Performance optimization (4s load time → instant)
 - [ ] Session restore reliability
 - [ ] Bookmark sync
@@ -98,6 +98,11 @@
 - [x] Analyzed browser.py structure (~3900 lines)
 - [x] Identified keybind issues
 - [x] Identified layout issues
+- [x] Fixed sidebar width
+- [x] Fixed duplicate _focus_url_bar
+- [x] Extended tab title to 25 chars
+- [x] Added dark mode enforcement for light pages
+- [x] Added keybind GTK integration helpers
 
 ## Feature Roadmap
 

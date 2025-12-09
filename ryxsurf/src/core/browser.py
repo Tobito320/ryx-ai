@@ -301,6 +301,11 @@ class Browser:
             ("reload-f5", "F5", lambda: self._reload()),
             ("focus-url-f6", "F6", lambda: self._focus_url_bar()),
             ("fullscreen", "F11", lambda: self._toggle_fullscreen()),
+            ("next-tab", "<Control>Tab", lambda: self._next_tab()),
+            ("prev-tab", "<Control><Shift>Tab", lambda: self._prev_tab()),
+            ("reopen-tab", "<Control><Shift>t", lambda: self._reopen_closed_tab()),
+            ("find", "<Control>f", lambda: self._show_find_bar()),
+            ("bookmark", "<Control>d", lambda: self._toggle_bookmark()),
         ]
         
         for name, accel, callback in actions:
@@ -956,15 +961,18 @@ class Browser:
         """Create compact sidebar - ONLY tabs, no workspaces (those go in URL bar)"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        # Fixed 120px width (~10% of 1200px default window)
+        # Fixed width: prevent expansion
         self.tab_sidebar.set_size_request(120, -1)
+        self.tab_sidebar.set_hexpand(False)  # Critical: prevent horizontal expansion
         
         # Scrollable area for tabs
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
+        scroll.set_hexpand(False)  # Prevent scroll area from expanding
         
         self.tab_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.tab_list_box.set_hexpand(False)
         scroll.set_child(self.tab_list_box)
         self.tab_sidebar.append(scroll)
         
@@ -1501,12 +1509,60 @@ class Browser:
             self.download_manager.show()
     
     def _save_page(self):
-        """Save current page"""
+        """Save current page as HTML or MHTML"""
         if not self.tabs:
             return
         tab = self.tabs[self.active_tab_idx]
-        # TODO: Implement proper save dialog
-        pass
+        if not tab.url or tab.url == "about:blank":
+            return
+            
+        # Create file chooser dialog
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Save Page As")
+        
+        # Suggest filename based on page title
+        safe_title = "".join(c for c in (tab.title or "page") if c.isalnum() or c in " -_").strip()
+        dialog.set_initial_name(f"{safe_title[:50]}.html")
+        
+        # Setup file filters
+        html_filter = Gtk.FileFilter()
+        html_filter.set_name("HTML files")
+        html_filter.add_mime_type("text/html")
+        html_filter.add_pattern("*.html")
+        html_filter.add_pattern("*.htm")
+        
+        filter_model = Gio.ListStore.new(Gtk.FileFilter)
+        filter_model.append(html_filter)
+        dialog.set_filters(filter_model)
+        
+        def on_save_response(dialog, result):
+            try:
+                file = dialog.save_finish(result)
+                if file:
+                    path = file.get_path()
+                    # Get page HTML and save
+                    tab.webview.run_javascript(
+                        "document.documentElement.outerHTML",
+                        None,
+                        lambda wv, res, p=path: self._finish_save_page(wv, res, p),
+                        path
+                    )
+            except Exception as e:
+                log.error(f"Save failed: {e}")
+        
+        dialog.save(self.window, None, on_save_response)
+    
+    def _finish_save_page(self, webview, result, path):
+        """Complete page save after getting HTML content"""
+        try:
+            js_result = webview.run_javascript_finish(result)
+            if js_result:
+                html = js_result.get_js_value().to_string()
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(html)
+                log.info(f"Page saved to {path}")
+        except Exception as e:
+            log.error(f"Failed to save page: {e}")
     
     def _view_source(self):
         """View page source"""
@@ -1676,13 +1732,6 @@ class Browser:
         # Simple about:blank instead of HTML to avoid multiple load events
         # The URL bar is the main focus for new tabs anyway
         webview.load_uri("about:blank")
-    
-    def _focus_url_bar(self):
-        """Focus the URL entry and select all text"""
-        if self.url_entry:
-            self.url_entry.grab_focus()
-            self.url_entry.select_region(0, -1)
-        return False
         
     def _close_tab(self, idx: Optional[int] = None):
         """Close a tab - save to closed_tabs for Ctrl+Shift+T restore"""
@@ -1847,13 +1896,14 @@ class Browser:
                 box.append(icon_label)
             
             # Title - show actual title or domain or "New Tab"
+            # Extended to 25 chars for better readability
             if tab.title and tab.title != "New Tab":
-                title_text = tab.title[:15]
+                title_text = tab.title[:25]
             elif tab.url and tab.url != "about:blank":
                 try:
                     from urllib.parse import urlparse
                     parsed = urlparse(tab.url)
-                    title_text = parsed.netloc[:15] if parsed.netloc else "New Tab"
+                    title_text = parsed.netloc[:25] if parsed.netloc else "New Tab"
                 except:
                     title_text = "New Tab"
             else:
@@ -2220,20 +2270,51 @@ class Browser:
                 self._schedule_url_bar_hide()
     
     def _inject_dark_mode_css(self, webview):
-        """Inject CSS to help pages respect dark mode"""
-        js = """
-        (function() {
+        """Inject CSS to enforce dark mode on pages that don't support it natively"""
+        # Check if dark mode enforcement is enabled
+        enforce_dark = self.settings.get("force_dark_mode", True)
+        
+        js = f"""
+        (function() {{
             // Set color-scheme meta tag if not present
-            if (!document.querySelector('meta[name="color-scheme"]')) {
+            if (!document.querySelector('meta[name="color-scheme"]')) {{
                 var meta = document.createElement('meta');
                 meta.name = 'color-scheme';
                 meta.content = 'dark light';
                 document.head.appendChild(meta);
-            }
+            }}
             
-            // Add dark mode class to html element
+            // Set color-scheme on html element
             document.documentElement.style.colorScheme = 'dark';
-        })();
+            
+            // Aggressive dark mode for sites that don't support it
+            var enforceDark = {str(enforce_dark).lower()};
+            if (enforceDark) {{
+                // Check if page is already dark (bg color check)
+                var bg = window.getComputedStyle(document.body).backgroundColor;
+                var rgb = bg.match(/\\d+/g);
+                if (rgb && rgb.length >= 3) {{
+                    var brightness = (parseInt(rgb[0]) + parseInt(rgb[1]) + parseInt(rgb[2])) / 3;
+                    // Only inject if background is light (brightness > 128)
+                    if (brightness > 128) {{
+                        var darkStyle = document.getElementById('ryxsurf-dark-mode');
+                        if (!darkStyle) {{
+                            darkStyle = document.createElement('style');
+                            darkStyle.id = 'ryxsurf-dark-mode';
+                            darkStyle.textContent = `
+                                html {{
+                                    filter: invert(90%) hue-rotate(180deg) !important;
+                                }}
+                                img, video, picture, canvas, svg, [style*="background-image"] {{
+                                    filter: invert(100%) hue-rotate(180deg) !important;
+                                }}
+                            `;
+                            document.head.appendChild(darkStyle);
+                        }}
+                    }}
+                }}
+            }}
+        }})();
         """
         webview.evaluate_javascript(js, -1, None, None, None, None, None)
     

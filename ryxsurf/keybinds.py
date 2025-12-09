@@ -118,3 +118,46 @@ def get_keybind_help() -> str:
         lines.append("")
     
     return "\n".join(lines)
+
+
+def get_action_map() -> Dict[str, Keybind]:
+    """Get a map of action names to keybinds for easy lookup"""
+    action_map = {}
+    for category, binds in KEYBINDS.items():
+        for bind in binds:
+            action_map[bind.action] = bind
+    return action_map
+
+
+def modifier_to_gtk(modifier: Modifier) -> str:
+    """Convert Modifier enum to GTK accelerator format"""
+    mapping = {
+        Modifier.NONE: "",
+        Modifier.SUPER: "<Super>",
+        Modifier.SHIFT: "<Shift>",
+        Modifier.CTRL: "<Control>",
+        Modifier.ALT: "<Alt>",
+        Modifier.SUPER_SHIFT: "<Super><Shift>",
+        Modifier.CTRL_SHIFT: "<Control><Shift>",
+    }
+    return mapping.get(modifier, "")
+
+
+def keybind_to_gtk_accel(bind: Keybind) -> str:
+    """Convert a Keybind to GTK accelerator string"""
+    mod = modifier_to_gtk(bind.modifier)
+    return f"{mod}{bind.key}"
+
+
+def get_gtk_accelerators() -> Dict[str, str]:
+    """Get all keybinds as GTK accelerator strings
+    
+    Returns:
+        Dict mapping action names to GTK accelerator strings
+        e.g. {"new_tab": "<Super>t", "close_tab": "<Super>w"}
+    """
+    accels = {}
+    for category, binds in KEYBINDS.items():
+        for bind in binds:
+            accels[bind.action] = keybind_to_gtk_accel(bind)
+    return accels
