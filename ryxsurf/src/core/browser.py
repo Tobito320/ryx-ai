@@ -301,6 +301,11 @@ class Browser:
             ("reload-f5", "F5", lambda: self._reload()),
             ("focus-url-f6", "F6", lambda: self._focus_url_bar()),
             ("fullscreen", "F11", lambda: self._toggle_fullscreen()),
+            ("next-tab", "<Control>Tab", lambda: self._next_tab()),
+            ("prev-tab", "<Control><Shift>Tab", lambda: self._prev_tab()),
+            ("reopen-tab", "<Control><Shift>t", lambda: self._reopen_closed_tab()),
+            ("find", "<Control>f", lambda: self._show_find_bar()),
+            ("bookmark", "<Control>d", lambda: self._toggle_bookmark()),
         ]
         
         for name, accel, callback in actions:
@@ -956,15 +961,18 @@ class Browser:
         """Create compact sidebar - ONLY tabs, no workspaces (those go in URL bar)"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        # Fixed 120px width (~10% of 1200px default window)
+        # Fixed width: prevent expansion
         self.tab_sidebar.set_size_request(120, -1)
+        self.tab_sidebar.set_hexpand(False)  # Critical: prevent horizontal expansion
         
         # Scrollable area for tabs
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
+        scroll.set_hexpand(False)  # Prevent scroll area from expanding
         
         self.tab_list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.tab_list_box.set_hexpand(False)
         scroll.set_child(self.tab_list_box)
         self.tab_sidebar.append(scroll)
         
@@ -1676,13 +1684,6 @@ class Browser:
         # Simple about:blank instead of HTML to avoid multiple load events
         # The URL bar is the main focus for new tabs anyway
         webview.load_uri("about:blank")
-    
-    def _focus_url_bar(self):
-        """Focus the URL entry and select all text"""
-        if self.url_entry:
-            self.url_entry.grab_focus()
-            self.url_entry.select_region(0, -1)
-        return False
         
     def _close_tab(self, idx: Optional[int] = None):
         """Close a tab - save to closed_tabs for Ctrl+Shift+T restore"""
