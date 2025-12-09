@@ -205,9 +205,13 @@ class ModelRouter:
     Uses Ollama backend (multi-model support).
     """
     
-    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+    def __init__(self, ollama_base_url: str = "http://localhost:11434", validate: bool = True):
         self.ollama_base_url = os.environ.get('OLLAMA_HOST', ollama_base_url)
         self._available_models: Optional[List[str]] = None
+        self._validation_warnings: List[str] = []
+
+        if validate:
+            self._validate_configured_models()
     
     # ─────────────────────────────────────────────────────────────
     # Core API
@@ -230,6 +234,58 @@ class ModelRouter:
         """Get the model for an agent phase"""
         role = PHASE_MODELS.get(phase.lower(), ModelRole.CODE)
         return MODELS[role]
+
+    def _validate_configured_models(self):
+        """Validate that configured models are actually available"""
+        available = self.available_models
+        missing = []
+
+        for role, config in MODELS.items():
+            if not any(config.name in m for m in available):
+                missing.append((role, config.name))
+                self._validation_warnings.append(
+                    f"⚠️  Model {config.name} ({role.value}) not available in Ollama"
+                )
+
+        if missing:
+            logger.warning(f"Missing {len(missing)} configured models")
+            for role, name in missing:
+                # Try to suggest alternatives
+                alternative = self._suggest_alternative(role, name, available)
+                if alternative:
+                    logger.info(f"  Suggested alternative for {role.value}: {alternative}")
+
+    def _suggest_alternative(self, role: ModelRole, missing_name: str, available: List[str]) -> Optional[str]:
+        """Suggest an alternative model based on role"""
+        # Extract model family from missing name (e.g., "qwen" from "qwen2.5:7b")
+        family = missing_name.split(':')[0].split('-')[0].lower()
+
+        # Look for similar models in available
+        for model in available:
+            model_lower = model.lower()
+            if family in model_lower:
+                return model
+
+        # Role-based fallbacks
+        fallback_patterns = {
+            ModelRole.FAST: ['1b', '3b', 'small', 'mini'],
+            ModelRole.CHAT: ['7b', '8b', 'chat', 'instruct'],
+            ModelRole.CODE: ['coder', 'code', 'deepseek', 'qwen'],
+            ModelRole.REASON: ['14b', '20b', 'large', 'reasoning'],
+            ModelRole.EMBED: ['embed', 'nomic'],
+        }
+
+        patterns = fallback_patterns.get(role, [])
+        for pattern in patterns:
+            for model in available:
+                if pattern in model.lower():
+                    return model
+
+        return None
+
+    def get_validation_warnings(self) -> List[str]:
+        """Get model validation warnings"""
+        return self._validation_warnings
     
     def select_for_query(self, query: str) -> ModelConfig:
         """

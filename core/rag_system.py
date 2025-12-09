@@ -31,7 +31,8 @@ class RAGSystem:
     
     def _init_db(self):
         """Initialize database tables if they don't exist"""
-        self.cursor.execute("""
+        # Use executescript for multiple statements
+        self.cursor.executescript("""
             CREATE TABLE IF NOT EXISTS quick_responses (
                 prompt_hash TEXT PRIMARY KEY,
                 prompt TEXT NOT NULL,
@@ -40,9 +41,21 @@ class RAGSystem:
                 created_at INTEGER NOT NULL,
                 last_used INTEGER NOT NULL,
                 use_count INTEGER DEFAULT 1
-            )
+            );
+
+            CREATE TABLE IF NOT EXISTS knowledge (
+                query_hash TEXT PRIMARY KEY,
+                file_type TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                content_preview TEXT,
+                last_accessed TEXT NOT NULL,
+                access_count INTEGER DEFAULT 1,
+                confidence REAL DEFAULT 1.0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_type ON knowledge(file_type);
+            CREATE INDEX IF NOT EXISTS idx_knowledge_access ON knowledge(access_count DESC);
         """)
-        self.conn.commit()
     
     def _load_hot_cache(self):
         """Load frequently accessed items into memory"""

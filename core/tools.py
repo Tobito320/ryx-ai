@@ -347,37 +347,65 @@ class WebSearchTool:
     """
     
     def __init__(self):
-        self.searxng_url = "http://localhost:8888"
+        import os
+        self.searxng_url = os.environ.get("SEARXNG_URL", "http://localhost:8888")
         self.cache_dir = get_data_dir() / "cache" / "search"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._auto_start_attempted = False
     
-    def search(self, query: str, num_results: int = 5) -> ToolResult:
+    def search(self, query: str, num_results: int = 5, retry: int = 2) -> ToolResult:
         """
         Search the web and return results.
         First tries SearXNG (local), then DuckDuckGo.
+
+        Args:
+            query: Search query
+            num_results: Number of results to return
+            retry: Number of retries on failure (default 2)
         """
-        # Try SearXNG first
-        result = self._search_searxng(query, num_results)
-        if result.success:
-            return result
-        
-        # Fallback to DuckDuckGo
-        return self._search_duckduckgo(query, num_results)
+        import time
+
+        # Try SearXNG with retries
+        for attempt in range(retry + 1):
+            result = self._search_searxng(query, num_results)
+            if result.success:
+                return result
+
+            if attempt < retry:
+                # Exponential backoff
+                time.sleep(0.5 * (2 ** attempt))
+
+        # Fallback to DuckDuckGo with retries
+        for attempt in range(retry + 1):
+            result = self._search_duckduckgo(query, num_results)
+            if result.success:
+                return result
+
+            if attempt < retry:
+                time.sleep(0.5 * (2 ** attempt))
+
+        # All attempts failed
+        return ToolResult(False, "", error="All search attempts failed")
     
     def _search_searxng(self, query: str, num_results: int) -> ToolResult:
         """Search using local SearXNG"""
         try:
             import requests
-            
+
+            # Auto-start SearXNG if not running (try once per session)
+            if not self._auto_start_attempted:
+                self._ensure_searxng_running()
+                self._auto_start_attempted = True
+
             resp = requests.get(
                 f"{self.searxng_url}/search",
                 params={"q": query, "format": "json"},
                 timeout=10
             )
-            
+
             if resp.status_code != 200:
                 return ToolResult(False, "", error="SearXNG not available")
-            
+
             data = resp.json()
             results = data.get("results", [])[:num_results]
             
@@ -407,7 +435,57 @@ class WebSearchTool:
             
         except Exception as e:
             return ToolResult(False, "", error=str(e))
-    
+
+    def _ensure_searxng_running(self):
+        """Auto-start SearXNG container if not running"""
+        import requests
+        import subprocess
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Check if SearXNG is already running
+            resp = requests.get(f"{self.searxng_url}/healthz", timeout=2)
+            if resp.status_code == 200:
+                return  # Already running
+        except:
+            pass  # Not running, try to start
+
+        try:
+            # Try to start existing container
+            logger.info("Attempting to start SearXNG container...")
+            result = subprocess.run(
+                ["docker", "start", "ryx-searxng"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            if result.returncode == 0:
+                logger.info("SearXNG container started successfully")
+                # Wait a bit for it to become ready
+                import time
+                time.sleep(2)
+            else:
+                # Container doesn't exist, try podman
+                result = subprocess.run(
+                    ["podman", "start", "ryx-searxng"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    logger.info("SearXNG container started via podman")
+                    import time
+                    time.sleep(2)
+        except subprocess.TimeoutExpired:
+            logger.warning("SearXNG start timeout")
+        except FileNotFoundError:
+            logger.warning("Docker/Podman not found, cannot auto-start SearXNG")
+        except Exception as e:
+            logger.warning(f"Could not auto-start SearXNG: {e}")
+
     def _search_duckduckgo(self, query: str, num_results: int) -> ToolResult:
         """Search using DuckDuckGo HTML"""
         try:

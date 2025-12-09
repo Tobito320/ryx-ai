@@ -32,8 +32,9 @@ class SearXNGClient:
     (Google, DuckDuckGo, Bing, etc.) without tracking.
     """
     
-    def __init__(self, base_url: str = "http://localhost:8888"):
-        self.base_url = base_url.rstrip('/')
+    def __init__(self, base_url: str = None):
+        import os
+        self.base_url = (base_url or os.environ.get("SEARXNG_URL", "http://localhost:8888")).rstrip('/')
         self._session: Optional[aiohttp.ClientSession] = None
     
     async def _get_session(self) -> aiohttp.ClientSession:

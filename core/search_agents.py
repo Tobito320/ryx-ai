@@ -79,13 +79,14 @@ class SearchAgent:
     def __init__(
         self,
         agent_id: str,
-        vllm_url: str = "http://localhost:8001",
-        searxng_url: str = "http://localhost:8888",
+        vllm_url: str = None,
+        searxng_url: str = None,
         model: str = None  # Will auto-detect from vLLM
     ):
         self.agent_id = agent_id
-        self.vllm_url = vllm_url.rstrip('/')
-        self.searxng_url = searxng_url.rstrip('/')
+        # Use environment variables with fallbacks
+        self.vllm_url = (vllm_url or os.environ.get("VLLM_BASE_URL", "http://localhost:8001")).rstrip('/')
+        self.searxng_url = (searxng_url or os.environ.get("SEARXNG_URL", "http://localhost:8888")).rstrip('/')
         self.model = model or self._detect_model()
         self.metrics = AgentMetrics(agent_id=agent_id, model=self.model)
         self._session: Optional[aiohttp.ClientSession] = None
@@ -257,13 +258,14 @@ class SearchSupervisor:
     
     def __init__(
         self,
-        vllm_url: str = "http://localhost:8001",
-        searxng_url: str = "http://localhost:8888",
+        vllm_url: str = None,
+        searxng_url: str = None,
         num_agents: int = 3,
         model: str = None  # Auto-detect from vLLM
     ):
-        self.vllm_url = vllm_url.rstrip('/')
-        self.searxng_url = searxng_url
+        # Use environment variables with fallbacks
+        self.vllm_url = (vllm_url or os.environ.get("VLLM_BASE_URL", "http://localhost:8001")).rstrip('/')
+        self.searxng_url = searxng_url or os.environ.get("SEARXNG_URL", "http://localhost:8888")
         
         # Auto-detect model from vLLM
         if model is None:
