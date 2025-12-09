@@ -24,6 +24,20 @@ from pathlib import Path
 from urllib.parse import quote_plus
 import json
 import time
+import logging
+
+# Setup logging
+LOG_FILE = Path.home() / ".config" / "ryxsurf" / "ryxsurf.log"
+LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()
+    ]
+)
+log = logging.getLogger("ryxsurf")
 
 from .history import HistoryManager
 from .downloads import DownloadManager, DownloadNotification, DownloadInfo
@@ -256,12 +270,16 @@ class Browser:
 
     def run(self):
         """Start the browser"""
+        log.info("Starting RyxSurf...")
         self.app = Gtk.Application(application_id='ai.ryx.surf')
         self.app.connect('activate', self._on_activate)
         self.app.run(None)
         
     def _on_activate(self, app):
         """Called when GTK app is ready"""
+        log.info("GTK activate - building UI")
+        start_time = time.time()
+        
         # Hold the application to keep it running
         app.hold()
         
@@ -280,6 +298,7 @@ class Browser:
         
         # Apply CSS styling
         self._apply_css()
+        log.info(f"CSS applied in {(time.time() - start_time)*1000:.0f}ms")
         
         # Zen Browser style layout:
         # [LEFT SIDEBAR] | [RIGHT: URL BAR + WEBVIEW]
@@ -327,6 +346,8 @@ class Browser:
         # Create context menu handler
         self._create_context_menu_handler()
         
+        log.info(f"UI built in {(time.time() - start_time)*1000:.0f}ms")
+        
         # Restore session or create initial tab
         if self.settings.get("restore_session_on_startup", True):
             self._restore_session()
@@ -341,10 +362,7 @@ class Browser:
         # Start tab unload monitor
         self._start_tab_unload_monitor()
         
-        # Go fullscreen only if setting is enabled
-        start_fullscreen = self.settings.get("start_fullscreen", False)
-        if start_fullscreen:
-            self.window.fullscreen()
+        log.info(f"Browser ready in {(time.time() - start_time)*1000:.0f}ms")
         
         self.window.present()
         
@@ -808,61 +826,9 @@ class Browser:
         self._suggestions_popup.set_child(scroll)
         
     def _on_url_entry_changed(self, entry: Gtk.Entry):
-        """Handle URL entry text changes - show suggestions"""
-        text = entry.get_text().strip()
-        
-        if not text or text.startswith("!") or text.startswith("?"):
-            self._suggestions_popup.popdown()
-            return
-        
-        # Quick domain suggestions for common sites
-        QUICK_DOMAINS = {
-            "youtube": "https://www.youtube.com",
-            "google": "https://www.google.com",
-            "github": "https://github.com",
-            "reddit": "https://www.reddit.com",
-            "twitter": "https://twitter.com",
-            "x": "https://x.com",
-            "twitch": "https://www.twitch.tv",
-            "amazon": "https://www.amazon.com",
-            "netflix": "https://www.netflix.com",
-            "wikipedia": "https://wikipedia.org",
-            "stackoverflow": "https://stackoverflow.com",
-            "gmail": "https://mail.google.com",
-            "drive": "https://drive.google.com",
-            "maps": "https://maps.google.com",
-        }
-        
-        # Check if input matches a quick domain
-        lower_text = text.lower()
-        quick_match = None
-        for key, url in QUICK_DOMAINS.items():
-            if key.startswith(lower_text):
-                quick_match = (key, url)
-                break
-            
-        # Get suggestions from history
-        suggestions = self.history_manager.get_suggestions(text, limit=7)
-        
-        if not suggestions and not quick_match:
-            self._suggestions_popup.popdown()
-            return
-            
-        # Clear existing
-        while child := self._suggestions_list.get_first_child():
-            self._suggestions_list.remove(child)
-        
-        # Add quick domain match first if exists
-        if quick_match:
-            row = self._create_quick_suggestion_row(quick_match[0], quick_match[1])
-            self._suggestions_list.append(row)
-            
-        # Add history suggestions
-        for entry_data in suggestions:
-            row = self._create_suggestion_row(entry_data)
-            self._suggestions_list.append(row)
-            
-        self._suggestions_popup.popup()
+        """Handle URL entry text changes - simplified, no popups"""
+        # Just update the text, no suggestions blocking input
+        pass
     
     def _create_quick_suggestion_row(self, name: str, url: str) -> Gtk.ListBoxRow:
         """Create a quick domain suggestion row"""
@@ -1029,27 +995,59 @@ class Browser:
         # Will be appended after webview
     
     def _on_url_entry_activate(self, entry: Gtk.Entry):
-        """Handle URL entry activation (Enter key)"""
+        """Handle URL entry activation (Enter key) - SIMPLE: just navigate"""
         text = entry.get_text().strip()
+        log.info(f"URL entry activate: '{text}'")
+        
         if not text:
             return
         
-        # Detect input type
-        if text.startswith("!"):
+        # Close any suggestions
+        if hasattr(self, '_suggestions_popup') and self._suggestions_popup:
+            self._suggestions_popup.popdown()
+        
+        # Quick domain shortcuts
+        QUICK_DOMAINS = {
+            "yt": "https://www.youtube.com",
+            "youtube": "https://www.youtube.com",
+            "g": "https://www.google.com",
+            "google": "https://www.google.com",
+            "gh": "https://github.com",
+            "github": "https://github.com",
+            "r": "https://www.reddit.com",
+            "reddit": "https://www.reddit.com",
+            "tw": "https://twitter.com",
+            "x": "https://x.com",
+        }
+        
+        lower_text = text.lower()
+        
+        # Check quick domains first
+        if lower_text in QUICK_DOMAINS:
+            url = QUICK_DOMAINS[lower_text]
+            log.info(f"Quick domain: {url}")
+            self._navigate_current(url)
+        elif text.startswith("!"):
             # AI command
+            log.info("AI command detected")
             self._handle_ai_command(text[1:])
         elif text.startswith("?"):
-            # Search - URL encode the query
+            # Search
             query = quote_plus(text[1:])
-            self._navigate_current(f"https://google.com/search?q={query}")
+            url = f"https://google.com/search?q={query}"
+            log.info(f"Search: {url}")
+            self._navigate_current(url)
         elif "." in text or text.startswith("http"):
             # URL
             url = text if text.startswith("http") else f"https://{text}"
+            log.info(f"URL: {url}")
             self._navigate_current(url)
         else:
-            # Default to search - URL encode the query
+            # Default to search
             query = quote_plus(text)
-            self._navigate_current(f"https://google.com/search?q={query}")
+            url = f"https://google.com/search?q={query}"
+            log.info(f"Search (default): {url}")
+            self._navigate_current(url)
         
         # Return focus to webview
         if self.tabs:
@@ -1337,14 +1335,16 @@ class Browser:
             self._hide_url_bar()
             self.url_bar_pinned = False
             self.url_bar_box.set_visible(False)
-            self.url_bar_indicator.set_visible(False)
+            if self.url_bar_indicator:
+                self.url_bar_indicator.set_visible(False)
             self.window.fullscreen()
         else:
             # Restore UI
             self.tab_sidebar.set_visible(True)
             self.sidebar_visible = True
             self.url_bar_box.set_visible(True)
-            self.url_bar_indicator.set_visible(True)
+            if self.url_bar_indicator:
+                self.url_bar_indicator.set_visible(True)
             self.window.unfullscreen()
     
     def _show_history(self):
@@ -1395,7 +1395,8 @@ class Browser:
         self.url_bar_pinned = pin
         self.url_bar_box.set_visible(True)
         self.url_bar_box.remove_css_class("hidden")
-        self.url_bar_indicator.set_visible(False)
+        if self.url_bar_indicator:
+            self.url_bar_indicator.set_visible(False)
         
         # Cancel any pending hide timeout
         if self._url_bar_hide_timeout:
@@ -1408,7 +1409,8 @@ class Browser:
             return
         self.url_bar_visible = False
         self.url_bar_box.add_css_class("hidden")
-        self.url_bar_indicator.set_visible(True)
+        if self.url_bar_indicator:
+            self.url_bar_indicator.set_visible(True)
         
         # Actually hide after animation
         GLib.timeout_add(200, lambda: self.url_bar_box.set_visible(False) or False)
@@ -1418,7 +1420,8 @@ class Browser:
         if self.url_bar_visible:
             self.url_bar_pinned = False  # Allow hiding
             self._hide_url_bar()
-            self.url_bar_indicator.set_visible(False)  # Also hide indicator
+            if self.url_bar_indicator:
+                self.url_bar_indicator.set_visible(False)  # Also hide indicator
         else:
             self._show_url_bar(pin=True)
     
@@ -1734,19 +1737,6 @@ body {
             right.set_button(3)
             right.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
             btn.add_controller(right)
-            
-            self.tab_list_box.append(btn)
-            btn.set_tooltip_text(tab.title or "New Tab")
-            btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
-            
-            # Middle-click to close
-            middle = Gtk.GestureClick()
-            middle.set_button(2)
-            middle.connect("pressed", lambda g, n, x, y, idx=i: self._close_tab(idx))
-            btn.add_controller(middle)
-            
-            # Drag and drop to reorder
-            self._setup_tab_drag(btn, i)
             
             self.tab_list_box.append(btn)
         
