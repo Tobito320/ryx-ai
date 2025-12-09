@@ -2830,3 +2830,13 @@ class Config:
             data = json.loads(config_file.read_text())
             return cls(**data)
         return cls()
+
+def main():
+    """Entry point for RyxSurf browser"""
+    config = Config.load()
+    browser = Browser(config)
+    browser.run()
+
+
+if __name__ == "__main__":
+    main()

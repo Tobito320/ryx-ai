@@ -25,9 +25,9 @@ sys.path.insert(0, str(RYXSURF_ROOT))
 
 def main():
     """Main entry point for RyxSurf"""
-    # Use new Adwaita-based browser
-    from src.core.browser_adw import main as adw_main
-    adw_main()
+    # Use the full-featured browser with ultra-minimal design
+    from src.core.browser import main as browser_main
+    browser_main()
 
 
 if __name__ == "__main__":
