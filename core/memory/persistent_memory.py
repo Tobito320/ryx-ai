@@ -11,6 +11,7 @@ Based on best practices from MemGPT and other agentic repos.
 """
 
 import os
+import re
 import json
 import sqlite3
 import hashlib
@@ -238,10 +239,10 @@ class PersistentMemory:
             conn.close()
     
     def _generate_id(self, content: str) -> str:
-        """Generate unique ID for memory entry"""
+        """Generate unique ID for memory entry (24 chars for lower collision risk)"""
         timestamp = datetime.now().isoformat()
         combined = f"{content}{timestamp}"
-        return hashlib.sha256(combined.encode()).hexdigest()[:16]
+        return hashlib.sha256(combined.encode()).hexdigest()[:24]
     
     def _encrypt_value(self, value: Any) -> str:
         """Encrypt and serialize a value"""

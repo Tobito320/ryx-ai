@@ -13,6 +13,8 @@ Based on user requirements:
 """
 
 import os
+import re
+import json
 import subprocess
 import logging
 from typing import Dict, List, Optional, Tuple, Any
@@ -138,7 +140,6 @@ class VRAMGuard:
                 timeout=5
             )
             if result.returncode == 0:
-                import json
                 data = json.loads(result.stdout)
                 # Parse ROCm output (format varies by version)
                 for card_id, info in data.items():
@@ -210,19 +211,23 @@ class VRAMGuard:
         if model_name in self.MODEL_VRAM_ESTIMATES:
             return self.MODEL_VRAM_ESTIMATES[model_name]
         
-        # Check for parameter size indicators first (for any model)
-        if "14b" in model_lower or "13b" in model_lower:
-            return 10000
-        elif "12b" in model_lower:
-            return 8000
-        elif "7b" in model_lower or "8b" in model_lower:
-            return 5000
-        elif "3b" in model_lower:
-            return 3000
-        elif "1.5b" in model_lower or "2b" in model_lower:
-            return 1500
-        elif "1b" in model_lower:
-            return 1000
+        # Check for parameter size indicators using regex (more precise)
+        # Pattern matches: 14b, 7b, 1.5b, etc. at word boundaries
+        param_match = re.search(r'[:\-_](\d+(?:\.\d+)?)(b)\b', model_lower)
+        if param_match:
+            param_size = float(param_match.group(1))
+            if param_size >= 13:
+                return 10000
+            elif param_size >= 10:
+                return 8000
+            elif param_size >= 6:
+                return 5000
+            elif param_size >= 2.5:
+                return 3000
+            elif param_size >= 1:
+                return 1500
+            else:
+                return 1000
         
         # Partial match (handle variations like qwen2.5:14b-instruct)
         for known_model, vram in self.MODEL_VRAM_ESTIMATES.items():
@@ -442,7 +447,9 @@ class ModelManager:
                 },
                 timeout=30
             )
-            return True, f"Unloaded {model_name}"
+            if resp.status_code == 200:
+                return True, f"Unloaded {model_name}"
+            return False, f"Failed to unload: HTTP {resp.status_code}"
         except Exception as e:
             return False, f"Error unloading: {e}"
     
