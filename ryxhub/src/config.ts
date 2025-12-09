@@ -3,8 +3,8 @@
  * Centralizes API URLs and other configuration values
  */
 
-// vLLM API base URL - typically runs on port 8001
-export const VLLM_API_URL = import.meta.env.VITE_VLLM_API_URL || 'http://localhost:8001';
+// Ollama API base URL - typically runs on port 8001
+export const OLLAMA_API_URL = import.meta.env.VITE_OLLAMA_API_URL || 'http://localhost:8001';
 
 // Ryx backend API base URL - for sessions, RAG, workflows
 export const API_BASE_URL = import.meta.env.VITE_RYX_API_URL || 'http://localhost:8420';
@@ -22,7 +22,7 @@ export const API_ENDPOINTS = {
   
   // Models (via backend for enriched status info)
   models: `${API_BASE_URL}/api/models`,
-  completions: `${VLLM_API_URL}/v1/chat/completions`,
+  completions: `${OLLAMA_API_URL}/v1/chat/completions`,
   
   // Sessions
   sessions: `${API_BASE_URL}/api/sessions`,
@@ -69,7 +69,7 @@ export const POLLING_INTERVALS = {
 };
 
 export default {
-  VLLM_API_URL,
+  OLLAMA_API_URL,
   API_BASE_URL,
   API_ENDPOINTS,
   POLLING_INTERVALS,

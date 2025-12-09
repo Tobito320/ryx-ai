@@ -2,7 +2,7 @@
  * RyxHub Service Layer
  * 
  * Unified service that switches between mock and real API based on configuration.
- * When USE_MOCK_API is false, attempts to connect to vLLM first.
+ * When USE_MOCK_API is false, attempts to connect to Ollama first.
  * 
  * Usage:
  *   import { ryxService } from '@/services/ryxService';
@@ -10,7 +10,7 @@
  * 
  * Configuration:
  *   Set VITE_USE_MOCK_API=true for mock mode (default in development)
- *   Set VITE_VLLM_API_URL=http://localhost:8000 for vLLM
+ *   Set VITE_OLLAMA_API_URL=http://localhost:8000 for Ollama
  *   Set VITE_RYX_API_URL=http://localhost:8420 for Ryx backend
  */
 
@@ -22,7 +22,7 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false';
 
 // Log which mode we're in
 if (import.meta.env.DEV) {
-  console.log(`🔌 RyxHub API: ${USE_MOCK_API ? 'Mock Mode' : 'vLLM Mode'}`);
+  console.log(`🔌 RyxHub API: ${USE_MOCK_API ? 'Mock Mode' : 'Ollama Mode'}`);
 }
 
 // Service interface - same methods as API client

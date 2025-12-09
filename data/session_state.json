@@ -1,11 +1,6 @@
 {
   "history": [
     {
-      "role": "user",
-      "content": "hi",
-      "ts": "2025-12-05T03:14:47.081987"
-    },
-    {
       "role": "assistant",
       "content": "Hi! What specific question or task can I assist you with today? [2]",
       "ts": "2025-12-05T03:14:49.507381"
@@ -249,11 +244,16 @@
       "role": "assistant",
       "content": "I cannot find the right location",
       "ts": "2025-12-08T22:42:53.281893"
+    },
+    {
+      "role": "user",
+      "content": "test message",
+      "ts": "2025-12-09T12:11:48.519017"
     }
   ],
   "stats": {
-    "prompts": 2,
-    "actions": 2,
+    "prompts": 0,
+    "actions": 0,
     "files": 0,
     "urls": 0,
     "searches": 0,
@@ -267,5 +267,5 @@
     "last_intent": "chat",
     "created_files": []
   },
-  "saved_at": "2025-12-08T22:42:56.530320"
+  "saved_at": "2025-12-09T12:13:37.783025"
 }

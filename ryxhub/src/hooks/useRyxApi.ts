@@ -45,14 +45,7 @@ export function useLoadModel() {
   return useMutation({
     mutationFn: (modelId: string) => ryxService.loadModel(modelId),
     onSuccess: (data, modelId) => {
-      if (data.status === 'requires_restart') {
-        toast.info(`To load ${modelId.split('/').pop()}, restart vLLM with this model`, {
-          description: 'vLLM loads one model at startup. Update docker-compose.yml MODEL variable and restart.',
-          duration: 8000,
-        });
-      } else {
-        toast.success(`Model ${modelId.split('/').pop()} loaded`);
-      }
+      toast.success(`Model ${modelId} loaded`);
       queryClient.invalidateQueries({ queryKey: queryKeys.models });
     },
     onError: (error: Error) => {
@@ -121,13 +114,17 @@ export function useSendMessage() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ sessionId, message, model, history, tools }: { 
+    mutationFn: ({ sessionId, message, model, history, tools, images, style, systemPrompt, memories }: { 
       sessionId: string; 
       message: string; 
       model?: string;
       history?: Array<{ role: "user" | "assistant"; content: string }>;
       tools?: string[];
-    }) => ryxService.sendMessage(sessionId, message, model, history, tools),
+      images?: string[];
+      style?: string;
+      systemPrompt?: string;
+      memories?: string[];
+    }) => ryxService.sendMessage(sessionId, message, model, history, tools, images, style, systemPrompt, memories),
     onSuccess: (_, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
     },

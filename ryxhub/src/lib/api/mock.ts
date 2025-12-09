@@ -122,7 +122,7 @@ export const mockApi = {
       status: 'healthy',
       version: '1.0.0-dev',
       uptime: 3600 + Math.floor(Math.random() * 7200),
-      vllm_status: 'online',
+      ollama_status: 'online',
     };
   },
 
@@ -133,7 +133,7 @@ export const mockApi = {
       active_sessions: sessions.filter((s) => s.isActive).length,
       gpu_memory_used: 8.2 + Math.random() * 2,
       gpu_memory_total: 16.0,
-      vllm_workers: 2,
+      ollama_models: 2,
     };
   },
 
@@ -346,7 +346,7 @@ export const mockApi = {
     await randomDelay();
     const baseLogs: LogEntry[] = [
       { time: '10:24:30', level: 'info', message: `Agent ${agentId} initialized` },
-      { time: '10:24:31', level: 'info', message: 'Loading model from vLLM pool...' },
+      { time: '10:24:31', level: 'info', message: 'Loading model from Ollama pool...' },
       { time: '10:24:32', level: 'success', message: 'Model loaded successfully' },
       { time: '10:24:33', level: 'info', message: 'Processing request...' },
       { time: '10:24:35', level: 'info', message: 'RAG context retrieved (5 documents)' },

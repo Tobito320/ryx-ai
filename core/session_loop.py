@@ -71,7 +71,7 @@ class SessionLoop:
         self.safety_mode = safety_mode
         self.cli = get_cli()
         self.router = ModelRouter()
-        self.backend = get_backend()  # Auto-detects vLLM
+        self.backend = get_backend()  # Auto-detects Ollama
         self.brain = get_brain(self.backend)
         
         # Autonomous mode - uses EnhancedExecutor with all improvements
@@ -323,28 +323,28 @@ class SessionLoop:
         self.cli.footer(msgs=len(self.history))
     
     def _health_check(self):
-        """Quick health check - vLLM preferred"""
+        """Quick health check - Ollama preferred"""
         health = self.brain.health_check()
         
         if health.get("backend_available", False):
             return  # Backend is running, all good
         
-        if health.get("vllm"):
-            return  # vLLM is running
+        if health.get("ollama"):
+            return  # Ollama is running
         
         # No backend available
-        self.cli.error("No LLM backend. Start: ryx start vllm")
+        self.cli.error("No LLM backend. Start: ryx start ollama")
     
     def _show_welcome(self):
         """Show welcome - Copilot CLI style"""
         import subprocess
         import requests
         
-        # Get actual model from vLLM
+        # Get actual model from Ollama
         model = "no model"
         try:
-            vllm_url = os.environ.get('VLLM_BASE_URL', 'http://localhost:8001')
-            resp = requests.get(f"{vllm_url}/v1/models", timeout=3)
+            ollama_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+            resp = requests.get(f"{ollama_url}/api/tags", timeout=3)
             if resp.status_code == 200:
                 data = resp.json()
                 models = data.get("data", [])
@@ -353,7 +353,7 @@ class SessionLoop:
                     # Get short name from path like /models/medium/general/qwen2.5-7b-gptq
                     model = model_id.split('/')[-1] if '/' in model_id else model_id
         except:
-            model = "vLLM offline"
+            model = "Ollama offline"
         
         # Get git branch
         branch = ""
@@ -1134,7 +1134,7 @@ class SessionLoop:
         """
         Run comprehensive health check and diagnostics.
 
-        Checks: vLLM, SearXNG, disk space, databases, and runs self-healing.
+        Checks: Ollama, SearXNG, disk space, databases, and runs self-healing.
         """
         import requests
         import shutil
@@ -1143,20 +1143,20 @@ class SessionLoop:
 
         checks = []
 
-        # Check vLLM
+        # Check Ollama
         try:
-            vllm_url = os.environ.get('VLLM_BASE_URL', 'http://localhost:8001')
-            resp = requests.get(f"{vllm_url}/v1/models", timeout=5)
+            ollama_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
+            resp = requests.get(f"{ollama_url}/api/tags", timeout=5)
             if resp.status_code == 200:
                 models = resp.json().get("data", [])
                 model_name = models[0].get("id", "unknown").split('/')[-1] if models else "none"
-                checks.append(("vLLM", "OK", f"Running - {model_name}"))
+                checks.append(("Ollama", "OK", f"Running - {model_name}"))
             else:
-                checks.append(("vLLM", "WARN", f"HTTP {resp.status_code}"))
+                checks.append(("Ollama", "WARN", f"HTTP {resp.status_code}"))
         except requests.exceptions.ConnectionError:
-            checks.append(("vLLM", "FAIL", "Not running"))
+            checks.append(("Ollama", "FAIL", "Not running"))
         except Exception as e:
-            checks.append(("vLLM", "FAIL", str(e)[:40]))
+            checks.append(("Ollama", "FAIL", str(e)[:40]))
 
         # Check SearXNG
         try:
@@ -1215,8 +1215,8 @@ class SessionLoop:
         if fail_count > 0:
             lines.append("")
             lines.append("Recommendations:")
-            if any(n == "vLLM" and s == "FAIL" for n, s, _ in checks):
-                lines.append("  - Start vLLM: ryx start vllm")
+            if any(n == "Ollama" and s == "FAIL" for n, s, _ in checks):
+                lines.append("  - Start Ollama: ollama serve")
 
         if hasattr(self.cli, 'add_system'):
             style = "success" if fail_count == 0 else ("warning" if warn_count > 0 else "error")

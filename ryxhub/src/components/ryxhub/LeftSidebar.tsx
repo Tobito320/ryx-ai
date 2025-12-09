@@ -61,20 +61,15 @@ export function LeftSidebar() {
 
   const handleSessionClick = (sessionId: string) => {
     selectSession(sessionId);
+    // Save last interaction time
+    localStorage.setItem(`session-lastused-${sessionId}`, Date.now().toString());
     setActiveView("chat");
   };
 
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const session = sessions.find(s => s.id === sessionId);
-    if (!session) return;
-
-    try {
-      await deleteSession(sessionId);
-      toast.success(`Session "${session.name}" deleted`);
-    } catch (error) {
-      toast.error("Failed to delete session");
-    }
+    deleteSession(sessionId);
+    toast.success("Session deleted");
   };
 
   const handleRenameStart = (sessionId: string, currentName: string, e: React.MouseEvent) => {
@@ -83,19 +78,15 @@ export function LeftSidebar() {
     setRenameValue(currentName);
   };
 
-  const handleRenameSubmit = async (sessionId: string) => {
+  const handleRenameSubmit = (sessionId: string) => {
     if (!renameValue.trim()) {
       setRenamingSessionId(null);
       return;
     }
 
-    try {
-      await renameSession(sessionId, renameValue);
-      toast.success("Session renamed");
-      setRenamingSessionId(null);
-    } catch (error) {
-      toast.error("Failed to rename session");
-    }
+    renameSession(sessionId, renameValue);
+    toast.success("Session renamed");
+    setRenamingSessionId(null);
   };
 
   const handleExportSession = async (sessionId: string, e: React.MouseEvent) => {

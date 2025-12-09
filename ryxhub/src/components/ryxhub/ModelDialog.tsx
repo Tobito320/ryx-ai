@@ -48,7 +48,7 @@ export function ModelDialog({ model, open, onOpenChange, onModelUpdate }: ModelD
           toast.success(`Connected to ${model.name}`);
           setStatusMessage("Model is connected and ready!");
         } else if (result.status === "requires_restart") {
-          toast.warning(`${model.name} requires vLLM restart`, {
+          toast.warning(`${model.name} requires Ollama restart`, {
             description: result.message,
           });
           setStatusMessage(result.message || "Requires restart");
@@ -75,9 +75,16 @@ export function ModelDialog({ model, open, onOpenChange, onModelUpdate }: ModelD
   const handleCheckStatus = async () => {
     setLoading(true);
     try {
-      const status = await ryxService.getModelStatus(model.id);
-      setStatusMessage(status.message);
-      toast.info(status.message);
+      const models = await ryxService.listModels();
+      const modelInfo = models.find(m => m.id === model.id);
+      if (modelInfo) {
+        const msg = modelInfo.status === 'loaded' ? 'Model is loaded and ready' : 'Model available but not loaded';
+        setStatusMessage(msg);
+        toast.info(msg);
+      } else {
+        setStatusMessage('Model not found');
+        toast.error('Model not found');
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to check status";
       setStatusMessage(errorMessage);
@@ -166,10 +173,10 @@ export function ModelDialog({ model, open, onOpenChange, onModelUpdate }: ModelD
 
           {/* Info */}
           <div className="text-xs text-muted-foreground bg-muted/20 p-3 rounded-lg border border-border">
-            <p className="font-semibold mb-1">ℹ️ vLLM Model Management:</p>
+            <p className="font-semibold mb-1">ℹ️ Ollama Model Management:</p>
             <p>
-              vLLM loads models at startup. To switch models, restart vLLM with
-              the desired model using <code className="bg-muted px-1 rounded">--model MODEL_NAME</code>.
+              Load models from Settings. Multiple models can be loaded simultaneously.
+              Ollama manages memory automatically.
             </p>
           </div>
         </div>

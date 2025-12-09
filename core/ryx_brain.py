@@ -360,7 +360,7 @@ class SmartCache:
 
 
 class ModelManager:
-    """Manages model selection - vLLM only (auto-detects)"""
+    """Manages model selection - Ollama only (auto-detects)"""
     
     def __init__(self, cache: SmartCache):
         self.cache = cache
@@ -369,7 +369,7 @@ class ModelManager:
         self._refresh()
     
     def _refresh(self):
-        """Refresh available models from vLLM using detector"""
+        """Refresh available models from Ollama using detector"""
         from core.model_detector import get_detector
         
         self._detector = get_detector()
@@ -381,8 +381,8 @@ class ModelManager:
             self.available = []
     
     def get(self, role: str, precision_mode: bool = False) -> str:
-        """Get model for role - returns whatever vLLM is serving"""
-        # Since vLLM serves one model, always return that
+        """Get model for role - returns whatever Ollama is serving"""
+        # Since Ollama serves one model, always return that
         if self.available:
             return self.available[0]
         
@@ -451,7 +451,7 @@ class ModelManager:
         
         result = {cat: [] for cat in self.MODELS}
         result["other"] = []
-        result["vllm"] = []
+        result["ollama"] = []
         
         categorized = set()
         for cat, models in self.MODELS.items():
@@ -462,9 +462,9 @@ class ModelManager:
         
         for model in self.available:
             if model not in categorized:
-                # Check if it's a vLLM model (path-like)
+                # Check if it's a Ollama model (path-like)
                 if '/' in model or 'models' in model.lower():
-                    result["vllm"].append(model)
+                    result["ollama"].append(model)
                 else:
                     result["other"].append(model)
         
@@ -936,13 +936,13 @@ ANFRAGE: {prompt}'''
         start_words = ['starte', 'start', 'öffne', 'launch', 'aktiviere', 'turn on', 'enable']
         stop_words = ['stoppe', 'stop', 'beende', 'schließe', 'kill', 'turn off', 'disable']
         
-        # vLLM/LLM service
-        vllm_names = ['vllm', 'v-llm', 'llm', 'model', 'inference', 'gpu', 'ai model']
-        if any(s in p for s in vllm_names):
+        # Ollama/LLM service
+        ollama_names = ['ollama', 'v-llm', 'llm', 'model', 'inference', 'gpu', 'ai model']
+        if any(s in p for s in ollama_names):
             if any(w in p for w in stop_words):
-                return Plan(intent=Intent.STOP_SERVICE, target="vllm")
+                return Plan(intent=Intent.STOP_SERVICE, target="ollama")
             elif any(w in p for w in start_words):
-                return Plan(intent=Intent.START_SERVICE, target="vllm")
+                return Plan(intent=Intent.START_SERVICE, target="ollama")
         
         # RyxHub service
         hub_names = ['ryxhub', 'ryx hub', 'hub', 'webui', 'service', 'dashboard', 'web interface']
@@ -1860,19 +1860,19 @@ Sprache: Deutsch"""
     def _exec_start_service(self, plan: Plan) -> Tuple[bool, str]:
         service = (plan.target or "").lower()
         
-        # vLLM - GPU inference
-        if service in ['vllm', 'llm', 'model', 'inference', 'gpu']:
+        # Ollama - GPU inference
+        if service in ['ollama', 'llm', 'model', 'inference', 'gpu']:
             try:
                 from core.docker_services import start_service
-                result = start_service("vllm")
+                result = start_service("ollama")
                 
                 if result.get('success'):
-                    return True, "✅ vLLM starting...\n  • Container: ryx-vllm\n  • Port: http://localhost:8001\n  • Model: Qwen2.5-Coder-14B-AWQ"
+                    return True, "✅ Ollama starting...\n  • Container: ryx-ollama\n  • Port: http://localhost:11434\n  • Model: Qwen2.5-Coder-14B-AWQ"
                 else:
                     error = result.get('error', 'Unknown error')
                     if 'already' in error.lower() or 'running' in error.lower():
-                        return True, "ℹ️ vLLM already running at http://localhost:8001"
-                    return False, f"❌ Failed to start vLLM: {error}"
+                        return True, "ℹ️ Ollama already running at http://localhost:11434"
+                    return False, f"❌ Failed to start Ollama: {error}"
             except ImportError:
                 return False, "❌ docker_services not found"
             except Exception as e:
@@ -1919,19 +1919,19 @@ Sprache: Deutsch"""
     def _exec_stop_service(self, plan: Plan) -> Tuple[bool, str]:
         service = (plan.target or "").lower()
         
-        # vLLM - GPU inference
-        if service in ['vllm', 'llm', 'model', 'inference', 'gpu']:
+        # Ollama - GPU inference
+        if service in ['ollama', 'llm', 'model', 'inference', 'gpu']:
             try:
                 from core.docker_services import stop_service
-                result = stop_service("vllm")
+                result = stop_service("ollama")
                 
                 if result.get('success'):
-                    return True, "✅ vLLM stopped"
+                    return True, "✅ Ollama stopped"
                 else:
                     error = result.get('error', 'Unknown error')
                     if 'not running' in error.lower():
-                        return True, "ℹ️ vLLM was not running"
-                    return False, f"❌ Failed to stop vLLM: {error}"
+                        return True, "ℹ️ Ollama was not running"
+                    return False, f"❌ Failed to stop Ollama: {error}"
             except ImportError:
                 return False, "❌ docker_services not found"
             except Exception as e:
@@ -2008,37 +2008,37 @@ Sprache: Deutsch"""
         return True, now.strftime("%Y-%m-%d %H:%M")
     
     def _exec_list_models(self, plan: Plan) -> Tuple[bool, str]:
-        """List models from vLLM - shows what's actually loaded"""
+        """List models from Ollama - shows what's actually loaded"""
         import requests
         
-        vllm_url = os.environ.get('VLLM_BASE_URL', 'http://localhost:8001')
+        ollama_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
         lines = []
         
         try:
-            resp = requests.get(f"{vllm_url}/v1/models", timeout=5)
+            resp = requests.get(f"{ollama_url}/api/tags", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
                 loaded_models = [m["id"] for m in data.get("data", [])]
                 
                 if loaded_models:
-                    lines.append("Loaded Models (vLLM):")
+                    lines.append("Loaded Models (Ollama):")
                     for m in loaded_models:
                         # Show short name
                         short_name = m.split('/')[-1] if '/' in m else m
                         lines.append(f"  ✓ {short_name}")
                         lines.append(f"    Path: {m}")
                 else:
-                    lines.append("No models loaded in vLLM")
+                    lines.append("No models loaded in Ollama")
             else:
-                lines.append(f"vLLM returned status {resp.status_code}")
+                lines.append(f"Ollama returned status {resp.status_code}")
         except requests.exceptions.ConnectionError:
-            lines.append("vLLM not running")
-            lines.append("Start with: ryx start vllm")
+            lines.append("Ollama not running")
+            lines.append("Start with: ryx start ollama")
         except Exception as e:
             lines.append(f"Error checking models: {e}")
         
         # Show available models on disk
-        models_dir = "/home/tobi/vllm-models"
+        models_dir = "/home/tobi/ollama-models"
         if os.path.exists(models_dir):
             lines.append("\nAvailable on disk:")
             for size in ["small", "medium", "large"]:
@@ -2390,10 +2390,10 @@ WICHTIG für Suchergebnisse:
         return "🧠 Self-improvement abgeschlossen\n" + "\n".join(updates) if updates else "Wissensbasis ist aktuell."
     
     def health_check(self) -> Dict[str, Any]:
-        """Check system health - vLLM only"""
+        """Check system health - Ollama only"""
         health = {
             "backend_available": False,
-            "vllm": False,
+            "ollama": False,
             "models": [],
             "default_model": None,
             "errors": []
@@ -2401,17 +2401,17 @@ WICHTIG für Suchergebnisse:
         
         import requests
         
-        # Check vLLM first (preferred)
+        # Check Ollama first (preferred)
         try:
-            response = requests.get("http://localhost:8001/health", timeout=3)
+            response = requests.get("http://localhost:11434/health", timeout=3)
             if response.status_code == 200:
-                health["vllm"] = True
+                health["ollama"] = True
                 health["backend_available"] = True
-                health["vllm"] = True
-                # Get actual model from vLLM
+                health["ollama"] = True
+                # Get actual model from Ollama
                 try:
                     import requests
-                    resp = requests.get(f"{self.llm.base_url}/v1/models", timeout=5)
+                    resp = requests.get(f"{self.llm.base_url}/api/tags", timeout=5)
                     if resp.status_code == 200:
                         models = resp.json().get("data", [])
                         if models:
@@ -2424,17 +2424,17 @@ WICHTIG für Suchergebnisse:
         except:
             pass
         
-        # Check if this is a vLLM wrapper
+        # Check if this is a Ollama wrapper
         if hasattr(self.llm, 'backend'):
             try:
                 backend_health = self.llm.backend.health_check()
                 if backend_health.get("healthy"):
-                    health["vllm"] = True
+                    health["ollama"] = True
                     health["backend_available"] = True
                     # Get actual model
                     try:
                         import requests
-                        resp = requests.get(f"{self.llm.base_url}/v1/models", timeout=5)
+                        resp = requests.get(f"{self.llm.base_url}/api/tags", timeout=5)
                         if resp.status_code == 200:
                             models = resp.json().get("data", [])
                             if models:
@@ -2447,14 +2447,14 @@ WICHTIG für Suchergebnisse:
             except:
                 pass
         
-        # Try vLLM directly (in case wrapper doesn't have backend attribute)
+        # Try Ollama directly (in case wrapper doesn't have backend attribute)
         try:
             import requests
-            resp = requests.get("http://localhost:8001/health", timeout=5)
+            resp = requests.get("http://localhost:11434/health", timeout=5)
             if resp.status_code == 200:
-                health["vllm"] = True
+                health["ollama"] = True
                 health["backend_available"] = True
-                resp = requests.get("http://localhost:8001/v1/models", timeout=5)
+                resp = requests.get("http://localhost:11434/api/tags", timeout=5)
                 if resp.status_code == 200:
                     models = resp.json().get("data", [])
                     if models:
@@ -2465,7 +2465,7 @@ WICHTIG für Suchergebnisse:
             pass
         
         # No backend available
-        health["errors"].append("No LLM backend. Run: ryx start vllm")
+        health["errors"].append("No LLM backend. Run: ryx start ollama")
         
         return health
 
@@ -2473,13 +2473,13 @@ WICHTIG für Suchergebnisse:
 # Global instance
 _brain: Optional[RyxBrain] = None
 
-def get_brain(llm_client=None, prefer_vllm: bool = True) -> RyxBrain:
+def get_brain(llm_client=None, prefer_ollama: bool = True) -> RyxBrain:
     """
     Get or create the global RyxBrain instance.
     
     Args:
         llm_client: Optional LLMBackend/OllamaBackend client
-        prefer_vllm: Deprecated, uses Ollama now
+        prefer_ollama: Deprecated, uses Ollama now
     """
     global _brain
     if _brain is None:

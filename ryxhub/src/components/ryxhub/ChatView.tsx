@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { useSendMessage, useModels } from "@/hooks/useRyxApi";
@@ -54,6 +56,9 @@ export function ChatView() {
   const [isDragging, setIsDragging] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [sessionSettingsOpen, setSessionSettingsOpen] = useState(false);
+  const [sessionSystemPrompt, setSessionSystemPrompt] = useState("");
+  const [sessionStyle, setSessionStyle] = useState("normal");
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -61,29 +66,57 @@ export function ChatView() {
   const sendMessageMutation = useSendMessage();
   const { data: apiModels } = useModels();
   
-  const availableModels = apiModels || contextModels;
+  const allModels = apiModels || contextModels;
+  const availableModels = allModels.filter(m => m.status === 'loaded');
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
   const messages = currentSession?.messages ?? [];
   
-  // Load session tools when session changes
+  // Load session tools and style when session changes
   useEffect(() => {
-    if (currentSession?.tools) {
+    if (!currentSession?.id) return;
+    
+    // Load tools from session or localStorage
+    const savedTools = localStorage.getItem(`session-tools-${currentSession.id}`);
+    if (savedTools) {
+      try {
+        const toolState = JSON.parse(savedTools);
+        setTools(prev => prev.map(t => ({
+          ...t,
+          enabled: toolState[t.id] ?? t.enabled
+        })));
+      } catch {}
+    } else if (currentSession?.tools) {
       setTools(prev => prev.map(t => ({
         ...t,
         enabled: currentSession.tools?.[t.id] ?? t.enabled
       })));
+    } else {
+      // Reset to defaults for new session
+      setTools(defaultTools);
     }
+    
+    // Load style and system prompt
+    const savedStyle = localStorage.getItem(`session-style-${currentSession.id}`);
+    setSessionStyle(savedStyle || 'normal');
+    
+    const savedPrompt = localStorage.getItem(`session-systemprompt-${currentSession.id}`);
+    setSessionSystemPrompt(savedPrompt || '');
   }, [currentSession?.id]);
 
-  // Set initial model
+  // Set initial model - auto-switch if selected model not loaded
   useEffect(() => {
-    if (currentSession?.model) {
-      setSelectedModel(currentSession.model);
+    if (availableModels.length === 0) return;
+    
+    const sessionModel = currentSession?.model;
+    const isSessionModelLoaded = sessionModel && availableModels.some(m => m.id === sessionModel);
+    
+    if (isSessionModelLoaded) {
+      setSelectedModel(sessionModel);
     } else if (availableModels.length > 0) {
-      const onlineModel = availableModels.find(m => m.status === "online");
-      setSelectedModel(onlineModel?.id || availableModels[0].id);
+      // Session model not loaded, use first available loaded model
+      setSelectedModel(availableModels[0].id);
     }
-  }, [currentSession, availableModels]);
+  }, [currentSession?.id, availableModels]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -148,21 +181,27 @@ export function ChatView() {
     if (!selectedSessionId || isTyping) return;
 
     let userMessage = input;
-    if (uploadedFiles.length > 0) {
-      const fileContexts = uploadedFiles.map(f => {
+    const imageFiles = uploadedFiles.filter(f => f.type.startsWith('image/') && f.preview);
+    const textFiles = uploadedFiles.filter(f => !f.type.startsWith('image/'));
+    
+    // Add text files as context
+    if (textFiles.length > 0) {
+      const fileContexts = textFiles.map(f => {
         if (f.content) return `\n\n[File: ${f.name}]\n\`\`\`\n${f.content.slice(0, 2000)}${f.content.length > 2000 ? '\n...(truncated)' : ''}\n\`\`\``;
-        if (f.preview) return `\n\n[Image: ${f.name}]`;
         return `\n\n[Attached: ${f.name}]`;
       }).join('');
       userMessage = input + fileContexts;
     }
+    
+    // Extract base64 images
+    const images = imageFiles.map(f => f.preview!.split(',')[1]);
 
     setInput("");
     setUploadedFiles([]);
 
     addMessageToSession(selectedSessionId, {
       role: "user",
-      content: userMessage,
+      content: userMessage + (images.length > 0 ? ` [${images.length} image(s)]` : ''),
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     });
 
@@ -170,6 +209,20 @@ export function ChatView() {
     setLastStats(null);
 
     try {
+      // Verify model is loaded before sending
+      const isModelLoaded = availableModels.some(m => m.id === selectedModel);
+      if (!isModelLoaded) {
+        throw new Error(`Model ${selectedModel} is not loaded. Please load it in Settings or select a different model.`);
+      }
+      
+      // Get session style and system prompt from localStorage
+      const sessionStyle = localStorage.getItem(`session-style-${selectedSessionId}`) || 'normal';
+      const sessionSystemPrompt = localStorage.getItem(`session-systemprompt-${selectedSessionId}`) || undefined;
+      
+      // Get user memories
+      const storedMemories = localStorage.getItem('ryxhub_user_memories');
+      const userMemories = storedMemories ? JSON.parse(storedMemories) : [];
+      
       const enabledTools = tools.filter(t => t.enabled).map(t => t.id);
       const history = buildConversationHistory();
       
@@ -179,6 +232,10 @@ export function ChatView() {
         model: selectedModel,
         history,
         tools: enabledTools,
+        images: images.length > 0 ? images : undefined,
+        style: sessionStyle,
+        systemPrompt: sessionSystemPrompt,
+        memories: userMemories,
       });
 
       setLastStats({
@@ -202,7 +259,7 @@ export function ChatView() {
       if (errorMessage.includes("does not exist") || errorMessage.includes("NotFoundError")) {
         displayError = "Model not loaded. Please load the model first.";
       } else if (errorMessage.includes("Cannot connect")) {
-        displayError = "vLLM not running. Start vLLM first.";
+        displayError = "Ollama not running. Start Ollama first.";
       } else {
         displayError = errorMessage;
       }
@@ -278,12 +335,32 @@ export function ChatView() {
   };
 
   const handleModelChange = (modelId: string) => {
+    const isLoaded = availableModels.some(m => m.id === modelId);
+    if (!isLoaded) {
+      toast.error(`Model ${modelId} not loaded. Load it in Settings first.`);
+      return;
+    }
     setSelectedModel(modelId);
+    // Save as last used model for next startup
+    fetch('http://localhost:8420/api/models/save-last', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: modelId })
+    }).catch(() => {});
     toast.success(`Model: ${getModelDisplayName(modelId)}`);
   };
 
   const handleToolToggle = (toolId: string, enabled: boolean) => {
-    setTools(prev => prev.map(t => t.id === toolId ? { ...t, enabled } : t));
+    setTools(prev => {
+      const updated = prev.map(t => t.id === toolId ? { ...t, enabled } : t);
+      // Save to localStorage
+      if (selectedSessionId) {
+        const toolState: Record<string, boolean> = {};
+        updated.forEach(t => toolState[t.id] = t.enabled);
+        localStorage.setItem(`session-tools-${selectedSessionId}`, JSON.stringify(toolState));
+      }
+      return updated;
+    });
     if (selectedSessionId) {
       updateSessionTools(selectedSessionId, toolId, enabled);
     }
@@ -296,6 +373,27 @@ export function ChatView() {
       toast.success("Chat cleared");
     }
   };
+
+  const handleSaveSessionSettings = () => {
+    if (selectedSessionId) {
+      localStorage.setItem(`session-style-${selectedSessionId}`, sessionStyle);
+      if (sessionSystemPrompt.trim()) {
+        localStorage.setItem(`session-systemprompt-${selectedSessionId}`, sessionSystemPrompt);
+      } else {
+        localStorage.removeItem(`session-systemprompt-${selectedSessionId}`);
+      }
+      toast.success("Session settings saved");
+      setSessionSettingsOpen(false);
+    }
+  };
+
+  const STYLE_OPTIONS = [
+    { id: "normal", name: "Normal", description: "Balanced responses" },
+    { id: "concise", name: "Concise", description: "Short and direct" },
+    { id: "explanatory", name: "Explanatory", description: "Detailed with examples" },
+    { id: "learning", name: "Learning", description: "Step-by-step teaching" },
+    { id: "formal", name: "Formal", description: "Professional language" },
+  ];
 
   if (!currentSession) {
     return (
@@ -346,6 +444,10 @@ export function ChatView() {
                 <Trash2 className="w-3 h-3" />
               </Button>
             )}
+            
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setSessionSettingsOpen(true)}>
+              <Settings className="w-3 h-3" />
+            </Button>
           </div>
         </div>
 
@@ -484,6 +586,51 @@ export function ChatView() {
           </div>
         </div>
       </div>
+
+      {/* Session Settings Dialog */}
+      <Dialog open={sessionSettingsOpen} onOpenChange={setSessionSettingsOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Session Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Response Style</Label>
+              <Select value={sessionStyle} onValueChange={setSessionStyle}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STYLE_OPTIONS.map(style => (
+                    <SelectItem key={style.id} value={style.id}>
+                      <div className="flex flex-col">
+                        <span>{style.name}</span>
+                        <span className="text-xs text-muted-foreground">{style.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Custom System Prompt (optional)</Label>
+              <Textarea
+                value={sessionSystemPrompt}
+                onChange={(e) => setSessionSystemPrompt(e.target.value)}
+                placeholder="Enter a custom system prompt for this session..."
+                className="min-h-[100px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                This overrides the style prompt. Leave empty to use style-based prompt.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSessionSettingsOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveSessionSettings}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

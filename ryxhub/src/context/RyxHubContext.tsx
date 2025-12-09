@@ -311,54 +311,31 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const clearSessionMessages = useCallback(async (sessionId: string) => {
-    try {
-      // Clear messages via API
-      const response = await fetch(API_ENDPOINTS.sessionMessages(sessionId), {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        // Update local state
-        setSessions((prev) =>
-          prev.map((s) => {
-            if (s.id === sessionId) {
-              return {
-                ...s,
-                messages: [],
-                lastMessage: "Chat cleared",
-                timestamp: "just now",
-              };
-            }
-            return s;
-          })
-        );
-        // Persist to localStorage
-        const stored = localStorage.getItem('ryxhub_sessions');
-        if (stored) {
-          const sessions = JSON.parse(stored);
-          const updated = sessions.map((s: Session) =>
-            s.id === sessionId ? { ...s, messages: [], lastMessage: "Chat cleared" } : s
-          );
-          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+  const clearSessionMessages = useCallback((sessionId: string) => {
+    // Clear messages locally (no backend needed)
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            messages: [],
+            lastMessage: "Chat cleared",
+            timestamp: "just now",
+          };
         }
-      }
-    } catch (error) {
-      console.error('Failed to clear messages via API:', error);
-      // Still update UI even if API call fails
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.id === sessionId) {
-            return {
-              ...s,
-              messages: [],
-              lastMessage: "Chat cleared",
-              timestamp: "just now",
-            };
-          }
-          return s;
-        })
-      );
+        return s;
+      })
+    );
+    // Persist to localStorage
+    const stored = localStorage.getItem('ryxhub_sessions');
+    if (stored) {
+      try {
+        const sessions = JSON.parse(stored);
+        const updated = sessions.map((s: Session) =>
+          s.id === sessionId ? { ...s, messages: [], lastMessage: "Chat cleared" } : s
+        );
+        localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      } catch {}
     }
   }, []);
 
@@ -416,30 +393,26 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const createSession = useCallback(async (name: string, model?: string): Promise<Session | null> => {
-    try {
-      const response = await fetch(API_ENDPOINTS.sessions, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, model }),
-      });
-
-      if (response.ok) {
-        const newSession = await response.json();
-        setSessions((prev) => {
-          const updated = [newSession, ...prev];
-          // Persist to localStorage
-          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
-          return updated;
-        });
-        setSelectedSessionId(newSession.id);
-        localStorage.setItem('ryxhub_selected_session', newSession.id);
-        return newSession;
-      }
-    } catch (error) {
-      console.error('Failed to create session:', error);
-    }
-    return null;
+  const createSession = useCallback((name: string, model?: string): Promise<Session | null> => {
+    const newSession: Session = {
+      id: `session-${Date.now()}`,
+      name: name || `Session ${new Date().toLocaleTimeString()}`,
+      model: model || 'qwen2.5:1.5b',
+      lastMessage: '',
+      timestamp: 'just now',
+      isActive: true,
+      messages: [],
+      agentId: `agent-${Date.now()}`,
+    };
+    
+    setSessions((prev) => {
+      const updated = [newSession, ...prev.map(s => ({ ...s, isActive: false }))];
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      return updated;
+    });
+    setSelectedSessionId(newSession.id);
+    localStorage.setItem('ryxhub_selected_session', newSession.id);
+    return Promise.resolve(newSession);
   }, []);
 
   const toggleTool = useCallback((toolId: string, enabled: boolean) => {
@@ -459,55 +432,34 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     }
   }, [selectedSessionId]);
 
-  const deleteSession = useCallback(async (sessionId: string) => {
-    try {
-      const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
-        method: 'DELETE',
-      });
+  const deleteSession = useCallback((sessionId: string): Promise<void> => {
+    setSessions((prev) => {
+      const updated = prev.filter((s) => s.id !== sessionId);
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      return updated;
+    });
 
-      if (response.ok) {
-        // Update state
-        setSessions((prev) => {
-          const updated = prev.filter((s) => s.id !== sessionId);
-          // Persist to localStorage
-          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
-          return updated;
-        });
-
-        // Clear selection if deleted session was selected
-        if (selectedSessionId === sessionId) {
-          setSelectedSessionId(null);
-          localStorage.removeItem('ryxhub_selected_session');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to delete session:', error);
-      throw error;
+    // Clear selection if deleted session was selected
+    if (selectedSessionId === sessionId) {
+      setSelectedSessionId(null);
+      localStorage.removeItem('ryxhub_selected_session');
     }
+    
+    // Remove all session-related data from localStorage
+    localStorage.removeItem(`session-style-${sessionId}`);
+    localStorage.removeItem(`session-tools-${sessionId}`);
+    localStorage.removeItem(`session-lastused-${sessionId}`);
+    
+    return Promise.resolve();
   }, [selectedSessionId]);
 
-  const renameSession = useCallback(async (sessionId: string, newName: string) => {
-    try {
-      const response = await fetch(API_ENDPOINTS.sessionById(sessionId), {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: newName }),
-      });
-
-      if (response.ok) {
-        setSessions((prev) => {
-          const updated = prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s));
-          // Persist to localStorage
-          localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
-          return updated;
-        });
-      }
-    } catch (error) {
-      console.error('Failed to rename session:', error);
-      throw error;
-    }
+  const renameSession = useCallback((sessionId: string, newName: string): Promise<void> => {
+    setSessions((prev) => {
+      const updated = prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s));
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      return updated;
+    });
+    return Promise.resolve();
   }, []);
 
   return (

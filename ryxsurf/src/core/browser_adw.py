@@ -197,31 +197,25 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.toast_overlay.set_child(self.main_box)
         self.set_content(self.toast_overlay)
         
-        # === LEFT SIDEBAR ===
-        # Responsive sidebar: 15% of window width (min 180px, max 280px)
+        # === LEFT SIDEBAR === (compact 160px fixed width)
         self.sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.sidebar.set_size_request(180, -1)  # Minimum width
+        self.sidebar.set_size_request(160, -1)
+        self.sidebar.set_hexpand(False)
         self.sidebar.add_css_class("sidebar")
         
-        # Sidebar header
+        # Compact sidebar header - just new tab button
         sidebar_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         sidebar_header.add_css_class("sidebar-header")
-        sidebar_header.set_margin_start(12)
+        sidebar_header.set_margin_start(8)
         sidebar_header.set_margin_end(8)
-        sidebar_header.set_margin_top(8)
-        sidebar_header.set_margin_bottom(8)
-        
-        tabs_label = Gtk.Label(label="Tabs")
-        tabs_label.add_css_class("sidebar-title")
-        tabs_label.set_hexpand(True)
-        tabs_label.set_halign(Gtk.Align.START)
-        sidebar_header.append(tabs_label)
+        sidebar_header.set_margin_top(6)
+        sidebar_header.set_margin_bottom(4)
         
         new_tab_btn = Gtk.Button(icon_name="tab-new-symbolic")
         new_tab_btn.add_css_class("flat")
-        new_tab_btn.add_css_class("circular")
         new_tab_btn.set_tooltip_text("New Tab (Ctrl+T)")
         new_tab_btn.connect("clicked", lambda _: self._new_tab())
+        new_tab_btn.set_hexpand(True)
         sidebar_header.append(new_tab_btn)
         
         self.sidebar.append(sidebar_header)
@@ -292,12 +286,38 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self.fwd_btn.connect("clicked", lambda _: self._go_forward())
         toolbar.append(self.fwd_btn)
         
-        # Removed reload and home buttons - use keyboard shortcuts:
-        # Ctrl+R for reload, just type URL for navigation
+        # Reload button
+        reload_btn = Gtk.Button(icon_name="view-refresh-symbolic")
+        reload_btn.add_css_class("flat")
+        reload_btn.set_tooltip_text("Reload (Ctrl+R)")
+        reload_btn.connect("clicked", lambda _: self._reload())
+        toolbar.append(reload_btn)
         
-        # URL entry with suggestions
+        # Workspace switcher (like Hyprland workspaces)
+        self.workspace_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        self.workspace_box.add_css_class("workspace-switcher")
+        self.workspaces = ["🏠", "📚", "🔬", "🎮"]  # Home, School, Research, Chill
+        self.workspace_names = ["Home", "School", "Research", "Chill"]
+        self.current_workspace = 0
+        self.workspace_buttons = []
+        
+        for i, icon in enumerate(self.workspaces):
+            btn = Gtk.Button(label=icon)
+            btn.add_css_class("flat")
+            btn.add_css_class("workspace-btn")
+            if i == 0:
+                btn.add_css_class("workspace-active")
+            btn.set_tooltip_text(f"{self.workspace_names[i]} (Super+{i+1})")
+            btn.connect("clicked", lambda _, idx=i: self._switch_workspace(idx))
+            self.workspace_box.append(btn)
+            self.workspace_buttons.append(btn)
+        
+        toolbar.append(self.workspace_box)
+        
+        # URL entry with suggestions (max-width for cleaner look)
         url_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         url_box.set_hexpand(True)
+        url_box.set_size_request(-1, -1)
         url_box.add_css_class("url-box")
         
         self.security_icon = Gtk.Image(icon_name="channel-insecure-symbolic")
@@ -509,6 +529,21 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         .suggestions-popup {
             background: @popover_bg_color;
             min-width: 400px;
+        }
+        .workspace-switcher {
+            margin-left: 4px;
+            margin-right: 8px;
+        }
+        .workspace-btn {
+            min-width: 28px;
+            min-height: 28px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .workspace-btn.workspace-active {
+            background: alpha(@accent_bg_color, 0.3);
+            border: 1px solid @accent_bg_color;
         }
         """
         
@@ -1100,6 +1135,24 @@ class RyxSurfWindow(Adw.ApplicationWindow):
     def _zoom_reset(self):
         if self.tabs:
             self.tabs[self.active_tab].webview.set_zoom_level(1.0)
+    
+    # === WORKSPACES ===
+    
+    def _switch_workspace(self, idx: int):
+        """Switch to a different workspace (tab group)"""
+        if idx == self.current_workspace:
+            return
+        
+        # Update button styling
+        for i, btn in enumerate(self.workspace_buttons):
+            if i == idx:
+                btn.add_css_class("workspace-active")
+            else:
+                btn.remove_css_class("workspace-active")
+        
+        self.current_workspace = idx
+        self._show_toast(f"Workspace: {self.workspace_names[idx]}")
+        # TODO: Actually implement workspace tab grouping
     
     # === UI TOGGLES ===
     

@@ -18,11 +18,30 @@ interface Model {
 }
 
 function RyxHubApp() {
-  const { activeView, selectSession, setActiveView } = useRyxHub();
+  const { activeView, sessions, selectedSessionId, selectSession, setActiveView } = useRyxHub();
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Auto-select session when switching to chat view
+  useEffect(() => {
+    if (activeView === "chat" && !selectedSessionId && sessions.length > 0) {
+      // Find most recently used session
+      let mostRecent = sessions[0];
+      let mostRecentTime = 0;
+      
+      for (const session of sessions) {
+        const lastUsed = parseInt(localStorage.getItem(`session-lastused-${session.id}`) || '0');
+        if (lastUsed > mostRecentTime) {
+          mostRecentTime = lastUsed;
+          mostRecent = session;
+        }
+      }
+      
+      selectSession(mostRecent.id);
+    }
+  }, [activeView, selectedSessionId, sessions, selectSession]);
 
   useEffect(() => {
     // Listen for model click events

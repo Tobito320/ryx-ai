@@ -25,19 +25,28 @@ from urllib.parse import quote_plus
 import json
 import time
 import logging
+import sys
 
-# Setup logging
+# Setup logging with immediate flush
 LOG_FILE = Path.home() / ".config" / "ryxsurf" / "ryxsurf.log"
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+# File handler with immediate flush
+file_handler = logging.FileHandler(LOG_FILE)
+file_handler.setLevel(logging.INFO)
+
+# Stream handler with immediate flush  
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setLevel(logging.INFO)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
-    ]
+    handlers=[file_handler, stream_handler],
+    force=True
 )
 log = logging.getLogger("ryxsurf")
+log.setLevel(logging.INFO)
 
 from .history import HistoryManager
 from .downloads import DownloadManager, DownloadNotification, DownloadInfo
@@ -273,7 +282,33 @@ class Browser:
         log.info("Starting RyxSurf...")
         self.app = Gtk.Application(application_id='ai.ryx.surf')
         self.app.connect('activate', self._on_activate)
+        
+        # Setup application-level actions and accelerators BEFORE run
+        self._setup_app_actions(self.app)
+        
         self.app.run(None)
+    
+    def _setup_app_actions(self, app):
+        """Setup GIO actions with accelerators for reliable shortcuts"""
+        from gi.repository import Gio
+        
+        actions = [
+            ("focus-url", "<Control>l", lambda: self._focus_url_bar()),
+            ("new-tab", "<Control>t", lambda: self._new_tab()),
+            ("close-tab", "<Control>w", lambda: self._close_tab()),
+            ("reload", "<Control>r", lambda: self._reload()),
+            ("toggle-sidebar", "<Control>b", lambda: self._toggle_sidebar()),
+            ("reload-f5", "F5", lambda: self._reload()),
+            ("focus-url-f6", "F6", lambda: self._focus_url_bar()),
+            ("fullscreen", "F11", lambda: self._toggle_fullscreen()),
+        ]
+        
+        for name, accel, callback in actions:
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda a, p, cb=callback: cb())
+            app.add_action(action)
+            app.set_accels_for_action(f"app.{name}", [accel])
+            log.info(f"App action: {name} = {accel}")
         
     def _on_activate(self, app):
         """Called when GTK app is ready"""
@@ -350,11 +385,17 @@ class Browser:
         
         # Restore session or create initial tab
         if self.settings.get("restore_session_on_startup", True):
+            log.info("Attempting to restore session...")
             self._restore_session()
+            log.info(f"Session restore complete, tabs: {len(self.tabs)}")
         
         # Create initial tab if no tabs restored
         if not self.tabs:
+            log.info(f"No tabs restored, creating new tab with homepage: {self.config.homepage}")
             self._new_tab(self.config.homepage)
+        else:
+            log.info(f"Tabs restored: {len(self.tabs)}, switching to active tab")
+            self._switch_to_tab(self.active_tab_idx)
         
         # Setup keybinds
         self._setup_keybinds()
@@ -384,30 +425,30 @@ class Browser:
         }
         
         /* ═══════════════════════════════════════════════════════════════
-           TAB SIDEBAR - Ultra compact icon mode (80px)
+           TAB SIDEBAR - Fixed 120px width (10% of ~1200px)
            ═══════════════════════════════════════════════════════════════ */
         .tab-sidebar {
             background: #0a0a0c;
             border-right: 1px solid #151518;
-            padding: 4px 2px;
-            min-width: 80px;
+            padding: 4px;
+            min-width: 120px;
+            max-width: 120px;
         }
         
-        /* Workspace bar at top of sidebar */
+        /* Workspace bar - now in URL bar, compact style */
         .workspace-bar {
-            padding: 4px 2px 8px 2px;
-            border-bottom: 1px solid #151518;
+            padding: 0 4px;
         }
         
         .workspace-btn {
             background: transparent;
             border: none;
             color: #444;
-            padding: 6px;
+            padding: 4px 6px;
             border-radius: 4px;
-            font-size: 14px;
-            min-width: 28px;
-            min-height: 28px;
+            font-size: 12px;
+            min-width: 24px;
+            min-height: 24px;
         }
         
         .workspace-btn:hover {
@@ -722,7 +763,7 @@ class Browser:
         self.url_bar_box.set_spacing(8)
         self.url_bar_box.set_hexpand(True)
         
-        # Left side: Back/Forward buttons (compact)
+        # Left side: Back/Forward/Reload buttons (compact)
         nav_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         
         self.back_btn = Gtk.Button(label="←")
@@ -744,6 +785,23 @@ class Browser:
         nav_box.append(self.reload_btn)
         
         self.url_bar_box.append(nav_box)
+        
+        # Workspace buttons (after reload, before URL) - like Hyprland workspaces
+        workspace_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+        workspace_box.add_css_class("workspace-bar")
+        
+        self.workspace_buttons = {}
+        for ws_id, ws_info in WORKSPACES.items():
+            btn = Gtk.Button(label=ws_info["icon"])
+            btn.add_css_class("workspace-btn")
+            btn.set_tooltip_text(ws_info["name"])
+            if ws_id == self.current_workspace:
+                btn.add_css_class("active")
+            btn.connect("clicked", lambda _, wid=ws_id: self._switch_workspace(wid))
+            workspace_box.append(btn)
+            self.workspace_buttons[ws_id] = btn
+        
+        self.url_bar_box.append(workspace_box)
         
         # Center: URL entry (60% width)
         url_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
@@ -895,28 +953,11 @@ class Browser:
             self._navigate_current(row.suggestion_url)
     
     def _create_tab_sidebar(self):
-        """Create ultra-compact sidebar with workspace icons + tabs"""
+        """Create compact sidebar - ONLY tabs, no workspaces (those go in URL bar)"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        self.tab_sidebar.set_size_request(80, -1)  # 80px compact
-        
-        # Workspace bar at top
-        self.workspace_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.workspace_bar.add_css_class("workspace-bar")
-        self.workspace_bar.set_halign(Gtk.Align.CENTER)
-        
-        self.workspace_buttons = {}
-        for ws_id, ws_info in WORKSPACES.items():
-            btn = Gtk.Button(label=ws_info["icon"])
-            btn.add_css_class("workspace-btn")
-            btn.set_tooltip_text(ws_info["name"])
-            if ws_id == self.current_workspace:
-                btn.add_css_class("active")
-            btn.connect("clicked", lambda _, wid=ws_id: self._switch_workspace(wid))
-            self.workspace_bar.append(btn)
-            self.workspace_buttons[ws_id] = btn
-        
-        self.tab_sidebar.append(self.workspace_bar)
+        # Fixed 120px width (~10% of 1200px default window)
+        self.tab_sidebar.set_size_request(120, -1)
         
         # Scrollable area for tabs
         scroll = Gtk.ScrolledWindow()
@@ -1054,13 +1095,115 @@ class Browser:
             self.tabs[self.active_tab_idx].webview.grab_focus()
         
     def _setup_keybinds(self):
-        """Setup keyboard shortcuts"""
-        # Create key controller for window-level key events
+        """Setup keyboard shortcuts using GTK4 ShortcutController"""
+        log.info("Setting up keybinds with ShortcutController...")
+        
+        # Use GTK4 ShortcutController for reliable keybinds even with WebKit
+        shortcut_controller = Gtk.ShortcutController()
+        shortcut_controller.set_scope(Gtk.ShortcutScope.GLOBAL)
+        
+        # Define shortcuts
+        shortcuts = [
+            ("<Control>l", "focus-url", self._focus_url_bar),
+            ("<Control>t", "new-tab", self._new_tab),
+            ("<Control>w", "close-tab", self._close_tab),
+            ("<Control>r", "reload", self._reload),
+            ("<Control>b", "toggle-sidebar", self._toggle_sidebar),
+            ("<Control><Shift>t", "reopen-tab", self._reopen_closed_tab),
+            ("F5", "reload-f5", self._reload),
+            ("F6", "focus-url-f6", self._focus_url_bar),
+            ("F11", "fullscreen", self._toggle_fullscreen),
+            ("Escape", "escape", self._handle_escape),
+        ]
+        
+        for accel, name, callback in shortcuts:
+            trigger = Gtk.ShortcutTrigger.parse_string(accel)
+            if trigger:
+                def make_callback(cb, n):
+                    def wrapper(widget, variant):
+                        print(f"!!! SHORTCUT TRIGGERED: {n}", flush=True)
+                        log.info(f"Shortcut triggered: {n}")
+                        cb()
+                        return True
+                    return wrapper
+                action = Gtk.CallbackAction.new(make_callback(callback, name))
+                shortcut = Gtk.Shortcut.new(trigger, action)
+                shortcut_controller.add_shortcut(shortcut)
+                log.info(f"Added shortcut: {accel} -> {name}")
+        
+        self.window.add_controller(shortcut_controller)
+        
+        # Also keep EventControllerKey for other keys
         controller = Gtk.EventControllerKey()
-        # Use CAPTURE phase to intercept before WebView
         controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         controller.connect('key-pressed', self._on_key_press)
         self.window.add_controller(controller)
+        
+        log.info("Keybinds setup complete")
+    
+    def _handle_escape(self):
+        """Handle Escape key"""
+        if self.url_entry and self.url_entry.has_focus():
+            if self.tabs:
+                self.tabs[self.active_tab_idx].webview.grab_focus()
+            self._hide_url_bar()
+        elif hasattr(self, 'hint_mode') and self.hint_mode and self.hint_mode.active:
+            self.hint_mode.deactivate()
+        return True
+    
+    def _on_webview_key_press(self, controller, keyval, keycode, state):
+        """Handle key press events from WebView - intercept browser shortcuts"""
+        ctrl_pressed = bool(state & Gdk.ModifierType.CONTROL_MASK)
+        shift_pressed = bool(state & Gdk.ModifierType.SHIFT_MASK)
+        
+        key_name = Gdk.keyval_name(keyval)
+        if key_name is None:
+            return Gdk.EVENT_PROPAGATE
+        
+        log.info(f"WebView Key: {key_name}, Ctrl: {ctrl_pressed}")
+        
+        # Handle browser shortcuts
+        if ctrl_pressed and not shift_pressed:
+            if key_name in ('l', 'L'):
+                log.info("Ctrl+L detected - focusing URL bar")
+                self._show_url_bar(pin=True)
+                self._focus_url_bar()
+                return Gdk.EVENT_STOP
+            elif key_name in ('t', 'T'):
+                self._new_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('w', 'W'):
+                self._close_tab()
+                return Gdk.EVENT_STOP
+            elif key_name in ('r', 'R'):
+                self._reload()
+                return Gdk.EVENT_STOP
+            elif key_name in ('b', 'B'):
+                self._toggle_sidebar()
+                return Gdk.EVENT_STOP
+        
+        if ctrl_pressed and shift_pressed:
+            if key_name in ('t', 'T'):
+                self._reopen_closed_tab()
+                return Gdk.EVENT_STOP
+        
+        if key_name == 'Escape':
+            self._handle_escape()
+            return Gdk.EVENT_STOP
+        
+        if key_name == 'F5':
+            self._reload()
+            return Gdk.EVENT_STOP
+        
+        if key_name == 'F6':
+            self._focus_url_bar()
+            return Gdk.EVENT_STOP
+        
+        if key_name == 'F11':
+            self._toggle_fullscreen()
+            return Gdk.EVENT_STOP
+        
+        return Gdk.EVENT_PROPAGATE
         
     def _on_key_press(self, controller, keyval, keycode, state):
         """Handle key press events"""
@@ -1073,8 +1216,8 @@ class Browser:
         if key_name is None:
             return Gdk.EVENT_PROPAGATE
         
-        # Debug: Print key events (remove after debugging)
-        # print(f"Key: {key_name}, Ctrl: {ctrl_pressed}, Shift: {shift_pressed}")
+        # Debug: Log key events
+        log.info(f"Key: {key_name}, Ctrl: {ctrl_pressed}, Shift: {shift_pressed}")
         
         # Escape - hide URL bar and close overlays
         if key_name == 'Escape':
@@ -1444,6 +1587,12 @@ class Browser:
         """Create a new tab"""
         webview = WebKit.WebView()
         
+        # Add key controller to WebView to capture keys before WebKit processes them
+        webview_key_controller = Gtk.EventControllerKey()
+        webview_key_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        webview_key_controller.connect('key-pressed', self._on_webview_key_press)
+        webview.add_controller(webview_key_controller)
+        
         # Configure WebView settings with GPU acceleration
         settings = webview.get_settings()
         settings.set_enable_javascript(True)
@@ -1523,54 +1672,10 @@ class Browser:
         self._update_window_title()
     
     def _load_newtab_page(self, webview):
-        """Load ultra-minimal new tab page"""
-        html = '''<!DOCTYPE html>
-<html>
-<head>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    background: #0a0a0c;
-    color: #444;
-    font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-}
-.search {
-    background: #151518;
-    border: 1px solid #1a1a1f;
-    border-radius: 6px;
-    padding: 12px 20px;
-    font-size: 14px;
-    color: #999;
-    width: 400px;
-    outline: none;
-    font-family: inherit;
-}
-.search:focus {
-    background: #1a1a20;
-    border-color: #7c3aed;
-    color: #ddd;
-}
-.search::placeholder { color: #333; }
-.tip {
-    position: fixed;
-    bottom: 20px;
-    font-size: 10px;
-    color: #333;
-}
-</style>
-</head>
-<body>
-<input class="search" placeholder="Search or URL" autofocus 
-    onkeydown="if(event.key==='Enter'){window.location=this.value.includes('.')?'https://'+this.value:'https://duckduckgo.com/?q='+encodeURIComponent(this.value)}">
-<div class="tip">Ctrl+L focus · Ctrl+T new · Ctrl+W close</div>
-</body>
-</html>'''
-        webview.load_html(html, "about:newtab")
+        """Load simple blank new tab page"""
+        # Simple about:blank instead of HTML to avoid multiple load events
+        # The URL bar is the main focus for new tabs anyway
+        webview.load_uri("about:blank")
     
     def _focus_url_bar(self):
         """Focus the URL entry and select all text"""
@@ -1658,6 +1763,7 @@ body {
         
     def _update_content_view(self):
         """Update the main content area with current tab's webview"""
+        log.info(f"_update_content_view: tabs={len(self.tabs) if self.tabs else 0}, content_box={self.content_box}")
         # Remove old webviews from content_box
         child = self.content_box.get_first_child()
         while child:
@@ -1669,6 +1775,7 @@ body {
         # Add current tab's webview
         if self.tabs:
             tab = self.tabs[self.active_tab_idx]
+            log.info(f"Adding webview to content_box: tab={tab.id}, url={tab.url}")
             
             # Remove AI sidebar temporarily if it's in the way
             if self.ai_sidebar.get_parent():
@@ -1678,13 +1785,14 @@ body {
             tab.webview.set_hexpand(True)
             tab.webview.set_vexpand(True)
             self.content_box.append(tab.webview)
+            log.info("Webview added to content_box")
             
             # Re-add AI sidebar at the end
             if self.ai_sidebar.get_visible():
                 self.content_box.append(self.ai_sidebar)
     
     def _update_tab_sidebar(self):
-        """Update the tab sidebar with compact icon tabs"""
+        """Update the tab sidebar with compact tab titles"""
         if not hasattr(self, 'tab_list_box'):
             return
             
@@ -1695,35 +1803,71 @@ body {
             self.tab_list_box.remove(child)
             child = next_child
         
-        # Add compact tab icons (no titles in 80px mode)
+        # Update tab count
+        if hasattr(self, 'tab_count_label') and self.tab_count_label:
+            self.tab_count_label.set_text(str(len(self.tabs)))
+        
+        # Add tabs with truncated titles
         for i, tab in enumerate(self.tabs):
             btn = Gtk.Button()
             btn.add_css_class("tab-btn")
-            btn.set_size_request(36, 36)
-            btn.set_halign(Gtk.Align.CENTER)
+            btn.set_size_request(-1, 28)  # Full width, compact height
             
             if i == self.active_tab_idx:
                 btn.add_css_class("active")
             if tab.is_unloaded:
                 btn.add_css_class("unloaded")
             
+            # Create horizontal box for icon + title
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            box.set_margin_start(6)
+            box.set_margin_end(6)
+            
             # Icon based on state
             if hasattr(tab, 'is_loading') and tab.is_loading:
                 indicator = Gtk.Spinner()
                 indicator.start()
-                indicator.set_size_request(16, 16)
-                btn.set_child(indicator)
+                indicator.set_size_request(12, 12)
+                box.append(indicator)
             else:
-                # Use first letter of title or dot
-                first_char = tab.title[0].upper() if tab.title else "●"
-                if first_char.isalpha():
-                    label = Gtk.Label(label=first_char)
-                else:
-                    label = Gtk.Label(label="●" if not tab.is_unloaded else "○")
-                label.add_css_class("tab-icon")
-                btn.set_child(label)
+                # Favicon placeholder or first letter of title/domain
+                title_for_icon = tab.title if tab.title and tab.title != "New Tab" else ""
+                if not title_for_icon and tab.url:
+                    # Extract domain for icon
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(tab.url)
+                        title_for_icon = parsed.netloc or ""
+                    except:
+                        pass
+                
+                first_char = title_for_icon[0].upper() if title_for_icon and title_for_icon[0].isalpha() else "●"
+                icon_label = Gtk.Label(label=first_char)
+                icon_label.add_css_class("tab-favicon")
+                box.append(icon_label)
             
-            btn.set_tooltip_text(tab.title or "New Tab")
+            # Title - show actual title or domain or "New Tab"
+            if tab.title and tab.title != "New Tab":
+                title_text = tab.title[:15]
+            elif tab.url and tab.url != "about:blank":
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(tab.url)
+                    title_text = parsed.netloc[:15] if parsed.netloc else "New Tab"
+                except:
+                    title_text = "New Tab"
+            else:
+                title_text = "New Tab"
+                
+            title_label = Gtk.Label(label=title_text)
+            title_label.add_css_class("tab-title")
+            title_label.set_halign(Gtk.Align.START)
+            title_label.set_hexpand(True)
+            title_label.set_ellipsize(Pango.EllipsizeMode.END)
+            box.append(title_label)
+            
+            btn.set_child(box)
+            btn.set_tooltip_text(tab.title or tab.url or "New Tab")
             btn.connect("clicked", lambda _, idx=i: self._switch_to_tab(idx))
             
             # Middle-click to close
@@ -1887,16 +2031,26 @@ body {
         if tab.url and tab.url != "about:blank":
             tab.webview.load_uri(tab.url)
             
-            # Restore scroll position after load
-            def restore_scroll(webview, load_event, t=tab):
-                if load_event == WebKit.LoadEvent.FINISHED and t.scroll_position > 0:
-                    webview.evaluate_javascript(
-                        f"window.scrollTo(0, {t.scroll_position})",
-                        -1, None, None, None, None
-                    )
-                    t.scroll_position = 0
-                    
-            tab.webview.connect('load-changed', restore_scroll)
+            # Restore scroll position after load - use one-shot handler ID to disconnect
+            if tab.scroll_position > 0:
+                def restore_scroll(webview, load_event, t=tab):
+                    if load_event == WebKit.LoadEvent.FINISHED and t.scroll_position > 0:
+                        webview.evaluate_javascript(
+                            f"window.scrollTo(0, {t.scroll_position})",
+                            -1, None, None, None, None, None
+                        )
+                        scroll_pos = t.scroll_position
+                        t.scroll_position = 0
+                        # Disconnect this handler - we use the handler_id stored on the tab
+                        if hasattr(t, '_scroll_restore_handler') and t._scroll_restore_handler:
+                            try:
+                                webview.disconnect(t._scroll_restore_handler)
+                            except:
+                                pass
+                            t._scroll_restore_handler = None
+                
+                # Store handler ID so we can disconnect it
+                tab._scroll_restore_handler = tab.webview.connect('load-changed', restore_scroll)
         
         self._update_tab_sidebar()
     
@@ -1975,6 +2129,8 @@ body {
                     tab.is_unloaded = False
                     if tab.url and tab.url != "about:blank":
                         tab.webview.load_uri(tab.url)
+                    # CRITICAL: Add webview to content box!
+                    self._update_content_view()
                         
             self._update_tab_sidebar()
             
@@ -1983,10 +2139,13 @@ body {
     
     def _navigate_current(self, url: str):
         """Navigate the current tab to a URL"""
+        log.info(f"_navigate_current called: url={url}, tabs={len(self.tabs) if self.tabs else 0}")
         if not self.tabs:
+            log.warning("No tabs to navigate!")
             return
         
         tab = self.tabs[self.active_tab_idx]
+        log.info(f"Navigating tab {self.active_tab_idx} to {url}")
         tab.url = url
         tab.webview.load_uri(url)
         
@@ -1996,6 +2155,7 @@ body {
     
     def _on_load_changed(self, webview, load_event, tab: Tab = None):
         """Handle page load state changes"""
+        # Only log significant events to reduce spam
         if load_event == WebKit.LoadEvent.STARTED:
             # Page started loading - update title immediately
             uri = webview.get_uri()
@@ -2146,10 +2306,14 @@ body {
             
     def _focus_url_bar(self):
         """Focus the URL bar for input"""
+        log.info("_focus_url_bar called")
         self._show_url_bar(pin=True)
         if self.url_entry:
+            log.info("Focusing URL entry...")
             self.url_entry.grab_focus()
             self.url_entry.select_region(0, -1)  # Select all text
+        else:
+            log.warning("url_entry is None!")
     
     def _update_window_title(self):
         """Update window title with current tab info"""

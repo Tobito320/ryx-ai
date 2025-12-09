@@ -371,8 +371,24 @@ start_ryxhub() {
     echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
     
     ensure_docker
-    start_vllm
     start_searxng
+    
+    # Check Ollama is running
+    if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
+        echo -e "${YELLOW}⚠️  Ollama not running. Start with: ollama serve${NC}"
+        return 1
+    fi
+    
+    # Load last used model or default
+    LAST_MODEL_FILE="$PROJECT_ROOT/data/last_model"
+    if [ -f "$LAST_MODEL_FILE" ]; then
+        LOAD_MODEL=$(cat "$LAST_MODEL_FILE")
+        echo -e "${YELLOW}Loading last used model: $LOAD_MODEL...${NC}"
+    else
+        LOAD_MODEL="qwen2.5:1.5b"
+        echo -e "${YELLOW}Loading default model: $LOAD_MODEL...${NC}"
+    fi
+    curl -s http://localhost:11434/api/generate -d "{\"model\":\"$LOAD_MODEL\",\"prompt\":\"\"}" > /dev/null
     
     # Start API if not running
     if ! curl -s http://localhost:8420/api/health &>/dev/null; then
@@ -380,14 +396,14 @@ start_ryxhub() {
         cd "$PROJECT_ROOT"
         [ -d "venv" ] && source venv/bin/activate
         
-        VLLM_BASE_URL="http://localhost:8001" \
+        OLLAMA_BASE_URL="http://localhost:11434" \
         SEARXNG_URL="http://localhost:8888" \
         SESSIONS_DIR="$PROJECT_ROOT/data/sessions" \
         nohup python -m uvicorn ryx_pkg.interfaces.web.backend.main:app \
             --host 0.0.0.0 --port 8420 \
             > "$PROJECT_ROOT/data/ryxhub_api.log" 2>&1 &
         echo $! > "$PROJECT_ROOT/data/ryxhub_api.pid"
-        sleep 2
+        sleep 3
     fi
     
     # Start frontend if not running
@@ -404,6 +420,8 @@ start_ryxhub() {
     fi
     
     echo -e "\n${GREEN}RyxHub ready: ${CYAN}http://localhost:8080${NC}"
+    echo -e "${GREEN}✓${NC} Ollama backend: $LOAD_MODEL"
+    echo -e "${GREEN}✓${NC} SearXNG search enabled"
     
     # Open browser
     xdg-open "http://localhost:8080" 2>/dev/null &
@@ -547,7 +565,12 @@ esac
 
 # Start base services for CLI
 ensure_docker
-start_vllm
+# Check Ollama
+if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
+    echo -e "${YELLOW}⚠️  Ollama not running${NC}"
+    echo -e "Start with: ${CYAN}ollama serve${NC}"
+    exit 1
+fi
 start_searxng
 
 # Activate venv and run CLI

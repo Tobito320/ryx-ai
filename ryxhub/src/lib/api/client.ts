@@ -1,12 +1,11 @@
 /**
  * RyxHub Live API Client
  *
- * HTTP client for communicating with vLLM (OpenAI-compatible) and Ryx backend.
+ * HTTP client for communicating with Ollama and Ryx backend.
  * Handles all API calls with proper error handling, timeouts, and retries.
  */
 
 // Get API URLs from environment
-const VLLM_API_URL = import.meta.env.VITE_VLLM_API_URL || 'http://localhost:8001';
 const API_BASE_URL = import.meta.env.VITE_RYX_API_URL || 'http://localhost:8420';
 
 // Default timeout for API calls (60 seconds for LLM responses)
@@ -29,23 +28,21 @@ export class RyxApiError extends Error {
 // Types for API responses
 export interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
-  version: string;
-  uptime: number;
-  vllm_status: 'online' | 'offline' | 'starting';
+  ollama_status: 'online' | 'offline';
+  searxng_status: 'online' | 'offline';
+  models_available: number;
 }
 
 export interface StatusResponse {
   models_loaded: number;
-  active_sessions: number;
-  gpu_memory_used: number;
-  gpu_memory_total: number;
-  vllm_workers: number;
+  ollama_url: string;
+  searxng_url: string;
 }
 
 export interface Model {
   id: string;
   name: string;
-  status: 'online' | 'offline' | 'loading';
+  status: 'loaded' | 'available';
   provider: string;
   context_length?: number;
   parameters?: string;
@@ -225,7 +222,7 @@ async function apiRequest<T>(
       }
       if (error.message.includes('fetch')) {
         throw new RyxApiError(
-          'Cannot connect to Ryx backend. Is vLLM running?',
+          'Cannot connect to Ryx backend. Is Ollama running?',
           undefined,
           'CONNECTION_FAILED'
         );
@@ -246,144 +243,82 @@ export const ryxApi = {
   // ============ Health & Status ============
 
   async getHealth(): Promise<HealthResponse> {
-    // Try vLLM health first
-    try {
-      const response = await fetch(`${VLLM_API_URL}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      });
-      if (response.ok) {
-        return {
-          status: 'healthy',
-          version: '1.0.0',
-          uptime: 0,
-          vllm_status: 'online',
-        };
-      }
-    } catch {
-      // vLLM not available
-    }
-    return {
-      status: 'degraded',
-      version: '1.0.0',
-      uptime: 0,
-      vllm_status: 'offline',
-    };
+    return apiRequest<HealthResponse>('/api/health');
   },
 
   async getStatus(): Promise<StatusResponse> {
-    return {
-      models_loaded: 1,
-      active_sessions: 0,
-      gpu_memory_used: 0,
-      gpu_memory_total: 16,
-      vllm_workers: 1,
-    };
+    return apiRequest<StatusResponse>('/api/status');
   },
 
   // ============ Models ============
 
+
   async listModels(): Promise<Model[]> {
-    // Query vLLM OpenAI-compatible /v1/models endpoint
-    try {
-      const response = await fetch(`${VLLM_API_URL}/v1/models`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // vLLM returns OpenAI format: { data: [{ id: "model-name", ... }] }
-        if (data.data && Array.isArray(data.data)) {
-          return data.data.map((m: { id: string }) => {
-            // Extract a friendly name from the model ID
-            const parts = m.id.split('/');
-            const lastName = parts[parts.length - 1];
-            // Clean up the name - remove common suffixes and make it readable
-            const friendlyName = lastName
-              .replace(/-gptq$/i, '')
-              .replace(/-awq$/i, '')
-              .replace(/-gguf$/i, '')
-              .replace(/\./g, ' ')
-              .split('-')
-              .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-              .join(' ');
-
-            return {
-              id: m.id,
-              name: friendlyName || m.id,
-              status: 'online' as const,
-              provider: 'vLLM',
-            };
-          });
-        }
-      }
-    } catch (error) {
-      console.warn('vLLM not available:', error);
-    }
-
-    // Return empty array if vLLM is not running
-    return [];
+    const data = await apiRequest<{ models: any[] }>('/api/models');
+    return data.models.map((m: any) => ({
+      id: m.name,
+      name: m.name,
+      status: m.status as 'loaded' | 'available',
+      provider: 'Ollama',
+    }));
   },
 
-  async loadModel(modelId: string): Promise<{ success: boolean; message?: string; status?: string }> {
-    // vLLM doesn't support dynamic model loading - models are loaded at startup
-    return { 
-      success: false, 
-      message: 'vLLM loads models at startup. Restart vLLM with the desired model.',
-      status: 'requires_restart'
-    };
+  async loadModel(modelId: string): Promise<{ success: boolean; message?: string }> {
+    const result = await apiRequest<{ message: string }>(`/api/models/${modelId}/load`, {
+      method: 'POST',
+    });
+    // Save as last used model
+    await this.saveLastModel(modelId);
+    return result;
   },
 
   async unloadModel(modelId: string): Promise<{ success: boolean; message?: string }> {
-    return { 
-      success: false, 
-      message: 'vLLM does not support dynamic model unloading' 
-    };
+    return apiRequest<{ message: string }>(`/api/models/${modelId}/unload`, {
+      method: 'POST',
+    });
   },
 
-  async getModelStatus(modelId: string): Promise<{ id: string; status: string; loaded: boolean; message: string }> {
-    const models = await this.listModels();
-    const model = models.find(m => m.id === modelId);
-    return {
-      id: modelId,
-      status: model ? 'online' : 'offline',
-      loaded: !!model,
-      message: model ? 'Model is loaded and ready' : 'Model not loaded in vLLM'
-    };
-  },
-
-  // ============ Sessions ============
-
-  async listSessions(): Promise<Session[]> {
+  async saveLastModel(modelId: string): Promise<void> {
     try {
-      const response = await apiRequest<{ sessions: Session[] }>('/api/sessions');
-      return response.sessions || [];
+      await apiRequest('/api/models/save-last', {
+        method: 'POST',
+        body: JSON.stringify({ model: modelId }),
+      });
     } catch {
-      return [];
+      // Silent fail - not critical
+    }
+  },
+
+  async getLastModel(): Promise<string> {
+    try {
+      const data = await apiRequest<{ model: string }>('/api/models/last');
+      return data.model;
+    } catch {
+      return 'qwen2.5:1.5b';
     }
   },
 
   async createSession(data: { name: string; model: string }): Promise<Session> {
-    try {
-      return await apiRequest<Session>('/api/sessions', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch {
-      // Fallback: create local session
-      return {
-        id: `session-${Date.now()}`,
-        name: data.name,
-        model: data.model,
-        lastMessage: '',
-        timestamp: 'just now',
-        isActive: true,
-        messages: [],
-        agentId: `agent-${Date.now()}`,
-      };
-    }
+    // Create session locally - no backend needed
+    const session: Session = {
+      id: `session-${Date.now()}`,
+      name: data.name,
+      model: data.model,
+      lastMessage: '',
+      timestamp: 'just now',
+      isActive: true,
+      messages: [],
+      agentId: `agent-${Date.now()}`,
+    };
+    
+    // Store in localStorage
+    const stored = localStorage.getItem('ryxhub_sessions');
+    const sessions = stored ? JSON.parse(stored) : [];
+    sessions.unshift(session);
+    localStorage.setItem('ryxhub_sessions', JSON.stringify(sessions));
+    localStorage.setItem('ryxhub_selected_session', session.id);
+    
+    return session;
   },
 
   async getSession(sessionId: string): Promise<Session> {
@@ -421,110 +356,73 @@ export const ryxApi = {
     message: string,
     model?: string,
     history?: Array<{ role: "user" | "assistant"; content: string }>,
-    tools?: string[]
+    tools?: string[],
+    images?: string[],
+    style?: string,
+    systemPrompt?: string,
+    memories?: string[]
   ): Promise<Message> {
-    const startTime = Date.now();
-    const modelToUse = model || '/models/medium/general/qwen2.5-7b-gptq';
+    const modelToUse = model || 'qwen2.5-coder:7b';
+    const needsWebSearch = tools?.includes('websearch');
 
-    // Check if we need to search or use RAG before responding
-    let searchResults = '';
-    const needsWebSearch = tools?.includes('websearch') && this.shouldSearch(message);
-    const needsRAG = tools?.includes('rag');
-
-    if (needsWebSearch) {
-      try {
-        const searchQuery = this.extractSearchQuery(message);
-        const results = await this.searxngSearch(searchQuery);
-        if (results.results.length > 0) {
-          searchResults = '\n\n**Web Search Results for "' + searchQuery + '":**\n' +
-            results.results.slice(0, 5).map((r, i) =>
-              `${i + 1}. **${r.title}**\n   ${r.content}\n   Source: ${r.url}`
-            ).join('\n\n');
-        }
-      } catch (error) {
-        console.warn('Web search failed:', error);
-      }
-    }
-
-    if (needsRAG) {
-      try {
-        const ragResults = await this.searchRag(message, 5);
-        if (ragResults.results.length > 0) {
-          searchResults += '\n\n**Knowledge Base Results:**\n' +
-            ragResults.results.slice(0, 5).map((r, i) =>
-              `${i + 1}. ${r.content.substring(0, 200)}...`
-            ).join('\n\n');
-        }
-      } catch (error) {
-        console.warn('RAG search failed:', error);
-      }
-    }
-
-    // Build messages array with history
-    const systemMessage = {
-      role: 'system',
-      content: `You are Ryx AI, an intelligent local AI assistant. Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. You are helpful, accurate, and concise.${tools?.includes('websearch') ? ' When answering questions about current events, recent information, or facts you are uncertain about, web search results will be provided to you.' : ''}${tools?.includes('rag') ? ' You have access to a knowledge base.' : ''}`,
+    const payload: any = {
+      message,
+      model: modelToUse,
+      use_search: needsWebSearch,
+      style: style || 'normal',
+      history: history || [],
     };
 
-    const conversationMessages = history?.map(m => ({ role: m.role, content: m.content })) || [];
-
-    // Add user message with search results if available
-    const userMessageContent = searchResults ? message + searchResults : message;
-    conversationMessages.push({ role: 'user', content: userMessageContent });
-
-    const allMessages = [systemMessage, ...conversationMessages];
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), LLM_TIMEOUT);
+    if (images && images.length > 0) {
+      payload.images = images;
+    }
+    
+    if (systemPrompt) {
+      payload.system_prompt = systemPrompt;
+    }
+    
+    if (memories && memories.length > 0) {
+      payload.memories = memories;
+    }
 
     try {
-      const response = await fetch(`${VLLM_API_URL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: modelToUse,
-          messages: allMessages,
-          max_tokens: 4096,
-          temperature: 0.7,
-        }),
-      });
+      const response = await apiRequest<{ response: string; model: string; latency_ms: number }>(
+        '/api/chat/smart',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+        LLM_TIMEOUT
+      );
 
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new RyxApiError(`vLLM error: ${error}`, response.status);
+      // Auto-save extracted memories
+      if (response.extracted_memories && response.extracted_memories.length > 0) {
+        const existingMemories = JSON.parse(localStorage.getItem('ryxhub_user_memories') || '[]');
+        const newMemories = response.extracted_memories.filter(
+          (m: string) => !existingMemories.some((e: string) => e.toLowerCase() === m.toLowerCase())
+        );
+        if (newMemories.length > 0) {
+          localStorage.setItem('ryxhub_user_memories', JSON.stringify([...existingMemories, ...newMemories]));
+          console.log('Auto-saved memories:', newMemories);
+        }
       }
-
-      const data = await response.json();
-      const latencyMs = Date.now() - startTime;
-      const content = data.choices?.[0]?.message?.content || 'No response from model';
-      const completionTokens = data.usage?.completion_tokens || 0;
-      const promptTokens = data.usage?.prompt_tokens || 0;
 
       return {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content,
+        content: response.response,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        model: modelToUse,
-        latency_ms: latencyMs,
-        tokens_per_second: completionTokens > 0 ? (completionTokens / latencyMs) * 1000 : undefined,
-        prompt_tokens: promptTokens,
-        completion_tokens: completionTokens,
+        model: response.model,
+        latency_ms: response.latency_ms,
       };
     } catch (error) {
-      clearTimeout(timeoutId);
-
       if (error instanceof RyxApiError) throw error;
-
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           throw new RyxApiError('Request timed out', undefined, 'TIMEOUT');
         }
         throw new RyxApiError(
-          `Cannot connect to vLLM: ${error.message}`,
+          `Cannot connect to backend: ${error.message}`,
           undefined,
           'CONNECTION_FAILED'
         );

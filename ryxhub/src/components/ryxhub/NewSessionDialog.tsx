@@ -21,6 +21,15 @@ import {
 import { toast } from "sonner";
 import { ryxService } from "@/services/ryxService";
 
+// Response styles matching ryx CLI
+const RESPONSE_STYLES = [
+  { id: "normal", name: "Normal", description: "Balanced, helpful responses" },
+  { id: "concise", name: "Concise", description: "Short, to the point" },
+  { id: "explanatory", name: "Explanatory", description: "Detailed with examples" },
+  { id: "learning", name: "Learning", description: "Step-by-step teaching" },
+  { id: "formal", name: "Formal", description: "Professional language" },
+];
+
 interface NewSessionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,6 +39,7 @@ interface NewSessionDialogProps {
 export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSessionDialogProps) {
   const [sessionName, setSessionName] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
+  const [selectedStyle, setSelectedStyle] = useState("normal");
   const [models, setModels] = useState<Array<{ id: string; name: string; status: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -38,6 +48,7 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
     if (open) {
       loadModels();
       setSessionName(`Session ${new Date().toLocaleTimeString()}`);
+      setSelectedStyle("normal");
     }
   }, [open]);
 
@@ -45,27 +56,24 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
     setLoadingModels(true);
     try {
       const modelList = await ryxService.listModels();
-      setModels(modelList);
+      // Sort: loaded first, then by name
+      const sorted = [...modelList].sort((a, b) => {
+        if (a.status === "loaded" && b.status !== "loaded") return -1;
+        if (a.status !== "loaded" && b.status === "loaded") return 1;
+        return a.name.localeCompare(b.name);
+      });
+      setModels(sorted);
       
-      // Select first online model by default, prefer 7B models
-      const preferred7B = modelList.find(m => 
-        m.status === "online" && (m.id.includes('7b') || m.id.includes('7B') || m.name.includes('7B'))
-      );
-      const onlineModel = preferred7B || modelList.find(m => m.status === "online");
-      
-      if (onlineModel) {
-        setSelectedModel(onlineModel.id);
-      } else if (modelList.length > 0) {
-        setSelectedModel(modelList[0].id);
-      } else {
-        // Default to the local model path
-        setSelectedModel("/models/medium/general/qwen2.5-7b-gptq");
+      // Select first loaded model
+      const loadedModel = sorted.find(m => m.status === "loaded");
+      if (loadedModel) {
+        setSelectedModel(loadedModel.id);
+      } else if (sorted.length > 0) {
+        setSelectedModel(sorted[0].id);
       }
     } catch (error) {
       toast.error("Failed to load models");
       console.error(error);
-      // Set default model on error
-      setSelectedModel("/models/medium/general/qwen2.5-7b-gptq");
     } finally {
       setLoadingModels(false);
     }
@@ -84,26 +92,37 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
 
     setLoading(true);
     try {
+      // Check if model is loaded, if not load it
+      const model = models.find(m => m.id === selectedModel);
+      if (model && model.status !== "loaded") {
+        toast.info(`Loading model ${model.name}...`);
+        try {
+          await ryxService.loadModel(selectedModel);
+        } catch {
+          toast.error(`Failed to load model ${model.name}`);
+        }
+      }
+
+      // Use ryxService which creates locally
       const session = await ryxService.createSession({
         name: sessionName,
         model: selectedModel,
       });
 
-      toast.success(`Session "${session.name}" created successfully!`);
+      // Store style in session
+      localStorage.setItem(`session-style-${session.id}`, selectedStyle);
+
+      toast.success(`Session "${session.name}" created!`);
       
       if (onSessionCreated) {
         onSessionCreated(session.id);
       }
 
-      onOpenChange(false);
-      
-      // Reset form
-      setSessionName("");
-      setSelectedModel("");
+      // Force page reload to pick up new session from localStorage
+      window.location.reload();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to create session";
       toast.error("Failed to create session", { description: errorMessage });
-    } finally {
       setLoading(false);
     }
   };
@@ -114,7 +133,7 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
         <DialogHeader>
           <DialogTitle>Create New Session</DialogTitle>
           <DialogDescription>
-            Start a new conversation session with an AI model
+            Start a new conversation with Ryx AI
           </DialogDescription>
         </DialogHeader>
 
@@ -124,7 +143,7 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
             <Label htmlFor="session-name">Session Name</Label>
             <Input
               id="session-name"
-              placeholder="e.g., Code Review Session"
+              placeholder="e.g., Code Review"
               value={sessionName}
               onChange={(e) => setSessionName(e.target.value)}
               disabled={loading}
@@ -150,17 +169,15 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
                       <div className="flex items-center gap-2">
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            model.status === "online"
-                              ? "bg-[hsl(var(--success))]"
-                              : model.status === "loading"
-                              ? "bg-[hsl(var(--warning))]"
-                              : "bg-muted-foreground"
+                            model.status === "loaded"
+                              ? "bg-green-500"
+                              : "bg-gray-400"
                           }`}
                         />
                         <span>{model.name}</span>
-                        {model.status !== "online" && (
+                        {model.status !== "loaded" && (
                           <span className="text-xs text-muted-foreground">
-                            ({model.status})
+                            (will load)
                           </span>
                         )}
                       </div>
@@ -169,11 +186,26 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
                 </SelectContent>
               </Select>
             )}
-            {models.length === 0 && !loadingModels && (
-               <p className="text-xs text-muted-foreground">
-                 No models detected. Using default: qwen2.5-7b-gptq
-               </p>
-             )}
+          </div>
+
+          {/* Response Style */}
+          <div className="space-y-2">
+            <Label htmlFor="style-select">Response Style</Label>
+            <Select value={selectedStyle} onValueChange={setSelectedStyle} disabled={loading}>
+              <SelectTrigger id="style-select">
+                <SelectValue placeholder="Select style" />
+              </SelectTrigger>
+              <SelectContent>
+                {RESPONSE_STYLES.map((style) => (
+                  <SelectItem key={style.id} value={style.id}>
+                    <div className="flex flex-col">
+                      <span>{style.name}</span>
+                      <span className="text-xs text-muted-foreground">{style.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -145,7 +145,7 @@ class SlashCommandCompleter(Completer):
     _models_cache_time = 0
 
     def _get_available_models(self):
-        """Get available models from vLLM models directory"""
+        """Get available models from Ollama models directory"""
         import time
         
         # Cache for 30 seconds
@@ -154,7 +154,7 @@ class SlashCommandCompleter(Completer):
             return self._models_cache
         
         models = []
-        models_dir = "/home/tobi/vllm-models"
+        models_dir = "/home/tobi/ollama-models"
         
         try:
             for size in ["small", "medium", "large"]:
