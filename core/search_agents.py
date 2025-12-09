@@ -81,12 +81,15 @@ class SearchAgent:
         agent_id: str,
         vllm_url: str = None,
         searxng_url: str = None,
+        backup_searxng_url: Optional[str] = None,
         model: str = None  # Will auto-detect from vLLM
     ):
         self.agent_id = agent_id
         # Use environment variables with fallbacks
         self.vllm_url = (vllm_url or os.environ.get("VLLM_BASE_URL", "http://localhost:8001")).rstrip('/')
         self.searxng_url = (searxng_url or os.environ.get("SEARXNG_URL", "http://localhost:8888")).rstrip('/')
+        backup = backup_searxng_url or os.environ.get("SEARXNG_BACKUP_URL")
+        self.backup_searxng_url = backup.rstrip('/') if backup else None
         self.model = model or self._detect_model()
         self.metrics = AgentMetrics(agent_id=agent_id, model=self.model)
         self._session: Optional[aiohttp.ClientSession] = None
@@ -172,29 +175,43 @@ class SearchAgent:
             "engines": "duckduckgo,google",
             "language": "auto"
         }
+        endpoints = [self.searxng_url]
+        if self.backup_searxng_url:
+            endpoints.append(self.backup_searxng_url)
         
-        try:
-            async with session.get(
-                f"{self.searxng_url}/search",
-                params=params
-            ) as resp:
-                if resp.status != 200:
-                    return []
-                
-                data = await resp.json()
-                results = data.get("results", [])[:num_results]
-                
-                return [
-                    {
-                        "title": r.get("title", ""),
-                        "url": r.get("url", ""),
-                        "content": r.get("content", "")[:500]
-                    }
-                    for r in results
-                ]
-        except Exception as e:
-            logger.error(f"SearXNG search failed: {e}")
-            return []
+        last_error: Optional[str] = None
+        for base_url in endpoints:
+            try:
+                async with session.get(
+                    f"{base_url}/search",
+                    params=params
+                ) as resp:
+                    if resp.status != 200:
+                        last_error = f"{base_url} returned status {resp.status}"
+                        logger.warning(last_error)
+                        continue
+                    
+                    data = await resp.json()
+                    results = data.get("results", [])[:num_results]
+                    
+                    if results:
+                        return [
+                            {
+                                "title": r.get("title", ""),
+                                "url": r.get("url", ""),
+                                "content": r.get("content", "")[:500]
+                            }
+                            for r in results
+                        ]
+                    
+                    last_error = f"{base_url} returned no results"
+            except Exception as e:
+                last_error = f"{base_url} search failed: {e}"
+                logger.error(last_error)
+        
+        if last_error:
+            logger.error(f"SearXNG search failed after failover: {last_error}")
+        return []
     
     async def _summarize_results(self, query: str, results: List[Dict]) -> str:
         """Use LLM to summarize search results"""
