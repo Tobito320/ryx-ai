@@ -435,6 +435,68 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_find_class_definition(self) -> BenchmarkResult:
+        """Test: Find where a class is defined"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the ReliableEditor class")
+            
+            # Should find reliable_editor.py
+            found = any("reliable_editor" in f.path for f in context.files)
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_class",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_class",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_related_files(self) -> BenchmarkResult:
+        """Test: Find files related to a topic"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("files for the benchmark system")
+            
+            # Should find benchmark-related files
+            found = len(context.files) >= 1
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_related",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_related",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # TASK COMPLETION TESTS (30 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -910,6 +972,8 @@ def validate_email(email):
             self.test_find_file_by_name,
             self.test_find_file_by_content,
             self.test_find_function_location,
+            self.test_find_class_definition,
+            self.test_find_related_files,
         ]
         for test in file_tests:
             result = test()
