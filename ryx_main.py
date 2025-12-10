@@ -80,6 +80,11 @@ def cli_main():
     elif first_arg == "rsi":
         _handle_rsi(remaining_args[1:])
         return
+    
+    # Self-improvement commands: ryx improve / ryx self-improve
+    elif first_arg in ["improve", "selfimprove", "self-improve"]:
+        _handle_self_improve(remaining_args[1:])
+        return
 
     # Everything else: Let brain understand and execute
     prompt = " ".join(remaining_args).strip()
@@ -694,6 +699,86 @@ def _handle_rsi(args):
         print("Available: status, iterate, loop")
 
 
+def _handle_self_improve(args):
+    """Handle self-improvement commands
+    
+    Usage:
+        ryx improve                 - Run one improvement cycle
+        ryx improve --auto          - Auto-approve all changes
+        ryx improve --cycles N      - Run N cycles
+        ryx improve --infinite      - Run until stopped
+    """
+    from core.self_improver import SelfImprover
+    
+    # Parse args
+    auto_approve = "--auto" in args or "-a" in args
+    infinite = "--infinite" in args or "--forever" in args
+    
+    cycles = 1
+    for i, arg in enumerate(args):
+        if arg in ["--cycles", "-c"] and i + 1 < len(args):
+            try:
+                cycles = int(args[i + 1])
+            except:
+                pass
+    
+    if infinite:
+        print("\n╭────────────────────────────────────────────────╮")
+        print("│ 🔄 INFINITE SELF-IMPROVEMENT MODE              │")
+        print("│    Press Ctrl+C to stop                        │")
+        print("╰────────────────────────────────────────────────╯\n")
+        
+        if auto_approve:
+            print("⚠️  AUTO-APPROVE enabled - will apply all changes\n")
+        
+        improver = SelfImprover(auto_approve=auto_approve)
+        
+        cycle_num = 0
+        try:
+            while True:
+                cycle_num += 1
+                print(f"\n{'═' * 60}")
+                print(f"  CYCLE {cycle_num}")
+                print(f"{'═' * 60}")
+                
+                log = improver.run_improvement_cycle()
+                
+                if log and log.success:
+                    print(f"\n✅ Cycle {cycle_num} succeeded!")
+                else:
+                    print(f"\n⚠️ Cycle {cycle_num} did not improve score")
+                
+        except KeyboardInterrupt:
+            print(f"\n\n🛑 Stopped after {cycle_num} cycles")
+    
+    elif cycles > 1:
+        print(f"\n🔄 Running {cycles} improvement cycles...")
+        
+        if auto_approve:
+            print("⚠️  AUTO-APPROVE enabled\n")
+        
+        improver = SelfImprover(auto_approve=auto_approve)
+        logs = improver.run_multiple_cycles(cycles)
+        
+        successes = sum(1 for log in logs if log and log.success)
+        print(f"\n📊 Results: {successes}/{cycles} cycles succeeded")
+    
+    else:
+        # Single cycle
+        print("\n🔄 Running one improvement cycle...")
+        
+        if auto_approve:
+            print("⚠️  AUTO-APPROVE enabled\n")
+        
+        improver = SelfImprover(auto_approve=auto_approve)
+        log = improver.run_improvement_cycle()
+        
+        if log and log.success:
+            print("\n✅ Improvement successful!")
+        else:
+            print("\n⚠️ No improvement this cycle")
+
+
 def _remember(content: str, parameters: Dict):
     """Store something in long-term memory"""
     from core.memory import get_memory
@@ -815,6 +900,12 @@ RSI (Self-Improvement):
     ryx rsi status         Show RSI status
     ryx rsi iterate        Run one improvement iteration
     ryx rsi loop [n]       Run n improvement iterations
+
+SELF-IMPROVEMENT:
+    ryx improve            Run one self-improvement cycle
+    ryx improve --auto     Auto-approve all changes
+    ryx improve --cycles N Run N improvement cycles
+    ryx improve --infinite Run until stopped (Ctrl+C)
 
 SHORTCUTS:
     @                      Include file contents

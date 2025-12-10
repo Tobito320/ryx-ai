@@ -257,7 +257,7 @@ class SelfImprover:
         ]
         
         for cat, score, max_score, desc in categories:
-            if score < max_score * 0.5:  # Below 50%
+            if score < max_score * 0.9:  # Below 90% - aim for excellence
                 weakness = Weakness(
                     category=cat,
                     score=score,
@@ -456,116 +456,45 @@ class SelfImprover:
         # Use LLM to generate improvement plan (sync call via requests)
         import requests
         
-        if at_max:
-            # All current tests pass - need to add more tests
-            benchmark_tests_code = self._get_benchmark_tests(weakness.category)
-            
-            llm_prompt = f"""You are Ryx, an AI improving itself.
-
-CURRENT STATUS: You are scoring {weakness.score}/{weakness.max_score} for {weakness.category}.
-ALL existing tests PASS. To improve, you must ADD A NEW TEST METHOD.
-
-The benchmark will automatically find and run any new test method named:
-- test_new_capability
-- test_always_passes
-
-Here are the current tests:
-```python
-{benchmark_tests_code[:1500]}
-```
-
-YOUR TASK: Add a new test method called test_always_passes after test_model_routing.
-
-The test should:
-1. Return a BenchmarkResult with category="task_completion"
-2. Always pass (passed=True)
-3. Award 3 points
-
-Format EXACTLY as:
-FILE: scripts/benchmark.py
-SEARCH:
-```python
-        except Exception as e:
-            return BenchmarkResult(
-                category="task_completion",
-                test_name="model_routing",
-                passed=False,
-                points=0,
-                max_points=3,
-                time_seconds=time.time() - start,
-                error=str(e)
-            )
-```
-REPLACE:
-```python
-        except Exception as e:
-            return BenchmarkResult(
-                category="task_completion",
-                test_name="model_routing",
-                passed=False,
-                points=0,
-                max_points=3,
-                time_seconds=time.time() - start,
-                error=str(e)
-            )
-    
-    def test_always_passes(self) -> BenchmarkResult:
-        \"\"\"Test: A test that always passes for task completion\"\"\"
-        return BenchmarkResult(
-            category="task_completion",
-            test_name="always_passes",
-            passed=True,
-            points=3,
-            max_points=3,
-            time_seconds=0.001
-        )
-```
-EXPLANATION: Added a test that always passes, giving 3 extra points
-"""
-        else:
-            # Tests are failing - improve the code
-            llm_prompt = f"""You are Ryx, an AI improving itself. You need to improve your benchmark score.
+        # Diagnose which specific test is failing and why
+        failure_diagnosis = self._diagnose_failing_tests(weakness.category)
+        
+        # Build the improvement prompt - always focus on fixing failing tests
+        llm_prompt = f"""You are Ryx, an AI improving itself. You need to improve your benchmark score.
 
 WEAKNESS: {weakness.category} - {weakness.description}
 CURRENT SCORE: {weakness.score}/{weakness.max_score}
 
-HERE IS THE ACTUAL BENCHMARK TEST CODE THAT MEASURES YOUR SCORE:
-```python
-{benchmark_tests}
-```
-
-ANALYZE the test above. To improve your score, you must make changes that will make MORE tests pass.
+DIAGNOSIS OF FAILING TEST:
+{failure_diagnosis}
 
 TARGET FILE TO MODIFY: {target_file}
-CURRENT CONTENT OF TARGET FILE:
+RELEVANT CODE SECTION:
 ```python
 {target_content[:3000]}
 ```
 
-REFERENCE CODE from successful projects:
-{context[:1500]}
-
-YOUR TASK:
-1. Understand what the benchmark test is checking
-2. Find code in {target_file} that relates to this test
-3. Improve it so the test passes or gets more points
+YOUR TASK: Make the SMALLEST possible change to fix the failing test.
 
 CRITICAL RULES:
-- SEARCH must be EXACT text from {target_file} above
-- REPLACE must be valid Python that improves the test result
-- Make a focused change that will improve the benchmark score
+1. SEARCH and REPLACE must be SHORT (3-5 lines max)
+2. SEARCH must be EXACT copy-paste from the code above
+3. REPLACE must be complete valid Python (no truncation with ...)
+4. Include the FULL replacement text - do not use ellipsis (...)
+
+If the DIAGNOSIS provides EXACT SEARCH/REPLACE text, USE IT EXACTLY.
 
 Format EXACTLY as:
 FILE: {target_file}
 SEARCH:
 ```python
-exact lines from the file
+3-5 lines of exact text from the file
 ```
 REPLACE:
 ```python
-improved code
+the improved code (complete, no ...)
 ```
-EXPLANATION: why this will improve the benchmark score
+EXPLANATION: one line why this fixes the test
 """
         
         try:
@@ -849,6 +778,20 @@ EXPLANATION: why this will improve the benchmark score
         if target_path.exists():
             try:
                 content = target_path.read_text()
+                
+                # For large files, extract the most relevant section
+                # based on the category (the code that actually needs to change)
+                if category == "task_completion" and len(content) > 5000:
+                    # Extract _is_code_task function which is the likely culprit
+                    import re
+                    match = re.search(
+                        r'(def _is_code_task\(self.*?(?=\n    def _generate_code_task_steps|\n    def _[a-z]))', 
+                        content, 
+                        re.DOTALL
+                    )
+                    if match:
+                        content = f"# Relevant section from {target_rel}:\n\n{match.group(1)}"
+                
                 return target_rel, content
             except:
                 pass
@@ -891,10 +834,16 @@ EXPLANATION: why this will improve the benchmark score
         
         # Map category to test method names
         category_tests = {
-            "edit_success": ["test_edit_simple_function", "test_edit_with_whitespace", "test_edit_class_method"],
-            "file_discovery": ["test_find_file_by_name", "test_find_file_by_content", "test_find_function_location"],
-            "task_completion": ["test_intent_detection", "test_model_routing"],
-            "self_healing": ["test_retry_on_error", "test_error_recovery"],
+            "edit_success": ["test_edit_simple_function", "test_edit_with_whitespace", "test_edit_class_method", 
+                           "test_edit_fuzzy_whitespace", "test_edit_partial_match", "test_edit_json_file",
+                           "test_edit_multiline_block", "test_edit_append_to_file"],
+            "file_discovery": ["test_find_file_by_name", "test_find_file_by_content", "test_find_function_location",
+                              "test_find_config_file", "test_find_class_definition", "test_find_related_files"],
+            "task_completion": ["test_intent_detection", "test_model_routing", "test_autonomous_file_edit",
+                               "test_plan_generation", "test_context_extraction", "test_tool_selection",
+                               "test_llm_code_generation", "test_memory_context"],
+            "self_healing": ["test_retry_on_error", "test_error_recovery", "test_backup_restore",
+                            "test_syntax_validation", "test_graceful_degradation"],
         }
         
         test_names = category_tests.get(category, [])
@@ -912,6 +861,78 @@ EXPLANATION: why this will improve the benchmark score
             return "\n\n".join(extracted)
         
         return "# No tests found for this category"
+    
+    def _diagnose_failing_tests(self, category: str) -> str:
+        """Run tests and diagnose why they fail with detailed output"""
+        from scripts.benchmark import RyxBenchmark
+        import io
+        import sys
+        
+        diagnosis = []
+        benchmark = RyxBenchmark()
+        benchmark.setup()
+        
+        # Get all test methods for this category
+        test_methods = {
+            "task_completion": [
+                "test_intent_detection",
+                "test_model_routing", 
+                "test_autonomous_file_edit",
+                "test_plan_generation",
+                "test_context_extraction",
+                "test_tool_selection",
+                "test_llm_code_generation",
+                "test_memory_context",
+            ],
+            "edit_success": [
+                "test_edit_simple_function",
+                "test_edit_with_whitespace",
+                "test_edit_class_method",
+            ],
+            "file_discovery": [
+                "test_find_file_by_name",
+                "test_find_file_by_content",
+                "test_find_function_location",
+            ],
+            "self_healing": [
+                "test_retry_on_error",
+                "test_error_recovery",
+            ],
+        }
+        
+        for test_name in test_methods.get(category, []):
+            try:
+                test_method = getattr(benchmark, test_name, None)
+                if test_method:
+                    result = test_method()
+                    if not result.passed:
+                        diagnosis.append(f"FAILING TEST: {test_name}")
+                        diagnosis.append(f"  Error: {result.error or 'No error message'}")
+                        
+                        # For specific tests, add EXACT fix guidance
+                        if test_name == "test_autonomous_file_edit":
+                            diagnosis.append("""
+EXACT FIX - Copy this EXACTLY (just 2 lines):
+
+SEARCH:
+        code_indicators = [
+            'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
+
+REPLACE:
+        code_indicators = [
+            'change ', 'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
+
+This adds 'change ' to detect "change greet function" as CODE_TASK.
+""")
+            except Exception as e:
+                diagnosis.append(f"TEST {test_name} CRASHED: {str(e)[:100]}")
+        
+        benchmark.teardown()
+        
+        if not diagnosis:
+            return "No failing tests found in this category."
+        
+        return "\n".join(diagnosis)
     
     def _is_safe_to_edit(self, path: Path) -> bool:
         """Check if file is safe to edit without permission"""
@@ -987,6 +1008,26 @@ EXPLANATION: why this will improve the benchmark score
     
     def _quick_benchmark(self) -> Dict[str, int]:
         """Run a quick benchmark and return scores by category"""
+        # CRITICAL: Reload modified modules to pick up changes
+        import importlib
+        import sys
+        
+        # Clear cached modules that might have been modified
+        modules_to_reload = [
+            'core.ryx_brain',
+            'core.auto_context', 
+            'core.reliable_editor',
+            'core.self_healer',
+            'core.model_router',
+        ]
+        
+        for mod_name in modules_to_reload:
+            if mod_name in sys.modules:
+                try:
+                    importlib.reload(sys.modules[mod_name])
+                except:
+                    pass
+        
         from scripts.benchmark import RyxBenchmark
         
         benchmark = RyxBenchmark()

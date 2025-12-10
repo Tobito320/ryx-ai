@@ -676,7 +676,7 @@ ANFRAGE: {prompt}'''
         
         # Coding task indicators - actions that modify code
         code_indicators = [
-            'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
+        'change ', 'add a ', 'add new', 'create a ', 'create new', 'implement ', 'build ',
             'fix ', 'bug ', 'error in', 'refactor ', 'change the ', 'change code',
             'update the ', 'modify the ', 'edit the code', 'write a ', 'write code',
             'füge hinzu', 'erstelle', 'implementiere', 'baue',

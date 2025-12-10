@@ -1,0 +1,269 @@
+{
+  "timestamp": "2025-12-10T19:01:54.014151",
+  "edit_success": 24,
+  "edit_max": 24,
+  "file_discovery": 12,
+  "file_max": 12,
+  "task_completion": 21,
+  "task_max": 21,
+  "self_healing": 10,
+  "healing_max": 10,
+  "speed_bonus": 10,
+  "speed_max": 10,
+  "total": 77,
+  "max_total": 77,
+  "results": [
+    {
+      "category": "edit_success",
+      "test_name": "simple_function_add",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.0019016265869140625,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "whitespace_tolerance",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.0004448890686035156,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "class_method_add",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.007333040237426758,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "fuzzy_whitespace",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.007640361785888672,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "partial_match",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.009201526641845703,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "json_edit",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.0003437995910644531,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "multiline_block",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.000453948974609375,
+      "error": null
+    },
+    {
+      "category": "edit_success",
+      "test_name": "append_file",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.0002503395080566406,
+      "error": null
+    },
+    {
+      "category": "file_discovery",
+      "test_name": "find_by_name",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.16977286338806152,
+      "error": null
+    },
+    {
+      "category": "file_discovery",
+      "test_name": "find_by_content",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.21694135665893555,
+      "error": null
+    },
+    {
+      "category": "file_discovery",
+      "test_name": "find_function",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.22693228721618652,
+      "error": null
+    },
+    {
+      "category": "file_discovery",
+      "test_name": "find_config",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.2554469108581543,
+      "error": null
+    },
+    {
+      "category": "file_discovery",
+      "test_name": "find_class",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.1507875919342041,
+      "error": null
+    },
+    {
+      "category": "file_discovery",
+      "test_name": "find_related",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.19240069389343262,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "intent_detection",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.4154796600341797,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "model_routing",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 1.8358230590820312e-05,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "plan_generation",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.0001533031463623047,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "context_extraction",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.17727327346801758,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "tool_selection",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 9.298324584960938e-06,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "llm_code_gen",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.546391487121582,
+      "error": null
+    },
+    {
+      "category": "task_completion",
+      "test_name": "memory_context",
+      "passed": true,
+      "points": 3,
+      "max_points": 3,
+      "time_seconds": 0.00029277801513671875,
+      "error": null
+    },
+    {
+      "category": "self_healing",
+      "test_name": "retry_logic",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.00019407272338867188,
+      "error": null
+    },
+    {
+      "category": "self_healing",
+      "test_name": "error_recovery",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 5.936622619628906e-05,
+      "error": null
+    },
+    {
+      "category": "self_healing",
+      "test_name": "backup_restore",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.0005233287811279297,
+      "error": null
+    },
+    {
+      "category": "self_healing",
+      "test_name": "syntax_validation",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.0003902912139892578,
+      "error": null
+    },
+    {
+      "category": "self_healing",
+      "test_name": "graceful_degrade",
+      "passed": true,
+      "points": 2,
+      "max_points": 2,
+      "time_seconds": 0.0002872943878173828,
+      "error": null
+    },
+    {
+      "category": "speed",
+      "test_name": "inference_speed",
+      "passed": true,
+      "points": 5,
+      "max_points": 5,
+      "time_seconds": 0.11228513717651367,
+      "error": null
+    },
+    {
+      "category": "speed",
+      "test_name": "context_build_speed",
+      "passed": true,
+      "points": 5,
+      "max_points": 5,
+      "time_seconds": 0.21979212760925293,
+      "error": null
+    }
+  ]
+}
