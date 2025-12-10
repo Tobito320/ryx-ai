@@ -93,7 +93,7 @@ stop_services() {
     echo -e "${GREEN}Stopped${NC}"
 }
 
-# Stop everything including vLLM (but keep containers/images intact)
+# Stop everything including vLLM and Ollama
 stop_all() {
     echo -e "${RED}╔═══════════════════════════════════════╗${NC}"
     echo -e "${RED}║         STOPPING ALL SERVICES         ║${NC}"
@@ -110,6 +110,15 @@ stop_all() {
     pkill -f "uvicorn ryx_pkg" 2>/dev/null
     pkill -f "vite.*ryxhub" 2>/dev/null
     
+    # Stop Ollama and unload all models
+    echo -e "${YELLOW}Stopping Ollama...${NC}"
+    # First unload all models (releases VRAM immediately)
+    for model in $(curl -s http://localhost:11434/api/ps 2>/dev/null | python3 -c "import json,sys; [print(m['name']) for m in json.load(sys.stdin).get('models',[])]" 2>/dev/null); do
+        curl -s -X POST http://localhost:11434/api/generate -d "{\"model\":\"$model\",\"keep_alive\":0}" > /dev/null 2>&1
+    done
+    # Then kill ollama process
+    pkill -9 ollama 2>/dev/null
+    
     # Stop all ryx containers (but don't remove them)
     echo -e "${YELLOW}Stopping containers...${NC}"
     docker stop "$VLLM_CONTAINER" "$SEARXNG_CONTAINER" 2>/dev/null
@@ -117,6 +126,7 @@ stop_all() {
     echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║         ALL SERVICES STOPPED          ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
+    echo -e "  Ollama stopped (VRAM freed)"
     echo -e "  Containers stopped (preserved for fast restart)"
     echo -e "  Docker images intact"
     echo -e "\n${CYAN}Run 'ryx' to restart services${NC}"
