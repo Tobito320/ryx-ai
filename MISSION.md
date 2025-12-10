@@ -1,5 +1,5 @@
 # RYX AI - Master Instruction File
-**Last Updated**: 2025-12-10 16:19 UTC
+**Last Updated**: 2025-12-10 16:45 UTC
 **Author**: Tobi
 **Supervisor**: GitHub Copilot CLI
 
@@ -9,27 +9,30 @@
 
 **When starting a new session:**
 1. Read this MISSION.md file
-2. Read `SELF_IMPROVEMENT_CYCLE.md` for the autonomous loop
+2. Read `AUTONOMOUS_IMPROVEMENT.md` for the self-improvement loop
 3. Check the last benchmark in `data/benchmark_logs/`
-4. Start the self-improvement cycle
+4. Run: `python core/self_improver.py` to start the autonomous loop
 
 **Current Benchmark (2025-12-10):** 35/100 points
-- Edit Success: 9/30 ← BIGGEST PROBLEM
+- Edit Success: 9/30
 - File Discovery: 6/20
-- Task Completion: 6/30
+- Task Completion: 6/30 ← HIGHEST PRIORITY
 - Self-Healing: 4/10
 - Speed: 10/10 ✓
 
-**The Self-Improvement Cycle:**
-1. Ryx benchmarks itself → BEFORE score
-2. Ryx picks an improvement from reference repos
-3. Ryx attempts improvement (3 tries × 3 cycles = 9 max)
-4. If 9 fails → Copilot fixes Ryx's code (NOT Ryx's task)
-5. Ryx benchmarks again → AFTER score
-6. If AFTER > BEFORE → SUCCESS, next improvement
-7. Repeat forever
+**THE CORE PRINCIPLE: Ryx fixes Ryx. Copilot monitors.**
 
-**KEY RULE**: Copilot NEVER does Ryx's task. Copilot fixes Ryx so Ryx can do the task.
+Copilot does NOT:
+- Give Ryx correct file paths (Ryx finds them)
+- Tell Ryx which function to call (Ryx discovers)
+- Fix Ryx's code directly (unless 9 fails)
+- Do Ryx's work
+
+Copilot ONLY:
+- Prompts: "Ryx, improve yourself using the cloned repos"
+- Monitors for failures
+- Approves/denies permission requests
+- Intervenes after 9 failed attempts
 
 ---
 
@@ -38,6 +41,7 @@
 **GPU**: ✅ AMD RX 7800 XT working via ROCm/HIP
 **Multi-Model**: ✅ 3B + 14B both loaded in VRAM (11.3GB)
 **Speed**: ✅ 0.2s (3B), 0.4s (14B)
+**Repos Found**: ✅ 30 repos in ~/cloned_repositorys/
 
 **Models Installed:**
 ```
@@ -51,10 +55,11 @@ dolphin-mistral:7b  4GB   UNCENSORED
 
 **Commands:**
 ```bash
-./scripts/start_ollama.sh   # Start Ollama with GPU
-./ryx                       # Start Ryx CLI
-./ryx stop all              # Stop everything, free RAM
-python scripts/benchmark.py # Run benchmark
+./scripts/start_ollama.sh    # Start Ollama with GPU
+./ryx                        # Start Ryx CLI
+./ryx stop all               # Stop everything, free RAM
+python scripts/benchmark.py  # Run benchmark
+python core/self_improver.py # Run autonomous self-improvement
 ```
 
 ---
