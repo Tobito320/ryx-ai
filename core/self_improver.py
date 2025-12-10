@@ -383,6 +383,12 @@ class SelfImprover:
                     request.response = "Auto-approved (test/data file)"
                     print(f"  ✓ Auto-approved: {ptype.value} {target}")
                     return True
+            
+            # In auto-approve mode, approve everything with a warning
+            request.approved = True
+            request.response = "Auto-approved (--auto mode)"
+            print(f"  ⚠️ Auto-approved: {ptype.value} {target}")
+            return True
         
         # Need manual approval
         self.pending_permissions.append(request)
@@ -437,6 +443,12 @@ class SelfImprover:
         
         context = "\n\n".join(context_parts)
         
+        # Get Ryx's actual file structure
+        ryx_files = self._get_ryx_structure()
+        
+        # Get the content of the most relevant Ryx file for this weakness
+        target_file, target_content = self._get_target_file_content(weakness.category)
+        
         # Use LLM to generate improvement plan (sync call via requests)
         import requests
         
@@ -445,17 +457,35 @@ class SelfImprover:
 Your weakness: {weakness.category} - {weakness.description}
 Current score: {weakness.score}/{weakness.max_score}
 
-Here is code from other successful projects that handle this well:
+TARGET FILE TO MODIFY: {target_file}
+Here is the CURRENT content of this file (first 2000 chars):
+```python
+{target_content[:2000]}
+```
 
-{context[:4000]}
+Here is code from other successful projects that handle this well:
+{context[:2000]}
 
 Based on this, suggest ONE specific code change to improve Ryx's {weakness.category}.
 
-Format your response as:
-FILE: <path to file in Ryx to modify>
-SEARCH: <exact text to find>
-REPLACE: <exact text to replace with>
-EXPLANATION: <brief explanation>
+CRITICAL RULES:
+1. FILE must be: {target_file}
+2. SEARCH must be EXACT text from the file above (copy-paste!)
+3. REPLACE must be valid Python code
+4. Make a SMALL, focused change
+
+Format your response EXACTLY as:
+FILE: {target_file}
+SEARCH:
+```python
+exact lines from the file above
+```
+REPLACE:
+```python
+new code to replace with
+```
+EXPLANATION: brief explanation
+EXPLANATION: brief explanation
 """
         
         try:
@@ -476,7 +506,93 @@ EXPLANATION: <brief explanation>
             response_text = ""
         
         # Parse response and attempt edit
-        # (This is where the actual improvement would happen)
+        edit_info = self._parse_edit_response(response_text)
+        
+        if edit_info and edit_info.get("file"):
+            # Validate file exists
+            file_path = self._find_actual_file(edit_info["file"])
+            
+            if file_path:
+                print(f"\n  📝 Attempting edit on: {file_path}")
+                
+                # Request permission for core files
+                if not self._is_safe_to_edit(file_path):
+                    approved = self.request_permission(
+                        PermissionType.EDIT_FILE,
+                        str(file_path),
+                        f"Improve {weakness.category}"
+                    )
+                    if not approved:
+                        return ImprovementAttempt(
+                            attempt_number=1,
+                            action="Permission denied",
+                            result="BLOCKED",
+                            score_before=score_before,
+                            score_after=score_before,
+                        )
+                
+                # Apply the edit
+                success = self._apply_edit(file_path, edit_info)
+                
+                if success:
+                    # Re-run benchmark to check improvement
+                    print("\n  📊 Re-running benchmark...")
+                    new_report = self._quick_benchmark()
+                    new_score = new_report.get(weakness.category, score_before)
+                    
+                    if new_score > score_before:
+                        print(f"\n  ✅ IMPROVEMENT: {score_before} → {new_score} (+{new_score - score_before})")
+                        return ImprovementAttempt(
+                            attempt_number=1,
+                            action=f"Edited {file_path}",
+                            result="SUCCESS",
+                            score_before=score_before,
+                            score_after=new_score,
+                        )
+                    else:
+                        print(f"\n  ⚠️ No improvement: {score_before} → {new_score}")
+                        # Rollback
+                        self._rollback_edit(file_path)
+                        return ImprovementAttempt(
+                            attempt_number=1,
+                            action=f"Edited {file_path} but no improvement, rolled back",
+                            result="ROLLBACK",
+                            score_before=score_before,
+                            score_after=score_before,
+                        )
+                else:
+                    print(f"\n  ❌ Edit failed")
+            else:
+                print(f"\n  ⚠️ File not found: {edit_info['file']}")
+                print(f"      Searching for similar files in Ryx...")
+                
+                # Try to find a similar file and suggest correction
+                similar = self._find_similar_file(edit_info["file"], weakness.category)
+                if similar:
+                    print(f"      Found: {similar}")
+                    print(f"      Will retry with correct file...")
+                    edit_info["file"] = str(similar)
+                    
+                    # Retry with correct file
+                    success = self._apply_edit(similar, edit_info)
+                    if success:
+                        print("\n  📊 Re-running benchmark...")
+                        new_report = self._quick_benchmark()
+                        new_score = new_report.get(weakness.category, score_before)
+                        
+                        if new_score > score_before:
+                            print(f"\n  ✅ IMPROVEMENT: {score_before} → {new_score}")
+                            return ImprovementAttempt(
+                                attempt_number=1,
+                                action=f"Edited {similar} (auto-corrected path)",
+                                result="SUCCESS",
+                                score_before=score_before,
+                                score_after=new_score,
+                            )
+                        else:
+                            self._rollback_edit(similar)
+        else:
+            print(f"\n  ⚠️ Could not parse LLM response")
         
         attempt = ImprovementAttempt(
             attempt_number=1,
@@ -487,6 +603,225 @@ EXPLANATION: <brief explanation>
         )
         
         return attempt
+    
+    def _parse_edit_response(self, response: str) -> Optional[Dict]:
+        """Parse LLM response to extract FILE/SEARCH/REPLACE"""
+        import re
+        
+        result = {}
+        
+        # Try to extract FILE
+        file_match = re.search(r'FILE:\s*([^\n]+)', response)
+        if file_match:
+            result["file"] = file_match.group(1).strip()
+        
+        # Try to extract SEARCH block
+        search_match = re.search(r'SEARCH:\s*```[\w]*\n?(.*?)```', response, re.DOTALL)
+        if search_match:
+            result["search"] = search_match.group(1).strip()
+        else:
+            # Try without code blocks
+            search_match = re.search(r'SEARCH:\s*\n(.*?)(?=REPLACE:|$)', response, re.DOTALL)
+            if search_match:
+                result["search"] = search_match.group(1).strip()
+        
+        # Try to extract REPLACE block
+        replace_match = re.search(r'REPLACE:\s*```[\w]*\n?(.*?)```', response, re.DOTALL)
+        if replace_match:
+            result["replace"] = replace_match.group(1).strip()
+        else:
+            replace_match = re.search(r'REPLACE:\s*\n(.*?)(?=EXPLANATION:|$)', response, re.DOTALL)
+            if replace_match:
+                result["replace"] = replace_match.group(1).strip()
+        
+        if result.get("file") and result.get("search") and result.get("replace"):
+            return result
+        return None
+    
+    def _find_actual_file(self, suggested_path: str) -> Optional[Path]:
+        """Find the actual file, even if LLM suggested wrong path"""
+        # Clean up the path
+        suggested_path = suggested_path.strip().strip('`').strip('"').strip("'")
+        
+        # Remove common wrong prefixes
+        for prefix in ["Ryx/", "ryx/", "ryx-ai/", "src/"]:
+            if suggested_path.startswith(prefix):
+                suggested_path = suggested_path[len(prefix):]
+        
+        # Try direct path
+        direct = self.project_root / suggested_path
+        if direct.exists():
+            return direct
+        
+        # Try in core/
+        core_path = self.project_root / "core" / Path(suggested_path).name
+        if core_path.exists():
+            return core_path
+        
+        # Try in scripts/
+        scripts_path = self.project_root / "scripts" / Path(suggested_path).name
+        if scripts_path.exists():
+            return scripts_path
+        
+        # Search for the file
+        filename = Path(suggested_path).name
+        for found in self.project_root.rglob(filename):
+            if '__pycache__' not in str(found) and '.git' not in str(found):
+                return found
+        
+        return None
+    
+    def _find_similar_file(self, suggested_path: str, category: str) -> Optional[Path]:
+        """Find a similar file based on the category and suggestion"""
+        # Map categories to likely file locations
+        category_files = {
+            "task_completion": [
+                "core/enhanced_executor.py",
+                "core/execution.py", 
+                "core/phases.py",
+                "core/ryx_brain.py",
+            ],
+            "edit_success": [
+                "core/reliable_editor.py",
+                "core/tools.py",
+            ],
+            "file_discovery": [
+                "core/auto_context.py",
+                "core/repo_map.py",
+            ],
+            "self_healing": [
+                "core/self_healer.py",
+                "core/self_improve.py",
+            ],
+        }
+        
+        # Try category-specific files
+        for rel_path in category_files.get(category, []):
+            full_path = self.project_root / rel_path
+            if full_path.exists():
+                return full_path
+        
+        # Try to match by name similarity
+        suggested_name = Path(suggested_path).stem.lower()
+        for py_file in self.project_root.rglob("*.py"):
+            if '__pycache__' in str(py_file) or '.git' in str(py_file):
+                continue
+            if suggested_name in py_file.stem.lower():
+                return py_file
+        
+        return None
+    
+    def _get_ryx_structure(self) -> str:
+        """Get Ryx's file structure for the LLM"""
+        relevant_files = []
+        
+        # Core files
+        core_dir = self.project_root / "core"
+        if core_dir.exists():
+            for f in sorted(core_dir.glob("*.py")):
+                if not f.name.startswith('__'):
+                    relevant_files.append(f"core/{f.name}")
+        
+        # Scripts
+        scripts_dir = self.project_root / "scripts"
+        if scripts_dir.exists():
+            for f in sorted(scripts_dir.glob("*.py")):
+                relevant_files.append(f"scripts/{f.name}")
+        
+        # Tests
+        tests_dir = self.project_root / "tests"
+        if tests_dir.exists():
+            for f in sorted(tests_dir.glob("*.py")):
+                if not f.name.startswith('__'):
+                    relevant_files.append(f"tests/{f.name}")
+        
+        return "\n".join(relevant_files[:30])  # Limit to 30 files
+    
+    def _get_target_file_content(self, category: str) -> tuple:
+        """Get the target file and its content for a weakness category"""
+        # Map categories to the best file to modify
+        category_targets = {
+            "task_completion": "core/enhanced_executor.py",
+            "edit_success": "core/reliable_editor.py",
+            "file_discovery": "core/auto_context.py",
+            "self_healing": "core/self_healer.py",
+        }
+        
+        target_rel = category_targets.get(category, "core/ryx_brain.py")
+        target_path = self.project_root / target_rel
+        
+        if target_path.exists():
+            try:
+                content = target_path.read_text()
+                return target_rel, content
+            except:
+                pass
+        
+        return target_rel, "# File not found"
+    
+    def _is_safe_to_edit(self, path: Path) -> bool:
+        """Check if file is safe to edit without permission"""
+        path_str = str(path)
+        
+        # Always safe: test files, data files
+        if 'test' in path_str.lower() or '/data/' in path_str:
+            return True
+        
+        # Always safe: benchmark additions
+        if 'benchmark' in path_str.lower():
+            return True
+        
+        # Not safe: core files, mission files
+        return False
+    
+    def _apply_edit(self, file_path: Path, edit_info: Dict) -> bool:
+        """Apply an edit to a file"""
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor(str(self.project_root))
+            result = editor.edit(
+                str(file_path),
+                edit_info["search"],
+                edit_info["replace"]
+            )
+            
+            return result.success
+        except Exception as e:
+            print(f"  ❌ Edit error: {e}")
+            return False
+    
+    def _rollback_edit(self, file_path: Path) -> bool:
+        """Rollback an edit using backup"""
+        try:
+            backup_dir = self.project_root / ".ryx.backups"
+            filename = file_path.name
+            
+            # Find most recent backup
+            backups = sorted(backup_dir.glob(f"{filename}.*"), reverse=True)
+            if backups:
+                import shutil
+                shutil.copy(backups[0], file_path)
+                print(f"  🔄 Rolled back from: {backups[0].name}")
+                return True
+        except Exception as e:
+            print(f"  ❌ Rollback error: {e}")
+        return False
+    
+    def _quick_benchmark(self) -> Dict[str, int]:
+        """Run a quick benchmark and return scores by category"""
+        from scripts.benchmark import RyxBenchmark
+        
+        benchmark = RyxBenchmark()
+        report = benchmark.run_all()
+        
+        return {
+            "edit_success": report.edit_success,
+            "file_discovery": report.file_discovery,
+            "task_completion": report.task_completion,
+            "self_healing": report.self_healing,
+            "total": report.total
+        }
     
     # ═══════════════════════════════════════════════════════════════
     # MAIN LOOP
@@ -550,12 +885,53 @@ EXPLANATION: <brief explanation>
         print(f"\n📄 Log saved to: {log_path}")
         
         return log
+    
+    def run_multiple_cycles(self, num_cycles: int = 3) -> List[ImprovementLog]:
+        """Run multiple improvement cycles"""
+        logs = []
+        
+        for i in range(num_cycles):
+            print(f"\n{'═' * 60}")
+            print(f"  CYCLE {i + 1} of {num_cycles}")
+            print(f"{'═' * 60}")
+            
+            log = self.run_improvement_cycle()
+            if log:
+                logs.append(log)
+            
+            # Check if we made progress
+            if log and log.success:
+                print(f"\n✅ Cycle {i + 1} succeeded!")
+            else:
+                print(f"\n⚠️ Cycle {i + 1} did not improve score")
+        
+        return logs
 
 
 def main():
     """Run the self-improvement system"""
-    improver = SelfImprover(auto_approve=False)
-    improver.run_improvement_cycle()
+    import sys
+    
+    # Check for flags
+    auto_approve = "--auto" in sys.argv or "-a" in sys.argv
+    cycles = 1
+    
+    for i, arg in enumerate(sys.argv):
+        if arg in ["--cycles", "-c"] and i + 1 < len(sys.argv):
+            try:
+                cycles = int(sys.argv[i + 1])
+            except:
+                pass
+    
+    if auto_approve:
+        print("⚠️  AUTO-APPROVE MODE: Will approve all permission requests")
+    
+    improver = SelfImprover(auto_approve=auto_approve)
+    
+    if cycles > 1:
+        improver.run_multiple_cycles(cycles)
+    else:
+        improver.run_improvement_cycle()
 
 
 if __name__ == "__main__":

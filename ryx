@@ -560,6 +560,8 @@ case "$1" in
         echo "  stop all         Stop ALL services including vLLM"
         echo "  cleanup          Light cleanup - free RAM, clear caches"
         echo "  cleanup all      Full cleanup - remove Docker images"
+        echo "  self-improve     Run autonomous self-improvement cycle"
+        echo "  benchmark        Run self-benchmark"
         echo ""
         echo "Mode Switching:"
         echo "  restart all              Restart with current mode"
@@ -570,6 +572,39 @@ case "$1" in
         echo ""
         echo "Current mode: $(get_current_mode)"
         exit 0
+        ;;
+    self-improve|selfimprove|improve)
+        echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║    Ryx Autonomous Self-Improvement    ║${NC}"
+        echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
+        
+        # Check Ollama is running
+        if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
+            echo -e "${YELLOW}Starting Ollama...${NC}"
+            "$PROJECT_ROOT/scripts/start_ollama.sh" &
+            sleep 5
+        fi
+        
+        [ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"
+        cd "$PROJECT_ROOT"
+        
+        # Pass remaining args (--auto, --cycles N)
+        shift
+        exec python3 core/self_improver.py "$@"
+        ;;
+    benchmark|bench)
+        echo -e "${CYAN}Running Ryx Benchmark...${NC}"
+        
+        # Check Ollama is running
+        if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
+            echo -e "${YELLOW}Starting Ollama...${NC}"
+            "$PROJECT_ROOT/scripts/start_ollama.sh" &
+            sleep 5
+        fi
+        
+        [ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"
+        cd "$PROJECT_ROOT"
+        exec python3 scripts/benchmark.py
         ;;
 esac
 
