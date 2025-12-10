@@ -78,10 +78,3 @@ def get_runtime_dir() -> Path:
     runtime_dir = Path.home() / ".ryx"
     runtime_dir.mkdir(parents=True, exist_ok=True)
     return runtime_dir
-
-
-def get_models_dir() -> Path:
-    """Get models directory for downloaded models"""
-    models_dir = get_project_root() / "models"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    return models_dir

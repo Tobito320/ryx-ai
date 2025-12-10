@@ -563,10 +563,15 @@ Provide only the implementation code."""
         async def _generate():
             system_prompt = self._get_system_prompt()
             
+            # Use 7b coder for speed, 14b for complex tasks
+            model = 'qwen2.5-coder:7b'  # Fast by default
+            if len(enhanced_prompt) > 8000 or 'refactor' in prompt.lower() or 'complex' in prompt.lower():
+                model = 'qwen2.5-coder:14b'  # Use 14b for complex tasks
+            
             resp = await client.generate(
                 prompt=enhanced_prompt,
                 system=system_prompt,
-                model='qwen2.5-coder:14b',  # Use CODING model for better code generation
+                model=model,
                 max_tokens=2500,
                 temperature=0.3
             )
@@ -601,8 +606,8 @@ CRITICAL INSTRUCTIONS FOR EDITING:
 1. The <old> text MUST be copied EXACTLY from the file content above - character for character
 2. Do NOT paraphrase, reformat, or summarize the <old> text
 3. Include enough context in <old> to be unique (usually 3-10 lines)
-4. For adding new code, use the END of an existing function/method as your <old> anchor
-5. Pick a simple, short anchor point - don't try to match huge blocks
+4. For adding new code, use the LAST FUNCTION in the file as your <old> anchor
+5. ALWAYS attempt an edit - the file content above is complete
 
 For edits, use this format:
 <edit>
@@ -615,21 +620,21 @@ same lines plus your additions
 </new>
 </edit>
 
-If you cannot find suitable anchor text, say "I cannot find the right location" instead of guessing."""
+IMPORTANT: You MUST output an <edit> block. The file content above is complete."""
     
     def _get_system_prompt(self) -> str:
         """Get system prompt for code tasks"""
-        return """You are Ryx, an expert coding assistant. You ALWAYS attempt to make edits when asked.
+        return """You are Ryx, an expert coding assistant. You ALWAYS output edit blocks.
 
 RULES:
-1. The file contents in <file> tags are the ONLY source of truth
+1. The file contents in <file> tags are COMPLETE - do not ask for more
 2. When editing, the <old> text MUST match the file EXACTLY
 3. Copy text directly from the context - do not paraphrase
-4. For adding code, use the last few lines of an existing function/block as your anchor
-5. Always try to make the edit - only say "cannot find" if the file content is clearly missing
+4. For adding code, use the last function in the file as your anchor
+5. ALWAYS output an <edit> block - never say you cannot find the location
 6. DO NOT use markdown code fences (```) inside <old> or <new> tags
 
-FORMAT for edits (NO code fences!):
+FORMAT for edits:
 <edit>
 <file>path/to/file.py</file>
 <old>
@@ -640,7 +645,7 @@ same lines plus additions
 </new>
 </edit>
 
-Be aggressive about finding anchor points. Look for unique strings like function names, class names, or specific values."""
+Be aggressive about making edits. The file content provided is complete and accurate."""
     
     def _process_response(self, response: str) -> Tuple[bool, str]:
         """Process LLM response and apply any edits"""
