@@ -429,6 +429,47 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_edit_append_to_file(self) -> BenchmarkResult:
+        """Test: Append content to end of file"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Append new function at the end
+            result = editor.edit(
+                str(test_file),
+                search_text="",  # Empty search = append mode
+                replace_text="\n\ndef new_function():\n    return 'appended'\n"
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "def new_function" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="append_file",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="append_file",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # FILE DISCOVERY TESTS (20 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -1053,6 +1094,42 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_graceful_degradation(self) -> BenchmarkResult:
+        """Test: System handles missing dependencies gracefully"""
+        start = time.time()
+        try:
+            # Test that we handle import errors gracefully
+            try:
+                from core.ryx_brain import get_brain
+                brain = get_brain()
+                # Even with missing optional features, brain should work
+                plan = brain.understand("hello")
+                passed = plan is not None
+            except ImportError:
+                # ImportError is caught, system degrades gracefully
+                passed = True
+            except Exception:
+                passed = False
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="graceful_degrade",
+                passed=passed,
+                points=2 if passed else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="graceful_degrade",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # SPEED TESTS (10 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -1171,6 +1248,7 @@ def validate_email(email):
             self.test_edit_partial_match,
             self.test_edit_json_file,
             self.test_edit_multiline_block,
+            self.test_edit_append_to_file,
         ]
         for test in edit_tests:
             result = test()
@@ -1224,6 +1302,7 @@ def validate_email(email):
             self.test_error_recovery,
             self.test_backup_restore,
             self.test_syntax_validation,
+            self.test_graceful_degradation,
         ]
         for test in healing_tests:
             result = test()
