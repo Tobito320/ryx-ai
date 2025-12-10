@@ -258,6 +258,88 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_edit_fuzzy_whitespace(self) -> BenchmarkResult:
+        """Test: Edit with completely wrong indentation (fuzzy match needed)"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Search with NO indentation (should still find the indented class method)
+            result = editor.edit(
+                str(test_file),
+                search_text='def get_result(self):\nreturn self.result',  # No indent!
+                replace_text='def get_result(self):\n    """Get the current result"""\n    return self.result'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "Get the current result" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="fuzzy_whitespace",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="fuzzy_whitespace",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_partial_match(self) -> BenchmarkResult:
+        """Test: Edit with partial/slightly wrong search text (needs fuzzy match)"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Search with slightly different text (missing docstring)
+            result = editor.edit(
+                str(test_file),
+                search_text='def add(a, b):\n    return a + b',  # Missing docstring
+                replace_text='def add(a, b):\n    """Add two numbers together"""\n    return a + b'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "Add two numbers together" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="partial_match",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="partial_match",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # FILE DISCOVERY TESTS (20 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -473,6 +555,78 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_context_extraction(self) -> BenchmarkResult:
+        """Test: Extract relevant context for a task"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("fix bug in model routing")
+            
+            # Should find model_router.py
+            has_relevant = any("model_router" in f.path for f in context.files)
+            has_any_files = len(context.files) > 0
+            
+            passed = has_relevant and has_any_files
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="context_extraction",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="context_extraction",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_tool_selection(self) -> BenchmarkResult:
+        """Test: Select appropriate tool for a task"""
+        start = time.time()
+        try:
+            from core.tools import get_tool_registry
+            
+            registry = get_tool_registry()
+            tools = registry.list_tools()
+            
+            # Check that we have essential tools
+            # Tools are dicts with 'name' key
+            tool_names = [t['name'].lower() for t in tools]
+            
+            has_file = 'file' in tool_names  # file tool handles read/edit
+            has_search = 'search' in tool_names
+            has_shell = 'shell' in tool_names
+            
+            passed = has_file and has_search and has_shell
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="tool_selection",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="tool_selection",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # SELF-HEALING TESTS (10 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -540,6 +694,84 @@ def validate_email(email):
             return BenchmarkResult(
                 category="self_healing",
                 test_name="error_recovery",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_backup_restore(self) -> BenchmarkResult:
+        """Test: System can backup and restore files"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "backup_test.py"
+            test_file.write_text("original content")
+            
+            # Make an edit (creates backup)
+            result = editor.edit(
+                str(test_file),
+                search_text="original content",
+                replace_text="modified content"
+            )
+            
+            # Check backup was created
+            backup_exists = result.backup_path and Path(result.backup_path).exists()
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="backup_restore",
+                passed=backup_exists,
+                points=2 if backup_exists else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="backup_restore",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_syntax_validation(self) -> BenchmarkResult:
+        """Test: Editor validates Python syntax after edit"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "syntax_test.py"
+            test_file.write_text("def foo():\n    pass\n")
+            
+            # Try to make an edit that would break syntax
+            result = editor.edit(
+                str(test_file),
+                search_text="def foo():\n    pass",
+                replace_text="def foo(\n    pass"  # Missing closing paren - INVALID!
+            )
+            
+            # Should fail because syntax is invalid
+            passed = not result.success
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="syntax_validation",
+                passed=passed,
+                points=2 if passed else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="syntax_validation",
                 passed=False,
                 points=0,
                 max_points=2,
@@ -661,6 +893,8 @@ def validate_email(email):
             self.test_edit_simple_function,
             self.test_edit_with_whitespace,
             self.test_edit_class_method,
+            self.test_edit_fuzzy_whitespace,
+            self.test_edit_partial_match,
         ]
         for test in edit_tests:
             result = test()
@@ -690,10 +924,10 @@ def validate_email(email):
         task_tests = [
             self.test_intent_detection,
             self.test_model_routing,
+            self.test_plan_generation,
+            self.test_context_extraction,
+            self.test_tool_selection,
         ]
-        # Check for dynamically added tests
-        if hasattr(self, 'test_plan_generation'):
-            task_tests.append(self.test_plan_generation)
         for test in task_tests:
             result = test()
             self.results.append(result)
@@ -707,6 +941,8 @@ def validate_email(email):
         healing_tests = [
             self.test_retry_on_error,
             self.test_error_recovery,
+            self.test_backup_restore,
+            self.test_syntax_validation,
         ]
         for test in healing_tests:
             result = test()

@@ -720,3 +720,9 @@ def get_tools(safety_mode: str = "normal") -> ToolRegistry:
     if _tools is None:
         _tools = ToolRegistry(safety_mode)
     return _tools
+
+
+# Alias for consistency
+def get_tool_registry(safety_mode: str = "normal") -> ToolRegistry:
+    """Get the tool registry (alias for get_tools)"""
+    return get_tools(safety_mode)
