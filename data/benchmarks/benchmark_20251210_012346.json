@@ -1,0 +1,184 @@
+{
+  "timestamp": "2025-12-10T01:23:46.200994",
+  "version": "current",
+  "intent_accuracy": 100.0,
+  "intent_correct": 24,
+  "intent_total": 24,
+  "avg_latency_ms": 814.2420649528503,
+  "min_latency_ms": 0.1499652862548828,
+  "max_latency_ms": 3256.288528442383,
+  "tool_success_rate": 100.0,
+  "tool_correct": 5,
+  "tool_total": 5,
+  "intent_details": [
+    {
+      "prompt": "open youtube",
+      "expected": "open_url",
+      "got": "open_url",
+      "target": "https://youtube.com",
+      "success": true
+    },
+    {
+      "prompt": "open google",
+      "expected": "open_url",
+      "got": "open_url",
+      "target": "https://google.com",
+      "success": true
+    },
+    {
+      "prompt": "open github",
+      "expected": "open_url",
+      "got": "open_url",
+      "target": "https://github.com",
+      "success": true
+    },
+    {
+      "prompt": "open my hyprland config",
+      "expected": "open_file",
+      "got": "open_file",
+      "target": "/home/tobi/.config/hypr/hyprland.conf",
+      "success": true
+    },
+    {
+      "prompt": "open ~/.bashrc",
+      "expected": "open_file",
+      "got": "open_file",
+      "target": "/home/tobi/.bashrc",
+      "success": true
+    },
+    {
+      "prompt": "open the neovim config",
+      "expected": "open_file",
+      "got": "open_file",
+      "target": "/home/tobi/.config/nvim/init.lua",
+      "success": true
+    },
+    {
+      "prompt": "what time is it",
+      "expected": "get_info",
+      "got": "get_info",
+      "target": "datetime",
+      "success": true
+    },
+    {
+      "prompt": "what's the date",
+      "expected": "get_info",
+      "got": "get_info",
+      "target": "datetime",
+      "success": true
+    },
+    {
+      "prompt": "how much RAM do I have",
+      "expected": "get_info",
+      "got": "get_info",
+      "target": "system_ram",
+      "success": true
+    },
+    {
+      "prompt": "hi",
+      "expected": "chat",
+      "got": "chat",
+      "target": null,
+      "success": true
+    },
+    {
+      "prompt": "hello",
+      "expected": "chat",
+      "got": "chat",
+      "target": null,
+      "success": true
+    },
+    {
+      "prompt": "how are you",
+      "expected": "chat",
+      "got": "chat",
+      "target": null,
+      "success": true
+    },
+    {
+      "prompt": "thanks",
+      "expected": "chat",
+      "got": "chat",
+      "target": null,
+      "success": true
+    },
+    {
+      "prompt": "create a python script that prints hello",
+      "expected": "code_task",
+      "got": "code_task",
+      "target": "create a python script that prints hello",
+      "success": true
+    },
+    {
+      "prompt": "write a function to calculate fibonacci",
+      "expected": "code_task",
+      "got": "code_task",
+      "target": "write a function to calculate fibonacci",
+      "success": true
+    },
+    {
+      "prompt": "fix the bug in main.py",
+      "expected": "code_task",
+      "got": "code_task",
+      "target": "fix the bug in main.py",
+      "success": true
+    },
+    {
+      "prompt": "refactor this code",
+      "expected": "code_task",
+      "got": "code_task",
+      "target": "refactor this code",
+      "success": true
+    },
+    {
+      "prompt": "add error handling to the login function",
+      "expected": "code_task",
+      "got": "code_task",
+      "target": "add error handling to the login function",
+      "success": true
+    },
+    {
+      "prompt": "search for python tutorials",
+      "expected": "search_web",
+      "got": "search_web",
+      "target": "python tutorials",
+      "success": true
+    },
+    {
+      "prompt": "google arch linux installation",
+      "expected": "search_web",
+      "got": "search_web",
+      "target": "arch linux installation guide",
+      "success": true
+    },
+    {
+      "prompt": "find information about rust programming",
+      "expected": "search_web",
+      "got": "search_web",
+      "target": "rust programming",
+      "success": true
+    },
+    {
+      "prompt": "run ls -la",
+      "expected": "run_command",
+      "got": "run_command",
+      "target": "ls -la",
+      "success": true
+    },
+    {
+      "prompt": "execute git status",
+      "expected": "run_command",
+      "got": "run_command",
+      "target": "git status",
+      "success": true
+    },
+    {
+      "prompt": "show me the current directory",
+      "expected": "run_command",
+      "got": "run_command",
+      "target": "pwd",
+      "success": true
+    }
+  ],
+  "overall_score": 96.7430317401886
+}

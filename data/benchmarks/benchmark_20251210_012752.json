@@ -1,0 +1,39 @@
+{
+  "timestamp": "2025-12-10T01:27:52.207684",
+  "intent_accuracy": 75.0,
+  "intent_correct": 18,
+  "intent_total": 24,
+  "failed_tests": [
+    {
+      "prompt": "open ~/.bashrc",
+      "expected": "open_file",
+      "got": "open_url"
+    },
+    {
+      "prompt": "how much RAM do I have",
+      "expected": "get_info",
+      "got": "chat"
+    },
+    {
+      "prompt": "add error handling to the login function",
+      "expected": "code_task",
+      "got": "chat"
+    },
+    {
+      "prompt": "run ls -la",
+      "expected": "run_command",
+      "got": "open_file"
+    },
+    {
+      "prompt": "execute git status",
+      "expected": "run_command",
+      "got": "get_info"
+    },
+    {
+      "prompt": "show me the current directory",
+      "expected": "run_command",
+      "got": "find_path"
+    }
+  ],
+  "overall_score": 82.5
+}

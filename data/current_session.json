@@ -1,49 +1,49 @@
 {
   "tasks": [
     {
-      "id": "task_1_221407",
+      "id": "task_1_134736",
       "content": "In test_ryxsurf.py:16 - #  Add actual import test",
       "status": "completed",
       "priority": 10,
       "context": null,
-      "created_at": "2025-12-08T22:14:07.340135",
-      "completed_at": "2025-12-08T22:14:08.832844"
+      "created_at": "2025-12-10T13:47:36.253978",
+      "completed_at": "2025-12-10T13:47:41.425540"
     },
     {
-      "id": "task_2_221407",
+      "id": "task_2_134736",
       "content": "In test_ryxsurf.py:21 - #  Implement real tests based on functionality",
-      "status": "pending",
+      "status": "completed",
       "priority": 9,
       "context": null,
-      "created_at": "2025-12-08T22:14:07.340353",
-      "completed_at": null
+      "created_at": "2025-12-10T13:47:36.254093",
+      "completed_at": "2025-12-10T13:47:48.201110"
     },
     {
-      "id": "task_3_221407",
+      "id": "task_3_134736",
       "content": "In __init__.py:268 - #  Smarter conflict resolution",
-      "status": "pending",
+      "status": "completed",
       "priority": 8,
       "context": null,
-      "created_at": "2025-12-08T22:14:07.340451",
-      "completed_at": null
+      "created_at": "2025-12-10T13:47:36.254181",
+      "completed_at": "2025-12-10T13:48:04.889487"
     },
     {
-      "id": "task_4_221407",
-      "content": "In browser.py.bak:1790 - #  Implement AI command bar",
-      "status": "pending",
+      "id": "task_4_134736",
+      "content": "In browser.py:1508 - #  Implement proper save dialog",
+      "status": "completed",
       "priority": 7,
       "context": null,
-      "created_at": "2025-12-08T22:14:07.340540",
-      "completed_at": null
+      "created_at": "2025-12-10T13:47:36.254265",
+      "completed_at": "2025-12-10T13:48:14.101256"
     },
     {
-      "id": "task_5_221407",
+      "id": "task_5_134736",
       "content": "Implement stub methods in browser.py",
-      "status": "pending",
+      "status": "completed",
       "priority": 6,
       "context": null,
-      "created_at": "2025-12-08T22:14:07.340631",
-      "completed_at": null
+      "created_at": "2025-12-10T13:47:36.254351",
+      "completed_at": "2025-12-10T13:48:22.570643"
     }
   ]
 }

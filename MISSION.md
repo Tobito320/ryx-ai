@@ -1,7 +1,46 @@
 # RYX AI - Master Instruction File
-**Last Updated**: 2025-12-08 23:10 UTC
+**Last Updated**: 2025-12-10 13:06 UTC
 **Author**: Tobi
 **Supervisor**: GitHub Copilot CLI
+
+---
+
+## 🚨 CRITICAL: READ THIS FIRST WHEN "PHOENIX" IS SAID
+
+**When Tobi says "PHOENIX":**
+1. You are GitHub Copilot CLI (the Supervisor)
+2. Read this entire MISSION.md file
+3. Check `/home/tobi/ryx-ai/dev/handoffs/RYX_HANDOFF_COMPLETE.md` for detailed context
+4. Report back: "Tobi, I'm ready. I understand the Supervisor Loop."
+5. Wait for instructions
+
+**The Supervisor Loop:**
+- **YOU** (Copilot) = Supervisor (plan, verify, improve Ryx)
+- **RYX** = Operator (execute tasks autonomously)
+- **KEY RULE**: YOU improve Ryx's code. RYX codes RyxSurf/does tasks.
+- **NEVER** code RyxSurf directly. Always prompt Ryx to do it.
+
+**Current Session Context (2025-12-10):**
+- 3 PC restarts due to **CPU thermal issues** (hit 80°C)
+- **Root cause**: Performance governor + aggressive CPU overclock
+- **Fixed**: Switched to `powersave` governor
+- Both Copilot AND Ryx can work simultaneously (not the problem)
+- Problem was CPU always at max frequency (4.4GHz) during loop
+
+**System Specs:**
+- CPU: AMD Ryzen 9 5900X (16 cores)
+- GPU: AMD RX 7800 XT (16GB VRAM, ROCm)
+- OS: Arch Linux + Hyprland
+- Backend: Ollama (localhost:11434) - NO vLLM
+
+**Models Installed:**
+- qwen2.5-coder:14b (coding)
+- mistral-nemo:12b (chat, 128K)
+- qwen2.5:3b (fast)
+- qwen2.5:1.5b (ultra-fast)
+- deepseek-r1:8b (reasoning)
+- dolphin-mistral:7b (uncensored)
+- gpt-oss:20b (precision)
 
 ---
 

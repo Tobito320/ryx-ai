@@ -146,15 +146,29 @@ class EnhancedExecutor:
 Ready to start working. I'll begin with the first task.
 """
         
-        # Auto-start first task
-        next_task = self.todo.get_next_task()
-        if next_task:
-            self.todo.start_task(next_task.id)
-            output += f"\n🔄 Starting: {next_task.content}"
+        # AUTONOMOUS LOOP: Execute all pending tasks
+        task_count = 0
+        max_tasks = 10  # Safety limit to prevent infinite loops
+        
+        while task_count < max_tasks:
+            next_task = self.todo.get_next_task()
+            if not next_task:
+                break  # No more tasks
             
-            # AUTONOMOUS: Actually execute the first task!
+            self.todo.start_task(next_task.id)
+            output += f"\n\n🔄 Task {task_count + 1}: {next_task.content}"
+            
+            # Execute the task
             task_result = self._execute_task(next_task, insight)
-            output += f"\n\n{task_result}"
+            output += f"\n{task_result}"
+            
+            task_count += 1
+        
+        # Summary
+        if task_count > 0:
+            output += f"\n\n✅ Completed {task_count} tasks autonomously"
+        else:
+            output += f"\n\n⚠️ No tasks were generated - prompt may need more specifics"
         
         return ExecutionResult(
             success=True,
@@ -280,15 +294,46 @@ Context (lines {start+1}-{end}):
 Implement the required changes. Output only the new/modified code.
 Be concise - just the code, no explanations."""
 
-                    # Call LLM
+                    # Call LLM with coding model for better code generation
                     try:
-                        from core.ai_engine import AIEngine
-                        ai = AIEngine()
-                        implementation = ai.generate(implement_prompt, max_tokens=2000)
+                        from core.ollama_client import OllamaClient
+                        import asyncio
                         
-                        if implementation and len(implementation) > 20:
+                        client = OllamaClient()
+                        
+                        async def _generate():
+                            resp = await client.generate(
+                                prompt=implement_prompt,
+                                system="You are an expert Python developer. Generate only code, no explanations.",
+                                model='qwen2.5-coder:14b',  # Use coding model
+                                max_tokens=2000,
+                                temperature=0.3
+                            )
+                            await client.close()
+                            return resp
+                        
+                        response = asyncio.run(_generate())
+                        implementation = response.response
+                        
+                        if implementation and len(implementation) > 30:
+                            # Try to apply the edit using reliable editor
+                            # Get the original line for anchor
+                            original_line = lines[line_num - 1] if line_num <= len(lines) else ""
+                            
+                            if original_line.strip():
+                                edit_result = self.editor.edit(
+                                    str(file_path),
+                                    original_line,
+                                    implementation.strip()
+                                )
+                                
+                                if edit_result.success:
+                                    self.todo.complete_task(task.id)
+                                    return f"✅ Applied edit to {file_name}:{line_num}"
+                            
+                            # Fallback: show generated code
                             self.todo.complete_task(task.id)
-                            return f"✅ Implemented '{action}' in {file_name}:\n```python\n{implementation[:600]}\n```"
+                            return f"✅ Generated for '{action}' in {file_name}:\n```python\n{implementation[:600]}\n```"
                     except Exception as e:
                         logger.warning(f"LLM call failed: {e}")
                         
@@ -326,11 +371,26 @@ Context:
 Provide only the implementation code."""
 
                     try:
-                        from core.ai_engine import AIEngine
-                        ai = AIEngine()
-                        implementation = ai.generate(implement_prompt, max_tokens=2000)
+                        from core.ollama_client import OllamaClient
+                        import asyncio
                         
-                        if implementation and len(implementation) > 20:
+                        client = OllamaClient()
+                        
+                        async def _generate():
+                            resp = await client.generate(
+                                prompt=implement_prompt,
+                                system="You are an expert Python developer. Generate only code, no explanations.",
+                                model='qwen2.5-coder:14b',
+                                max_tokens=2000,
+                                temperature=0.3
+                            )
+                            await client.close()
+                            return resp
+                        
+                        response = asyncio.run(_generate())
+                        implementation = response.response
+                        
+                        if implementation and len(implementation) > 30:
                             self.todo.complete_task(task.id)
                             return f"✅ Implemented TODO in {todo_item['file']}:\n{implementation[:500]}..."
                     except Exception as e:
@@ -506,7 +566,7 @@ Provide only the implementation code."""
             resp = await client.generate(
                 prompt=enhanced_prompt,
                 system=system_prompt,
-                model='mistral-nemo:12b',  # Use chat model for coding
+                model='qwen2.5-coder:14b',  # Use CODING model for better code generation
                 max_tokens=2500,
                 temperature=0.3
             )

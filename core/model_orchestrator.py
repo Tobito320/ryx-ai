@@ -77,7 +77,7 @@ class ModelOrchestrator:
             config_path = get_project_root() / "configs" / "models.json"
 
         self.config_path = config_path
-        self.vllm_url = "http://localhost:8001"  # vLLM API
+        self.ollama_url = "http://localhost:11434"  # Ollama API
 
         # Model tiers
         self.model_tiers: Dict[str, ModelTier] = {}
@@ -87,8 +87,8 @@ class ModelOrchestrator:
         # Configuration
         self.idle_timeout = timedelta(minutes=5)
         
-        # Detect currently loaded model from vLLM
-        self.base_model_name = self._detect_loaded_model() or "/models/powerful/coding/qwen2.5-coder-14b-awq"
+        # Base model for Ollama
+        self.base_model_name = "qwen2.5:1.5b"  # Ultra-fast base model
 
         # Database for performance tracking
         self.db_path = get_project_root() / "data" / "model_performance.db"
@@ -97,8 +97,7 @@ class ModelOrchestrator:
         # Load configuration
         self._load_config()
 
-        # Base model is loaded by vLLM container
-        self._ensure_base_model_loaded()
+        # Ollama auto-loads models on demand - no need to pre-load
 
         # Start cleanup thread
         self.cleanup_thread = threading.Thread(target=self._cleanup_loop, daemon=True)
@@ -209,22 +208,10 @@ class ModelOrchestrator:
             if self._is_model_available(self.base_model_name):
                 self.loaded_models[self.base_model_name] = datetime.now()
 
-    def _detect_loaded_model(self) -> Optional[str]:
-        """Detect which model is currently loaded in vLLM"""
-        try:
-            response = requests.get(f"{self.vllm_url}/v1/models", timeout=2)
-            if response.status_code == 200:
-                data = response.json().get("data", [])
-                if data:
-                    return data[0].get("id")
-            return None
-        except:
-            return None
-
     def _is_model_available(self, model_name: str) -> bool:
         """Check if model is available in Ollama"""
         try:
-            response = requests.get(f"{self.vllm_url}/v1/models", timeout=2)
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=2)
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 return any(m["name"] == model_name for m in models)
@@ -358,25 +345,9 @@ class ModelOrchestrator:
         if not self._is_model_available(model_name):
             return False
 
-        # Preload by making a tiny request
-        try:
-            response = requests.post(
-                f"{self.vllm_url}/v1/chat/completions",
-                json={
-                    "model": model_name,
-                    "prompt": "test",
-                    "stream": False,
-                    "options": {"num_predict": 1}
-                },
-                timeout=30
-            )
-
-            if response.status_code == 200:
-                self.loaded_models[model_name] = datetime.now()
-                return True
-            return False
-        except:
-            return False
+        # Ollama auto-loads models on first use - just mark as loaded
+        self.loaded_models[model_name] = datetime.now()
+        return True
 
     def _unload_model(self, model_name: str):
         """Unload a model (remove from loaded dict)"""
@@ -515,13 +486,10 @@ class ModelOrchestrator:
                      prompt: str,
                      system_context: str = "",
                      preferences: Optional[Dict] = None) -> Dict[str, Any]:
-        """Query a specific model via vLLM OpenAI-compatible API"""
+        """Query a specific model via Ollama API"""
 
         # Build system prompt with model identification
         system_prompt = self._build_system_prompt(system_context, preferences, model_name)
-
-        # Use the actually loaded model from vLLM
-        actual_model = self._detect_loaded_model() or model_name
 
         # Retry logic with exponential backoff
         max_retries = 3
@@ -529,17 +497,15 @@ class ModelOrchestrator:
 
         for attempt in range(max_retries):
             try:
-                # OpenAI-compatible chat completions format
+                # Ollama chat API format
                 response = requests.post(
-                    f"{self.vllm_url}/v1/chat/completions",
+                    f"{self.ollama_url}/api/chat",
                     json={
-                        "model": actual_model,
+                        "model": model_name,
                         "messages": [
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": prompt}
                         ],
-                        "temperature": 0.3,
-                        "max_tokens": 2048,
                         "stream": False
                     },
                     timeout=60
@@ -547,7 +513,8 @@ class ModelOrchestrator:
 
                 if response.status_code == 200:
                     data = response.json()
-                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    # Ollama format: {"message": {"content": "..."}}
+                    content = data.get("message", {}).get("content", "")
                     return {
                         "response": content,
                         "error": False
@@ -556,12 +523,12 @@ class ModelOrchestrator:
                     # Service unavailable or too many requests
                     if attempt < max_retries - 1:
                         delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        logger.info(f"vLLM busy, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                        logger.info(f"Ollama busy, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
                         time.sleep(delay)
                         continue
                     else:
                         return {
-                            "response": "⏱️ vLLM is busy. Please try again in a moment.",
+                            "response": "⏱️ Ollama is busy. Please try again in a moment.",
                             "error": True
                         }
                 else:
@@ -581,8 +548,8 @@ class ModelOrchestrator:
                         "response": (
                             "❌ Cannot connect to Ollama service\n\n"
                             "Possible fixes:\n"
-                            "  1. Start vLLM: ryx start vllm\n"
-                            "  2. Check if another application is using Ollama\n"
+                            "  1. Start Ollama: ollama serve\n"
+                            "  2. Check if Ollama is running: curl http://localhost:11434\n"
                             "  3. Wait if Ollama is busy with another request\n"
                         ),
                         "error": True
