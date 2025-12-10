@@ -300,23 +300,7 @@ class ModelRouter:
         q = query.lower()
         qlen = len(query)
         
-        # Very short → FAST
-        if qlen < 20:
-            return MODELS[ModelRole.FAST]
-        
-        # Greetings → CHAT
-        greetings = ['hi', 'hello', 'hallo', 'hey', 'moin', 'servus']
-        if any(q.startswith(g) for g in greetings):
-            return MODELS[ModelRole.CHAT]
-        
-        # Reasoning indicators → REASON (check BEFORE code!)
-        reason_words = ['why', 'warum', 'explain step', 'analyze', 'analysiere',
-                        'think through', 'verify', 'check if', 'prüfe', 'step by step',
-                        'plan', 'break down', 'reason', 'logic', 'understand']
-        if any(w in q for w in reason_words):
-            return MODELS[ModelRole.REASON]
-        
-        # Code indicators → CODE
+        # Code indicators → CODE (check early, even for short queries)
         code_words = ['code', 'function', 'class', 'def ', 'import', 'error', 
                       'bug', 'fix', 'refactor', 'implement', 'create a', 'add a',
                       'funktion', 'fehler', 'erstelle', 'füge hinzu']
@@ -325,6 +309,22 @@ class ModelRouter:
             if qlen > 200 or 'refactor' in q or 'architect' in q or 'design' in q:
                 return MODELS[ModelRole.REASON]
             return MODELS[ModelRole.CODE]
+        
+        # Reasoning indicators → REASON (check before length)
+        reason_words = ['why', 'warum', 'explain', 'analyze', 'analysiere',
+                        'think through', 'verify', 'check if', 'prüfe', 'step by step',
+                        'plan', 'break down', 'reason', 'logic', 'understand', 'how does']
+        if any(w in q for w in reason_words):
+            return MODELS[ModelRole.REASON]
+        
+        # Very short (and not code/reason) → FAST
+        if qlen < 20:
+            return MODELS[ModelRole.FAST]
+        
+        # Greetings → CHAT
+        greetings = ['hi', 'hello', 'hallo', 'hey', 'moin', 'servus']
+        if any(q.startswith(g) for g in greetings):
+            return MODELS[ModelRole.CHAT]
         
         # Uncensored indicators
         uncensored_words = ['uncensored', 'unzensiert', 'no filter', 'honest opinion']
