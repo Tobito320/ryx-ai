@@ -1,46 +1,61 @@
 # RYX AI - Master Instruction File
-**Last Updated**: 2025-12-10 13:06 UTC
+**Last Updated**: 2025-12-10 16:19 UTC
 **Author**: Tobi
 **Supervisor**: GitHub Copilot CLI
 
 ---
 
-## 🚨 CRITICAL: READ THIS FIRST WHEN "PHOENIX" IS SAID
+## 🚨 CRITICAL: READ THIS FIRST
 
-**When Tobi says "PHOENIX":**
-1. You are GitHub Copilot CLI (the Supervisor)
-2. Read this entire MISSION.md file
-3. Check `/home/tobi/ryx-ai/dev/handoffs/RYX_HANDOFF_COMPLETE.md` for detailed context
-4. Report back: "Tobi, I'm ready. I understand the Supervisor Loop."
-5. Wait for instructions
+**When starting a new session:**
+1. Read this MISSION.md file
+2. Read `SELF_IMPROVEMENT_CYCLE.md` for the autonomous loop
+3. Check the last benchmark in `data/benchmark_logs/`
+4. Start the self-improvement cycle
 
-**The Supervisor Loop:**
-- **YOU** (Copilot) = Supervisor (plan, verify, improve Ryx)
-- **RYX** = Operator (execute tasks autonomously)
-- **KEY RULE**: YOU improve Ryx's code. RYX codes RyxSurf/does tasks.
-- **NEVER** code RyxSurf directly. Always prompt Ryx to do it.
+**Current Benchmark (2025-12-10):** 21/100 points
+- Edit Success: 0/30 ← BIGGEST PROBLEM
+- File Discovery: 6/20
+- Task Completion: 3/30
+- Self-Healing: 2/10
+- Speed: 10/10 ✓
 
-**Current Session Context (2025-12-10):**
-- 3 PC restarts due to **CPU thermal issues** (hit 80°C)
-- **Root cause**: Performance governor + aggressive CPU overclock
-- **Fixed**: Switched to `powersave` governor
-- Both Copilot AND Ryx can work simultaneously (not the problem)
-- Problem was CPU always at max frequency (4.4GHz) during loop
+**The Self-Improvement Cycle:**
+1. Ryx benchmarks itself → BEFORE score
+2. Ryx picks an improvement from reference repos
+3. Ryx attempts improvement (3 tries × 3 cycles = 9 max)
+4. If 9 fails → Copilot fixes Ryx's code (NOT Ryx's task)
+5. Ryx benchmarks again → AFTER score
+6. If AFTER > BEFORE → SUCCESS, next improvement
+7. Repeat forever
 
-**System Specs:**
-- CPU: AMD Ryzen 9 5900X (16 cores)
-- GPU: AMD RX 7800 XT (16GB VRAM, ROCm)
-- OS: Arch Linux + Hyprland
-- Backend: Ollama (localhost:11434) - NO vLLM
+**KEY RULE**: Copilot NEVER does Ryx's task. Copilot fixes Ryx so Ryx can do the task.
+
+---
+
+## 🔧 System Status (Updated 2025-12-10)
+
+**GPU**: ✅ AMD RX 7800 XT working via ROCm/HIP
+**Multi-Model**: ✅ 3B + 14B both loaded in VRAM (11.3GB)
+**Speed**: ✅ 0.2s (3B), 0.4s (14B)
 
 **Models Installed:**
-- qwen2.5-coder:14b (coding)
-- mistral-nemo:12b (chat, 128K)
-- qwen2.5:3b (fast)
-- qwen2.5:1.5b (ultra-fast)
-- deepseek-r1:8b (reasoning)
-- dolphin-mistral:7b (uncensored)
-- gpt-oss:20b (precision)
+```
+qwen2.5:3b          2GB   FAST/CHAT (always loaded)
+qwen2.5-coder:14b   9GB   CODE (always loaded)
+qwen2.5-coder:7b    5GB   FALLBACK
+phi4                9GB   REASON (on demand)
+nomic-embed-text    0.3GB EMBED
+dolphin-mistral:7b  4GB   UNCENSORED
+```
+
+**Commands:**
+```bash
+./scripts/start_ollama.sh   # Start Ollama with GPU
+./ryx                       # Start Ryx CLI
+./ryx stop all              # Stop everything, free RAM
+python scripts/benchmark.py # Run benchmark
+```
 
 ---
 
