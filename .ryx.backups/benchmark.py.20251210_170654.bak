@@ -436,17 +436,6 @@ def validate_email(email):
                 time_seconds=time.time() - start,
                 error=str(e)
             )
-
-    def test_new_capability(self) -> BenchmarkResult:
-        """Test something new"""
-        return BenchmarkResult(
-            category="task_completion",
-            test_name="new_capability",
-            passed=True,
-            points=3,
-            max_points=3,
-            time_seconds=0.01
-        )
     
     # ═══════════════════════════════════════════════════════════════
     # SELF-HEALING TESTS (10 points max)
@@ -666,11 +655,6 @@ def validate_email(email):
             self.test_intent_detection,
             self.test_model_routing,
         ]
-        # Check for dynamically added tests
-        if hasattr(self, 'test_new_capability'):
-            task_tests.append(self.test_new_capability)
-        if hasattr(self, 'test_always_passes'):
-            task_tests.append(self.test_always_passes)
         for test in task_tests:
             result = test()
             self.results.append(result)

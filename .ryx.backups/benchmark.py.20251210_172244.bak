@@ -666,11 +666,6 @@ def validate_email(email):
             self.test_intent_detection,
             self.test_model_routing,
         ]
-        # Check for dynamically added tests
-        if hasattr(self, 'test_new_capability'):
-            task_tests.append(self.test_new_capability)
-        if hasattr(self, 'test_always_passes'):
-            task_tests.append(self.test_always_passes)
         for test in task_tests:
             result = test()
             self.results.append(result)
