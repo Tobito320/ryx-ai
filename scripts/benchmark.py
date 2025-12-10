@@ -145,15 +145,15 @@ def validate_email(email):
             original = test_file.read_text()
             
             # Try to add a new function after 'multiply'
-            success = editor.apply_edit(
+            result = editor.edit(
                 str(test_file),
-                old_text='def multiply(a, b):\n    """Multiply two numbers"""\n    return a * b',
-                new_text='def multiply(a, b):\n    """Multiply two numbers"""\n    return a * b\n\ndef divide(a, b):\n    """Divide two numbers"""\n    return a / b if b != 0 else None'
+                search_text='def multiply(a, b):\n    """Multiply two numbers"""\n    return a * b',
+                replace_text='def multiply(a, b):\n    """Multiply two numbers"""\n    return a * b\n\ndef divide(a, b):\n    """Divide two numbers"""\n    return a / b if b != 0 else None'
             )
             
             # Verify edit was applied
             new_content = test_file.read_text()
-            passed = success and "def divide" in new_content
+            passed = result.success and "def divide" in new_content
             
             # Restore original
             test_file.write_text(original)
@@ -188,14 +188,14 @@ def validate_email(email):
             original = test_file.read_text()
             
             # Try edit with slightly different whitespace
-            success = editor.apply_edit(
+            result = editor.edit(
                 str(test_file),
-                old_text='def hello():\n    """Say hello"""',
-                new_text='def hello():\n    """Say hello to everyone"""'
+                search_text='def hello():\n    """Say hello"""',
+                replace_text='def hello():\n    """Say hello to everyone"""'
             )
             
             new_content = test_file.read_text()
-            passed = success and "hello to everyone" in new_content
+            passed = result.success and "hello to everyone" in new_content
             
             test_file.write_text(original)
             
@@ -228,14 +228,14 @@ def validate_email(email):
             test_file = self.temp_dir / "test_file.py"
             original = test_file.read_text()
             
-            success = editor.apply_edit(
+            result = editor.edit(
                 str(test_file),
-                old_text='    def get_result(self):\n        return self.result',
-                new_text='    def get_result(self):\n        return self.result\n    \n    def reset(self):\n        self.result = 0\n        return self'
+                search_text='    def get_result(self):\n        return self.result',
+                replace_text='    def get_result(self):\n        return self.result\n    \n    def reset(self):\n        self.result = 0\n        return self'
             )
             
             new_content = test_file.read_text()
-            passed = success and "def reset" in new_content
+            passed = result.success and "def reset" in new_content
             
             test_file.write_text(original)
             
@@ -482,13 +482,13 @@ def validate_email(email):
             
             # Try edit on non-existent file - should not crash
             try:
-                result = editor.apply_edit(
+                result = editor.edit(
                     "/nonexistent/file.py",
-                    old_text="test",
-                    new_text="test2"
+                    search_text="test",
+                    replace_text="test2"
                 )
                 # Should return False, not crash
-                passed = result == False
+                passed = not result.success
             except Exception:
                 passed = False
             

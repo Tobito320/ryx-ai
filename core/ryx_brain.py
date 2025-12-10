@@ -602,6 +602,10 @@ ANFRAGE: {prompt}'''
         if self._is_code_task(prompt):
             return Plan(intent=Intent.CODE_TASK, target=prompt)
         
+        # Check for "open <file>" patterns - local files, not URLs
+        if self._is_open_file(prompt):
+            return self._handle_open_file(prompt)
+        
         # Try knowledge-based resolution
         plan = self._resolve_from_knowledge(prompt)
         if plan:
@@ -718,6 +722,10 @@ ANFRAGE: {prompt}'''
         if is_content_creation:
             return False
         
+        # "fix" + "bug/error" is always a code task, regardless of length
+        if 'fix' in p and ('bug' in p or 'error' in p or 'issue' in p):
+            return True
+        
         return has_code_indicator and (has_code_context or len(p) > 30) and not is_simple_op
     
     def _is_chat_question(self, prompt: str) -> bool:
@@ -767,6 +775,38 @@ ANFRAGE: {prompt}'''
         ]
         
         return p in smalltalk or any(p.startswith(s + ' ') or p.startswith(s + ',') for s in smalltalk)
+    
+    def _is_open_file(self, prompt: str) -> bool:
+        """Check if this is a request to open a local file"""
+        import re
+        p = prompt.lower()
+        
+        # Pattern: "open <something>.<ext>" where ext is a file extension
+        file_extensions = r'\.(py|js|ts|tsx|json|yaml|yml|md|txt|html|css|go|rs|java|sh|toml|cfg|ini|log|xml)'
+        
+        # "open config.json", "open src/main.py", "öffne datei.txt"
+        if re.search(rf'(open|öffne)\s+\S+{file_extensions}', p):
+            return True
+        
+        # Path-like patterns: "open src/something" or "open ./file"
+        if re.search(r'(open|öffne)\s+\.?/?[\w/]+\.(py|js|json|md|txt)', p):
+            return True
+        
+        return False
+    
+    def _handle_open_file(self, prompt: str) -> Plan:
+        """Handle opening a local file"""
+        import re
+        p = prompt.lower()
+        
+        # Extract filename from prompt
+        match = re.search(r'(open|öffne)\s+(\S+)', p)
+        if match:
+            filename = match.group(2)
+            return Plan(intent=Intent.OPEN_FILE, target=filename)
+        
+        return Plan(intent=Intent.OPEN_FILE, target=prompt)
+    
     
     def _is_followup_modifier(self, prompt: str) -> bool:
         """Check if this is a follow-up modifier like 'shorter', 'kürzer', 'more detail'"""
