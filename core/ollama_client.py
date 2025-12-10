@@ -44,31 +44,32 @@ class OllamaConfig:
     base_url: str = OLLAMA_BASE_URL
     timeout: int = 300  # Ollama can be slow on first load
     
-    # Model mapping by task
+    # Model mapping by task - Optimized 2024-12-10
     models: Dict[str, str] = field(default_factory=lambda: {
         # Fast tasks (1.5B - instant)
         "fast": "qwen2.5:1.5b",
         "intent": "qwen2.5:1.5b",
         
-        # Chat (installed models)
-        "chat": "mistral-nemo:12b",
-        "general": "mistral-nemo:12b",
+        # Chat (3B - quick and good)
+        "chat": "qwen2.5:3b",
+        "general": "qwen2.5:3b",
         "uncensored": "dolphin-mistral:7b",
         
-        # Coding (main workhorse - 14B)
+        # Coding (main workhorse - 14B, best at 88.4% HumanEval)
         "code": "qwen2.5-coder:14b",
         "coder": "qwen2.5-coder:14b",
         "code_fast": "qwen2.5-coder:7b",
         
-        # Reasoning (use coder for now)
-        "reason": "qwen2.5-coder:14b",
-        "think": "qwen2.5-coder:14b",
+        # Reasoning (phi4 - better than deepseek-r1)
+        "reason": "phi4",
+        "think": "phi4",
+        "plan": "phi4",
         
         # Embeddings
         "embed": "nomic-embed-text:latest",
         
-        # Default - use coder for best results
-        "default": "qwen2.5-coder:14b",
+        # Default - use 7B coder for balance of speed/quality
+        "default": "qwen2.5-coder:7b",
     })
 
 

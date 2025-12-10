@@ -54,6 +54,11 @@ class ModelConfig:
 # ═══════════════════════════════════════════════════════════════
 # FIXED MODEL CONFIGURATION - These are THE models Ryx uses
 # ═══════════════════════════════════════════════════════════════
+# Updated 2024-12-10: Optimized for RX 7800 XT 16GB VRAM
+# - Qwen2.5-Coder for code (88.4% HumanEval - beats all open source)
+# - Phi-4 for reasoning (better than deepseek-r1 at 14B size)
+# - Qwen2.5 small models for fast tasks
+# ═══════════════════════════════════════════════════════════════
 
 MODELS: Dict[ModelRole, ModelConfig] = {
     ModelRole.FAST: ModelConfig(
@@ -62,16 +67,16 @@ MODELS: Dict[ModelRole, ModelConfig] = {
         vram_mb=1000,
         max_tokens=2048,
         timeout_seconds=10,
-        description="Blitzschnell für Intent-Erkennung und einfache Aufgaben"
+        description="Blitzschnell für Intent-Erkennung und Routing"
     ),
     
     ModelRole.CHAT: ModelConfig(
-        name="mistral-nemo:12b",
+        name="qwen2.5:3b",
         role=ModelRole.CHAT,
-        vram_mb=8000,
+        vram_mb=2500,
         max_tokens=4096,
-        timeout_seconds=60,
-        description="Chat mit 128K context, gutes Reasoning"
+        timeout_seconds=30,
+        description="Schneller Chat, gut für Konversation"
     ),
     
     ModelRole.CODE: ModelConfig(
@@ -80,16 +85,16 @@ MODELS: Dict[ModelRole, ModelConfig] = {
         vram_mb=10000,
         max_tokens=8192,
         timeout_seconds=120,
-        description="Code schreiben, PLAN/APPLY Phasen, 88% HumanEval"
+        description="Bester Code-Generator: 88.4% HumanEval"
     ),
     
     ModelRole.REASON: ModelConfig(
-        name="qwen2.5-coder:14b",
+        name="phi4",
         role=ModelRole.REASON,
-        vram_mb=10000,
+        vram_mb=9000,
         max_tokens=8192,
         timeout_seconds=120,
-        description="Use coder for reasoning (best available)"
+        description="Phi-4: Top reasoning & math, besser als DeepSeek-R1"
     ),
     
     ModelRole.EMBED: ModelConfig(
@@ -107,7 +112,7 @@ MODELS: Dict[ModelRole, ModelConfig] = {
         vram_mb=5000,
         max_tokens=8192,
         timeout_seconds=60,
-        description="Fallback to 7B coder"
+        description="Schneller Coder-Fallback bei Timeout"
     ),
     
     ModelRole.UNCENSORED: ModelConfig(
@@ -304,6 +309,13 @@ class ModelRouter:
         if any(q.startswith(g) for g in greetings):
             return MODELS[ModelRole.CHAT]
         
+        # Reasoning indicators → REASON (check BEFORE code!)
+        reason_words = ['why', 'warum', 'explain step', 'analyze', 'analysiere',
+                        'think through', 'verify', 'check if', 'prüfe', 'step by step',
+                        'plan', 'break down', 'reason', 'logic', 'understand']
+        if any(w in q for w in reason_words):
+            return MODELS[ModelRole.REASON]
+        
         # Code indicators → CODE
         code_words = ['code', 'function', 'class', 'def ', 'import', 'error', 
                       'bug', 'fix', 'refactor', 'implement', 'create a', 'add a',
@@ -313,12 +325,6 @@ class ModelRouter:
             if qlen > 200 or 'refactor' in q or 'architect' in q or 'design' in q:
                 return MODELS[ModelRole.REASON]
             return MODELS[ModelRole.CODE]
-        
-        # Reasoning indicators → REASON
-        reason_words = ['why', 'warum', 'explain step', 'analyze', 'analysiere',
-                        'think through', 'verify', 'check if', 'prüfe']
-        if any(w in q for w in reason_words):
-            return MODELS[ModelRole.REASON]
         
         # Uncensored indicators
         uncensored_words = ['uncensored', 'unzensiert', 'no filter', 'honest opinion']
