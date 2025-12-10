@@ -340,6 +340,95 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_edit_json_file(self) -> BenchmarkResult:
+        """Test: Edit a JSON file correctly"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "config.json"
+            original = test_file.read_text()
+            
+            result = editor.edit(
+                str(test_file),
+                search_text='"debug": true',
+                replace_text='"debug": false'
+            )
+            
+            new_content = test_file.read_text()
+            # Verify it's still valid JSON
+            try:
+                import json
+                json.loads(new_content)
+                valid_json = True
+            except:
+                valid_json = False
+            
+            passed = result.success and '"debug": false' in new_content and valid_json
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="json_edit",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="json_edit",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_multiline_block(self) -> BenchmarkResult:
+        """Test: Replace a multi-line block of code"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Replace the entire Calculator class init
+            result = editor.edit(
+                str(test_file),
+                search_text='    def __init__(self):\n        self.result = 0',
+                replace_text='    def __init__(self, initial=0):\n        self.result = initial'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "initial=0" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="multiline_block",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="multiline_block",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # FILE DISCOVERY TESTS (20 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -1013,6 +1102,8 @@ def validate_email(email):
             self.test_edit_class_method,
             self.test_edit_fuzzy_whitespace,
             self.test_edit_partial_match,
+            self.test_edit_json_file,
+            self.test_edit_multiline_block,
         ]
         for test in edit_tests:
             result = test()
