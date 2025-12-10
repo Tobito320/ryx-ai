@@ -46,9 +46,9 @@ class OllamaConfig:
     
     # Model mapping by task - Optimized 2024-12-10
     models: Dict[str, str] = field(default_factory=lambda: {
-        # Fast tasks (1.5B - instant)
-        "fast": "qwen2.5:1.5b",
-        "intent": "qwen2.5:1.5b",
+        # Fast tasks (3B - smarter than 1.5B, still fast)
+        "fast": "qwen2.5:3b",
+        "intent": "qwen2.5:3b",
         
         # Chat (3B - quick and good)
         "chat": "qwen2.5:3b",

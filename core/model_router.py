@@ -62,12 +62,12 @@ class ModelConfig:
 
 MODELS: Dict[ModelRole, ModelConfig] = {
     ModelRole.FAST: ModelConfig(
-        name="qwen2.5:1.5b",
+        name="qwen2.5:3b",
         role=ModelRole.FAST,
-        vram_mb=1000,
-        max_tokens=2048,
-        timeout_seconds=10,
-        description="Blitzschnell für Intent-Erkennung und Routing"
+        vram_mb=2000,
+        max_tokens=4096,
+        timeout_seconds=15,
+        description="Intent-Erkennung, Routing, schnelle Antworten"
     ),
     
     ModelRole.CHAT: ModelConfig(
