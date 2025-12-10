@@ -689,6 +689,62 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_llm_code_generation(self) -> BenchmarkResult:
+        """Test: LLM can generate valid Python code"""
+        start = time.time()
+        try:
+            import requests
+            
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "qwen2.5-coder:14b",
+                    "prompt": "Write a Python function called 'add_numbers' that takes two parameters and returns their sum. Only output the code, no explanation.",
+                    "stream": False,
+                    "options": {"num_predict": 100}
+                },
+                timeout=60
+            )
+            
+            code = response.json().get("response", "")
+            
+            # Check if it contains a valid function definition
+            has_def = "def add_numbers" in code
+            has_return = "return" in code
+            
+            # Try to compile it
+            try:
+                # Extract just the code part
+                if "```" in code:
+                    code = code.split("```")[1]
+                    if code.startswith("python"):
+                        code = code[6:]
+                compile(code.strip(), "<string>", "exec")
+                compiles = True
+            except:
+                compiles = False
+            
+            passed = has_def and has_return and compiles
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="llm_code_gen",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="llm_code_gen",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # SELF-HEALING TESTS (10 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -991,6 +1047,7 @@ def validate_email(email):
             self.test_plan_generation,
             self.test_context_extraction,
             self.test_tool_selection,
+            self.test_llm_code_generation,
         ]
         for test in task_tests:
             result = test()
