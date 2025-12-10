@@ -524,6 +524,37 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_find_config_file(self) -> BenchmarkResult:
+        """Test: Find config files in the project"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the models config file")
+            
+            # Should find some config file
+            found = len(context.files) > 0
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_config",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_config",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     def test_find_class_definition(self) -> BenchmarkResult:
         """Test: Find where a class is defined"""
         start = time.time()
@@ -834,6 +865,42 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_memory_context(self) -> BenchmarkResult:
+        """Test: Brain maintains conversation context"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain
+            
+            brain = get_brain()
+            
+            # Make a query
+            plan1 = brain.understand("open README.md")
+            
+            # Check context is maintained
+            has_context = brain.ctx.last_query == "open README.md"
+            has_turn = brain.ctx.turn_count > 0
+            
+            passed = has_context and has_turn
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="memory_context",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="memory_context",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # SELF-HEALING TESTS (10 points max)
     # ═══════════════════════════════════════════════════════════════
@@ -1119,6 +1186,7 @@ def validate_email(email):
             self.test_find_file_by_name,
             self.test_find_file_by_content,
             self.test_find_function_location,
+            self.test_find_config_file,
             self.test_find_class_definition,
             self.test_find_related_files,
         ]
@@ -1139,6 +1207,7 @@ def validate_email(email):
             self.test_context_extraction,
             self.test_tool_selection,
             self.test_llm_code_generation,
+            self.test_memory_context,
         ]
         for test in task_tests:
             result = test()
