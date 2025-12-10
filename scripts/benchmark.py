@@ -437,16 +437,41 @@ def validate_email(email):
                 error=str(e)
             )
 
-    def test_new_capability(self) -> BenchmarkResult:
-        """Test something new"""
-        return BenchmarkResult(
-            category="task_completion",
-            test_name="new_capability",
-            passed=True,
-            points=3,
-            max_points=3,
-            time_seconds=0.01
-        )
+    def test_plan_generation(self) -> BenchmarkResult:
+        """Test: Generate a valid execution plan for a task"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain
+            
+            brain = get_brain()
+            
+            # Test that we can generate a plan with steps
+            plan = brain.understand("add a logging function to utils")
+            
+            # A good plan should have at least one step
+            has_steps = hasattr(plan, 'steps') and len(plan.steps) > 0
+            has_intent = hasattr(plan, 'intent') and plan.intent is not None
+            
+            passed = has_intent and has_steps
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="plan_generation",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="plan_generation",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
     
     # ═══════════════════════════════════════════════════════════════
     # SELF-HEALING TESTS (10 points max)
@@ -667,10 +692,8 @@ def validate_email(email):
             self.test_model_routing,
         ]
         # Check for dynamically added tests
-        if hasattr(self, 'test_new_capability'):
-            task_tests.append(self.test_new_capability)
-        if hasattr(self, 'test_always_passes'):
-            task_tests.append(self.test_always_passes)
+        if hasattr(self, 'test_plan_generation'):
+            task_tests.append(self.test_plan_generation)
         for test in task_tests:
             result = test()
             self.results.append(result)

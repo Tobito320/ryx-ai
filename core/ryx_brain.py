@@ -600,7 +600,8 @@ ANFRAGE: {prompt}'''
         # IMPORTANT: Check for code tasks BEFORE knowledge resolution
         # This ensures "create file.py" goes to CODE_TASK, not OPEN_FILE
         if self._is_code_task(prompt):
-            return Plan(intent=Intent.CODE_TASK, target=prompt)
+            steps = self._generate_code_task_steps(prompt)
+            return Plan(intent=Intent.CODE_TASK, target=prompt, steps=steps)
         
         # Check for "open <file>" patterns - local files, not URLs
         if self._is_open_file(prompt):
@@ -727,6 +728,46 @@ ANFRAGE: {prompt}'''
             return True
         
         return has_code_indicator and (has_code_context or len(p) > 30) and not is_simple_op
+    
+    def _generate_code_task_steps(self, prompt: str) -> List[str]:
+        """Generate execution steps for a code task using EXPLORE→PLAN→APPLY→VERIFY pattern"""
+        p = prompt.lower()
+        steps = []
+        
+        # Step 1: Always explore context first
+        if any(x in p for x in ['add', 'create', 'implement', 'new']):
+            steps.append("EXPLORE: Find relevant files and understand current structure")
+            steps.append("PLAN: Determine where to add the new code")
+            steps.append("APPLY: Write and insert the new code")
+            steps.append("VERIFY: Check syntax and run any tests")
+        elif any(x in p for x in ['fix', 'bug', 'error', 'repair']):
+            steps.append("EXPLORE: Locate the bug and understand the issue")
+            steps.append("PLAN: Determine the fix approach")
+            steps.append("APPLY: Implement the fix")
+            steps.append("VERIFY: Test that the bug is fixed")
+        elif any(x in p for x in ['refactor', 'improve', 'clean']):
+            steps.append("EXPLORE: Analyze current code structure")
+            steps.append("PLAN: Design the refactoring approach")
+            steps.append("APPLY: Perform the refactoring")
+            steps.append("VERIFY: Ensure behavior is unchanged")
+        elif any(x in p for x in ['delete', 'remove']):
+            steps.append("EXPLORE: Find what needs to be removed")
+            steps.append("PLAN: Check for dependencies")
+            steps.append("APPLY: Remove the code/files")
+            steps.append("VERIFY: Ensure nothing is broken")
+        elif any(x in p for x in ['move', 'rename']):
+            steps.append("EXPLORE: Locate the file/code to move")
+            steps.append("PLAN: Determine destination and update imports")
+            steps.append("APPLY: Perform the move/rename")
+            steps.append("VERIFY: Update all references")
+        else:
+            # Generic code task steps
+            steps.append("EXPLORE: Understand the codebase and requirements")
+            steps.append("PLAN: Design the implementation")
+            steps.append("APPLY: Write the code")
+            steps.append("VERIFY: Test and validate")
+        
+        return steps
     
     def _is_chat_question(self, prompt: str) -> bool:
         """Check if this is clearly a conversational question, not an action request"""
