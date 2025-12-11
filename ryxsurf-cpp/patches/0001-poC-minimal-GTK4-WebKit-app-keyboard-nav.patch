@@ -1,7 +1,7 @@
 From 7d081eead96e42fd3150cd2d5a4686d15105243a Mon Sep 17 00:00:00 2001
 From: Tobito320 <ahmedhdplay12345@gmail.com>
 Date: Thu, 11 Dec 2025 19:39:06 +0100
-Subject: [PATCH 1/8] poC: minimal GTK4 WebKit app + keyboard nav
+Subject: [PATCH 01/11] poC: minimal GTK4 WebKit app + keyboard nav
 
 Implemented proof-of-concept minimal browser:
 - GTK4 window with tab bar, address bar, notebook

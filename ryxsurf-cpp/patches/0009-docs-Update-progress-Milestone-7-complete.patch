@@ -1,0 +1,54 @@
+From e5837416e7f3e9ffc0530c25d00dc0e1cb7726d9 Mon Sep 17 00:00:00 2001
+From: Tobito320 <ahmedhdplay12345@gmail.com>
+Date: Thu, 11 Dec 2025 19:48:03 +0100
+Subject: [PATCH 09/11] docs: Update progress - Milestone 7 complete
+
+---
+ ryxsurf-cpp/PROGRESS.md | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/ryxsurf-cpp/PROGRESS.md b/ryxsurf-cpp/PROGRESS.md
+index 0578d01..595f03f 100644
+--- a/ryxsurf-cpp/PROGRESS.md
++++ b/ryxsurf-cpp/PROGRESS.md
+@@ -35,11 +35,18 @@
+ - Autosave (periodic + graceful exit)
+ - Restore on startup
+ 
++### ✅ Milestone 7: Password Manager
++- PasswordManager with dual backend (libsecret + SQLite fallback)
++- Encrypted SQLite storage for passwords
++- Password generator utility
++- Autofill detection per origin
++- Last used timestamp tracking
++
+ ## Current Status
+ 
+-**Total Files**: 28 C++ source/header files
+-**Commits**: 7 (analysis, PoC, docs, core models, unload/restore, persistence)
+-**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager
++**Total Files**: 30 C++ source/header files
++**Commits**: 9 (analysis, PoC, docs, core models, unload/restore, persistence, password manager)
++**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager, PasswordManager
+ 
+ ## Next Steps
+ 
+@@ -57,10 +64,11 @@
+ - ✅ Argon2id KDF + libsodium encryption
+ - ✅ Autosave & graceful exit restore
+ 
+-### Milestone 7: Password Manager
+-- ⏳ libsecret integration
+-- ⏳ Encrypted SQLite fallback
+-- ⏳ UI for credential management
++### Milestone 7: Password Manager ✅ Complete
++- ✅ libsecret integration (primary)
++- ✅ Encrypted SQLite fallback
++- ✅ Password generator utility
++- ⏳ UI for credential management (basic API ready)
+ 
+ ## Performance Targets
+ 
+-- 
+2.52.0
+
