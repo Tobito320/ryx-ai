@@ -1,291 +1,573 @@
-/* RyxSurf Zen-inspired Theme */
+/* ============================================================================
+   RyxSurf - Sleek Minimal Browser Theme
+   Design System v2.0
+   
+   Inspired by contemporary minimal browsers with a sophisticated dark palette.
+   Single unified top bar, spacious content area, zen-like aesthetics.
+   ============================================================================ */
 
-/* Color Variables */
-:root {
-    --bg-primary: #0c111b;
-    --bg-secondary: #111a29;
-    --bg-tertiary: #162335;
-    --fg-primary: #d9e2f2;
-    --fg-secondary: #9fb3d8;
-    --accent: #6bdcff;
-    --accent-strong: #4ac2ff;
-    --border: rgba(255, 255, 255, 0.08);
-    --border-active: rgba(107, 220, 255, 0.5);
-    --shadow: rgba(6, 10, 18, 0.55);
-    --glass: rgba(255, 255, 255, 0.03);
+/* ============================================================================
+   1. DESIGN TOKENS / COLOR PALETTE
+   ============================================================================ */
+
+/* Dark Theme (Default) */
+window, .dark-theme {
+    /* Primary backgrounds - deep charcoal/slate */
+    --bg-base: #0f0f0f;
+    --bg-elevated: #1a1a1a;
+    --bg-topbar: #1e1e1e;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(255, 255, 255, 0.10);
+    
+    /* Foreground / Text */
+    --fg-primary: #e8e8e8;
+    --fg-secondary: #a0a0a0;
+    --fg-muted: #6a6a6a;
+    --fg-placeholder: #555555;
+    
+    /* Accent - cool cyan/teal */
+    --accent: #00d9ff;
+    --accent-dim: rgba(0, 217, 255, 0.15);
+    --accent-glow: rgba(0, 217, 255, 0.25);
+    
+    /* Borders & Separators */
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-default: rgba(255, 255, 255, 0.10);
+    --border-focus: rgba(0, 217, 255, 0.5);
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-topbar: 0 1px 0 rgba(255, 255, 255, 0.04);
+    
+    /* Spacing scale (8px grid) */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 24px;
+    --space-2xl: 32px;
+    
+    /* Typography */
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-base: 13px;
+    --font-size-lg: 14px;
+    --font-size-xl: 18px;
+    --font-size-2xl: 24px;
+    --font-size-hero: 36px;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    
+    /* Radii */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-normal: 200ms ease;
+    --transition-slow: 300ms ease;
+    
+    /* Layout */
+    --topbar-height: 48px;
+    --tab-min-width: 100px;
+    --tab-max-width: 200px;
+    --address-bar-width: 320px;
+    --window-controls-width: 100px;
+    --overview-btn-width: 36px;
 }
 
-/* Window */
+/* ============================================================================
+   2. BASE / WINDOW
+   ============================================================================ */
+
 window {
-    background: linear-gradient(145deg, #0b0f19 0%, #0f1828 50%, #0b111c 100%);
+    background: linear-gradient(180deg, #141414 0%, var(--bg-base) 100%);
+    color: var(--fg-primary);
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-normal);
+}
+
+/* ============================================================================
+   3. UNIFIED TOP BAR
+   Layout: [Overview] [Tab Strip] [Address Bar] [Window Controls]
+   ============================================================================ */
+
+.top-bar {
+    background-color: var(--bg-topbar);
+    border-bottom: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-topbar);
+    min-height: var(--topbar-height);
+    max-height: var(--topbar-height);
+    padding: 0 var(--space-sm);
+}
+
+/* Overview Button (left side) */
+.overview-button {
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    min-width: var(--overview-btn-width);
+    min-height: 32px;
+    padding: var(--space-xs) var(--space-sm);
+    margin-right: var(--space-sm);
+    color: var(--fg-secondary);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.overview-button:hover {
+    background-color: var(--bg-hover);
     color: var(--fg-primary);
 }
 
-/* Tab Bar */
-.tab-bar {
-    background-color: var(--glass);
-    border-bottom: 1px solid var(--border);
-    padding: 6px 10px;
-    min-height: 38px;
-    box-shadow: 0 10px 30px -18px var(--shadow);
-    backdrop-filter: blur(8px);
+.overview-button:active {
+    background-color: var(--bg-active);
+}
+
+/* ============================================================================
+   4. TAB STRIP (Horizontal, Thin Tabs)
+   ============================================================================ */
+
+.tab-strip {
+    background-color: transparent;
+    padding: var(--space-xs) 0;
+    min-height: 36px;
 }
 
 .tab-button {
     background-color: transparent;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    padding: 8px 12px;
-    margin: 0 4px;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--space-xs) var(--space-md);
+    margin: 0 2px;
+    min-width: var(--tab-min-width);
+    max-width: var(--tab-max-width);
+    min-height: 32px;
     color: var(--fg-secondary);
-    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 120ms ease;
-    will-change: background-color, transform;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .tab-button:hover {
-    background-color: var(--bg-tertiary);
+    background-color: var(--bg-hover);
     color: var(--fg-primary);
-    border-color: var(--border);
 }
 
 .tab-button.active-tab {
-    background: linear-gradient(135deg, rgba(75, 194, 255, 0.12), rgba(107, 220, 255, 0.08));
+    background-color: var(--bg-active);
     color: var(--fg-primary);
-    border-color: var(--border-active);
-    box-shadow: 0 10px 30px -14px var(--shadow);
 }
 
 .tab-button.unloaded {
-    opacity: 0.65;
-    font-style: italic;
+    opacity: 0.5;
 }
 
-.tab-button.unloaded .tab-title {
-    color: var(--fg-secondary);
+.tab-button.unloaded:hover {
+    opacity: 0.7;
+}
+
+/* Tab divider (subtle vertical separator) */
+.tab-divider {
+    width: 1px;
+    height: 16px;
+    background-color: var(--border-subtle);
+    margin: 0 2px;
+    align-self: center;
 }
 
 .tab-title {
-    font-size: 12px;
-    font-weight: 500;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: inherit;
 }
 
 .tab-close-button {
     background-color: transparent;
     border: none;
-    border-radius: 6px;
-    padding: 2px 6px;
-    margin-left: 6px;
-    opacity: 0.65;
-    transition: opacity 120ms ease, background-color 120ms ease;
+    border-radius: var(--radius-sm);
+    min-width: 18px;
+    min-height: 18px;
+    padding: 2px;
+    margin-left: var(--space-xs);
+    opacity: 0;
+    color: var(--fg-muted);
+    transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .tab-button:hover .tab-close-button {
-    opacity: 1;
+    opacity: 0.6;
 }
 
 .tab-close-button:hover {
-    background-color: rgba(255, 255, 255, 0.08);
     opacity: 1;
+    background-color: var(--bg-hover);
+    color: var(--fg-primary);
 }
 
-/* Address Bar */
+/* ============================================================================
+   5. ADDRESS BAR (Minimal, Underline Focus)
+   ============================================================================ */
+
 .address-bar {
-    background: var(--glass);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 10px 14px;
-    margin: 8px 10px;
+    background-color: var(--bg-hover);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    min-width: var(--address-bar-width);
+    min-height: 32px;
     color: var(--fg-primary);
-    font-size: 14px;
-    transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
-    box-shadow: 0 12px 30px -18px var(--shadow);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-normal);
+    transition: background-color var(--transition-normal), border-color var(--transition-normal);
+}
+
+.address-bar:hover {
+    background-color: var(--bg-active);
 }
 
 .address-bar:focus {
-    border-color: var(--border-active);
-    background: rgba(107, 220, 255, 0.08);
-    box-shadow: 0 0 0 2px rgba(107, 220, 255, 0.18);
+    background-color: var(--bg-active);
+    border-bottom-color: var(--accent);
     outline: none;
 }
 
-/* Session Indicator */
-.session-indicator {
-    background: var(--glass);
-    border-bottom: 1px solid var(--border);
-    padding: 6px 10px;
+/* Placeholder text */
+entry.address-bar text placeholder {
+    color: var(--fg-placeholder);
+    font-size: var(--font-size-sm);
+}
+
+/* ============================================================================
+   6. WINDOW CONTROLS (Custom Styled)
+   ============================================================================ */
+
+.window-controls {
+    min-width: var(--window-controls-width);
+    padding: 0 var(--space-xs);
+}
+
+.window-control-button {
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    min-width: 28px;
     min-height: 28px;
-    box-shadow: 0 8px 24px -18px var(--shadow);
-}
-
-.session-label {
-    font-size: 11px;
+    padding: var(--space-xs);
+    margin: 0 2px;
     color: var(--fg-secondary);
-    padding: 4px 10px;
-    border-radius: 8px;
-    margin: 0 4px;
-    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
-    border: 1px solid transparent;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.session-label.active-session {
-    background: rgba(107, 220, 255, 0.12);
+.window-control-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--fg-primary);
+}
+
+.window-control-button.close:hover {
+    background-color: #e81123;
+    color: #ffffff;
+}
+
+/* ============================================================================
+   7. CONTENT AREA
+   ============================================================================ */
+
+.content-area {
+    background-color: var(--bg-base);
+}
+
+notebook {
+    background-color: var(--bg-base);
+}
+
+notebook > stack {
+    background-color: var(--bg-base);
+}
+
+/* ============================================================================
+   8. OVERVIEW / NEW TAB PAGE (Zen Landing)
+   ============================================================================ */
+
+.overview-page {
+    background: linear-gradient(180deg, #181818 0%, var(--bg-base) 40%);
+}
+
+.overview-title {
+    font-size: var(--font-size-hero);
+    font-weight: 300;
+    color: var(--fg-primary);
+    margin-bottom: var(--space-xl);
+}
+
+.overview-subtitle {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-normal);
+    color: var(--fg-secondary);
+}
+
+.overview-search {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    min-width: 400px;
+    min-height: 44px;
+    color: var(--fg-primary);
+    font-size: var(--font-size-lg);
+    transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.overview-search:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    outline: none;
+}
+
+/* ============================================================================
+   9. SESSION INDICATOR (Minimal Pill Style)
+   ============================================================================ */
+
+.session-indicator {
+    background-color: transparent;
+    padding: 0 var(--space-sm);
+    min-height: 28px;
+}
+
+.session-button {
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: var(--space-xs) var(--space-md);
+    margin: 0 2px;
+    color: var(--fg-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.session-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--fg-secondary);
+}
+
+.session-button.active-session {
+    background-color: var(--accent-dim);
     color: var(--accent);
-    border-color: var(--border-active);
-    font-weight: 600;
 }
 
-.session-separator {
-    width: 1px;
-    background-color: var(--border);
-    margin: 0 6px;
-}
+/* ============================================================================
+   10. SIDEBAR (Optional, Toggle-able)
+   ============================================================================ */
 
-/* Sidebar */
 .sidebar {
-    background: var(--glass);
-    border-right: 1px solid var(--border);
-    padding: 10px 8px;
-    backdrop-filter: blur(10px);
+    background-color: var(--bg-elevated);
+    border-right: 1px solid var(--border-subtle);
+    padding: var(--space-sm);
+    min-width: 180px;
+    max-width: 240px;
 }
 
 .sidebar-tab {
-    background: transparent;
-    border-radius: 8px;
-    padding: 8px 10px;
-    margin-bottom: 4px;
-    text-align: left;
+    background-color: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: 2px;
     color: var(--fg-secondary);
-    transition: background-color 140ms ease, color 140ms ease;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .sidebar-tab:hover {
-    background: var(--bg-tertiary);
+    background-color: var(--bg-hover);
     color: var(--fg-primary);
 }
 
 .sidebar-tab.active-tab {
-    background: linear-gradient(135deg, rgba(75, 194, 255, 0.14), rgba(107, 220, 255, 0.1));
+    background-color: var(--bg-active);
     color: var(--fg-primary);
-    border: 1px solid var(--border-active);
 }
 
 .sidebar-tab-title {
     color: inherit;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
-/* Notebook (WebView Container) */
-notebook {
-    background-color: var(--bg-primary);
-}
+/* ============================================================================
+   11. SCROLLBARS (Thin, Minimal)
+   ============================================================================ */
 
-notebook > stack {
-    background-color: var(--bg-primary);
-    border-radius: 12px;
-}
-
-/* Animations (GPU Accelerated) */
-@keyframes fade-in {
-    from {
-        opacity: 0;
-        transform: translateY(-4px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes slide-in {
-    from {
-        opacity: 0;
-        transform: translateX(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.animate-fade-in {
-    animation: fade-in 200ms ease-out;
-    will-change: opacity, transform;
-}
-
-.animate-slide-in {
-    animation: slide-in 200ms ease-out;
-    will-change: opacity, transform;
-}
-
-/* Disable animations if GPU acceleration disabled */
-.no-animations * {
-    animation: none !important;
-    transition: none !important;
-}
-
-/* Scrollbar */
 scrollbar {
     background-color: transparent;
 }
 
 scrollbar slider {
-    background-color: var(--bg-tertiary);
-    border-radius: 3px;
-    min-width: 8px;
-    min-height: 8px;
+    background-color: var(--fg-muted);
+    border-radius: 4px;
+    min-width: 6px;
+    min-height: 6px;
+    opacity: 0.4;
+    transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+
+scrollbar:hover slider {
+    opacity: 0.6;
 }
 
 scrollbar slider:hover {
+    background-color: var(--fg-secondary);
+    opacity: 0.8;
+}
+
+scrollbar slider:active {
     background-color: var(--accent);
+    opacity: 1;
 }
 
-/* Light Theme Variant */
+/* ============================================================================
+   12. ANIMATIONS
+   ============================================================================ */
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 var(--accent-dim); }
+    50% { box-shadow: 0 0 0 4px var(--accent-dim); }
+}
+
+.animate-fade-in {
+    animation: fade-in var(--transition-normal) ease-out;
+}
+
+.animate-slide-in {
+    animation: slide-in-left var(--transition-normal) ease-out;
+}
+
+/* Disable animations */
+.no-animations,
+.no-animations * {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* ============================================================================
+   13. LIGHT THEME
+   ============================================================================ */
+
 .light-theme {
-    --bg-primary: #eff1f5;
-    --bg-secondary: #e6e9ef;
-    --bg-tertiary: #dce0e8;
-    --fg-primary: #2c3242;
-    --fg-secondary: #4b556b;
-    --accent: #4bb5ff;
-    --accent-strong: #2b9ee8;
-    --border: rgba(0, 0, 0, 0.08);
-    --border-active: rgba(43, 158, 232, 0.4);
-    --shadow: rgba(0, 0, 0, 0.12);
-    --glass: rgba(255, 255, 255, 0.45);
+    --bg-base: #f5f5f5;
+    --bg-elevated: #ffffff;
+    --bg-topbar: #fafafa;
+    --bg-hover: rgba(0, 0, 0, 0.04);
+    --bg-active: rgba(0, 0, 0, 0.08);
+    
+    --fg-primary: #1a1a1a;
+    --fg-secondary: #555555;
+    --fg-muted: #888888;
+    --fg-placeholder: #aaaaaa;
+    
+    --accent: #0095d9;
+    --accent-dim: rgba(0, 149, 217, 0.12);
+    --accent-glow: rgba(0, 149, 217, 0.20);
+    
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-default: rgba(0, 0, 0, 0.12);
+    --border-focus: rgba(0, 149, 217, 0.5);
+    
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+    --shadow-topbar: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
-/* Compact Mode */
-.compact .tab-bar {
-    min-height: 30px;
-    padding: 4px 8px;
+.light-theme window,
+.light-theme .overview-page {
+    background: linear-gradient(180deg, #ffffff 0%, var(--bg-base) 100%);
+}
+
+/* ============================================================================
+   14. COMPACT MODE
+   ============================================================================ */
+
+.compact {
+    --topbar-height: 40px;
+    --font-size-sm: 11px;
+    --space-sm: 6px;
+    --space-md: 10px;
 }
 
 .compact .tab-button {
-    padding: 6px 10px;
-    font-size: 11px;
+    padding: 3px var(--space-sm);
+    min-height: 26px;
 }
 
 .compact .address-bar {
-    padding: 8px 12px;
-    font-size: 13px;
-    margin: 6px 8px;
+    padding: var(--space-xs) var(--space-sm);
+    min-height: 26px;
 }
 
-/* Vertical Tab Mode */
-.vertical-tabs .tab-bar {
+/* ============================================================================
+   15. VERTICAL TAB MODE
+   ============================================================================ */
+
+.vertical-tabs .tab-strip {
     flex-direction: column;
-    width: 220px;
-    border-right: 1px solid var(--border);
+    min-width: 200px;
+    max-width: 240px;
+    padding: var(--space-sm);
+    border-right: 1px solid var(--border-subtle);
     border-bottom: none;
 }
 
 .vertical-tabs .tab-button {
     width: 100%;
+    max-width: none;
     margin: 2px 0;
-    text-align: left;
+    justify-content: flex-start;
 }
 
 .vertical-tabs .tab-button.active-tab {
-    border-bottom: none;
     border-left: 2px solid var(--accent);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+/* ============================================================================
+   16. ACCESSIBILITY
+   ============================================================================ */
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* High contrast adjustments */
+@media (prefers-contrast: high) {
+    window {
+        --fg-primary: #ffffff;
+        --fg-secondary: #cccccc;
+        --border-default: rgba(255, 255, 255, 0.25);
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition-duration: 0.01ms !important;
+    }
 }

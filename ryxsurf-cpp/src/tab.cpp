@@ -38,20 +38,16 @@ void Tab::create_webview() {
     
     // Create WebKit settings for minimal resource usage
     WebKitSettings* settings = webkit_settings_new();
-    webkit_settings_set_enable_plugins(settings, FALSE);
-    webkit_settings_set_enable_java(settings, FALSE);
+    // Removed deprecated plugins/java settings for WebKitGTK 6.0
     webkit_settings_set_enable_media_stream(settings, FALSE);
     webkit_settings_set_enable_mediasource(settings, FALSE);
     webkit_settings_set_hardware_acceleration_policy(
         settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS);
     
-    // Configure shared process + low cache model once
+    // Configure cache model once (process model is automatic in WebKitGTK 6.0)
     static bool context_configured = false;
     WebKitWebContext* ctx = webkit_web_context_get_default();
     if (!context_configured && ctx) {
-#ifdef WEBKIT_PROCESS_MODEL_SHARED_SECONDARY_PROCESS
-        webkit_web_context_set_process_model(ctx, WEBKIT_PROCESS_MODEL_SHARED_SECONDARY_PROCESS);
-#endif
         webkit_web_context_set_cache_model(ctx, WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
         context_configured = true;
     }
@@ -76,10 +72,9 @@ void Tab::create_webview() {
     g_signal_connect(webview_, "notify::title",
                      G_CALLBACK(+[](WebKitWebView* view, GParamSpec*, gpointer data) {
                          Tab* tab = static_cast<Tab*>(data);
-                         char* title = webkit_web_view_get_title(view);
+                         const char* title = webkit_web_view_get_title(view);
                          if (title) {
                              tab->set_title(title);
-                             g_free(title);
                          }
                      }), this);
     

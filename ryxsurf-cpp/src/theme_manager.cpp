@@ -71,14 +71,7 @@ void ThemeManager::load_theme() {
         
         gtk_css_provider_load_from_string(css_provider_, inline_css);
     } else {
-        GError* error = nullptr;
-        gtk_css_provider_load_from_path(css_provider_, css_path.c_str(), &error);
-        
-        if (error) {
-            g_error_free(error);
-            // Fallback to inline CSS
-            load_theme();
-        }
+        gtk_css_provider_load_from_path(css_provider_, css_path.c_str());
     }
     
     // Apply to default display

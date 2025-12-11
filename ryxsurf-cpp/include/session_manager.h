@@ -1,6 +1,8 @@
 #pragma once
 
 #include "workspace.h"
+#include "session.h"
+#include "tab.h"
 #include <vector>
 #include <string>
 #include <memory>

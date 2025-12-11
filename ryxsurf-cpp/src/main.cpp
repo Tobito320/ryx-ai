@@ -4,6 +4,15 @@
 #include <webkit/webkit.h>
 #include <iostream>
 
+static void activate(GtkApplication* app, gpointer user_data) {
+    (void)user_data;
+    (void)app;
+    
+    // Create and show browser window
+    BrowserWindow* browser = new BrowserWindow();
+    browser->show();
+}
+
 int main(int argc, char* argv[]) {
     // Initialize libsodium
     try {
@@ -13,20 +22,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // Initialize GTK
-    gtk_init(&argc, &argv);
+    // Create GTK4 application
+    GtkApplication* app = gtk_application_new("com.ryxsurf.browser", G_APPLICATION_DEFAULT_FLAGS);
+    g_signal_connect(app, "activate", G_CALLBACK(activate), nullptr);
     
-    // Initialize WebKit with shared secondary process model
-    webkit_web_context_set_process_model(
-        webkit_web_context_get_default(),
-        WEBKIT_PROCESS_MODEL_SHARED_SECONDARY_PROCESS);
+    // Run application
+    int status = g_application_run(G_APPLICATION(app), argc, argv);
+    g_object_unref(app);
     
-    // Create and show browser window
-    BrowserWindow browser;
-    browser.show();
-    
-    // Run GTK main loop
-    gtk_main();
-    
-    return 0;
+    return status;
 }

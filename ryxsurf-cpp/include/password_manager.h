@@ -7,6 +7,7 @@
 #include <vector>
 #include <memory>
 #include <optional>
+#include <chrono>
 #include <webkit/webkit.h>
 
 /**

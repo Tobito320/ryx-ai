@@ -12,8 +12,10 @@
 /**
  * BrowserWindow is the main GTK4 window containing the browser UI.
  * 
+ * Layout: Unified top bar with [Overview][Sessions][Tab Strip][Address Bar][Window Controls]
+ * followed by optional sidebar and main content area.
+ * 
  * Ownership: BrowserWindow owns Tab objects and KeyboardHandler.
- * The window manages the visual representation of tabs.
  */
 class BrowserWindow {
 public:
@@ -41,14 +43,23 @@ public:
     void toggle_sidebar();
 
 private:
+    // Window and main container
     GtkWindow* window_;
     GtkBox* main_box_;
+    
+    // Unified top bar components
+    GtkBox* top_bar_;
+    GtkButton* overview_button_;
+    GtkBox* tab_strip_;
+    GtkEntry* address_bar_;
+    GtkBox* window_controls_;
     GtkBox* session_indicator_;
+    
+    // Content area
     GtkBox* content_box_;
     GtkBox* sidebar_;
-    GtkBox* tab_bar_;
-    GtkEntry* address_bar_;
     GtkNotebook* notebook_;
+    
     bool sidebar_visible_;
     
     std::unique_ptr<SessionManager> session_manager_;
@@ -58,6 +69,9 @@ private:
     std::unique_ptr<class PasswordManager> password_manager_;
     std::unique_ptr<class ThemeManager> theme_manager_;
     guint unload_timer_id_;
+    
+    // UI creation methods
+    void create_window_controls();
     
     // UI update methods
     void update_tab_bar();

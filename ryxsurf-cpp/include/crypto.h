@@ -16,8 +16,8 @@ public:
     static constexpr unsigned long long OPS_LIMIT = 3;
     static constexpr size_t MEM_LIMIT = 64 * 1024 * 1024;  // 64 MB
     static constexpr unsigned int SALT_SIZE = 16;
-    static constexpr unsigned int KEY_SIZE = crypto_aead_xchacha20poly1305_ietf_KEYBYTES;
-    static constexpr unsigned int NONCE_SIZE = crypto_aead_xchacha20poly1305_ietf_NONCEBYTES;
+    static constexpr unsigned int KEY_SIZE = 32;    // crypto_aead_xchacha20poly1305_ietf_KEYBYTES
+    static constexpr unsigned int NONCE_SIZE = 24;  // crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
     
     /**
      * Derive encryption key from password using Argon2id.

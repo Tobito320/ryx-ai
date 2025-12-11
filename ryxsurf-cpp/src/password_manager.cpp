@@ -329,15 +329,19 @@ std::vector<Credential> PasswordManager::get_from_libsecret(const std::string& d
     std::vector<Credential> credentials;
     GError* error = nullptr;
     
+    // Build attributes hash table
+    GHashTable* attrs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+    g_hash_table_insert(attrs, g_strdup("domain"), g_strdup(domain.c_str()));
+    
     GList* items = secret_service_search_sync(
         nullptr,
         schema_,
-        nullptr,
+        attrs,
         SECRET_SEARCH_ALL,
         nullptr,
-        &error,
-        "domain", domain.c_str(),
-        nullptr);
+        &error);
+    
+    g_hash_table_destroy(attrs);
     
     if (error) {
         g_error_free(error);
@@ -615,7 +619,7 @@ bool PasswordManager::should_autofill(const std::string& origin) const {
     }
     
     std::string domain = extract_domain(origin);
-    return has_credentials(domain);
+    return const_cast<PasswordManager*>(this)->has_credentials(domain);
 }
 
 std::string PasswordManager::generate_password(size_t length, bool include_symbols) {
