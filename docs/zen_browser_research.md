@@ -19,8 +19,8 @@
 - Modern UI may not appeal to all users
 
 ## RyxSurf gaps/weaknesses vs. Firefox
-- URL navigation reliability is still unresolved and listed as “[ ] URL navigation not working” under the P0 - Critical section in `ryxsurf/PROGRESS.md` (needs live testing to surface the error); Firefox navigation is mature.
-- Workspaces remain in the sidebar instead of the URL bar (noted under P1 High items in `ryxsurf/PROGRESS.md`); Firefox doesn’t have workspaces but its toolbar layout is stable and predictable.
+- URL navigation reliability is still open under P0 - Critical (“[ ] URL navigation not working” with note that the code path looks correct but needs live testing with a fresh log) in `ryxsurf/PROGRESS.md`; Firefox navigation is mature.
+- Workspaces remain in the sidebar instead of the URL bar (P1 - High item “Workspaces in wrong location” in `ryxsurf/PROGRESS.md`); Firefox doesn’t have workspaces but its toolbar layout is stable and predictable.
 - Layout breaks when the URL bar is hidden; Firefox handles toolbar toggles without sidebar expansion issues.
 - Session restore reliability and performance are flagged (slow startup, 4s load); Firefox has stable session restore and optimized startup.
 - Reader mode is listed for Phase 3 in `ryxsurf/PROGRESS.md`, while Firefox ships a full reader view.
