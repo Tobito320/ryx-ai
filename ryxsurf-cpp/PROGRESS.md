@@ -42,10 +42,18 @@
 - Autofill detection per origin
 - Last used timestamp tracking
 
+### ✅ Milestone 9: UI Polish & CSS
+- ThemeManager class for theme/layout/animation management
+- Minimal CSS theme (dark/light variants)
+- GPU-accelerated animations (optional)
+- Tab layout modes (horizontal/vertical)
+- Compact mode support
+- Session indicator styling
+
 ## Current Status
 
-**Total Files**: 30 C++ source/header files
-**Commits**: 9 (analysis, PoC, docs, core models, unload/restore, persistence, password manager)
+**Total Files**: 32 C++ source/header files + 1 CSS file
+**Commits**: 11 (analysis, PoC, docs, core models, unload/restore, persistence, password manager, UI polish)
 **Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager, PasswordManager
 
 ## Next Steps
