@@ -1,7 +1,7 @@
 From 4d5913cef88acaf78ddb0434bf973fddc88cba6a Mon Sep 17 00:00:00 2001
 From: Tobito320 <ahmedhdplay12345@gmail.com>
 Date: Thu, 11 Dec 2025 19:42:09 +0100
-Subject: [PATCH 03/12] core: data model structs + session manager
+Subject: [PATCH 03/14] core: data model structs + session manager
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

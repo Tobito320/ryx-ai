@@ -1,7 +1,7 @@
 From 3c709854d1713f9aabf67a7376c45074e36fd892 Mon Sep 17 00:00:00 2001
 From: Tobito320 <ahmedhdplay12345@gmail.com>
 Date: Thu, 11 Dec 2025 19:42:43 +0100
-Subject: [PATCH 04/12] perf(tab): unload/restore + snapshot
+Subject: [PATCH 04/14] perf(tab): unload/restore + snapshot
 
 Implemented tab unload/restore mechanism with snapshots:
 - TabUnloadManager: automatic unloading based on inactivity (5 min default)

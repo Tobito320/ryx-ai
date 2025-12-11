@@ -221,11 +221,17 @@ bool PasswordManager::save_to_libsecret(const std::string& domain, const std::st
         auto now = std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
         
-        std::stringstream ss;
-        ss << "INSERT OR REPLACE INTO credentials (domain, username, password_encrypted, created, last_used) "
-           << "VALUES ('" << domain << "', '" << username << "', '', " << now << ", " << now << ");";
+        const char* sql = "INSERT OR REPLACE INTO credentials (domain, username, password_encrypted, created, last_used) VALUES (?, ?, '', ?, ?);";
+        sqlite3_stmt* stmt;
         
-        sqlite3_exec(db_, ss.str().c_str(), nullptr, nullptr, nullptr);
+        if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, domain.c_str(), -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 2, username.c_str(), -1, SQLITE_STATIC);
+            sqlite3_bind_int64(stmt, 3, now);
+            sqlite3_bind_int64(stmt, 4, now);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
     }
     
     return true;
@@ -240,21 +246,23 @@ bool PasswordManager::save_to_sqlite(const std::string& domain, const std::strin
     auto now = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
     
-    std::stringstream ss;
-    ss << "INSERT OR REPLACE INTO credentials (domain, username, password_encrypted, created, last_used) "
-       << "VALUES ('" << domain << "', '" << username << "', '" << encrypted << "', " << now << ", " << now << ");";
+    const char* sql = "INSERT OR REPLACE INTO credentials (domain, username, password_encrypted, created, last_used) VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt;
     
-    char* err_msg = nullptr;
-    int rc = sqlite3_exec(db_, ss.str().c_str(), nullptr, nullptr, &err_msg);
-    
-    if (rc != SQLITE_OK) {
-        if (err_msg) {
-            sqlite3_free(err_msg);
-        }
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return false;
     }
     
-    return true;
+    sqlite3_bind_text(stmt, 1, domain.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, username.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, encrypted.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 4, now);
+    sqlite3_bind_int64(stmt, 5, now);
+    
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    
+    return rc == SQLITE_DONE;
 }
 
 std::vector<Credential> PasswordManager::get(const std::string& domain) {
