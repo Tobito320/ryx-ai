@@ -43,15 +43,19 @@ private:
     GtkEntry* address_bar_;
     GtkNotebook* notebook_;
     
-    std::vector<std::unique_ptr<Tab>> tabs_;
-    size_t active_tab_index_;
-    
+    std::unique_ptr<SessionManager> session_manager_;
     std::unique_ptr<KeyboardHandler> keyboard_handler_;
+    std::unique_ptr<class TabUnloadManager> unload_manager_;
+    std::unique_ptr<class PersistenceManager> persistence_manager_;
+    std::unique_ptr<class PasswordManager> password_manager_;
+    std::unique_ptr<class ThemeManager> theme_manager_;
+    guint unload_timer_id_;
     
     // UI update methods
     void update_tab_bar();
     void update_address_bar();
     void update_notebook();
+    void update_session_indicator();
     void refresh_ui();
     
     // Signal handlers

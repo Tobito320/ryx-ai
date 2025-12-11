@@ -70,7 +70,11 @@ sources = files(
   'src/crypto.cpp',
   'src/persistence_manager.cpp',
   'src/password_manager.cpp',
+  'src/theme_manager.cpp',
 )
+
+# Install CSS theme
+install_data('data/theme.css', install_dir: get_option('datadir') / 'ryxsurf')
 
 # Executable
 executable(
@@ -87,6 +91,7 @@ executable(
   ],
   cpp_args: cpp_args,
   install: true,
+  install_dir: get_option('bindir'),
 )
 
 # Tests

@@ -3,6 +3,7 @@
 #include "tab_unload_manager.h"
 #include "persistence_manager.h"
 #include "password_manager.h"
+#include "theme_manager.h"
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
 #include <glib.h>
@@ -19,6 +20,7 @@ BrowserWindow::BrowserWindow()
     , unload_manager_(std::make_unique<TabUnloadManager>())
     , persistence_manager_(std::make_unique<PersistenceManager>(session_manager_.get()))
     , password_manager_(std::make_unique<PasswordManager>())
+    , theme_manager_(std::make_unique<ThemeManager>())
     , unload_timer_id_(0)
 {
     // Create main window
@@ -30,6 +32,11 @@ BrowserWindow::BrowserWindow()
     main_box_ = GTK_BOX(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0));
     gtk_window_set_child(window_, GTK_WIDGET(main_box_));
     
+    // Session indicator (compact horizontal bar)
+    GtkBox* session_indicator = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4));
+    gtk_widget_add_css_class(GTK_WIDGET(session_indicator), "session-indicator");
+    gtk_box_append(main_box_, GTK_WIDGET(session_indicator));
+    
     // Tab bar (horizontal, compact)
     tab_bar_ = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4));
     gtk_widget_add_css_class(GTK_WIDGET(tab_bar_), "tab-bar");
@@ -38,6 +45,7 @@ BrowserWindow::BrowserWindow()
     // Address bar
     address_bar_ = GTK_ENTRY(gtk_entry_new());
     gtk_entry_set_placeholder_text(address_bar_, "Enter URL or search...");
+    gtk_widget_add_css_class(GTK_WIDGET(address_bar_), "address-bar");
     g_signal_connect(address_bar_, "activate",
                      G_CALLBACK(on_address_bar_activated), this);
     gtk_box_append(main_box_, GTK_WIDGET(address_bar_));
@@ -49,6 +57,9 @@ BrowserWindow::BrowserWindow()
     
     // Setup keyboard shortcuts
     keyboard_handler_->setup_shortcuts(window_);
+    
+    // Apply theme
+    theme_manager_->apply_to_window(window_);
     
     // Initialize persistence and load saved sessions
     if (persistence_manager_->initialize()) {
@@ -218,13 +229,17 @@ void BrowserWindow::update_tab_bar() {
         }
         
         GtkButton* button = GTK_BUTTON(gtk_button_new());
+        gtk_widget_add_css_class(GTK_WIDGET(button), "tab-button");
+        
         GtkBox* box = GTK_BOX(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4));
         
         GtkLabel* label = GTK_LABEL(gtk_label_new(tab->get_title().c_str()));
+        gtk_widget_add_css_class(GTK_WIDGET(label), "tab-title");
         gtk_box_append(box, GTK_WIDGET(label));
         
         GtkButton* close_btn = GTK_BUTTON(gtk_button_new_from_icon_name("window-close"));
         gtk_button_set_has_frame(close_btn, FALSE);
+        gtk_widget_add_css_class(GTK_WIDGET(close_btn), "tab-close-button");
         g_signal_connect(close_btn, "clicked",
                          G_CALLBACK(on_tab_close_clicked), this);
         g_object_set_data(G_OBJECT(close_btn), "tab-index", GINT_TO_POINTER(i));
@@ -235,6 +250,16 @@ void BrowserWindow::update_tab_bar() {
         // Highlight active tab
         if (i == session->get_active_tab_index()) {
             gtk_widget_add_css_class(GTK_WIDGET(button), "active-tab");
+        }
+        
+        // Mark unloaded tabs
+        if (tab->is_unloaded()) {
+            gtk_widget_add_css_class(GTK_WIDGET(button), "unloaded");
+        }
+        
+        // Add animation class
+        if (theme_manager_->are_animations_enabled()) {
+            gtk_widget_add_css_class(GTK_WIDGET(button), "animate-fade-in");
         }
         
         gtk_box_append(tab_bar_, GTK_WIDGET(button));
@@ -255,6 +280,12 @@ void BrowserWindow::update_notebook() {
 void BrowserWindow::refresh_ui() {
     update_tab_bar();
     update_address_bar();
+    update_session_indicator();
+}
+
+void BrowserWindow::update_session_indicator() {
+    // Update session indicator (placeholder for now)
+    // Real implementation would show workspace/session names
 }
 
 void BrowserWindow::ensure_tab_webview_loaded(Tab* tab) {
