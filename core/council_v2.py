@@ -109,24 +109,24 @@ class Council:
         """Map old vLLM model paths to Ollama model names"""
         path_lower = model_path.lower()
         if 'coder' in path_lower or 'coding' in path_lower:
-            return 'mistral-nemo:12b'  # Best available for coding
+            return 'qwen2.5-coder:14b'  # Best available for coding
         elif 'fast' in path_lower or '3b' in path_lower or '1.5b' in path_lower:
             return 'qwen2.5:1.5b'
         else:
-            return 'mistral-nemo:12b'  # Default
+            return 'qwen2.5-coder:14b'  # Default
     
     def _get_default_members(self) -> List[CouncilMember]:
         """Get default council members (using Ollama models)"""
         return [
             CouncilMember(
                 name="Coder",
-                model_path="mistral-nemo:12b",
+                model_path="qwen2.5-coder:14b",
                 weight=1.5,
                 specialization="coding"
             ),
             CouncilMember(
                 name="General",
-                model_path="mistral-nemo:12b",
+                model_path="qwen2.5-coder:14b",
                 weight=1.0,
                 specialization="general"
             ),

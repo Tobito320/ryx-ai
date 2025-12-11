@@ -616,7 +616,8 @@ if ! curl -s http://localhost:11434/api/tags &>/dev/null; then
     echo -e "Start with: ${CYAN}ollama serve${NC}"
     exit 1
 fi
-start_searxng
+# SearXNG is started on-demand by Python when web search is needed
+# Don't start it for every CLI command (saves resources)
 
 # Activate venv and run CLI
 [ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"

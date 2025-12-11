@@ -677,8 +677,19 @@ Be aggressive about making edits. The file content provided is complete and accu
                 logger.debug(f"Skipping duplicate edit to {file_path}")
                 continue
             
+            # Detect rename operation - if old_str is just a variable/function name
+            # and new_str is also just a name, use replace_all mode
+            is_rename = (
+                '\n' not in old_str and 
+                '\n' not in new_str and 
+                len(old_str.split()) <= 2 and
+                len(new_str.split()) <= 2 and
+                old_str.replace('_', '').replace('-', '').isalnum() and
+                new_str.replace('_', '').replace('-', '').isalnum()
+            )
+            
             # Apply with multi-strategy matching
-            result = self.editor.edit(file_path, old_str, new_str)
+            result = self.editor.edit(file_path, old_str, new_str, replace_all=is_rename)
             
             if result.success:
                 applied_to_files.add(edit_key)

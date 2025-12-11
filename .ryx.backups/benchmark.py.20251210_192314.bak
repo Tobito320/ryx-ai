@@ -1,0 +1,1468 @@
+#!/usr/bin/env python3
+"""
+Ryx AI - Self-Benchmark System
+Measures Ryx's capabilities and outputs a score.
+"""
+
+import os
+import sys
+import json
+import time
+import tempfile
+import shutil
+from pathlib import Path
+from datetime import datetime
+from dataclasses import dataclass, field, asdict
+from typing import List, Tuple, Optional
+
+# Add project root to path
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+
+@dataclass
+class BenchmarkResult:
+    """Result of a single benchmark test"""
+    category: str
+    test_name: str
+    passed: bool
+    points: int
+    max_points: int
+    time_seconds: float
+    error: Optional[str] = None
+
+
+@dataclass
+class BenchmarkReport:
+    """Full benchmark report"""
+    timestamp: str
+    edit_success: int = 0
+    edit_max: int = 30  # 10 tests × 3 pts (aspirational)
+    file_discovery: int = 0
+    file_max: int = 20  # 10 tests × 2 pts (aspirational)
+    task_completion: int = 0
+    task_max: int = 30  # 10 tests × 3 pts (aspirational)
+    self_healing: int = 0
+    healing_max: int = 10  # 5 tests × 2 pts
+    speed_bonus: int = 0
+    speed_max: int = 10  # 2 tests × 5 pts
+    total: int = 0
+    max_total: int = 100  # Aspirational target (Claude Code CLI = 95)
+    results: List[dict] = field(default_factory=list)
+    
+    def calculate_total(self):
+        self.total = (
+            self.edit_success + 
+            self.file_discovery + 
+            self.task_completion + 
+            self.self_healing + 
+            self.speed_bonus
+        )
+        return self.total
+
+
+class RyxBenchmark:
+    """Benchmark system for Ryx AI"""
+    
+    def __init__(self):
+        self.project_root = PROJECT_ROOT
+        self.results: List[BenchmarkResult] = []
+        self.temp_dir = None
+        
+    def setup(self):
+        """Create temporary test environment"""
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="ryx_benchmark_"))
+        
+        # Create test files
+        (self.temp_dir / "test_file.py").write_text('''
+def hello():
+    """Say hello"""
+    print("Hello, World!")
+    return True
+
+def add(a, b):
+    """Add two numbers"""
+    return a + b
+
+def multiply(a, b):
+    """Multiply two numbers"""
+    return a * b
+
+class Calculator:
+    """Simple calculator"""
+    
+    def __init__(self):
+        self.result = 0
+    
+    def add(self, x):
+        self.result += x
+        return self
+    
+    def subtract(self, x):
+        self.result -= x
+        return self
+    
+    def get_result(self):
+        return self.result
+''')
+        
+        (self.temp_dir / "config.json").write_text(json.dumps({
+            "name": "test_project",
+            "version": "1.0.0",
+            "settings": {
+                "debug": True,
+                "log_level": "INFO"
+            }
+        }, indent=2))
+        
+        # Create subdirectory with more files
+        (self.temp_dir / "utils").mkdir()
+        (self.temp_dir / "utils" / "helpers.py").write_text('''
+def format_string(s):
+    return s.strip().lower()
+
+def validate_email(email):
+    return "@" in email and "." in email
+''')
+        
+    def teardown(self):
+        """Clean up test environment"""
+        if self.temp_dir and self.temp_dir.exists():
+            shutil.rmtree(self.temp_dir)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # EDIT SUCCESS TESTS (30 points max)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def test_edit_simple_function(self) -> BenchmarkResult:
+        """Test: Add a simple function to a file"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Try to add a new function after 'multiply'
+            result = editor.edit(
+                str(test_file),
+                search_text='def multiply(a, b):\n    """Multiply two numbers"""\n    return a * b',
+                replace_text='def multiply(a, b):\n    """Multiply two numbers"""\n    return a * b\n\ndef divide(a, b):\n    """Divide two numbers"""\n    return a / b if b != 0 else None'
+            )
+            
+            # Verify edit was applied
+            new_content = test_file.read_text()
+            passed = result.success and "def divide" in new_content
+            
+            # Restore original
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="simple_function_add",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="simple_function_add",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_with_whitespace(self) -> BenchmarkResult:
+        """Test: Edit with whitespace variations"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Try edit with slightly different whitespace
+            result = editor.edit(
+                str(test_file),
+                search_text='def hello():\n    """Say hello"""',
+                replace_text='def hello():\n    """Say hello to everyone"""'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "hello to everyone" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="whitespace_tolerance",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="whitespace_tolerance",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_class_method(self) -> BenchmarkResult:
+        """Test: Add method to class"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            result = editor.edit(
+                str(test_file),
+                search_text='    def get_result(self):\n        return self.result',
+                replace_text='    def get_result(self):\n        return self.result\n    \n    def reset(self):\n        self.result = 0\n        return self'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "def reset" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="class_method_add",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="class_method_add",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_fuzzy_whitespace(self) -> BenchmarkResult:
+        """Test: Edit with completely wrong indentation (fuzzy match needed)"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Search with NO indentation (should still find the indented class method)
+            result = editor.edit(
+                str(test_file),
+                search_text='def get_result(self):\nreturn self.result',  # No indent!
+                replace_text='def get_result(self):\n    """Get the current result"""\n    return self.result'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "Get the current result" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="fuzzy_whitespace",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="fuzzy_whitespace",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_partial_match(self) -> BenchmarkResult:
+        """Test: Edit with partial/slightly wrong search text (needs fuzzy match)"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Search with slightly different text (missing docstring)
+            result = editor.edit(
+                str(test_file),
+                search_text='def add(a, b):\n    return a + b',  # Missing docstring
+                replace_text='def add(a, b):\n    """Add two numbers together"""\n    return a + b'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "Add two numbers together" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="partial_match",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="partial_match",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_json_file(self) -> BenchmarkResult:
+        """Test: Edit a JSON file correctly"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "config.json"
+            original = test_file.read_text()
+            
+            result = editor.edit(
+                str(test_file),
+                search_text='"debug": true',
+                replace_text='"debug": false'
+            )
+            
+            new_content = test_file.read_text()
+            # Verify it's still valid JSON
+            try:
+                import json
+                json.loads(new_content)
+                valid_json = True
+            except:
+                valid_json = False
+            
+            passed = result.success and '"debug": false' in new_content and valid_json
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="json_edit",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="json_edit",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_multiline_block(self) -> BenchmarkResult:
+        """Test: Replace a multi-line block of code"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Replace the entire Calculator class init
+            result = editor.edit(
+                str(test_file),
+                search_text='    def __init__(self):\n        self.result = 0',
+                replace_text='    def __init__(self, initial=0):\n        self.result = initial'
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "initial=0" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="multiline_block",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="multiline_block",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_append_to_file(self) -> BenchmarkResult:
+        """Test: Append content to end of file"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "test_file.py"
+            original = test_file.read_text()
+            
+            # Append new function at the end
+            result = editor.edit(
+                str(test_file),
+                search_text="",  # Empty search = append mode
+                replace_text="\n\ndef new_function():\n    return 'appended'\n"
+            )
+            
+            new_content = test_file.read_text()
+            passed = result.success and "def new_function" in new_content
+            
+            test_file.write_text(original)
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="append_file",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="append_file",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # FILE DISCOVERY TESTS (20 points max)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def test_find_file_by_name(self) -> BenchmarkResult:
+        """Test: Find file by name pattern"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the paths.py file")
+            
+            found = any("paths.py" in f.path for f in context.files)
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_name",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_name",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_file_by_content(self) -> BenchmarkResult:
+        """Test: Find file by content description"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the file that handles model routing")
+            
+            found = any("model_router" in f.path for f in context.files)
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_content",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_content",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_function_location(self) -> BenchmarkResult:
+        """Test: Find where a function is defined"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the select_model function")
+            
+            # Check if model_router.py is in results (where select_model is)
+            found = any("model_router" in f.path for f in context.files)
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_function",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_function",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_config_file(self) -> BenchmarkResult:
+        """Test: Find config files in the project"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the models config file")
+            
+            # Should find some config file
+            found = len(context.files) > 0
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_config",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_config",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_class_definition(self) -> BenchmarkResult:
+        """Test: Find where a class is defined"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the ReliableEditor class")
+            
+            # Should find reliable_editor.py
+            found = any("reliable_editor" in f.path for f in context.files)
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_class",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_class",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_related_files(self) -> BenchmarkResult:
+        """Test: Find files related to a topic"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("files for the benchmark system")
+            
+            # Should find benchmark-related files
+            found = len(context.files) >= 1
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_related",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_related",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_file_by_extension(self) -> BenchmarkResult:
+    """Test: Find file by extension"""
+    start = time.time()
+    try:
+        from core.auto_context import AutoContextBuilder
+        
+        builder = AutoContextBuilder(str(self.project_root))
+        context = builder.build_context("find all Python files")
+        
+        found = any(f.path.endswith(".py") for f in context.files)
+        
+        return BenchmarkResult(
+            category="file_discovery",
+            test_name="find_by_extension",
+            passed=found,
+            points=2 if found else 0,
+            max_points=2,
+            time_seconds=time.time() - start
+        )
+    except Exception as e:
+        return BenchmarkResult(
+            category="file_discovery",
+            test_name="find_by_extension",
+            passed=False,
+            points=0,
+            max_points=2,
+            time_seconds=time.time() - start,
+            error=str(e)
+        )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # TASK COMPLETION TESTS (30 points max)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def test_intent_detection(self) -> BenchmarkResult:
+        """Test: Correctly detect intent from query"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain, Intent
+            
+            brain = get_brain()
+            
+            test_cases = [
+                ("fix this bug", Intent.CODE_TASK),
+                ("search for python tutorials", Intent.SEARCH_WEB),
+                ("open config.json", Intent.OPEN_FILE),
+            ]
+            
+            correct = 0
+            for query, expected in test_cases:
+                plan = brain.understand(query)
+                if plan.intent == expected:
+                    correct += 1
+            
+            passed = correct >= 2  # At least 2/3 correct
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="intent_detection",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="intent_detection",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_model_routing(self) -> BenchmarkResult:
+        """Test: Correctly route to appropriate model"""
+        start = time.time()
+        try:
+            from core.model_router import select_model
+            
+            test_cases = [
+                ("fix bug", "code"),
+                ("why does this work", "reason"),
+                ("hi", "fast"),
+            ]
+            
+            correct = 0
+            for query, expected_role in test_cases:
+                model = select_model(query)
+                if expected_role in model.role.value:
+                    correct += 1
+            
+            passed = correct >= 2
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="model_routing",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="model_routing",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_autonomous_file_edit(self) -> BenchmarkResult:
+        """Test: Ryx can autonomously find AND edit a file based on description"""
+        start = time.time()
+        try:
+            # This test requires Ryx to:
+            # 1. Understand the request
+            # 2. Find the right file
+            # 3. Make the correct edit
+            # Currently Ryx likely fails this - needs improvement
+            
+            from core.ryx_brain import get_brain
+            from core.auto_context import AutoContextBuilder
+            from core.reliable_editor import ReliableEditor
+            
+            brain = get_brain()
+            builder = AutoContextBuilder(str(self.project_root))
+            editor = ReliableEditor()
+            
+            # Create a test file
+            test_file = self.temp_dir / "auto_edit_test.py"
+            test_file.write_text('def greet():\n    return "hello"\n')
+            
+            # Ask Ryx to understand and find the file
+            plan = brain.understand("change greet function to return 'hi' instead of 'hello'")
+            
+            # Check if plan has correct intent and steps
+            has_edit_intent = plan.intent.name in ["CODE_TASK", "EDIT_FILE"]
+            
+            # Try to find the file
+            context = builder.build_context("find the greet function")
+            
+            # Actually make the edit
+            result = editor.edit(
+                str(test_file),
+                search_text='return "hello"',
+                replace_text='return "hi"'
+            )
+            
+            new_content = test_file.read_text()
+            edit_worked = '"hi"' in new_content
+            
+            passed = has_edit_intent and edit_worked
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="autonomous_file_edit",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="autonomous_file_edit",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+
+    def test_plan_generation(self) -> BenchmarkResult:
+        """Test: Generate a valid execution plan for a task"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain
+            
+            brain = get_brain()
+            
+            # Test that we can generate a plan with steps
+            plan = brain.understand("add a logging function to utils")
+            
+            # A good plan should have at least one step
+            has_steps = hasattr(plan, 'steps') and len(plan.steps) > 0
+            has_intent = hasattr(plan, 'intent') and plan.intent is not None
+            
+            passed = has_intent and has_steps
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="plan_generation",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="plan_generation",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_context_extraction(self) -> BenchmarkResult:
+        """Test: Extract relevant context for a task"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("fix bug in model routing")
+            
+            # Should find model_router.py
+            has_relevant = any("model_router" in f.path for f in context.files)
+            has_any_files = len(context.files) > 0
+            
+            passed = has_relevant and has_any_files
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="context_extraction",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="context_extraction",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_tool_selection(self) -> BenchmarkResult:
+        """Test: Select appropriate tool for a task"""
+        start = time.time()
+        try:
+            from core.tools import get_tool_registry
+            
+            registry = get_tool_registry()
+            tools = registry.list_tools()
+            
+            # Check that we have essential tools
+            # Tools are dicts with 'name' key
+            tool_names = [t['name'].lower() for t in tools]
+            
+            has_file = 'file' in tool_names  # file tool handles read/edit
+            has_search = 'search' in tool_names
+            has_shell = 'shell' in tool_names
+            
+            passed = has_file and has_search and has_shell
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="tool_selection",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="tool_selection",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_llm_code_generation(self) -> BenchmarkResult:
+        """Test: LLM can generate valid Python code"""
+        start = time.time()
+        try:
+            import requests
+            
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "qwen2.5-coder:14b",
+                    "prompt": "Write a Python function called 'add_numbers' that takes two parameters and returns their sum. Only output the code, no explanation.",
+                    "stream": False,
+                    "options": {"num_predict": 100}
+                },
+                timeout=60
+            )
+            
+            code = response.json().get("response", "")
+            
+            # Check if it contains a valid function definition
+            has_def = "def add_numbers" in code
+            has_return = "return" in code
+            
+            # Try to compile it
+            try:
+                # Extract just the code part
+                if "```" in code:
+                    code = code.split("```")[1]
+                    if code.startswith("python"):
+                        code = code[6:]
+                compile(code.strip(), "<string>", "exec")
+                compiles = True
+            except:
+                compiles = False
+            
+            passed = has_def and has_return and compiles
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="llm_code_gen",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="llm_code_gen",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_memory_context(self) -> BenchmarkResult:
+        """Test: Brain maintains conversation context"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain
+            
+            brain = get_brain()
+            
+            # Make a query
+            plan1 = brain.understand("open README.md")
+            
+            # Check context is maintained
+            has_context = brain.ctx.last_query == "open README.md"
+            has_turn = brain.ctx.turn_count > 0
+            
+            passed = has_context and has_turn
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="memory_context",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="memory_context",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # SELF-HEALING TESTS (10 points max)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def test_retry_on_error(self) -> BenchmarkResult:
+        """Test: System has retry logic"""
+        start = time.time()
+        try:
+            from core.tools import WebSearchTool
+            
+            # Check if retry parameter exists
+            tool = WebSearchTool()
+            import inspect
+            sig = inspect.signature(tool.search)
+            has_retry = 'retry' in sig.parameters
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="retry_logic",
+                passed=has_retry,
+                points=2 if has_retry else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="retry_logic",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_error_recovery(self) -> BenchmarkResult:
+        """Test: System can recover from invalid input"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            
+            # Try edit on non-existent file - should not crash
+            try:
+                result = editor.edit(
+                    "/nonexistent/file.py",
+                    search_text="test",
+                    replace_text="test2"
+                )
+                # Should return False, not crash
+                passed = not result.success
+            except Exception:
+                passed = False
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="error_recovery",
+                passed=passed,
+                points=2 if passed else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="error_recovery",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_backup_restore(self) -> BenchmarkResult:
+        """Test: System can backup and restore files"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "backup_test.py"
+            test_file.write_text("original content")
+            
+            # Make an edit (creates backup)
+            result = editor.edit(
+                str(test_file),
+                search_text="original content",
+                replace_text="modified content"
+            )
+            
+            # Check backup was created
+            backup_exists = result.backup_path and Path(result.backup_path).exists()
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="backup_restore",
+                passed=backup_exists,
+                points=2 if backup_exists else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="backup_restore",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_syntax_validation(self) -> BenchmarkResult:
+        """Test: Editor validates Python syntax after edit"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "syntax_test.py"
+            test_file.write_text("def foo():\n    pass\n")
+            
+            # Try to make an edit that would break syntax
+            result = editor.edit(
+                str(test_file),
+                search_text="def foo():\n    pass",
+                replace_text="def foo(\n    pass"  # Missing closing paren - INVALID!
+            )
+            
+            # Should fail because syntax is invalid
+            passed = not result.success
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="syntax_validation",
+                passed=passed,
+                points=2 if passed else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="syntax_validation",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_graceful_degradation(self) -> BenchmarkResult:
+        """Test: System handles missing dependencies gracefully"""
+        start = time.time()
+        try:
+            # Test that we handle import errors gracefully
+            try:
+                from core.ryx_brain import get_brain
+                brain = get_brain()
+                # Even with missing optional features, brain should work
+                plan = brain.understand("hello")
+                passed = plan is not None
+            except ImportError:
+                # ImportError is caught, system degrades gracefully
+                passed = True
+            except Exception:
+                passed = False
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="graceful_degrade",
+                passed=passed,
+                points=2 if passed else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="graceful_degrade",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # SPEED TESTS (10 points max)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def test_inference_speed(self) -> BenchmarkResult:
+        """Test: LLM inference speed"""
+        start = time.time()
+        try:
+            import requests
+            
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "qwen2.5:3b",
+                    "prompt": "Say 'test'",
+                    "stream": False,
+                    "options": {"num_predict": 5}
+                },
+                timeout=30
+            )
+            
+            elapsed = time.time() - start
+            
+            # Score based on speed
+            if elapsed < 1.0:
+                points = 5
+            elif elapsed < 2.0:
+                points = 3
+            elif elapsed < 5.0:
+                points = 1
+            else:
+                points = 0
+            
+            return BenchmarkResult(
+                category="speed",
+                test_name="inference_speed",
+                passed=elapsed < 5.0,
+                points=points,
+                max_points=5,
+                time_seconds=elapsed
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="speed",
+                test_name="inference_speed",
+                passed=False,
+                points=0,
+                max_points=5,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_context_build_speed(self) -> BenchmarkResult:
+        """Test: Context building speed"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find model router")
+            
+            elapsed = time.time() - start
+            
+            if elapsed < 0.5:
+                points = 5
+            elif elapsed < 1.0:
+                points = 3
+            elif elapsed < 2.0:
+                points = 1
+            else:
+                points = 0
+            
+            return BenchmarkResult(
+                category="speed",
+                test_name="context_build_speed",
+                passed=elapsed < 2.0,
+                points=points,
+                max_points=5,
+                time_seconds=elapsed
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="speed",
+                test_name="context_build_speed",
+                passed=False,
+                points=0,
+                max_points=5,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # RUN ALL TESTS
+    # ═══════════════════════════════════════════════════════════════
+    
+    def run_all(self) -> BenchmarkReport:
+        """Run all benchmark tests"""
+        print("═" * 60)
+        print("  RYX AI BENCHMARK")
+        print("═" * 60)
+        print()
+        
+        self.setup()
+        
+        report = BenchmarkReport(
+            timestamp=datetime.now().isoformat()
+        )
+        
+        # Edit tests
+        print("📝 EDIT SUCCESS TESTS")
+        edit_tests = [
+            self.test_edit_simple_function,
+            self.test_edit_with_whitespace,
+            self.test_edit_class_method,
+            self.test_edit_fuzzy_whitespace,
+            self.test_edit_partial_match,
+            self.test_edit_json_file,
+            self.test_edit_multiline_block,
+            self.test_edit_append_to_file,
+        ]
+        for test in edit_tests:
+            result = test()
+            self.results.append(result)
+            report.edit_success += result.points
+            status = "✓" if result.passed else "✗"
+            print(f"  {status} {result.test_name}: {result.points}/{result.max_points}")
+        print()
+        
+        # File discovery tests
+        print("🔍 FILE DISCOVERY TESTS")
+        file_tests = [
+            self.test_find_file_by_name,
+            self.test_find_file_by_content,
+            self.test_find_function_location,
+            self.test_find_config_file,
+            self.test_find_class_definition,
+            self.test_find_related_files,
+        self.test_find_file_by_extension,
+        ]
+        for test in file_tests:
+            result = test()
+            self.results.append(result)
+            report.file_discovery += result.points
+            status = "✓" if result.passed else "✗"
+            print(f"  {status} {result.test_name}: {result.points}/{result.max_points}")
+        print()
+        
+        # Task completion tests
+        print("🎯 TASK COMPLETION TESTS")
+        task_tests = [
+            self.test_intent_detection,
+            self.test_model_routing,
+            self.test_autonomous_file_edit,
+            self.test_plan_generation,
+            self.test_context_extraction,
+            self.test_tool_selection,
+            self.test_llm_code_generation,
+            self.test_memory_context,
+        ]
+        for test in task_tests:
+            result = test()
+            self.results.append(result)
+            report.task_completion += result.points
+            status = "✓" if result.passed else "✗"
+            print(f"  {status} {result.test_name}: {result.points}/{result.max_points}")
+        print()
+        
+        # Self-healing tests
+        print("🔧 SELF-HEALING TESTS")
+        healing_tests = [
+            self.test_retry_on_error,
+            self.test_error_recovery,
+            self.test_backup_restore,
+            self.test_syntax_validation,
+            self.test_graceful_degradation,
+        ]
+        for test in healing_tests:
+            result = test()
+            self.results.append(result)
+            report.self_healing += result.points
+            status = "✓" if result.passed else "✗"
+            print(f"  {status} {result.test_name}: {result.points}/{result.max_points}")
+        print()
+        
+        # Speed tests
+        print("⚡ SPEED TESTS")
+        speed_tests = [
+            self.test_inference_speed,
+            self.test_context_build_speed,
+        ]
+        for test in speed_tests:
+            result = test()
+            self.results.append(result)
+            report.speed_bonus += result.points
+            status = "✓" if result.passed else "✗"
+            print(f"  {status} {result.test_name}: {result.points}/{result.max_points} ({result.time_seconds:.2f}s)")
+        print()
+        
+        # Calculate total
+        report.calculate_total()
+        report.results = [asdict(r) for r in self.results]
+        
+        # Print summary
+        print("═" * 60)
+        print("  BENCHMARK SUMMARY")
+        print("═" * 60)
+        print(f"  Edit Success:    {report.edit_success:2}/{report.edit_max}")
+        print(f"  File Discovery:  {report.file_discovery:2}/{report.file_max}")
+        print(f"  Task Completion: {report.task_completion:2}/{report.task_max}")
+        print(f"  Self-Healing:    {report.self_healing:2}/{report.healing_max}")
+        print(f"  Speed Bonus:     {report.speed_bonus:2}/{report.speed_max}")
+        print("  " + "─" * 30)
+        print(f"  TOTAL:           {report.total:2}/{report.max_total}")
+        print("═" * 60)
+        
+        self.teardown()
+        
+        return report
+    
+    def save_report(self, report: BenchmarkReport, path: Optional[Path] = None):
+        """Save benchmark report to file"""
+        if path is None:
+            log_dir = self.project_root / "data" / "benchmark_logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            path = log_dir / f"benchmark_{timestamp}.json"
+        
+        with open(path, "w") as f:
+            json.dump(asdict(report), f, indent=2)
+        
+        print(f"\nReport saved to: {path}")
+        return path
+
+
+def main():
+    benchmark = RyxBenchmark()
+    report = benchmark.run_all()
+    benchmark.save_report(report)
+    return report.total
+
+
+if __name__ == "__main__":
+    score = main()
+    sys.exit(0 if score > 0 else 1)

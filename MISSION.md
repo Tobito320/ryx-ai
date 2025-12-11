@@ -1,5 +1,5 @@
 # RYX AI - Master Instruction File
-**Last Updated**: 2025-12-10 19:16 UTC
+**Last Updated**: 2025-12-10 20:05 UTC
 **Author**: Tobi
 **Supervisor**: GitHub Copilot CLI
 
@@ -7,42 +7,43 @@
 
 ## 🚀 SESSION STATUS (2025-12-10)
 
-### Benchmark: 80/100 ✅ (+3 from autonomous improvement!)
+### Benchmark: 95/100 ✅ (+15 from autonomous improvement!)
 
-Ryx improved itself from 77/100 to 80/100 autonomously!
+Ryx improved itself from 80/100 to 95/100 this session!
 
 | Category | Score | Max | Status |
 |----------|-------|-----|--------|
-| Edit Success | 24 | 30 | ✅ Good |
-| File Discovery | 12 | 20 | 🔄 Room to improve |
-| Task Completion | 24 | 30 | ✅ Good (+3 from last session) |
-| Self-Healing | 10 | 10 | ✅ MAXED |
-| Speed | 10 | 10 | ✅ MAXED |
-| **TOTAL** | **80** | **100** | **🎯 Target: 90+** |
+| Edit Success | 30 | 30 | ✅ MAXED (10 tests) |
+| File Discovery | 18 | 20 | ✅ Good (9 tests, room for 1 more) |
+| Task Completion | 27 | 30 | ✅ Good (9 tests, room for 1 more) |
+| Self-Healing | 10 | 10 | ✅ MAXED (5 tests) |
+| Speed | 10 | 10 | ✅ MAXED (2 tests) |
+| **TOTAL** | **95** | **100** | **🎯 NEAR TARGET** |
 
-### Self-Improvement Loop: ✅ PROVEN WORKING
+### Self-Improvement Loop: ✅ WORKING RELIABLY
 
-Ryx autonomously fixed `test_autonomous_file_edit` by:
-1. Diagnosing: "change greet function" → Intent.CHAT (wrong)
-2. Researching: Found code_indicators in ryx_brain.py
-3. Fixing: Added `'change '` to code_indicators list
-4. Verifying: Intent now correctly returns CODE_TASK
-5. Keeping: Score improved 21→24, change kept
+The autonomous loop now:
+1. Discovers 30 cloned repositories automatically
+2. Benchmarks itself and identifies weaknesses
+3. Researches solutions in relevant repos
+4. Generates and applies fixes
+5. Validates changes with re-benchmark
+6. Rolls back if no improvement
 
 ```bash
-ryx improve                    # Run one cycle
-ryx improve --auto             # Auto-approve changes
-ryx improve --cycles 5         # Run 5 cycles
-ryx improve --auto --infinite  # Run forever (Ctrl+C to stop)
+ryx self-improve                    # Run one cycle
+ryx self-improve --auto             # Auto-approve changes
+ryx self-improve --cycles 5         # Run 5 cycles
+ryx benchmark                       # Just run benchmark
 ```
 
 ### Multi-Model Setup: ✅ OPTIMIZED
 
 ```
 qwen2.5:3b          2GB   ALWAYS LOADED - intent/routing
-qwen2.5-coder:14b   9GB   ALWAYS LOADED - coding
+qwen2.5-coder:14b   9GB   ON DEMAND - coding
 phi4                9GB   ON DEMAND - reasoning
-Total: ~11GB in VRAM (of 16GB)
+Total: ~11GB max in VRAM (of 16GB)
 ```
 
 Ollama swaps models as needed. No manual management required.

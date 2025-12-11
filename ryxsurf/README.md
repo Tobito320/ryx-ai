@@ -180,15 +180,34 @@ Settings stored in `~/.config/ryxsurf/settings.json`:
 
 ```json
 {
-  "homepage": "https://www.google.com",
-  "url_bar_auto_hide": true,
+  "homepage": "http://localhost:8888",
+  "search_engine": "searxng",
+  "searxng_url": "http://localhost:8888",
+  "url_bar_auto_hide": false,
   "smooth_scrolling": true,
   "gpu_acceleration": true,
   "tab_unload_timeout_seconds": 300,
   "max_loaded_tabs": 10,
-  "restore_session_on_startup": true
+  "restore_session_on_startup": true,
+  "block_trackers": false
 }
 ```
+
+### Search Engines
+
+Switch between search engines in Settings (Ctrl+,):
+- **SearXNG (Local)** - Privacy-focused, self-hosted at localhost:8888
+- **Google** - Default fallback
+- **DuckDuckGo** - Privacy alternative  
+- **Brave** - Privacy + rewards
+
+### Tracker Blocking
+
+Enable `block_trackers` in settings to block known analytics and tracking:
+- Google Analytics, Google Tag Manager
+- Facebook Pixel
+- Hotjar, Mixpanel, Amplitude
+- And more...
 
 ## AI Commands
 

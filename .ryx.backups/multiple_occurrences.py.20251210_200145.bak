@@ -1,0 +1,4 @@
+def foo():
+    print("Hello")
+def bar():
+    print("Hello world")

@@ -1,0 +1,19 @@
+{
+  "id": "20251210_211157",
+  "timestamp": "2025-12-10T21:11:57.367653",
+  "weakness": {
+    "category": "file_discovery",
+    "score": 18,
+    "max_score": 20,
+    "description": "Finding relevant files",
+    "priority": 2,
+    "tests_passing": 9,
+    "tests_failing": 0,
+    "needs_more_tests": true
+  },
+  "repos_used": [],
+  "attempts": [],
+  "final_score": 18,
+  "success": false,
+  "files_changed": []
+}

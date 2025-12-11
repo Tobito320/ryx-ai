@@ -1,0 +1,30 @@
+
+def hello():
+    """Say hello"""
+    print("Hello, World!")
+    return True
+
+def add(a, b):
+    """Add two numbers"""
+    return a + b
+
+def multiply(a, b):
+    """Multiply two numbers"""
+    return a * b
+
+class Calculator:
+    """Simple calculator"""
+    
+    def __init__(self):
+        self.result = 0
+    
+    def add(self, x):
+        self.result += x
+        return self
+    
+    def subtract(self, x):
+        self.result -= x
+        return self
+    
+    def get_result(self):
+        return self.result

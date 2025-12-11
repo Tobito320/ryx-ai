@@ -1,0 +1,8 @@
+
+    def bar():
+        """
+        This is a multi-line
+        comment in the code.
+        """
+        pass
+    

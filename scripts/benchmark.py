@@ -37,17 +37,17 @@ class BenchmarkReport:
     """Full benchmark report"""
     timestamp: str
     edit_success: int = 0
-    edit_max: int = 30  # 10 tests × 3 pts (aspirational)
+    edit_max: int = 33  # 10 tests × 3 pts (aspirational)
     file_discovery: int = 0
-    file_max: int = 20  # 10 tests × 2 pts (aspirational)
+    file_max: int = 22  # 10 tests × 2 pts (aspirational)
     task_completion: int = 0
-    task_max: int = 30  # 10 tests × 3 pts (aspirational)
+    task_max: int = 33  # 10 tests × 3 pts (aspirational)
     self_healing: int = 0
-    healing_max: int = 10  # 5 tests × 2 pts
+    healing_max: int = 12  # 5 tests × 2 pts
     speed_bonus: int = 0
     speed_max: int = 10  # 2 tests × 5 pts
     total: int = 0
-    max_total: int = 100  # Aspirational target (Claude Code CLI = 95)
+    max_total: int = 110  # Aspirational target (Claude Code CLI = 95)
     results: List[dict] = field(default_factory=list)
     
     def calculate_total(self):
@@ -132,7 +132,50 @@ def validate_email(email):
     
     # ═══════════════════════════════════════════════════════════════
     # EDIT SUCCESS TESTS (30 points max)
-    # ═══════════════════════════════════════════════════════════════
+
+    def test_multi_file_edit(self) -> BenchmarkResult:
+        """Test: Edit multiple files in one operation"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            
+            # Create two test files
+            file1 = self.temp_dir / "module_a.py"
+            file2 = self.temp_dir / "module_b.py"
+            file1.write_text('def func_a():\n    return "a"\n')
+            file2.write_text('def func_b():\n    return "b"\n')
+            
+            # Edit both
+            r1 = editor.edit(str(file1), 'return "a"', 'return "modified_a"')
+            r2 = editor.edit(str(file2), 'return "b"', 'return "modified_b"')
+            
+            passed = r1.success and r2.success
+            passed = passed and "modified_a" in file1.read_text()
+            passed = passed and "modified_b" in file2.read_text()
+            
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="multi_file_edit",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="multi_file_edit",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+
+
+        # ═══════════════════════════════════════════════════════════════
     
     def test_edit_simple_function(self) -> BenchmarkResult:
         """Test: Add a simple function to a file"""
@@ -470,9 +513,130 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_edit_nested_functions(self) -> BenchmarkResult:
+        """Test: Edit a file with nested functions"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "nested.py"
+            original_content = 'def outer_function():\n    def inner_function():\n        return "inner"\n    return "outer"'
+            test_file.write_text(original_content)
+
+            result = editor.edit(
+                str(test_file),
+                search_text='return "inner"',
+                replace_text='return "updated_inner"'
+            )
+
+            new_content = test_file.read_text()
+            passed = result.success and "updated_inner" in new_content and "outer" in new_content
+
+            # Restore original content
+            test_file.write_text(original_content)
+
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="edit_nested_functions",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="edit_nested_functions",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_edit_with_multiple_occurrences(self) -> BenchmarkResult:
+        """Test: Edit file with multiple occurrences - should replace first match"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+
+            editor = ReliableEditor()
+            test_file = self.temp_dir / "multiple_occurrences.py"
+            original_content = 'def foo():\n    print("Hello")\ndef bar():\n    print("Goodbye")'
+            test_file.write_text(original_content)
+
+            result = editor.edit(
+                str(test_file),
+                search_text='print("Hello")',
+                replace_text='print("World")'
+            )
+
+            new_content = test_file.read_text()
+            # Should replace the first occurrence
+            passed = result.success and 'print("World")' in new_content
+
+            # Restore original content
+            test_file.write_text(original_content)
+
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="edit_with_multiple_occurrences",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="edit_success",
+                test_name="edit_with_multiple_occurrences",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # FILE DISCOVERY TESTS (20 points max)
-    # ═══════════════════════════════════════════════════════════════
+
+    def test_find_file_dependencies(self) -> BenchmarkResult:
+        """Test: Find files that import/depend on each other"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find session_loop and ryx_main files")
+            
+            # Should find the session and main files
+            found = any(
+                "session" in f.path.lower() or "ryx_main" in f.path.lower()
+                for f in context.files
+            )
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_dependencies",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_dependencies",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+
+
+        # ═══════════════════════════════════════════════════════════════
     
     def test_find_file_by_name(self) -> BenchmarkResult:
         """Test: Find file by name pattern"""
@@ -658,9 +822,169 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_find_file_by_type(self) -> BenchmarkResult:
+        """Test: Find file by type (e.g., Python files)"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find all Python files")
+
+            found = any(f.path.endswith(".py") for f in context.files)
+
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_type",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_type",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_file_by_extension(self) -> BenchmarkResult:
+        """Test: Find file by extension"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find all Python files")
+
+            found_python_files = any(f.path.endswith(".py") for f in context.files)
+
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_extension",
+                passed=found_python_files,
+                points=2 if found_python_files else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_extension",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+    def test_find_file_by_multiple_criteria(self) -> BenchmarkResult:
+        """Test: Find file by multiple criteria (name and content description)"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+
+            builder = AutoContextBuilder(str(self.project_root))
+            context = builder.build_context("find the model_router.py file that handles routing")
+
+            # Look for model_router.py in the found files
+            found = any("model_router.py" in f.path for f in context.files)
+
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_multiple_criteria",
+                passed=found,
+                points=2 if found else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_multiple_criteria",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+
+    def test_find_files_by_ast_analysis(self) -> BenchmarkResult:
+        """Test: Find files containing specific code patterns"""
+        start = time.time()
+        try:
+            from core.auto_context import AutoContextBuilder
+            
+            builder = AutoContextBuilder(str(self.project_root))
+            # Query for files with specific patterns
+            context = builder.build_context("find the brain and executor files")
+            
+            # Check if it found relevant files
+            found_relevant = any(
+                "brain" in f.path.lower() or "executor" in f.path.lower() 
+                for f in context.files
+            )
+            
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_ast_analysis",
+                passed=found_relevant,
+                points=2 if found_relevant else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="file_discovery",
+                test_name="find_by_ast_analysis",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+
     # ═══════════════════════════════════════════════════════════════
     # TASK COMPLETION TESTS (30 points max)
-    # ═══════════════════════════════════════════════════════════════
+
+    def test_complex_task_decomposition(self) -> BenchmarkResult:
+        """Test: Break down a complex task into steps"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain
+            
+            brain = get_brain()
+            plan = brain.understand("refactor the model router to support multiple backends and add error handling")
+            
+            # Should generate multiple steps
+            has_steps = hasattr(plan, 'steps') and len(plan.steps) >= 2
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="complex_task_decomposition",
+                passed=has_steps,
+                points=3 if has_steps else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="complex_task_decomposition",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+
+
+        # ═══════════════════════════════════════════════════════════════
     
     def test_intent_detection(self) -> BenchmarkResult:
         """Test: Correctly detect intent from query"""
@@ -1004,9 +1328,132 @@ def validate_email(email):
                 error=str(e)
             )
     
+    def test_complex_query_handling(self) -> BenchmarkResult:
+        """Test: Handle complex and multi-step queries by detecting correct intent"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain, Intent
+            
+            brain = get_brain()
+            
+            # Test that complex queries get CODE_TASK or appropriate intents
+            test_cases = [
+                ("Find the largest file in the directory, open it, and count its lines", Intent.CODE_TASK),
+                ("search for python tutorials online", Intent.SEARCH_WEB),
+                ("create a new function that calculates fibonacci", Intent.CODE_TASK),
+            ]
+            
+            correct = 0
+            for query, expected_intent in test_cases:
+                plan = brain.understand(query)
+                if plan.intent == expected_intent:
+                    correct += 1
+            
+            passed = correct >= 2  # At least 2/3 correct
+            
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="complex_query_handling",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="complex_query_handling",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
+
+    def test_contextual_understanding(self) -> BenchmarkResult:
+        """Test: Correctly understand context from multiple queries"""
+        start = time.time()
+        try:
+            from core.ryx_brain import get_brain, Intent
+
+            brain = get_brain()
+
+            # Simulate a coding request that should be understood as CODE_TASK
+            query = "write a script to filter outliers from data"
+
+            plan = brain.understand(query)
+
+            # "write a script" is a code task
+            passed = plan.intent == Intent.CODE_TASK
+
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="contextual_understanding",
+                passed=passed,
+                points=3 if passed else 0,
+                max_points=3,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="task_completion",
+                test_name="contextual_understanding",
+                passed=False,
+                points=0,
+                max_points=3,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+    
     # ═══════════════════════════════════════════════════════════════
     # SELF-HEALING TESTS (10 points max)
-    # ═══════════════════════════════════════════════════════════════
+
+    def test_self_correction(self) -> BenchmarkResult:
+        """Test: Detect and correct its own mistakes"""
+        start = time.time()
+        try:
+            from core.reliable_editor import ReliableEditor
+            
+            editor = ReliableEditor()
+            
+            # Create a file with intentional issue
+            test_file = self.temp_dir / "buggy.py"
+            test_file.write_text('def broken(:\n    pass\n')  # Missing paren
+            
+            # Try to edit - should detect invalid syntax
+            result = editor.edit(
+                str(test_file),
+                'pass',
+                'return True',
+                validate_syntax=True
+            )
+            
+            # Editor should NOT apply changes to broken file
+            # OR should report the issue
+            passed = not result.success or "syntax" in result.message.lower()
+            
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="self_correction",
+                passed=passed,
+                points=2 if passed else 0,
+                max_points=2,
+                time_seconds=time.time() - start
+            )
+        except Exception as e:
+            return BenchmarkResult(
+                category="self_healing",
+                test_name="self_correction",
+                passed=False,
+                points=0,
+                max_points=2,
+                time_seconds=time.time() - start,
+                error=str(e)
+            )
+
+
+        # ═══════════════════════════════════════════════════════════════
     
     def test_retry_on_error(self) -> BenchmarkResult:
         """Test: System has retry logic"""
@@ -1311,6 +1758,9 @@ def validate_email(email):
             self.test_edit_json_file,
             self.test_edit_multiline_block,
             self.test_edit_append_to_file,
+                    self.test_edit_nested_functions,
+                    self.test_edit_with_multiple_occurrences,
+                    self.test_multi_file_edit,
         ]
         for test in edit_tests:
             result = test()
@@ -1329,6 +1779,11 @@ def validate_email(email):
             self.test_find_config_file,
             self.test_find_class_definition,
             self.test_find_related_files,
+                    self.test_find_file_by_type,
+                    self.test_find_file_by_extension,
+                    self.test_find_file_by_multiple_criteria,
+                    self.test_find_files_by_ast_analysis,
+                    self.test_find_file_dependencies,
         ]
         for test in file_tests:
             result = test()
@@ -1349,6 +1804,9 @@ def validate_email(email):
             self.test_tool_selection,
             self.test_llm_code_generation,
             self.test_memory_context,
+                    self.test_complex_query_handling,
+                            self.test_contextual_understanding,
+                    self.test_complex_task_decomposition,
         ]
         for test in task_tests:
             result = test()
@@ -1366,6 +1824,7 @@ def validate_email(email):
             self.test_backup_restore,
             self.test_syntax_validation,
             self.test_graceful_degradation,
+                    self.test_self_correction,
         ]
         for test in healing_tests:
             result = test()

@@ -1,0 +1,68 @@
+{
+  "query": "file_discovery",
+  "patterns_count": 10,
+  "success": true,
+  "timestamp": "2025-12-10T21:36:13.141321",
+  "patterns": [
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/Aider-AI_aider/scripts/dl_icons.py",
+      "code": "    response = requests.get(url)\n    if response.status_code != 200:\n        print(f\"Failed to download {icon_name}.svg: {response.status_code}\")\n        return False\n\n    # Save the SVG file\n    output_path = ICONS_DIR / f\"{icon_name}.svg\"\n    with open(output_path, \"wb\") as f:\n        f.write(response.content)\n\n    print(f\"Saved {icon_name}.svg to {output_path}\")\n",
+      "desc": "Pattern 'file' from dl_icons.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/Aider-AI_aider/scripts/blame.py",
+      "code": "\nimport semver\nimport yaml\nfrom tqdm import tqdm\n\nwebsite_files = [\n    \"aider/website/index.html\",\n    \"aider/website/share/index.md\",\n    \"aider/website/_includes/head_custom.html\",\n    \"aider/website/_includes/home.css\",\n    \"aider/website/docs/leaderboards/index.md\",\n]\n\nexclude_files = [\n    \"aider/website/install.ps1\",\n    \"aider/website/install.sh\",\n]\n\n\n--\n    commits = [commit[:hash_len] for commit in commits]\n\n    authors = get_commit_authors(commits)\n\n    revision = end_tag if end_tag e",
+      "desc": "Pattern 'file' from blame.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/Aider-AI_aider/scripts/redact-cast.py",
+      "code": "from aider.dump import dump  # noqa\n\n\ndef main():\n    if len(sys.argv) != 3:\n        print(f\"Usage: {sys.argv[0]} input_cast_file output_cast_file\")\n        sys.exit(1)\n\n    input_file = sys.argv[1]\n    output_file = sys.argv[2]\n\n    # Count total lines for progress bar\n    total_lines = sum(1 for _ in open(input_file, \"r\"))\n\n    with open(input_file, \"r\") as fin, open(output_file, \"w\") as fout:\n        # Process header\n        header = fin.readline().strip()\n        fout.write(header + \"\\n\")\n\n ",
+      "desc": "Pattern 'file' from redact-cast.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/Aider-AI_aider/scripts/recording_audio.py",
+      "code": "#!/usr/bin/env python3\n\"\"\"\nGenerate TTS audio files for recording commentary using OpenAI's API.\nUsage: python scripts/recording_audio.py path/to/recording.md\n\"\"\"\n\nimport argparse\nimport json\nimport os\nimport re\nimport subprocess\nimport tempfile\nfrom pathlib import Path\n\nimport requests\nfrom dotenv import load_dotenv\n\n# Load environment variables from .env file\nload_dotenv()\n\n# Configuration\nOPENAI_API_KEY = os.environ.get(\"OPENAI_API_KEY\")\nOUTPUT_DIR = \"aider/website/assets/audio\"\nVOICE = \"onyx",
+      "desc": "Pattern 'file' from recording_audio.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/Aider-AI_aider/scripts/issues.py",
+      "code": "    response.raise_for_status()\n    events = response.json()\n    return any(event[\"event\"] == \"reopened\" for event in events if \"event\" in event)\n\n\n# Load environment variables from .env file\nload_dotenv()\n\nBOT_SUFFIX = \"\"\"\n\nNote: [A bot script](https://github.com/Aider-AI/aider/blob/main/scripts/issues.py) made these updates to the issue.\n--\n    \"\"\"I'm labeling this issue as stale because it has been open for 2 weeks with no activity. If there are no additional comments, I will close it in 7 da",
+      "desc": "Pattern 'file' from issues.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/OpenDevin_OpenDevin/build_vscode.py",
+      "code": "import pathlib\nimport subprocess\n\n# This script is intended to be run by Poetry during the build process.\n\n# Define the expected name of the .vsix file based on the extension's package.json\n# This should match the name and version in openhands-vscode/package.json\nEXTENSION_NAME = 'openhands-vscode'\nEXTENSION_VERSION = '0.0.1'\nVSIX_FILENAME = f'{EXTENSION_NAME}-{EXTENSION_VERSION}.vsix'\n\n# Paths\nROOT_DIR = pathlib.Path(__file__).parent.resolve()\nVSCODE_EXTENSION_DIR = ROOT_DIR / 'openhands' / 'in",
+      "desc": "Pattern 'file' from build_vscode.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/OpenDevin_OpenDevin/tests/unit/evaluation/test_eval_file_store_path.py",
+      "code": "from pathlib import Path\n\nfrom evaluation.utils.shared import get_openhands_config_for_eval\n\n\ndef test_eval_file_store_defaults_to_repo_local(tmp_path, monkeypatch):\n    prev_cwd = Path.cwd()\n    try:\n        os.chdir(tmp_path)\n        cfg = get_openhands_config_for_eval()\n        assert Path(cfg.file_store_path) == (tmp_path / '.eval_sessions').resolve()\n        assert cfg.file_store == 'local'\n    finally:\n        os.chdir(prev_cwd)\n\n\ndef test_eval_file_store_is_hard_coded_repo_local(tmp_path)",
+      "desc": "Pattern 'file' from test_eval_file_store_path.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/OpenDevin_OpenDevin/evaluation/benchmarks/EDA/run_infer.py",
+      "code": "            'answerer_model': str(args.answerer_model),\n            'openai_api_key': str(args.OPENAI_API_KEY),\n        },\n    )\n\n    output_file = os.path.join(metadata.eval_output_dir, 'output.jsonl')\n    prepared_dataset = prepare_dataset(\n        eda_dataset.to_pandas(), output_file, args.eval_n_limit\n    )\n\n    run_evaluation(\n        prepared_dataset,\n        metadata,\n        output_file,\n        args.eval_num_workers,\n        process_instance,\n    )\n",
+      "desc": "Pattern 'file' from run_infer.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/OpenDevin_OpenDevin/scripts/update_openapi.py",
+      "code": "logging.getLogger().setLevel(logging.CRITICAL)\nwarnings.filterwarnings('ignore')\nos.environ['OPENHANDS_LOG_LEVEL'] = 'CRITICAL'\n\n# Add the project root to the Python path\nproject_root = Path(__file__).parent.parent\nsys.path.insert(0, str(project_root))\n\ntry:\n    from openhands import __version__\n    from openhands.server.app import app\n--\n    \"\"\"Sanitize descriptions and summaries to be public-API friendly.\"\"\"\n    path_summary_overrides = {\n        '/api/options/models': 'List Supported Models',",
+      "desc": "Pattern 'file' from update_openapi.py"
+    },
+    {
+      "source": "cloned_repo",
+      "url": "/home/tobi/cloned_repositorys/OpenDevin_OpenDevin/tests/unit/core/logger/test_logger_litellm.py",
+      "code": "    causing them to propagate to the root logger.\n\n    The fix ensures LiteLLM loggers are explicitly configured in the uvicorn config\n    with propagate=False and empty handlers list to prevent logs from leaking through.\n    \"\"\"\n    # Read the source file directly from disk to verify the fix is present\n    # (pytest caches bytecode, so we can't rely on imports or inspect.getsource)\n    import pathlib\n\n    # Find the logger.py file path relative to the openhands package\n    # __file__ is tests/u",
+      "desc": "Pattern 'file' from test_logger_litellm.py"
+    }
+  ]
+}

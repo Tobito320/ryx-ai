@@ -1,0 +1,1 @@
+{"timestamp": "2025-12-10T21:01:19.860938", "task": "Test task", "error_type": "ValueError", "error_message": "Simulated error", "context": {}, "what_ryx_tried": "Test task", "why_it_failed": "Simulated error", "what_ryx_learned": "Need to analyze this failure pattern", "confidence_was": "unknown", "file_affected": null, "changes_reverted": false}

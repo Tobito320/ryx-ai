@@ -3,7 +3,7 @@
   "ollama_base_url": "http://localhost:11434",
   "searxng_url": "http://localhost:8888",
   
-  "_comment": "Models installed: qwen2.5-coder:14b, qwen2.5-coder:7b, mistral-nemo:12b, dolphin-mistral:7b, qwen2.5:1.5b",
+  "_comment": "Models installed: qwen2.5-coder:14b, qwen2.5-coder:7b, qwen2.5-coder:14b, dolphin-mistral:7b, qwen2.5:1.5b",
   
   "models": {
     "fast": {
@@ -16,7 +16,7 @@
       "timeout_seconds": 10
     },
     "chat": {
-      "name": "mistral-nemo:12b",
+      "name": "qwen2.5-coder:14b",
       "role": "chat",
       "description": "12B Chat - 128K native context, good reasoning",
       "vram_mb": 8000,

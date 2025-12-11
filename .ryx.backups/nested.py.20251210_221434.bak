@@ -1,0 +1,4 @@
+def outer_function():
+    def inner_function():
+        return "inner"
+    return "outer"

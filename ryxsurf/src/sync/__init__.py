@@ -74,7 +74,7 @@ class HubSyncClient:
         try:
             import websockets
         except ImportError:
-            print("websockets not installed. Hub sync disabled.")
+            # websockets not installed, hub sync disabled silently
             return
             
         while True:
@@ -82,7 +82,7 @@ class HubSyncClient:
                 async with websockets.connect(self.ws_url) as ws:
                     self._ws = ws
                     self._connected = True
-                    print("✓ Connected to RyxHub")
+                    self._disconnect_logged = False  # Reset for next disconnect
                     
                     # Flush queued events
                     await self._flush_queue()
@@ -93,10 +93,13 @@ class HubSyncClient:
                         
             except Exception as e:
                 self._connected = False
-                print(f"Hub sync disconnected: {e}")
-                
+                # Only log first disconnect, not every retry
+                if not hasattr(self, '_disconnect_logged'):
+                    self._disconnect_logged = True
+                    # Silent - RyxHub is optional
+            
             # Wait before reconnecting
-            await asyncio.sleep(5)
+            await asyncio.sleep(30)  # Longer wait, hub is optional
             
     async def _flush_queue(self):
         """Send queued events after reconnection"""

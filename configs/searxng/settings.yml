@@ -1,0 +1,21 @@
+use_default_settings: true
+
+general:
+  instance_name: "Ryx Search"
+
+search:
+  safe_search: 0
+  autocomplete: "duckduckgo"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "ryx-local-search-key-12345"
+  limiter: false
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+  theme_args:
+    simple_style: dark

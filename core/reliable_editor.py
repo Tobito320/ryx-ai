@@ -80,7 +80,8 @@ class ReliableEditor:
         search_text: str,
         replace_text: str,
         create_if_missing: bool = True,
-        validate_syntax: bool = True
+        validate_syntax: bool = True,
+        replace_all: bool = False
     ) -> EditResult:
         """
         Edit a file with reliable multi-strategy matching.
@@ -91,10 +92,13 @@ class ReliableEditor:
             replace_text: Text to replace with
             create_if_missing: Create file if it doesn't exist
             validate_syntax: Check syntax after edit (Python only for now)
+            replace_all: If True, replace ALL occurrences (for renames)
             
         Returns:
             EditResult with success status and details
         """
+        # Store for later use
+        self._replace_all = replace_all
         # Resolve path
         path = self._resolve_path(file_path)
         
@@ -219,6 +223,10 @@ class ReliableEditor:
     def _exact_match(self, content: str, search: str, replace: str) -> Optional[str]:
         """Strategy 1: Exact string match"""
         if search in content:
+            # Check if replace_all mode is enabled
+            if getattr(self, '_replace_all', False):
+                # Replace ALL occurrences (for rename operations)
+                return content.replace(search, replace)
             # Ensure it's unique
             if content.count(search) == 1:
                 return content.replace(search, replace)

@@ -42,7 +42,8 @@
     "fstab": "/etc/fstab",
     "hosts": "/etc/hosts",
     "zen": "~/.zen/default/prefs.js",
-    "firefox": "~/.mozilla/firefox/default/prefs.js"
+    "firefox": "~/.mozilla/firefox/default/prefs.js",
+    "terminal": "/home/tobi/ryx-ai/core/terminal_ui.py"
   },
   "common_directories": {
     "home": "~",

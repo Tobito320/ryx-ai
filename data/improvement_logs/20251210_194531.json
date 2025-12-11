@@ -1,0 +1,29 @@
+{
+  "id": "20251210_194531",
+  "timestamp": "2025-12-10T19:45:31.754427",
+  "weakness": {
+    "category": "task_completion",
+    "score": 24,
+    "max_score": 30,
+    "description": "Completing autonomous tasks",
+    "priority": 6,
+    "tests_passing": 8,
+    "tests_failing": 1,
+    "needs_more_tests": false
+  },
+  "repos_used": [
+    "SelfImprovingAgent",
+    "RepairAgent",
+    "self_improving_coding_agent",
+    "autogen",
+    "pr-agent",
+    "SWE-agent",
+    "healing-agent",
+    "AgentGPT",
+    "AutoGPT"
+  ],
+  "attempts": [],
+  "final_score": 24,
+  "success": false,
+  "files_changed": []
+}

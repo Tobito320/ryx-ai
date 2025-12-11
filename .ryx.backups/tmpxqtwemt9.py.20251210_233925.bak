@@ -1,0 +1,6 @@
+
+user_name = "Alice"
+def greet():
+    print(f"Hello {user_name}")
+def farewell():
+    print(f"Goodbye {user_name}")

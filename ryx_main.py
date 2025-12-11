@@ -333,6 +333,39 @@ def _start_service(service: str):
         print("Available: all, vllm, searxng, ryxhub, ryxsurf, session")
 
 
+def _stop_ollama():
+    """Stop Ollama and unload all models"""
+    import subprocess
+    import requests
+    
+    print("🛑 Stopping Ollama...", end=" ", flush=True)
+    
+    try:
+        # First unload all models (releases VRAM immediately)
+        try:
+            resp = requests.get("http://localhost:11434/api/ps", timeout=2)
+            if resp.ok:
+                models = resp.json().get("models", [])
+                for model in models:
+                    model_name = model.get("name", "")
+                    if model_name:
+                        requests.post(
+                            "http://localhost:11434/api/generate",
+                            json={"model": model_name, "keep_alive": 0},
+                            timeout=5
+                        )
+        except:
+            pass
+        
+        # Kill ollama process
+        subprocess.run(["pkill", "-9", "ollama"], capture_output=True)
+        print("✅ Done (VRAM freed)")
+        return True
+    except Exception as e:
+        print(f"⚠️  {e}")
+        return False
+
+
 def _stop_service(service: str):
     """Stop a service with visual feedback"""
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
@@ -343,12 +376,15 @@ def _stop_service(service: str):
         print("│ 🛑 Stopping All Services                       │")
         print("╰────────────────────────────────────────────────╯\n")
         
-        for svc in ["vllm", "searxng", "ryxhub"]:
+        for svc in ["ollama", "vllm", "searxng", "ryxhub"]:
             _stop_service(svc)
         print()
         return
     
-    if service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
+    if service in ["ollama", "models"]:
+        _stop_ollama()
+    
+    elif service in ["ryxhub", "hub", "webui", "webinterface", "frontend", "dashboard", "web"]:
         from core.service_manager import ServiceManager
         manager = ServiceManager()
         result = manager.stop_ryxhub()
@@ -357,7 +393,7 @@ def _stop_service(service: str):
         else:
             print(f"⚠️  RyxHub: {result.get('error', 'Not running')}")
     
-    elif service in ["vllm", "llm", "model", "inference"]:
+    elif service in ["vllm", "llm", "inference"]:
         from core.docker_services import stop_service
         
         print("🛑 Stopping vLLM...", end=" ", flush=True)
@@ -381,7 +417,7 @@ def _stop_service(service: str):
     
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available: all, vllm, searxng, ryxhub")
+        print("Available: all, ollama, vllm, searxng, ryxhub")
 
 
 def _restart_service(service: str, target_app: str = None):
@@ -881,7 +917,8 @@ SERVICES:
     ryx start ryxhub       Start web dashboard
     ryx start ryxsurf      Start RyxSurf browser
     
-    ryx stop all           Stop all services
+    ryx stop all           Stop all services (Ollama, vLLM, SearXNG, RyxHub)
+    ryx stop ollama        Stop Ollama and unload models (frees VRAM)
     ryx stop ryxhub        Stop web dashboard
     
     ryx status             Show all service status

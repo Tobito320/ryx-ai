@@ -26,7 +26,7 @@ class ExecutorConfig:
     
     # Model defaults by backend
     default_models = {
-        "ollama": "mistral-nemo:12b",
+        "ollama": "qwen2.5-coder:14b",
         "openai": "gpt-4",
     }
     
