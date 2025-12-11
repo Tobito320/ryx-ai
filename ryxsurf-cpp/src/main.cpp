@@ -1,8 +1,18 @@
 #include "browser_window.h"
+#include "crypto.h"
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
+#include <iostream>
 
 int main(int argc, char* argv[]) {
+    // Initialize libsodium
+    try {
+        Crypto::init();
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to initialize crypto: " << e.what() << std::endl;
+        return 1;
+    }
+    
     // Initialize GTK
     gtk_init(&argc, &argv);
     

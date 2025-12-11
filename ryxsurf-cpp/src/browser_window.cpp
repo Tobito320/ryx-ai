@@ -1,6 +1,7 @@
 #include "browser_window.h"
 #include "session_manager.h"
 #include "tab_unload_manager.h"
+#include "persistence_manager.h"
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
 #include <glib.h>
@@ -15,6 +16,7 @@ BrowserWindow::BrowserWindow()
     , session_manager_(std::make_unique<SessionManager>())
     , keyboard_handler_(std::make_unique<KeyboardHandler>(this))
     , unload_manager_(std::make_unique<TabUnloadManager>())
+    , persistence_manager_(std::make_unique<PersistenceManager>(session_manager_.get()))
     , unload_timer_id_(0)
 {
     // Create main window
@@ -46,8 +48,18 @@ BrowserWindow::BrowserWindow()
     // Setup keyboard shortcuts
     keyboard_handler_->setup_shortcuts(window_);
     
-    // Create initial tab via session manager
-    session_manager_->new_tab();
+    // Initialize persistence and load saved sessions
+    if (persistence_manager_->initialize()) {
+        persistence_manager_->load_all();
+        persistence_manager_->enable_autosave(30);  // Autosave every 30 seconds
+    }
+    
+    // Create initial tab if no sessions loaded
+    if (session_manager_->get_current_session() && 
+        session_manager_->get_current_session()->get_tab_count() == 0) {
+        session_manager_->new_tab();
+    }
+    
     refresh_ui();
     update_notebook();
     
@@ -63,15 +75,25 @@ BrowserWindow::BrowserWindow()
             return TRUE;  // Keep timer running
         }, this);
     
-    // Connect window close
+    // Connect window close - save before exit
     g_signal_connect(window_, "close-request",
-                     G_CALLBACK(+[](GtkWindow* window, gpointer) -> gboolean {
+                     G_CALLBACK(+[](GtkWindow* window, gpointer user_data) -> gboolean {
+                         BrowserWindow* bw = static_cast<BrowserWindow*>(user_data);
+                         if (bw->persistence_manager_) {
+                             bw->persistence_manager_->save_all();
+                         }
                          gtk_window_destroy(window);
                          return TRUE;
-                     }), nullptr);
+                     }), this);
 }
 
 BrowserWindow::~BrowserWindow() {
+    // Save before exit
+    if (persistence_manager_) {
+        persistence_manager_->save_all();
+        persistence_manager_->close();
+    }
+    
     // Remove unload timer
     if (unload_timer_id_ != 0) {
         g_source_remove(unload_timer_id_);

@@ -67,6 +67,8 @@ sources = files(
   'src/workspace.cpp',
   'src/snapshot_manager.cpp',
   'src/tab_unload_manager.cpp',
+  'src/crypto.cpp',
+  'src/persistence_manager.cpp',
 )
 
 # Executable
@@ -93,6 +95,8 @@ if get_option('tests')
     test_sources = files(
       'tests/test_tab.cpp',
       'tests/test_session_manager.cpp',
+      'tests/test_unload.cpp',
+      'tests/test_persistence.cpp',
     )
     test_exe = executable(
       'test_ryxsurf',
