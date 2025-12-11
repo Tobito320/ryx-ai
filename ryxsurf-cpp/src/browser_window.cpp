@@ -1,4 +1,5 @@
 #include "browser_window.h"
+#include "session_manager.h"
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
 #include <iostream>
@@ -9,7 +10,7 @@ BrowserWindow::BrowserWindow()
     , tab_bar_(nullptr)
     , address_bar_(nullptr)
     , notebook_(nullptr)
-    , active_tab_index_(0)
+    , session_manager_(std::make_unique<SessionManager>())
     , keyboard_handler_(std::make_unique<KeyboardHandler>(this))
 {
     // Create main window
@@ -41,8 +42,10 @@ BrowserWindow::BrowserWindow()
     // Setup keyboard shortcuts
     keyboard_handler_->setup_shortcuts(window_);
     
-    // Create initial tab
-    new_tab();
+    // Create initial tab via session manager
+    session_manager_->new_tab();
+    refresh_ui();
+    update_notebook();
     
     // Connect window close
     g_signal_connect(window_, "close-request",
@@ -63,67 +66,80 @@ void BrowserWindow::show() {
 }
 
 void BrowserWindow::new_tab(const std::string& url) {
-    auto tab = std::make_unique<Tab>(url.empty() ? "about:blank" : url);
-    Tab* tab_ptr = tab.get();
-    tabs_.push_back(std::move(tab));
-    active_tab_index_ = tabs_.size() - 1;
+    Tab* tab = session_manager_->new_tab(url.empty() ? "about:blank" : url);
+    if (!tab) {
+        return;
+    }
     
     refresh_ui();
-    show_tab(active_tab_index_);
+    Session* session = session_manager_->get_current_session();
+    if (session) {
+        show_tab(session->get_active_tab_index());
+    }
     
     // Load URL if provided
     if (!url.empty()) {
-        ensure_tab_webview_loaded(tab_ptr);
-        webkit_web_view_load_uri(tab_ptr->get_webview(), url.c_str());
+        ensure_tab_webview_loaded(tab);
+        WebKitWebView* webview = tab->get_webview();
+        if (webview) {
+            webkit_web_view_load_uri(webview, url.c_str());
+        }
     }
 }
 
 void BrowserWindow::close_current_tab() {
-    if (tabs_.empty()) {
+    Session* session = session_manager_->get_current_session();
+    if (!session) {
         return;
     }
     
-    if (tabs_.size() == 1) {
+    size_t tab_count = session->get_tab_count();
+    if (tab_count == 0) {
+        return;
+    }
+    
+    if (tab_count == 1) {
         // Keep at least one tab
-        Tab* tab = tabs_[0].get();
-        tab->set_url("about:blank");
-        ensure_tab_webview_loaded(tab);
-        webkit_web_view_load_uri(tab->get_webview(), "about:blank");
-        tab->set_title("New Tab");
+        Tab* tab = session->get_active_tab();
+        if (tab) {
+            tab->set_url("about:blank");
+            ensure_tab_webview_loaded(tab);
+            WebKitWebView* webview = tab->get_webview();
+            if (webview) {
+                webkit_web_view_load_uri(webview, "about:blank");
+            }
+            tab->set_title("New Tab");
+        }
         refresh_ui();
         return;
     }
     
-    // Remove tab
-    tabs_.erase(tabs_.begin() + active_tab_index_);
-    
-    // Adjust active index
-    if (active_tab_index_ >= tabs_.size()) {
-        active_tab_index_ = tabs_.size() - 1;
-    }
+    // Remove tab via session manager
+    session_manager_->close_current_tab();
     
     refresh_ui();
-    if (!tabs_.empty()) {
-        show_tab(active_tab_index_);
+    session = session_manager_->get_current_session();
+    if (session && session->get_tab_count() > 0) {
+        show_tab(session->get_active_tab_index());
     }
 }
 
 void BrowserWindow::next_tab() {
-    if (tabs_.empty()) {
-        return;
-    }
-    active_tab_index_ = (active_tab_index_ + 1) % tabs_.size();
+    session_manager_->next_tab();
     refresh_ui();
-    show_tab(active_tab_index_);
+    Session* session = session_manager_->get_current_session();
+    if (session) {
+        show_tab(session->get_active_tab_index());
+    }
 }
 
 void BrowserWindow::previous_tab() {
-    if (tabs_.empty()) {
-        return;
-    }
-    active_tab_index_ = (active_tab_index_ == 0) ? tabs_.size() - 1 : active_tab_index_ - 1;
+    session_manager_->previous_tab();
     refresh_ui();
-    show_tab(active_tab_index_);
+    Session* session = session_manager_->get_current_session();
+    if (session) {
+        show_tab(session->get_active_tab_index());
+    }
 }
 
 void BrowserWindow::focus_address_bar() {
@@ -140,9 +156,14 @@ void BrowserWindow::update_tab_bar() {
         child = next;
     }
     
+    Session* session = session_manager_->get_current_session();
+    if (!session) {
+        return;
+    }
+    
     // Add tab buttons
-    for (size_t i = 0; i < tabs_.size(); ++i) {
-        Tab* tab = tabs_[i].get();
+    for (size_t i = 0; i < session->get_tab_count(); ++i) {
+        Tab* tab = session->get_tab(i);
         if (!tab) {
             continue;
         }
@@ -163,7 +184,7 @@ void BrowserWindow::update_tab_bar() {
         gtk_button_set_child(button, GTK_WIDGET(box));
         
         // Highlight active tab
-        if (i == active_tab_index_) {
+        if (i == session->get_active_tab_index()) {
             gtk_widget_add_css_class(GTK_WIDGET(button), "active-tab");
         }
         
@@ -172,11 +193,9 @@ void BrowserWindow::update_tab_bar() {
 }
 
 void BrowserWindow::update_address_bar() {
-    if (active_tab_index_ < tabs_.size()) {
-        Tab* tab = tabs_[active_tab_index_].get();
-        if (tab) {
-            gtk_entry_set_text(address_bar_, tab->get_url().c_str());
-        }
+    Tab* tab = session_manager_->get_current_tab();
+    if (tab) {
+        gtk_entry_set_text(address_bar_, tab->get_url().c_str());
     }
 }
 
@@ -198,11 +217,12 @@ void BrowserWindow::ensure_tab_webview_loaded(Tab* tab) {
 }
 
 void BrowserWindow::show_tab(size_t index) {
-    if (index >= tabs_.size()) {
+    Session* session = session_manager_->get_current_session();
+    if (!session) {
         return;
     }
     
-    Tab* tab = tabs_[index].get();
+    Tab* tab = session->get_tab(index);
     if (!tab) {
         return;
     }
@@ -228,13 +248,9 @@ void BrowserWindow::on_address_bar_activated(GtkEntry* entry, gpointer user_data
     BrowserWindow* window = static_cast<BrowserWindow*>(user_data);
     const char* text = gtk_entry_get_text(entry);
     
-    if (window->tabs_.empty()) {
-        window->new_tab(text);
-        return;
-    }
-    
-    Tab* tab = window->tabs_[window->active_tab_index_].get();
+    Tab* tab = window->session_manager_->get_current_tab();
     if (!tab) {
+        window->new_tab(text);
         return;
     }
     
@@ -257,8 +273,9 @@ void BrowserWindow::on_tab_close_clicked(GtkButton* button, gpointer user_data) 
     gpointer index_ptr = g_object_get_data(G_OBJECT(button), "tab-index");
     if (index_ptr) {
         int index = GPOINTER_TO_INT(index_ptr);
-        if (index >= 0 && index < static_cast<int>(window->tabs_.size())) {
-            window->active_tab_index_ = index;
+        Session* session = window->session_manager_->get_current_session();
+        if (session && index >= 0 && index < static_cast<int>(session->get_tab_count())) {
+            session->set_active_tab(index);
             window->close_current_tab();
         }
     }

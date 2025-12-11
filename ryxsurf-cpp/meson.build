@@ -61,6 +61,9 @@ sources = files(
   'src/browser_window.cpp',
   'src/tab.cpp',
   'src/keyboard_handler.cpp',
+  'src/session_manager.cpp',
+  'src/session.cpp',
+  'src/workspace.cpp',
 )
 
 # Executable
@@ -85,6 +88,7 @@ if get_option('tests')
   if catch2_dep.found()
     test_sources = files(
       'tests/test_tab.cpp',
+      'tests/test_session_manager.cpp',
     )
     test_exe = executable(
       'test_ryxsurf',

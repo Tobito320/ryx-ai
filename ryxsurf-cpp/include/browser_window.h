@@ -6,6 +6,7 @@
 #include <memory>
 #include "tab.h"
 #include "keyboard_handler.h"
+#include "session_manager.h"
 
 /**
  * BrowserWindow is the main GTK4 window containing the browser UI.
