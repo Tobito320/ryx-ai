@@ -19,12 +19,12 @@
 - Modern UI may not appeal to all users
 
 ## RyxSurf gaps/weaknesses vs. Firefox
-- URL navigation reliability still under investigation; needs stable handling (see `ryxsurf/PROGRESS.md` P0) while Firefox navigation is mature.
-- Workspaces are placed in the sidebar instead of the URL bar as specified; Firefox doesn’t have workspaces but its toolbar layout is stable and predictable.
+- URL navigation reliability is still under investigation (P0 “Critical” item in `ryxsurf/PROGRESS.md`); Firefox navigation is mature.
+- Workspaces are placed in the sidebar instead of the URL bar (P1 requirement in `ryxsurf/PROGRESS.md`); Firefox doesn’t have workspaces but its toolbar layout is stable and predictable.
 - Layout breaks when the URL bar is hidden; Firefox handles toolbar toggles without sidebar expansion issues.
 - Session restore reliability and performance are flagged (slow startup, 4s load); Firefox has stable session restore and optimized startup.
 - Reader mode is not yet implemented (planned Phase 3), while Firefox ships a full reader view.
-- Firefox extension ecosystem is production-ready; RyxSurf’s WebExtensions support is still noted as “planned”/incomplete.
+- Firefox extension ecosystem is production-ready; RyxSurf’s WebExtensions support is still noted as “planned”/incomplete in `ryxsurf/README.md`.
 
 ## Sources
 - Lifehacker overview of Zen’s Arc-like features and Firefox base: https://lifehacker.com/tech/zen-is-a-firefox-based-browser-with-arcs-best-features
