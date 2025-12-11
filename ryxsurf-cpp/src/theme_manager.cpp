@@ -26,6 +26,8 @@ std::string ThemeManager::get_css_path() const {
     // Or use installed path
     // Try multiple paths
     std::vector<std::string> paths = {
+        "data/theme-gtk4.css",
+        "../data/theme-gtk4.css",
         "data/theme.css",
         "../data/theme.css",
         "/usr/share/ryxsurf/theme.css",

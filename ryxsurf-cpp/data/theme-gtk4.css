@@ -1,0 +1,226 @@
+/* RyxSurf - GTK4 Compatible Minimal Theme */
+
+/* WINDOW */
+window {
+    background-color: #0f0f0f;
+    color: #e8e8e8;
+}
+
+/* TOP BAR */
+.top-bar {
+    background-color: #1e1e1e;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px;
+    min-height: 48px;
+}
+
+/* OVERVIEW BUTTON */
+.overview-button {
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 8px;
+    color: #a0a0a0;
+}
+
+.overview-button:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #e8e8e8;
+}
+
+.overview-button:active {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+/* TAB STRIP */
+.tab-strip {
+    padding: 4px 0;
+}
+
+/* TAB BUTTONS */
+.tab-button {
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin: 0 2px;
+    min-height: 32px;
+    color: #a0a0a0;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.tab-button:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #e8e8e8;
+}
+
+.tab-button.active-tab {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #e8e8e8;
+}
+
+.tab-button.unloaded {
+    opacity: 0.5;
+}
+
+/* TAB TITLE */
+.tab-title {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* TAB CLOSE BUTTON */
+.tab-close-button {
+    background-color: transparent;
+    border-radius: 4px;
+    padding: 2px;
+    min-height: 18px;
+    min-width: 18px;
+    opacity: 0;
+}
+
+.tab-button:hover .tab-close-button {
+    opacity: 0.6;
+}
+
+.tab-close-button:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ADDRESS BAR */
+.address-bar, entry.address-bar {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 6px;
+    padding: 8px 12px;
+    min-height: 32px;
+    color: #e8e8e8;
+    font-size: 12px;
+}
+
+.address-bar:hover, entry.address-bar:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.address-bar:focus, entry.address-bar:focus {
+    background-color: rgba(255, 255, 255, 0.10);
+    border-bottom-color: #00d9ff;
+    outline: none;
+}
+
+/* SESSION INDICATOR */
+.session-indicator {
+    padding: 0 8px;
+}
+
+/* SESSION BUTTONS */
+.session-button {
+    background-color: transparent;
+    border-radius: 8px;
+    padding: 4px 12px;
+    margin: 0 2px;
+    color: #6a6a6a;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.session-button:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #a0a0a0;
+}
+
+.session-button.active-session {
+    background-color: rgba(0, 217, 255, 0.15);
+    color: #00d9ff;
+}
+
+/* WINDOW CONTROLS */
+.window-controls {
+    padding: 0 4px;
+}
+
+.window-control-button {
+    background-color: transparent;
+    border-radius: 4px;
+    padding: 4px;
+    min-height: 28px;
+    min-width: 28px;
+    margin: 0 2px;
+    color: #a0a0a0;
+}
+
+.window-control-button:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #e8e8e8;
+}
+
+.window-control-button.close:hover {
+    background-color: #e81123;
+    color: #ffffff;
+}
+
+/* SIDEBAR */
+.sidebar {
+    background-color: #1a1a1a;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px;
+    min-width: 180px;
+}
+
+.sidebar-tab {
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 2px;
+    color: #a0a0a0;
+    font-size: 13px;
+}
+
+.sidebar-tab:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #e8e8e8;
+}
+
+.sidebar-tab.active-tab {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: #e8e8e8;
+}
+
+/* CONTENT AREA */
+.content-area {
+    background-color: #0f0f0f;
+}
+
+notebook {
+    background-color: #0f0f0f;
+}
+
+/* SCROLLBARS */
+scrollbar {
+    background-color: transparent;
+}
+
+scrollbar slider {
+    background-color: #6a6a6a;
+    border-radius: 4px;
+    min-width: 6px;
+    min-height: 6px;
+    opacity: 0.4;
+}
+
+scrollbar:hover slider {
+    opacity: 0.6;
+}
+
+scrollbar slider:hover {
+    background-color: #a0a0a0;
+    opacity: 0.8;
+}
+
+/* TAB DIVIDER */
+separator.tab-divider {
+    background-color: rgba(255, 255, 255, 0.06);
+    min-width: 1px;
+    min-height: 16px;
+}
