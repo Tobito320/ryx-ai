@@ -149,16 +149,17 @@ class URLBar:
         """Apply Dracula-themed CSS"""
         css = b"""
         window {
-            background: #282a36;
-            border: 2px solid #bd93f9;
-            border-radius: 8px;
+            background: rgba(12, 12, 18, 0.92);
+            border: 1px solid #2a2d3a;
+            border-radius: 10px;
+            box-shadow: 0 16px 60px rgba(124, 58, 237, 0.25);
         }
         
         .url-entry {
-            background: #44475a;
-            color: #f8f8f2;
-            border: none;
-            border-radius: 4px;
+            background: linear-gradient(135deg, #111322 0%, #0c0f1a 100%);
+            color: #f8f8ff;
+            border: 1px solid #2f3142;
+            border-radius: 6px;
             padding: 12px;
             font-size: 16px;
             margin-top: 8px;
@@ -166,14 +167,15 @@ class URLBar:
         
         .url-entry:focus {
             outline: none;
-            box-shadow: 0 0 0 2px #bd93f9;
+            box-shadow: 0 0 0 2px #a78bfa;
         }
         
         label {
-            color: #6272a4;
+            color: #7f8193;
             font-size: 12px;
             font-weight: bold;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .ai-mode {
@@ -181,7 +183,7 @@ class URLBar:
         }
         
         .search-mode {
-            color: #50fa7b;
+            color: #a0f0b5;
         }
         
         .url-mode {
