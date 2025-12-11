@@ -35,11 +35,18 @@
 - Autosave (periodic + graceful exit)
 - Restore on startup
 
+### ✅ Milestone 7: Password Manager
+- PasswordManager with dual backend (libsecret + SQLite fallback)
+- Encrypted SQLite storage for passwords
+- Password generator utility
+- Autofill detection per origin
+- Last used timestamp tracking
+
 ## Current Status
 
-**Total Files**: 28 C++ source/header files
-**Commits**: 7 (analysis, PoC, docs, core models, unload/restore, persistence)
-**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager
+**Total Files**: 30 C++ source/header files
+**Commits**: 9 (analysis, PoC, docs, core models, unload/restore, persistence, password manager)
+**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager, PasswordManager
 
 ## Next Steps
 
@@ -57,10 +64,11 @@
 - ✅ Argon2id KDF + libsodium encryption
 - ✅ Autosave & graceful exit restore
 
-### Milestone 7: Password Manager
-- ⏳ libsecret integration
-- ⏳ Encrypted SQLite fallback
-- ⏳ UI for credential management
+### Milestone 7: Password Manager ✅ Complete
+- ✅ libsecret integration (primary)
+- ✅ Encrypted SQLite fallback
+- ✅ Password generator utility
+- ⏳ UI for credential management (basic API ready)
 
 ## Performance Targets
 
