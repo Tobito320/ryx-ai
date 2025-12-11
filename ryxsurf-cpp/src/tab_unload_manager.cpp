@@ -2,12 +2,25 @@
 #include "session.h"
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 
 TabUnloadManager::TabUnloadManager()
-    : unload_timeout_seconds_(300)  // 5 minutes default
-    , max_loaded_tabs_(8)
+    : unload_timeout_seconds_(120)  // 2 minutes default for aggressive reclaim
+    , max_loaded_tabs_(3)
     , snapshot_manager_(std::make_unique<SnapshotManager>())
 {
+    if (const char* env_timeout = std::getenv("RYXSURF_UNLOAD_TIMEOUT")) {
+        int v = std::atoi(env_timeout);
+        if (v > 0) {
+            unload_timeout_seconds_ = v;
+        }
+    }
+    if (const char* env_max = std::getenv("RYXSURF_MAX_LOADED_TABS")) {
+        int v = std::atoi(env_max);
+        if (v > 0) {
+            max_loaded_tabs_ = v;
+        }
+    }
 }
 
 TabUnloadManager::~TabUnloadManager() = default;

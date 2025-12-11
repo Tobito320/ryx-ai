@@ -1,4 +1,3 @@
-#define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 #include "../include/tab_unload_manager.h"
 #include "../include/session.h"
@@ -8,8 +7,8 @@
 TEST_CASE("TabUnloadManager configuration", "[unload]") {
     TabUnloadManager um;
     
-    REQUIRE(um.get_unload_timeout_seconds() == 300);  // 5 minutes default
-    REQUIRE(um.get_max_loaded_tabs() == 8);
+    REQUIRE(um.get_unload_timeout_seconds() == 120);  // 2 minutes default
+    REQUIRE(um.get_max_loaded_tabs() == 3);
     
     um.set_unload_timeout_seconds(60);
     REQUIRE(um.get_unload_timeout_seconds() == 60);

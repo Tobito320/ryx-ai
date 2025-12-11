@@ -35,6 +35,9 @@ public:
     // Individual workspace/session/tab operations
     bool save_workspace(Workspace* workspace);
     bool load_workspace(const std::string& name, Workspace* workspace);
+
+    // Testing helper: override database path for isolated runs
+    void set_db_path_for_tests(const std::string& path) { db_path_ = path; }
     
     // Autosave
     void enable_autosave(int interval_seconds = 30);

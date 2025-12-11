@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=RyxSurf
+Comment=Minimal keyboard-first browser (GTK4 + WebKitGTK6)
+Exec=/usr/local/bin/ryxsurf
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+Keywords=browser;web;internet;
+StartupWMClass=ryxsurf

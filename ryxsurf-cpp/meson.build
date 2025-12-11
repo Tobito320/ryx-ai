@@ -57,8 +57,7 @@ endif
 inc_dir = include_directories('include')
 
 # Source files
-sources = files(
-  'src/main.cpp',
+library_sources = files(
   'src/browser_window.cpp',
   'src/tab.cpp',
   'src/keyboard_handler.cpp',
@@ -76,10 +75,10 @@ sources = files(
 # Install CSS theme
 install_data('data/theme.css', install_dir: get_option('datadir') / 'ryxsurf')
 
-# Executable
-executable(
-  'ryxsurf',
-  sources,
+# Core library (static) reused by app and tests
+ryxsurf_lib = static_library(
+  'ryxsurf_core',
+  library_sources,
   include_directories: inc_dir,
   dependencies: [
     gtk4_dep,
@@ -90,6 +89,23 @@ executable(
     cairo_dep,
   ],
   cpp_args: cpp_args,
+)
+
+# Executable
+executable(
+  'ryxsurf',
+  'src/main.cpp',
+  link_with: ryxsurf_lib,
+  dependencies: [
+    gtk4_dep,
+    webkitgtk_dep,
+    sqlite3_dep,
+    libsecret_dep,
+    libsodium_dep,
+    cairo_dep,
+  ],
+  include_directories: inc_dir,
+  cpp_args: cpp_args,
   install: true,
   install_dir: get_option('bindir'),
 )
@@ -97,20 +113,30 @@ executable(
 # Tests
 if get_option('tests')
   catch2_dep = dependency('catch2', required: false)
+  catch_inc = inc_dir
+  catch_deps = [gtk4_dep, webkitgtk_dep, sqlite3_dep, libsecret_dep, libsodium_dep, cairo_dep]
   if catch2_dep.found()
-    test_sources = files(
-      'tests/test_tab.cpp',
-      'tests/test_session_manager.cpp',
-      'tests/test_unload.cpp',
-      'tests/test_persistence.cpp',
-    )
-    test_exe = executable(
-      'test_ryxsurf',
-      test_sources,
-      include_directories: inc_dir,
-      dependencies: [catch2_dep],
-      cpp_args: cpp_args,
-    )
-    test('Tab Tests', test_exe)
+    catch_deps += catch2_dep
+  else
+    catch_inc = [inc_dir, include_directories('third_party')]
   endif
+
+  test_sources = files(
+    'tests/main.cpp',
+    'tests/test_tab.cpp',
+    'tests/test_session_manager.cpp',
+    'tests/test_unload.cpp',
+    'tests/test_persistence.cpp',
+    'tests/test_password_manager.cpp',
+  )
+
+  test_exe = executable(
+    'test_ryxsurf',
+    test_sources,
+    include_directories: catch_inc,
+    dependencies: catch_deps,
+    link_with: ryxsurf_lib,
+    cpp_args: cpp_args,
+  )
+  test('ryxsurf-cpp', test_exe)
 endif

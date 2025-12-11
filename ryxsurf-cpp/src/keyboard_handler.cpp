@@ -24,6 +24,9 @@ gboolean KeyboardHandler::on_key_pressed(GtkEventControllerKey* controller,
                                          guint keycode,
                                          GdkModifierType state,
                                          gpointer user_data) {
+    (void)controller;
+    (void)keycode;
+
     KeyboardHandler* handler = static_cast<KeyboardHandler*>(user_data);
     BrowserWindow* bw = handler->browser_window_;
     
@@ -57,11 +60,18 @@ gboolean KeyboardHandler::on_key_pressed(GtkEventControllerKey* controller,
             return TRUE;
             
         case GDK_KEY_Left:
-            // Ctrl+Left: Previous session (placeholder)
+            // Ctrl+Left: Previous session
+            bw->previous_session();
             return TRUE;
             
         case GDK_KEY_Right:
-            // Ctrl+Right: Next session (placeholder)
+            // Ctrl+Right: Next session
+            bw->next_session();
+            return TRUE;
+
+        case GDK_KEY_b:
+            // Ctrl+B: Toggle sidebar visibility
+            bw->toggle_sidebar();
             return TRUE;
             
         case GDK_KEY_Tab:
@@ -76,6 +86,19 @@ gboolean KeyboardHandler::on_key_pressed(GtkEventControllerKey* controller,
         case GDK_KEY_l:
             // Ctrl+L: Focus address bar
             bw->focus_address_bar();
+            return TRUE;
+            
+        case GDK_KEY_1:
+        case GDK_KEY_2:
+        case GDK_KEY_3:
+        case GDK_KEY_4:
+        case GDK_KEY_5:
+        case GDK_KEY_6:
+        case GDK_KEY_7:
+        case GDK_KEY_8:
+        case GDK_KEY_9:
+            // Ctrl+1-9: Jump to tab N
+            bw->jump_to_tab(keyval - GDK_KEY_1);
             return TRUE;
             
         case GDK_KEY_s:

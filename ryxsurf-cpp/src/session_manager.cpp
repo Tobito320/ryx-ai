@@ -157,3 +157,11 @@ void SessionManager::previous_session() {
     size_t next = (current == 0) ? ws->get_session_count() - 1 : current - 1;
     ws->set_active_session(next);
 }
+
+void SessionManager::reset(bool create_default) {
+    workspaces_.clear();
+    current_workspace_index_ = 0;
+    if (create_default) {
+        ensure_default_workspace();
+    }
+}

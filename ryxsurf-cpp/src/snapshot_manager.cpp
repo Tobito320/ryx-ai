@@ -8,8 +8,11 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <cstdlib>
 
-SnapshotManager::SnapshotManager() {
+SnapshotManager::SnapshotManager()
+    : snapshots_enabled_(std::getenv("RYXSURF_ENABLE_SNAPSHOTS") != nullptr)
+{
     // Use XDG data directory
     const char* xdg_data = std::getenv("XDG_DATA_HOME");
     if (xdg_data) {
@@ -24,7 +27,9 @@ SnapshotManager::SnapshotManager() {
         }
     }
     
-    ensure_snapshot_dir();
+    if (snapshots_enabled_) {
+        ensure_snapshot_dir();
+    }
 }
 
 SnapshotManager::~SnapshotManager() = default;
@@ -53,6 +58,10 @@ bool SnapshotManager::snapshot_exists(const std::string& snapshot_path) const {
 }
 
 std::string SnapshotManager::create_snapshot(Tab* tab) {
+    if (!snapshots_enabled_) {
+        return "";
+    }
+
     if (!tab || !tab->is_loaded()) {
         return "";
     }
@@ -127,6 +136,10 @@ std::string SnapshotManager::create_snapshot(Tab* tab) {
 }
 
 bool SnapshotManager::restore_snapshot(Tab* tab, const std::string& snapshot_path) {
+    if (!snapshots_enabled_) {
+        return false;
+    }
+
     if (!tab || !snapshot_exists(snapshot_path)) {
         return false;
     }
@@ -158,6 +171,10 @@ bool SnapshotManager::restore_snapshot(Tab* tab, const std::string& snapshot_pat
 }
 
 void SnapshotManager::delete_snapshot(const std::string& snapshot_path) {
+    if (!snapshots_enabled_) {
+        return;
+    }
+
     if (std::filesystem::exists(snapshot_path)) {
         std::filesystem::remove(snapshot_path);
     }

@@ -24,8 +24,6 @@ ThemeManager::~ThemeManager() {
 std::string ThemeManager::get_css_path() const {
     // Try to find theme.css in data/ directory relative to executable
     // Or use installed path
-    const char* exe_path = g_get_prgname();
-    
     // Try multiple paths
     std::vector<std::string> paths = {
         "data/theme.css",
@@ -50,16 +48,28 @@ void ThemeManager::load_theme() {
     if (!std::filesystem::exists(css_path)) {
         // Use inline CSS as fallback
         const char* inline_css = R"(
-            window { background-color: #1e1e2e; color: #cdd6f4; }
-            .tab-bar { background-color: #313244; border-bottom: 1px solid rgba(147, 153, 178, 0.2); }
-            .tab-button { background-color: transparent; border-radius: 4px; padding: 6px 12px; }
-            .tab-button:hover { background-color: #45475a; }
-            .tab-button.active-tab { background-color: #45475a; border-bottom: 2px solid #cba6f7; }
-            .address-bar { background-color: #313244; border: 1px solid rgba(147, 153, 178, 0.2); border-radius: 6px; padding: 8px 12px; }
-            .address-bar:focus { border-color: #cba6f7; box-shadow: 0 0 0 2px rgba(203, 166, 247, 0.2); }
+            window { background: linear-gradient(145deg, #0b0f19 0%, #0f1828 50%, #0b111c 100%); color: #d9e2f2; }
+            .tab-bar { background-color: rgba(255, 255, 255, 0.03); border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; min-height: 38px; box-shadow: 0 10px 30px -18px rgba(6, 10, 18, 0.55); }
+            .tab-button { background-color: transparent; border: 1px solid transparent; border-radius: 10px; padding: 8px 12px; margin: 0 4px; color: #9fb3d8; }
+            .tab-button:hover { background-color: #162335; color: #d9e2f2; border-color: rgba(255, 255, 255, 0.08); }
+            .tab-button.active-tab { background: linear-gradient(135deg, rgba(75, 194, 255, 0.12), rgba(107, 220, 255, 0.08)); color: #d9e2f2; border-color: rgba(107, 220, 255, 0.5); box-shadow: 0 10px 30px -14px rgba(6, 10, 18, 0.55); }
+            .tab-close-button { background-color: transparent; border: none; border-radius: 6px; padding: 2px 6px; margin-left: 6px; opacity: 0.65; }
+            .tab-button:hover .tab-close-button { opacity: 1; }
+            .tab-close-button:hover { background-color: rgba(255, 255, 255, 0.08); opacity: 1; }
+            .address-bar { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 10px 14px; margin: 8px 10px; color: #d9e2f2; font-size: 14px; box-shadow: 0 12px 30px -18px rgba(6, 10, 18, 0.55); }
+            .address-bar:focus { border-color: rgba(107, 220, 255, 0.5); background: rgba(107, 220, 255, 0.08); box-shadow: 0 0 0 2px rgba(107, 220, 255, 0.18); }
+            .session-indicator { padding: 6px 10px; gap: 6px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 8px 24px -18px rgba(6, 10, 18, 0.55); }
+            .session-button { background: transparent; border-radius: 8px; padding: 4px 10px; color: #9fb3d8; border: 1px solid transparent; }
+            .session-button:hover { background: #162335; color: #d9e2f2; }
+            .session-button.active-session { background: rgba(107, 220, 255, 0.12); color: #6bdcff; border-color: rgba(107, 220, 255, 0.5); }
+            .sidebar { min-width: 180px; max-width: 260px; background: rgba(255, 255, 255, 0.03); border-right: 1px solid rgba(255, 255, 255, 0.08); padding: 10px 8px; }
+            .sidebar-tab { background: transparent; border-radius: 8px; padding: 8px 10px; margin-bottom: 4px; text-align: left; color: #9fb3d8; }
+            .sidebar-tab:hover { background: #162335; color: #d9e2f2; }
+            .sidebar-tab.active-tab { background: linear-gradient(135deg, rgba(75, 194, 255, 0.14), rgba(107, 220, 255, 0.1)); color: #d9e2f2; border: 1px solid rgba(107, 220, 255, 0.5); }
+            .sidebar-tab-title { color: inherit; font-size: 13px; }
         )";
         
-        gtk_css_provider_load_from_data(css_provider_, inline_css, -1);
+        gtk_css_provider_load_from_string(css_provider_, inline_css);
     } else {
         GError* error = nullptr;
         gtk_css_provider_load_from_path(css_provider_, css_path.c_str(), &error);

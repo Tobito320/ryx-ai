@@ -43,6 +43,8 @@ public:
     std::chrono::system_clock::time_point get_created_at() const { return created_at_; }
     std::chrono::system_clock::time_point get_updated_at() const { return updated_at_; }
     void mark_updated();
+    void set_created_at(std::chrono::system_clock::time_point tp) { created_at_ = tp; }
+    void set_updated_at(std::chrono::system_clock::time_point tp) { updated_at_ = tp; }
 
 private:
     std::string name_;

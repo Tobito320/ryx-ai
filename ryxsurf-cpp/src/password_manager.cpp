@@ -7,6 +7,8 @@
 #include <random>
 #include <algorithm>
 #include <stdexcept>
+#include <cstdlib>
+#include <system_error>
 
 // libsecret schema
 static const SecretSchema* get_schema() {
@@ -28,8 +30,18 @@ PasswordManager::PasswordManager()
     , autofill_enabled_(true)
     , schema_(const_cast<SecretSchema*>(get_schema()))
 {
-    // Check if libsecret is available
-    use_libsecret_ = secret_service_get_sync(SECRET_SERVICE_NONE, nullptr, nullptr) != nullptr;
+    // Check if libsecret is available; fall back silently on error
+    GError* error = nullptr;
+    SecretService* service = secret_service_get_sync(SECRET_SERVICE_NONE, nullptr, &error);
+    if (error) {
+        g_error_free(error);
+        service = nullptr;
+    }
+    use_libsecret_ = service != nullptr;
+    if (service) {
+        g_object_unref(service);
+    }
+
     db_path_ = get_db_path();
 }
 
@@ -38,10 +50,22 @@ PasswordManager::~PasswordManager() {
 }
 
 std::string PasswordManager::get_db_path() const {
+    if (const char* override_path = std::getenv("RYXSURF_PASSWORD_DB_PATH")) {
+        std::filesystem::path custom(override_path);
+        if (custom.has_parent_path()) {
+            std::filesystem::create_directories(custom.parent_path());
+        }
+        return custom.string();
+    }
+
+    const bool test_mode = std::getenv("MESON_TEST_ITERATION") != nullptr ||
+                            std::getenv("CI") != nullptr;
     const char* xdg_data = std::getenv("XDG_DATA_HOME");
     std::filesystem::path base_dir;
     
-    if (xdg_data) {
+    if (test_mode) {
+        base_dir = std::filesystem::path("/tmp") / "ryxsurf-tests";
+    } else if (xdg_data) {
         base_dir = std::filesystem::path(xdg_data) / "ryxsurf";
     } else {
         const char* home = std::getenv("HOME");
@@ -59,20 +83,33 @@ std::string PasswordManager::get_db_path() const {
 
 bool PasswordManager::initialize(const std::string& master_password) {
     master_password_ = master_password;
-    
-    if (use_libsecret_) {
-        // libsecret doesn't need initialization
-        return true;
+
+    // Allow forcing SQLite (tests/headless/CI) via env flags
+    const bool force_sqlite = std::getenv("RYXSURF_FORCE_SQLITE") ||
+                              std::getenv("RYXSURF_DISABLE_LIBSECRET") ||
+                              std::getenv("CI");
+    if (force_sqlite) {
+        use_libsecret_ = false;
     }
-    
-    // Initialize SQLite fallback
-    if (!master_password_.empty()) {
+
+    // In test mode, start from a clean DB to avoid cross-test contamination
+    if (std::getenv("MESON_TEST_ITERATION") != nullptr) {
+        std::error_code ec;
+        std::filesystem::remove(db_path_, ec);
+        std::filesystem::remove(db_path_ + ".salt", ec);
+    }
+
+    if (!use_libsecret_ && !master_password_.empty()) {
         if (!setup_encryption()) {
             return false;
         }
     }
-    
-    return init_database();
+
+    if (!init_database()) {
+        return false;
+    }
+
+    return true;
 }
 
 bool PasswordManager::setup_encryption() {
@@ -106,10 +143,10 @@ bool PasswordManager::setup_encryption() {
 }
 
 bool PasswordManager::init_database() {
-    if (use_libsecret_) {
-        return true;  // No SQLite needed
+    if (db_) {
+        return true;
     }
-    
+
     int rc = sqlite3_open(db_path_.c_str(), &db_);
     if (rc != SQLITE_OK) {
         return false;
@@ -187,11 +224,26 @@ std::string PasswordManager::decrypt_password(const std::string& encrypted) {
 }
 
 bool PasswordManager::save(const std::string& domain, const std::string& username, const std::string& password) {
+    // Prefer libsecret but gracefully fall back to SQLite if it fails
     if (use_libsecret_) {
-        return save_to_libsecret(domain, username, password);
-    } else {
-        return save_to_sqlite(domain, username, password);
+        if (save_to_libsecret(domain, username, password)) {
+            return true;
+        }
+
+        // Disable libsecret for subsequent operations and fall back
+        use_libsecret_ = false;
+        if (encryption_key_.empty() && !master_password_.empty()) {
+            if (!setup_encryption()) {
+                return false;
+            }
+        }
     }
+
+    if (!db_ && !init_database()) {
+        return false;
+    }
+
+    return save_to_sqlite(domain, username, password);
 }
 
 bool PasswordManager::save_to_libsecret(const std::string& domain, const std::string& username, const std::string& password) {

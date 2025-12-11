@@ -42,6 +42,7 @@ public:
     void mark_active();
     std::chrono::steady_clock::time_point get_last_active() const { return last_active_; }
     std::chrono::system_clock::time_point get_last_active_system() const { return last_active_system_; }
+    void set_last_active_system(std::chrono::system_clock::time_point tp);
 
     // Unload/restore
     void unload();

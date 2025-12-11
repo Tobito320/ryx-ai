@@ -1,4 +1,3 @@
-#define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 #include "../include/persistence_manager.h"
 #include "../include/session_manager.h"
@@ -41,7 +40,7 @@ TEST_CASE("PersistenceManager initialization", "[persistence]") {
     
     // Create temporary database path
     std::string test_db = "/tmp/test_ryxsurf.db";
-    pm.db_path_ = test_db;
+    pm.set_db_path_for_tests(test_db);
     
     REQUIRE(pm.initialize("test_password"));
     REQUIRE(pm.has_master_password());
@@ -57,7 +56,7 @@ TEST_CASE("PersistenceManager save/load", "[persistence]") {
     PersistenceManager pm(&sm);
     
     std::string test_db = "/tmp/test_ryxsurf_save.db";
-    pm.db_path_ = test_db;
+    pm.set_db_path_for_tests(test_db);
     
     REQUIRE(pm.initialize("test_password"));
     
@@ -73,7 +72,7 @@ TEST_CASE("PersistenceManager save/load", "[persistence]") {
     // Create new session manager and load
     SessionManager sm2;
     PersistenceManager pm2(&sm2);
-    pm2.db_path_ = test_db;
+    pm2.set_db_path_for_tests(test_db);
     REQUIRE(pm2.initialize("test_password"));
     REQUIRE(pm2.load_all());
     

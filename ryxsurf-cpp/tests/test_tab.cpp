@@ -1,4 +1,3 @@
-#define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 #include "../include/tab.h"
 #include <chrono>
@@ -34,7 +33,7 @@ TEST_CASE("Tab activity tracking", "[tab]") {
     REQUIRE(time2 > time1);
 }
 
-TEST_CASE("Tab unload/restore", "[tab]") {
+TEST_CASE("Tab unload/restore metadata", "[tab]") {
     Tab tab("https://example.com");
     
     REQUIRE_FALSE(tab.is_unloaded());

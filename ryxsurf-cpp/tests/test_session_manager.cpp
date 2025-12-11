@@ -1,4 +1,3 @@
-#define CATCH_CONFIG_MAIN
 #include <catch2/catch.hpp>
 #include "../include/session_manager.h"
 #include "../include/workspace.h"
@@ -97,7 +96,6 @@ TEST_CASE("Overview session persistence", "[session]") {
     session.set_overview(true);
     
     REQUIRE(session.is_overview());
-    
-    // Overview session should remain even when empty
-    REQUIRE(session.is_empty() || !session.is_empty());  // Can be empty
+    // Overview session can be empty; no-op assertion needed
+    REQUIRE((session.is_empty() || !session.is_empty()));
 }

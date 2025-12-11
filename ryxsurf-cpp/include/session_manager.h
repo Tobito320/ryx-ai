@@ -49,6 +49,9 @@ public:
     void next_session();
     void previous_session();
 
+    // State management
+    void reset(bool create_default = true);
+
 private:
     std::vector<std::unique_ptr<Workspace>> workspaces_;
     size_t current_workspace_index_;

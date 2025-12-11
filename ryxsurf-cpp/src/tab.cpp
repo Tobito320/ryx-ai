@@ -45,12 +45,26 @@ void Tab::create_webview() {
     webkit_settings_set_hardware_acceleration_policy(
         settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS);
     
-    // Create WebView
-    webview_ = WEBKIT_WEB_VIEW(webkit_web_view_new_with_settings(settings));
+    // Configure shared process + low cache model once
+    static bool context_configured = false;
+    WebKitWebContext* ctx = webkit_web_context_get_default();
+    if (!context_configured && ctx) {
+#ifdef WEBKIT_PROCESS_MODEL_SHARED_SECONDARY_PROCESS
+        webkit_web_context_set_process_model(ctx, WEBKIT_PROCESS_MODEL_SHARED_SECONDARY_PROCESS);
+#endif
+        webkit_web_context_set_cache_model(ctx, WEBKIT_CACHE_MODEL_DOCUMENT_VIEWER);
+        context_configured = true;
+    }
+
+    // Create WebView and apply settings
+    webview_ = WEBKIT_WEB_VIEW(webkit_web_view_new());
+    g_object_ref_sink(webview_);
+    webkit_web_view_set_settings(webview_, settings);
     g_object_unref(settings);
     
-    // Create container
+    // Create container and take ownership of widgets (sink floating refs)
     container_ = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    g_object_ref_sink(container_);
     gtk_box_append(GTK_BOX(container_), GTK_WIDGET(webview_));
     
     // Load URL if set
@@ -74,32 +88,46 @@ void Tab::create_webview() {
 }
 
 void Tab::destroy_webview() {
+    if (!webview_ && !container_) {
+        return;
+    }
+
+    // First detach the webview from its parent (typically container_)
     if (webview_) {
-        if (container_) {
-            GtkWidget* parent = gtk_widget_get_parent(container_);
-            if (parent) {
-                gtk_box_remove(GTK_BOX(parent), container_);
-            }
+        if (gtk_widget_get_parent(GTK_WIDGET(webview_))) {
+            gtk_widget_unparent(GTK_WIDGET(webview_));
+        }
+    }
+
+    // Then detach and release the container if present
+    if (container_) {
+        if (gtk_widget_get_parent(container_)) {
             gtk_widget_unparent(container_);
         }
-        g_object_unref(webview_);
-        webview_ = nullptr;
-        container_ = nullptr;
+        g_object_unref(container_);
     }
+
+    if (webview_) {
+        g_object_unref(webview_);
+    }
+
+    webview_ = nullptr;
+    container_ = nullptr;
 }
 
 void Tab::unload() {
-    if (is_unloaded_ || !webview_) {
+    if (is_unloaded_) {
         return;
     }
     
     // Save URL before unloading
-    char* uri = webkit_web_view_get_uri(webview_);
-    if (uri) {
-        url_ = uri;
-        g_free(uri);
+    if (webview_) {
+        const char* uri = webkit_web_view_get_uri(webview_);
+        if (uri) {
+            url_ = uri;
+        }
     }
-    
+
     destroy_webview();
     is_unloaded_ = true;
 }
@@ -122,4 +150,10 @@ void Tab::restore() {
 void Tab::mark_active() {
     last_active_ = std::chrono::steady_clock::now();
     last_active_system_ = std::chrono::system_clock::now();
+}
+
+void Tab::set_last_active_system(std::chrono::system_clock::time_point tp) {
+    last_active_system_ = tp;
+    // Align steady clock to "now" so relative comparisons remain monotonic in runtime
+    last_active_ = std::chrono::steady_clock::now();
 }

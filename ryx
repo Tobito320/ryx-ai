@@ -440,23 +440,8 @@ start_ryxhub() {
 # Handle commands
 case "$1" in
     surf|ryxsurf|browser)
-        echo -e "${CYAN}╔═══════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}║         Starting RyxSurf              ║${NC}"
-        echo -e "${CYAN}╚═══════════════════════════════════════╝${NC}"
-        
-        # Check if vLLM is running - don't restart if it's working
-        if curl -s http://localhost:8001/v1/models &>/dev/null; then
-            echo -e "${GREEN}✓${NC} vLLM already running"
-        else
-            # Start vLLM in fast mode only if not running
-            echo -e "${YELLOW}Starting vLLM...${NC}"
-            start_vllm_mode "fast"
-        fi
-        
-        # Start browser immediately (AI features work when vLLM is ready)
-        [ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"
-        cd "$PROJECT_ROOT"
-        exec python3 -m ryxsurf.main "$@"
+        # Launch RyxSurf-CPP directly (no vLLM needed for basic browsing)
+        exec /usr/local/bin/ryxsurf
         ;;
     ryxhub|hub|web)
         if [ "$2" = "restart" ]; then

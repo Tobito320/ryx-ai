@@ -34,14 +34,22 @@ public:
     void close_current_tab();
     void next_tab();
     void previous_tab();
+    void jump_to_tab(size_t index);
     void focus_address_bar();
+    void next_session();
+    void previous_session();
+    void toggle_sidebar();
 
 private:
     GtkWindow* window_;
     GtkBox* main_box_;
+    GtkBox* session_indicator_;
+    GtkBox* content_box_;
+    GtkBox* sidebar_;
     GtkBox* tab_bar_;
     GtkEntry* address_bar_;
     GtkNotebook* notebook_;
+    bool sidebar_visible_;
     
     std::unique_ptr<SessionManager> session_manager_;
     std::unique_ptr<KeyboardHandler> keyboard_handler_;
@@ -56,6 +64,7 @@ private:
     void update_address_bar();
     void update_notebook();
     void update_session_indicator();
+    void update_sidebar();
     void refresh_ui();
     
     // Signal handlers

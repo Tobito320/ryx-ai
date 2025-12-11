@@ -207,6 +207,13 @@ bool PersistenceManager::save_all() {
     for (size_t i = 0; i < session_manager_->get_workspace_count(); ++i) {
         Workspace* ws = session_manager_->get_workspace(i);
         if (ws) {
+            bool is_empty_default = ws->get_name() == "Main" &&
+                                   ws->get_session_count() == 1 &&
+                                   ws->get_session(0)->is_overview() &&
+                                   ws->get_session(0)->get_tab_count() == 0;
+            if (is_empty_default) {
+                continue;
+            }
             if (!save_workspace(ws)) {
                 execute_sql("ROLLBACK;");
                 return false;
@@ -321,6 +328,9 @@ bool PersistenceManager::load_all() {
     if (!db_) {
         return false;
     }
+
+    // Start from a clean slate to avoid carrying default workspaces into loaded state
+    session_manager_->reset(false);
     
     // Load workspaces
     const char* sql = "SELECT id, name, created_at, updated_at FROM workspaces ORDER BY id;";
@@ -332,13 +342,23 @@ bool PersistenceManager::load_all() {
     
     std::map<sqlite3_int64, Workspace*> workspace_map;
     
+    bool loaded_any = false;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
+        loaded_any = true;
         sqlite3_int64 id = sqlite3_column_int64(stmt, 0);
         const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         sqlite3_int64 created = sqlite3_column_int64(stmt, 2);
         sqlite3_int64 updated = sqlite3_column_int64(stmt, 3);
         
         Workspace* ws = session_manager_->add_workspace(name ? name : "");
+        if (ws) {
+            if (created > 0) {
+                ws->set_created_at(std::chrono::system_clock::from_time_t(static_cast<time_t>(created)));
+            }
+            if (updated > 0) {
+                ws->set_updated_at(std::chrono::system_clock::from_time_t(static_cast<time_t>(updated)));
+            }
+        }
         workspace_map[id] = ws;
         
         // Load sessions for this workspace using parameterized query
@@ -355,6 +375,14 @@ bool PersistenceManager::load_all() {
                 
                 Session* session = ws->add_session(s_name ? s_name : "");
                 session->set_overview(is_overview != 0);
+                sqlite3_int64 s_created = sqlite3_column_int64(session_stmt, 3);
+                sqlite3_int64 s_updated = sqlite3_column_int64(session_stmt, 4);
+                if (s_created > 0) {
+                    session->set_created_at(std::chrono::system_clock::from_time_t(static_cast<time_t>(s_created)));
+                }
+                if (s_updated > 0) {
+                    session->set_updated_at(std::chrono::system_clock::from_time_t(static_cast<time_t>(s_updated)));
+                }
                 
                 // Load tabs for this session using parameterized query
                 const char* tab_sql = "SELECT url, title, snapshot_path, last_active, position FROM tabs WHERE session_id = ? ORDER BY position;";
@@ -374,8 +402,9 @@ bool PersistenceManager::load_all() {
                         if (snapshot) {
                             tab->set_snapshot_path(snapshot);
                         }
-                        // Restore system_clock timestamp (will be converted to steady_clock on mark_active)
-                        // Note: We don't restore steady_clock as it's relative, but we preserve the system time
+                        if (last_active > 0) {
+                            tab->set_last_active_system(std::chrono::system_clock::from_time_t(static_cast<time_t>(last_active)));
+                        }
                     }
                     sqlite3_finalize(tab_stmt);
                 }
@@ -385,6 +414,11 @@ bool PersistenceManager::load_all() {
     }
     
     sqlite3_finalize(stmt);
+
+    if (!loaded_any) {
+        // Recreate default workspace if nothing was stored
+        session_manager_->reset(true);
+    }
     return true;
 }
 
@@ -431,6 +465,8 @@ void PersistenceManager::set_master_password(const std::string& password) {
 }
 
 bool PersistenceManager::load_workspace(const std::string& name, Workspace* workspace) {
+    (void)name;
+    (void)workspace;
     // Implementation for loading single workspace
     // For now, load_all handles everything
     return false;

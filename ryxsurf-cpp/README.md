@@ -76,8 +76,10 @@ meson compile -C build
 | `Ctrl+W` | Close current tab |
 | `Ctrl+↑` | Previous tab |
 | `Ctrl+↓` | Next tab |
-| `Ctrl+←` | Previous session (placeholder) |
-| `Ctrl+→` | Next session (placeholder) |
+| `Ctrl+1-9` | Jump to tab N |
+| `Ctrl+←` | Previous session |
+| `Ctrl+→` | Next session |
+| `Ctrl+B` | Toggle sidebar visibility |
 | `Ctrl+Tab` | Next tab (fallback) |
 | `Ctrl+Shift+Tab` | Previous tab (fallback) |
 | `Ctrl+L` | Focus address bar |

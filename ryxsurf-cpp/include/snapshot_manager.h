@@ -34,6 +34,7 @@ public:
 
 private:
     std::filesystem::path snapshot_dir_;
+    bool snapshots_enabled_;
     
     void ensure_snapshot_dir();
     std::string generate_tab_id(Tab* tab) const;
