@@ -18,6 +18,7 @@ webkitgtk_dep = dependency('webkitgtk-6.0', version: '>=2.40')
 sqlite3_dep = dependency('sqlite3')
 libsecret_dep = dependency('libsecret-1')
 libsodium_dep = dependency('libsodium')
+cairo_dep = dependency('cairo')
 
 # Compiler flags
 cpp = meson.get_compiler('cpp')
@@ -64,6 +65,8 @@ sources = files(
   'src/session_manager.cpp',
   'src/session.cpp',
   'src/workspace.cpp',
+  'src/snapshot_manager.cpp',
+  'src/tab_unload_manager.cpp',
 )
 
 # Executable
@@ -77,6 +80,7 @@ executable(
     sqlite3_dep,
     libsecret_dep,
     libsodium_dep,
+    cairo_dep,
   ],
   cpp_args: cpp_args,
   install: true,

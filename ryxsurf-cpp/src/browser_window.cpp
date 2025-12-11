@@ -1,7 +1,9 @@
 #include "browser_window.h"
 #include "session_manager.h"
+#include "tab_unload_manager.h"
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
+#include <glib.h>
 #include <iostream>
 
 BrowserWindow::BrowserWindow()
@@ -12,6 +14,8 @@ BrowserWindow::BrowserWindow()
     , notebook_(nullptr)
     , session_manager_(std::make_unique<SessionManager>())
     , keyboard_handler_(std::make_unique<KeyboardHandler>(this))
+    , unload_manager_(std::make_unique<TabUnloadManager>())
+    , unload_timer_id_(0)
 {
     // Create main window
     window_ = GTK_WINDOW(gtk_window_new());
@@ -47,6 +51,18 @@ BrowserWindow::BrowserWindow()
     refresh_ui();
     update_notebook();
     
+    // Setup periodic unload check (every 60 seconds)
+    unload_timer_id_ = g_timeout_add_seconds(60, 
+        [](gpointer user_data) -> gboolean {
+            BrowserWindow* bw = static_cast<BrowserWindow*>(user_data);
+            Session* session = bw->session_manager_->get_current_session();
+            if (session) {
+                bw->unload_manager_->check_and_unload(
+                    session, session->get_active_tab_index());
+            }
+            return TRUE;  // Keep timer running
+        }, this);
+    
     // Connect window close
     g_signal_connect(window_, "close-request",
                      G_CALLBACK(+[](GtkWindow* window, gpointer) -> gboolean {
@@ -56,6 +72,12 @@ BrowserWindow::BrowserWindow()
 }
 
 BrowserWindow::~BrowserWindow() {
+    // Remove unload timer
+    if (unload_timer_id_ != 0) {
+        g_source_remove(unload_timer_id_);
+        unload_timer_id_ = 0;
+    }
+    
     if (window_) {
         gtk_window_destroy(window_);
     }
@@ -225,6 +247,11 @@ void BrowserWindow::show_tab(size_t index) {
     Tab* tab = session->get_tab(index);
     if (!tab) {
         return;
+    }
+    
+    // Restore if unloaded
+    if (tab->is_unloaded()) {
+        tab->restore();
     }
     
     ensure_tab_webview_loaded(tab);

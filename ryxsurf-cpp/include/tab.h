@@ -45,6 +45,8 @@ public:
     // Unload/restore
     void unload();
     void restore();
+    void set_snapshot_path(const std::string& path) { snapshot_path_ = path; }
+    std::string get_snapshot_path() const { return snapshot_path_; }
 
 private:
     std::string url_;

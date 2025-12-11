@@ -110,8 +110,12 @@ void Tab::restore() {
     
     create_webview();
     if (!url_.empty() && url_ != "about:blank") {
-        webkit_web_view_load_uri(webview_, url_.c_str());
+        WebKitWebView* webview = get_webview();
+        if (webview) {
+            webkit_web_view_load_uri(webview, url_.c_str());
+        }
     }
+    is_unloaded_ = false;
 }
 
 void Tab::mark_active() {
