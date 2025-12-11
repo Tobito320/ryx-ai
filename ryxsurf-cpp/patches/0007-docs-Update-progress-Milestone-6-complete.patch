@@ -1,0 +1,53 @@
+From f7d333fdf95d353e53053040355cdc0dfce803b1 Mon Sep 17 00:00:00 2001
+From: Tobito320 <ahmedhdplay12345@gmail.com>
+Date: Thu, 11 Dec 2025 19:45:06 +0100
+Subject: [PATCH 07/14] docs: Update progress - Milestone 6 complete
+
+---
+ ryxsurf-cpp/PROGRESS.md | 21 ++++++++++++++-------
+ 1 file changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/ryxsurf-cpp/PROGRESS.md b/ryxsurf-cpp/PROGRESS.md
+index 87a0902..0578d01 100644
+--- a/ryxsurf-cpp/PROGRESS.md
++++ b/ryxsurf-cpp/PROGRESS.md
+@@ -28,11 +28,18 @@
+ - Periodic check every 60 seconds
+ - Restore from snapshot on focus
+ 
++### ✅ Milestone 6: Persistence
++- Crypto class (Argon2id + ChaCha20-Poly1305)
++- PersistenceManager (encrypted SQLite with WAL mode)
++- Database schema (workspaces, sessions, tabs)
++- Autosave (periodic + graceful exit)
++- Restore on startup
++
+ ## Current Status
+ 
+-**Total Files**: 20 C++ source/header files
+-**Commits**: 5 (analysis, PoC, docs, core models, unload/restore)
+-**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager
++**Total Files**: 28 C++ source/header files
++**Commits**: 7 (analysis, PoC, docs, core models, unload/restore, persistence)
++**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager
+ 
+ ## Next Steps
+ 
+@@ -45,10 +52,10 @@
+ - ✅ Basic lazy loading implemented in Tab
+ - ⏳ Dedicated WebViewFactory for better control
+ 
+-### Milestone 6: Persistence
+-- ⏳ Encrypted SQLite schema
+-- ⏳ Argon2id KDF + libsodium encryption
+-- ⏳ Autosave & graceful exit restore
++### Milestone 6: Persistence ✅ Complete
++- ✅ Encrypted SQLite schema
++- ✅ Argon2id KDF + libsodium encryption
++- ✅ Autosave & graceful exit restore
+ 
+ ### Milestone 7: Password Manager
+ - ⏳ libsecret integration
+-- 
+2.52.0
+
