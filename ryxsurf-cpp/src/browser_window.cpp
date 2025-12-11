@@ -2,6 +2,7 @@
 #include "session_manager.h"
 #include "tab_unload_manager.h"
 #include "persistence_manager.h"
+#include "password_manager.h"
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
 #include <glib.h>
@@ -17,6 +18,7 @@ BrowserWindow::BrowserWindow()
     , keyboard_handler_(std::make_unique<KeyboardHandler>(this))
     , unload_manager_(std::make_unique<TabUnloadManager>())
     , persistence_manager_(std::make_unique<PersistenceManager>(session_manager_.get()))
+    , password_manager_(std::make_unique<PasswordManager>())
     , unload_timer_id_(0)
 {
     // Create main window
@@ -53,6 +55,9 @@ BrowserWindow::BrowserWindow()
         persistence_manager_->load_all();
         persistence_manager_->enable_autosave(30);  // Autosave every 30 seconds
     }
+    
+    // Initialize password manager
+    password_manager_->initialize();
     
     // Create initial tab if no sessions loaded
     if (session_manager_->get_current_session() && 

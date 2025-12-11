@@ -69,6 +69,7 @@ sources = files(
   'src/tab_unload_manager.cpp',
   'src/crypto.cpp',
   'src/persistence_manager.cpp',
+  'src/password_manager.cpp',
 )
 
 # Executable
