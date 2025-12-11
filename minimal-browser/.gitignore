@@ -1,0 +1,41 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# Meson
+meson-private/
+meson-info/
+meson-logs/
+compile_commands.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test artifacts
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# Performance data
+*.perf.data
+*.heaptrack
+*.prof
+
+# Session data (for testing)
+test_sessions/
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
