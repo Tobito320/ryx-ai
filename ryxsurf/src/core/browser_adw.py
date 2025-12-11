@@ -62,6 +62,7 @@ class Tab:
     can_go_forward: bool = False
     last_active: float = field(default_factory=time.time)
     is_unloaded: bool = False
+    workspace: int = 0  # Workspace index this tab belongs to
 
 
 class HistoryManager:
@@ -798,13 +799,18 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         self._switch_to_tab((self.active_tab - 1) % len(self.tabs))
     
     def _update_tab_list(self):
-        """Update sidebar tab list"""
+        """Update sidebar tab list - filter by current workspace"""
         # Clear
         while row := self.tab_list.get_row_at_index(0):
             self.tab_list.remove(row)
         
-        # Add tabs
+        # Add tabs (filtered by workspace)
         for i, tab in enumerate(self.tabs):
+            # Only show tabs in current workspace (or all if workspace 0 / show all)
+            if hasattr(self, 'current_workspace') and hasattr(tab, 'workspace'):
+                if tab.workspace != self.current_workspace:
+                    continue
+            
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             row.add_css_class("tab-row")
             row.set_margin_start(8)
@@ -1152,7 +1158,20 @@ class RyxSurfWindow(Adw.ApplicationWindow):
         
         self.current_workspace = idx
         self._show_toast(f"Workspace: {self.workspace_names[idx]}")
-        # TODO: Actually implement workspace tab grouping
+        
+        # Filter tabs to show only this workspace
+        self._update_tab_list()
+        
+        # Switch to first tab in this workspace if current tab is hidden
+        visible_tabs = [i for i, t in enumerate(self.tabs) if t.workspace == idx]
+        if visible_tabs and self.active_tab not in visible_tabs:
+            self._switch_tab(visible_tabs[0])
+    
+    def _assign_tab_to_workspace(self, tab_idx: int, workspace_idx: int):
+        """Assign a tab to a specific workspace"""
+        if 0 <= tab_idx < len(self.tabs) and 0 <= workspace_idx < len(self.workspace_names):
+            self.tabs[tab_idx].workspace = workspace_idx
+            self._update_tab_list()
     
     # === UI TOGGLES ===
     

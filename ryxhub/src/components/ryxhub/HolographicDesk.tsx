@@ -39,8 +39,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { FormFillingModal } from "./FormFillingModal";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8420";
+
+interface FormField {
+  id: string;
+  name: string;
+  type: string;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+interface FormSuggestion {
+  fieldId: string;
+  suggestedValue: string;
+  confidence: number;
+  reason?: string;
+}
 
 interface Document {
   name: string;
@@ -103,6 +120,9 @@ export function HolographicDesk() {
   const [isDragging, setIsDragging] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [formFields, setFormFields] = useState<FormField[]>([]);
+  const [formSuggestions, setFormSuggestions] = useState<FormSuggestion[]>([]);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Open document with system default app
@@ -641,8 +661,22 @@ export function HolographicDesk() {
                         const data = await res.json();
                         if (data.fields?.length > 0) {
                           toast.success(`${data.fields.length} Felder gefunden`);
-                          // TODO: Show form filling modal
-                          console.log("AI suggestions:", data.suggestions);
+                          // Show form filling modal with detected fields
+                          setFormFields(data.fields.map((f: any, idx: number) => ({
+                            id: f.id || `field_${idx}`,
+                            name: f.name || `Feld ${idx + 1}`,
+                            type: f.type || 'text',
+                            label: f.label,
+                            placeholder: f.placeholder,
+                            required: f.required,
+                          })));
+                          setFormSuggestions(data.suggestions?.map((s: any) => ({
+                            fieldId: s.fieldId || s.field_id,
+                            suggestedValue: s.value || s.suggestedValue || '',
+                            confidence: s.confidence || 0.5,
+                            reason: s.reason,
+                          })) || []);
+                          setFormModalOpen(true);
                         } else {
                           toast.info("Keine Formularfelder gefunden");
                         }
@@ -673,6 +707,36 @@ export function HolographicDesk() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Form Filling Modal */}
+      <FormFillingModal
+        isOpen={formModalOpen}
+        onClose={() => setFormModalOpen(false)}
+        fields={formFields}
+        suggestions={formSuggestions}
+        documentName={previewDoc?.name}
+        onApply={async (values) => {
+          if (!previewDoc) return;
+          try {
+            const res = await fetch(`${API_BASE}/api/pdf/fill`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                path: previewDoc.path,
+                values: values,
+              }),
+            });
+            if (res.ok) {
+              toast.success("Formular erfolgreich ausgefüllt!");
+              fetchDocuments(); // Refresh to show updated document
+            } else {
+              toast.error("Fehler beim Ausfüllen des Formulars");
+            }
+          } catch (error) {
+            toast.error("Verbindungsfehler");
+          }
+        }}
+      />
     </div>
   );
 }
