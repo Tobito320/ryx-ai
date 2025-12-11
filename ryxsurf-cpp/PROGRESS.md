@@ -28,11 +28,18 @@
 - Periodic check every 60 seconds
 - Restore from snapshot on focus
 
+### ✅ Milestone 6: Persistence
+- Crypto class (Argon2id + ChaCha20-Poly1305)
+- PersistenceManager (encrypted SQLite with WAL mode)
+- Database schema (workspaces, sessions, tabs)
+- Autosave (periodic + graceful exit)
+- Restore on startup
+
 ## Current Status
 
-**Total Files**: 20 C++ source/header files
-**Commits**: 5 (analysis, PoC, docs, core models, unload/restore)
-**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager
+**Total Files**: 28 C++ source/header files
+**Commits**: 7 (analysis, PoC, docs, core models, unload/restore, persistence)
+**Test Coverage**: Tab, Session, Workspace, SessionManager, UnloadManager, Crypto, PersistenceManager
 
 ## Next Steps
 
@@ -45,10 +52,10 @@
 - ✅ Basic lazy loading implemented in Tab
 - ⏳ Dedicated WebViewFactory for better control
 
-### Milestone 6: Persistence
-- ⏳ Encrypted SQLite schema
-- ⏳ Argon2id KDF + libsodium encryption
-- ⏳ Autosave & graceful exit restore
+### Milestone 6: Persistence ✅ Complete
+- ✅ Encrypted SQLite schema
+- ✅ Argon2id KDF + libsodium encryption
+- ✅ Autosave & graceful exit restore
 
 ### Milestone 7: Password Manager
 - ⏳ libsecret integration
