@@ -7,7 +7,11 @@
   "unload_after_seconds": 300,
   "max_loaded_tabs": 10,
   "theme": "dark",
+  "search_engine": "searxng",
+  "searxng_url": "http://localhost:8888",
   "default_session": "default",
+  "restore_session_on_startup": true,
+  "block_trackers": false,
   "sessions": {
     "default": {
       "name": "Default",

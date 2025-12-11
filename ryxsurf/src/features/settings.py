@@ -16,22 +16,25 @@ SETTINGS_HTML = """
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         :root {
-            --bg: #0a0a0c;
-            --bg-lighter: #1a1a20;
-            --bg-card: #0e0e12;
-            --fg: #e0e0e0;
-            --fg-dim: #666;
-            --accent: #7c3aed;
-            --border: #2a2a30;
+            --bg: #05060a;
+            --bg-lighter: #0d0f15;
+            --bg-card: rgba(16, 14, 24, 0.9);
+            --fg: #f4f4ff;
+            --fg-dim: #7f8193;
+            --accent: #a78bfa;
+            --border: #1f1f2a;
+            --glow: 0 10px 40px rgba(124, 58, 237, 0.25);
         }
         
         body {
-            background: var(--bg);
+            background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.08), transparent 35%), 
+                        radial-gradient(circle at 80% 0%, rgba(79, 70, 229, 0.12), transparent 30%),
+                        var(--bg);
             color: var(--fg);
             font-family: 'Inter', system-ui, sans-serif;
             line-height: 1.6;
             padding: 40px;
-            max-width: 800px;
+            max-width: 860px;
             margin: 0 auto;
         }
         
@@ -58,6 +61,9 @@ SETTINGS_HTML = """
             border-radius: 12px;
             padding: 4px;
             margin-bottom: 16px;
+            border: 1px solid var(--border);
+            box-shadow: var(--glow);
+            backdrop-filter: blur(10px);
         }
         
         .setting-row {
@@ -278,10 +284,10 @@ SETTINGS_HTML = """
             </div>
             <div class="setting-control">
                 <select id="search-engine" onchange="updateSetting('search_engine', this.value)">
-                    <option value="google">Google</option>
                     <option value="searxng">SearXNG (Private)</option>
-                    <option value="duckduckgo">DuckDuckGo</option>
+                    <option value="google">Google</option>
                     <option value="brave">Brave Search</option>
+                    <option value="duckduckgo">DuckDuckGo</option>
                 </select>
             </div>
         </div>
@@ -293,6 +299,22 @@ SETTINGS_HTML = """
             <div class="setting-control">
                 <input type="text" id="searxng-url" value="http://localhost:8888" 
                        onchange="updateSetting('searxng_url', this.value)">
+            </div>
+        </div>
+    </div>
+    
+    <h2>🗂️ Tabs & Sessions</h2>
+    <div class="setting-group">
+        <div class="setting-row">
+            <div class="setting-label">
+                <h3>Restore last session</h3>
+                <p>Pick up exactly where you left off (Zen-style session flow)</p>
+            </div>
+            <div class="setting-control">
+                <label class="toggle">
+                    <input type="checkbox" id="restore-session" checked onchange="updateSetting('restore_session_on_startup', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
         </div>
     </div>
@@ -357,6 +379,22 @@ SETTINGS_HTML = """
             <div class="setting-control">
                 <input type="number" id="max-loaded-tabs" value="8" min="2" max="20"
                        onchange="updateSetting('max_loaded_tabs', parseInt(this.value))">
+            </div>
+        </div>
+    </div>
+    
+    <h2>🛡️ Privacy</h2>
+    <div class="setting-group">
+        <div class="setting-row">
+            <div class="setting-label">
+                <h3>Block trackers & ads</h3>
+                <p>Brave-style shields for quieter, faster pages</p>
+            </div>
+            <div class="setting-control">
+                <label class="toggle">
+                    <input type="checkbox" id="block-trackers" onchange="updateSetting('block_trackers', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
             </div>
         </div>
     </div>
@@ -441,6 +479,14 @@ SETTINGS_HTML = """
             <span class="shortcut-action">Reopen closed tab</span>
         </div>
         <div class="shortcut-item">
+            <span class="shortcut-key">Super+s</span>
+            <span class="shortcut-action">Save session (workspace friendly)</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-key">Super+Shift+s</span>
+            <span class="shortcut-action">Switch session stacks</span>
+        </div>
+        <div class="shortcut-item">
             <span class="shortcut-key">Alt+Left</span>
             <span class="shortcut-action">Back</span>
         </div>
@@ -478,15 +524,17 @@ SETTINGS_HTML = """
             settings = JSON.parse(settingsJson);
             
             // Apply to UI
-            document.getElementById('search-engine').value = settings.search_engine || 'google';
+            document.getElementById('search-engine').value = settings.search_engine || 'searxng';
             document.getElementById('searxng-url').value = settings.searxng_url || 'http://localhost:8888';
             document.getElementById('dark-mode').checked = settings.dark_mode !== false;
             document.getElementById('url-bar-auto-hide').checked = settings.url_bar_auto_hide || false;
+            document.getElementById('restore-session').checked = settings.restore_session_on_startup !== false;
             document.getElementById('gpu-acceleration').checked = settings.gpu_acceleration !== false;
             document.getElementById('tab-unload-timeout').value = settings.tab_unload_timeout_seconds || 120;
             document.getElementById('max-loaded-tabs').value = settings.max_loaded_tabs || 8;
             document.getElementById('save-passwords').checked = settings.save_passwords !== false;
             document.getElementById('autofill-passwords').checked = settings.autofill_passwords !== false;
+            document.getElementById('block-trackers').checked = settings.block_trackers === true;
         }
         
         // Update setting
