@@ -8,6 +8,7 @@ Tab::Tab(const std::string& url)
     , webview_(nullptr)
     , container_(nullptr)
     , last_active_(std::chrono::steady_clock::now())
+    , last_active_system_(std::chrono::system_clock::now())
     , is_unloaded_(false)
 {
 }
@@ -120,4 +121,5 @@ void Tab::restore() {
 
 void Tab::mark_active() {
     last_active_ = std::chrono::steady_clock::now();
+    last_active_system_ = std::chrono::system_clock::now();
 }

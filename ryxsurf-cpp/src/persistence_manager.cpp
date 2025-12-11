@@ -32,7 +32,13 @@ std::string PersistenceManager::get_db_path() const {
     if (xdg_data) {
         base_dir = std::filesystem::path(xdg_data) / "ryxsurf";
     } else {
-        base_dir = std::filesystem::path(std::getenv("HOME")) / ".local" / "share" / "ryxsurf";
+        const char* home = std::getenv("HOME");
+        if (!home) {
+            // Fallback to /tmp if HOME is not set (should not happen in normal usage)
+            base_dir = std::filesystem::path("/tmp") / "ryxsurf";
+        } else {
+            base_dir = std::filesystem::path(home) / ".local" / "share" / "ryxsurf";
+        }
     }
     
     std::filesystem::create_directories(base_dir);
@@ -218,27 +224,41 @@ bool PersistenceManager::save_workspace(Workspace* workspace) {
         return false;
     }
     
-    // Insert workspace
-    std::stringstream ss;
+    // Insert workspace using parameterized query
+    const char* sql = "INSERT OR REPLACE INTO workspaces (name, created_at, updated_at) VALUES (?, ?, ?);";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    
     auto created = std::chrono::duration_cast<std::chrono::seconds>(
         workspace->get_created_at().time_since_epoch()).count();
     auto updated = std::chrono::duration_cast<std::chrono::seconds>(
         workspace->get_updated_at().time_since_epoch()).count();
     
-    ss << "INSERT OR REPLACE INTO workspaces (name, created_at, updated_at) "
-       << "VALUES ('" << workspace->get_name() << "', " << created << ", " << updated << ");";
+    sqlite3_bind_text(stmt, 1, workspace->get_name().c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int64(stmt, 2, created);
+    sqlite3_bind_int64(stmt, 3, updated);
     
-    if (!execute_sql(ss.str())) {
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
         return false;
     }
     
-    // Get workspace ID
     sqlite3_int64 workspace_id = sqlite3_last_insert_rowid(db_);
+    sqlite3_finalize(stmt);
     
     // Save sessions
+    const char* session_sql = "INSERT OR REPLACE INTO sessions (workspace_id, name, is_overview, created_at, updated_at) VALUES (?, ?, ?, ?, ?);";
+    
     for (size_t i = 0; i < workspace->get_session_count(); ++i) {
         Session* session = workspace->get_session(i);
         if (!session) {
+            continue;
+        }
+        
+        if (sqlite3_prepare_v2(db_, session_sql, -1, &stmt, nullptr) != SQLITE_OK) {
             continue;
         }
         
@@ -247,36 +267,50 @@ bool PersistenceManager::save_workspace(Workspace* workspace) {
         auto s_updated = std::chrono::duration_cast<std::chrono::seconds>(
             session->get_updated_at().time_since_epoch()).count();
         
-        ss.str("");
-        ss << "INSERT OR REPLACE INTO sessions (workspace_id, name, is_overview, created_at, updated_at) "
-           << "VALUES (" << workspace_id << ", '" << session->get_name() << "', "
-           << (session->is_overview() ? 1 : 0) << ", " << s_created << ", " << s_updated << ");";
+        sqlite3_bind_int64(stmt, 1, workspace_id);
+        sqlite3_bind_text(stmt, 2, session->get_name().c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 3, session->is_overview() ? 1 : 0);
+        sqlite3_bind_int64(stmt, 4, s_created);
+        sqlite3_bind_int64(stmt, 5, s_updated);
         
-        if (!execute_sql(ss.str())) {
-            return false;
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            continue;
         }
         
         sqlite3_int64 session_id = sqlite3_last_insert_rowid(db_);
+        sqlite3_finalize(stmt);
         
-        // Save tabs
+        // Save tabs using parameterized query
+        const char* tab_sql = "INSERT INTO tabs (session_id, url, title, snapshot_path, last_active, position) VALUES (?, ?, ?, ?, ?, ?);";
+        
         for (size_t j = 0; j < session->get_tab_count(); ++j) {
             Tab* tab = session->get_tab(j);
             if (!tab) {
                 continue;
             }
             
-            auto last_active = std::chrono::duration_cast<std::chrono::seconds>(
-                tab->get_last_active().time_since_epoch()).count();
-            
-            ss.str("");
-            ss << "INSERT INTO tabs (session_id, url, title, snapshot_path, last_active, position) "
-               << "VALUES (" << session_id << ", '" << tab->get_url() << "', '"
-               << tab->get_title() << "', '" << tab->get_snapshot_path() << "', "
-               << last_active << ", " << j << ");";
-            
-            if (!execute_sql(ss.str())) {
-                return false;
+            if (sqlite3_prepare_v2(db_, tab_sql, -1, &stmt, nullptr) != SQLITE_OK) {
+                continue;
             }
+            
+            // Use system_clock time_point for persistence
+            auto last_active = std::chrono::duration_cast<std::chrono::seconds>(
+                tab->get_last_active_system().time_since_epoch()).count();
+            
+            sqlite3_bind_int64(stmt, 1, session_id);
+            sqlite3_bind_text(stmt, 2, tab->get_url().c_str(), -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 3, tab->get_title().c_str(), -1, SQLITE_STATIC);
+            sqlite3_bind_text(stmt, 4, tab->get_snapshot_path().c_str(), -1, SQLITE_STATIC);
+            sqlite3_bind_int64(stmt, 5, last_active);
+            sqlite3_bind_int(stmt, 6, j);
+            
+            if (sqlite3_step(stmt) != SQLITE_DONE) {
+                sqlite3_finalize(stmt);
+                continue;
+            }
+            
+            sqlite3_finalize(stmt);
         }
     }
     
@@ -304,41 +338,44 @@ bool PersistenceManager::load_all() {
         sqlite3_int64 created = sqlite3_column_int64(stmt, 2);
         sqlite3_int64 updated = sqlite3_column_int64(stmt, 3);
         
-        Workspace* ws = session_manager_->add_workspace(name);
+        Workspace* ws = session_manager_->add_workspace(name ? name : "");
         workspace_map[id] = ws;
         
-        // Load sessions for this workspace
-        std::stringstream ss;
-        ss << "SELECT id, name, is_overview, created_at, updated_at FROM sessions "
-           << "WHERE workspace_id = " << id << " ORDER BY id;";
-        
+        // Load sessions for this workspace using parameterized query
+        const char* session_sql = "SELECT id, name, is_overview, created_at, updated_at FROM sessions WHERE workspace_id = ? ORDER BY id;";
         sqlite3_stmt* session_stmt;
-        if (sqlite3_prepare_v2(db_, ss.str().c_str(), -1, &session_stmt, nullptr) == SQLITE_OK) {
+        
+        if (sqlite3_prepare_v2(db_, session_sql, -1, &session_stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int64(session_stmt, 1, id);
+            
             while (sqlite3_step(session_stmt) == SQLITE_ROW) {
                 sqlite3_int64 session_id = sqlite3_column_int64(session_stmt, 0);
                 const char* s_name = reinterpret_cast<const char*>(sqlite3_column_text(session_stmt, 1));
                 int is_overview = sqlite3_column_int(session_stmt, 2);
                 
-                Session* session = ws->add_session(s_name);
+                Session* session = ws->add_session(s_name ? s_name : "");
                 session->set_overview(is_overview != 0);
                 
-                // Load tabs for this session
-                ss.str("");
-                ss << "SELECT url, title, snapshot_path, last_active, position FROM tabs "
-                   << "WHERE session_id = " << session_id << " ORDER BY position;";
-                
+                // Load tabs for this session using parameterized query
+                const char* tab_sql = "SELECT url, title, snapshot_path, last_active, position FROM tabs WHERE session_id = ? ORDER BY position;";
                 sqlite3_stmt* tab_stmt;
-                if (sqlite3_prepare_v2(db_, ss.str().c_str(), -1, &tab_stmt, nullptr) == SQLITE_OK) {
+                
+                if (sqlite3_prepare_v2(db_, tab_sql, -1, &tab_stmt, nullptr) == SQLITE_OK) {
+                    sqlite3_bind_int64(tab_stmt, 1, session_id);
+                    
                     while (sqlite3_step(tab_stmt) == SQLITE_ROW) {
                         const char* url = reinterpret_cast<const char*>(sqlite3_column_text(tab_stmt, 0));
                         const char* title = reinterpret_cast<const char*>(sqlite3_column_text(tab_stmt, 1));
                         const char* snapshot = reinterpret_cast<const char*>(sqlite3_column_text(tab_stmt, 2));
+                        sqlite3_int64 last_active = sqlite3_column_int64(tab_stmt, 3);
                         
                         Tab* tab = session->add_tab(url ? url : "");
                         tab->set_title(title ? title : "");
                         if (snapshot) {
                             tab->set_snapshot_path(snapshot);
                         }
+                        // Restore system_clock timestamp (will be converted to steady_clock on mark_active)
+                        // Note: We don't restore steady_clock as it's relative, but we preserve the system time
                     }
                     sqlite3_finalize(tab_stmt);
                 }

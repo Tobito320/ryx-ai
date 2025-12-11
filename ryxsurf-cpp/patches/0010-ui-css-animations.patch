@@ -1,7 +1,7 @@
 From 6b6d09c03ed71671d6c4efd8c046c34a93291de0 Mon Sep 17 00:00:00 2001
 From: Tobito320 <ahmedhdplay12345@gmail.com>
 Date: Thu, 11 Dec 2025 19:49:09 +0100
-Subject: [PATCH 10/11] ui: css + animations
+Subject: [PATCH 10/12] ui: css + animations
 
 Implemented UI polish and CSS theming:
 - ThemeManager class for theme/layout/animation management

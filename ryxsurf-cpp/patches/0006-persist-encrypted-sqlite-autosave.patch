@@ -1,7 +1,7 @@
 From b4a1600a5ea68871e1626897368cf3cddbb0f4bd Mon Sep 17 00:00:00 2001
 From: Tobito320 <ahmedhdplay12345@gmail.com>
 Date: Thu, 11 Dec 2025 19:44:56 +0100
-Subject: [PATCH 06/11] persist: encrypted sqlite + autosave
+Subject: [PATCH 06/12] persist: encrypted sqlite + autosave
 
 Implemented encrypted SQLite persistence for sessions:
 - Crypto class: Argon2id key derivation + ChaCha20-Poly1305 encryption

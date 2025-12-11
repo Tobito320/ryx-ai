@@ -44,7 +44,13 @@ std::string PasswordManager::get_db_path() const {
     if (xdg_data) {
         base_dir = std::filesystem::path(xdg_data) / "ryxsurf";
     } else {
-        base_dir = std::filesystem::path(std::getenv("HOME")) / ".local" / "share" / "ryxsurf";
+        const char* home = std::getenv("HOME");
+        if (!home) {
+            // Fallback to /tmp if HOME is not set (should not happen in normal usage)
+            base_dir = std::filesystem::path("/tmp") / "ryxsurf";
+        } else {
+            base_dir = std::filesystem::path(home) / ".local" / "share" / "ryxsurf";
+        }
     }
     
     std::filesystem::create_directories(base_dir);

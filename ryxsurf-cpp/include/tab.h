@@ -41,6 +41,7 @@ public:
     // Activity tracking
     void mark_active();
     std::chrono::steady_clock::time_point get_last_active() const { return last_active_; }
+    std::chrono::system_clock::time_point get_last_active_system() const { return last_active_system_; }
 
     // Unload/restore
     void unload();
@@ -53,7 +54,8 @@ private:
     std::string title_;
     WebKitWebView* webview_;
     GtkWidget* container_;
-    std::chrono::steady_clock::time_point last_active_;
+    std::chrono::steady_clock::time_point last_active_;  // For relative timing (unload checks)
+    std::chrono::system_clock::time_point last_active_system_;  // For persistence (absolute time)
     bool is_unloaded_;
     std::string snapshot_path_;
 };

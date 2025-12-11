@@ -15,7 +15,13 @@ SnapshotManager::SnapshotManager() {
     if (xdg_data) {
         snapshot_dir_ = std::filesystem::path(xdg_data) / "ryxsurf" / "snapshots";
     } else {
-        snapshot_dir_ = std::filesystem::path(std::getenv("HOME")) / ".local" / "share" / "ryxsurf" / "snapshots";
+        const char* home = std::getenv("HOME");
+        if (!home) {
+            // Fallback to /tmp if HOME is not set (should not happen in normal usage)
+            snapshot_dir_ = std::filesystem::path("/tmp") / "ryxsurf" / "snapshots";
+        } else {
+            snapshot_dir_ = std::filesystem::path(home) / ".local" / "share" / "ryxsurf" / "snapshots";
+        }
     }
     
     ensure_snapshot_dir();
