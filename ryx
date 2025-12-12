@@ -440,8 +440,10 @@ start_ryxhub() {
 # Handle commands
 case "$1" in
     surf|ryxsurf|browser)
-        # Launch RyxSurf-CPP directly (no vLLM needed for basic browsing)
-        exec /usr/local/bin/ryxsurf
+        # Launch Python RyxSurf (uses GTK/WebKit)
+        cd "$PROJECT_ROOT/ryxsurf"
+        [ -d "$PROJECT_ROOT/venv" ] && source "$PROJECT_ROOT/venv/bin/activate"
+        exec python main.py "${@:2}"
         ;;
     ryxhub|hub|web)
         if [ "$2" = "restart" ]; then

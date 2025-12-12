@@ -392,6 +392,9 @@ class Browser:
             self.window.set_default_size(1920, 1080)
         else:
             self.window.set_default_size(1200, 800)
+
+        # Update sidebar width after the window is realized
+        GLib.idle_add(self._update_sidebar_width)
         
         # Release hold when window is destroyed
         self.window.connect('destroy', lambda w: self._on_window_destroy(app))
@@ -401,54 +404,54 @@ class Browser:
         
         # Zen Browser style layout:
         # [LEFT SIDEBAR] | [RIGHT: URL BAR + WEBVIEW]
-        
+
         # Main horizontal layout: sidebar on left, content on right
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.window.set_child(self.main_box)
-        
+
         # Create tab sidebar FIRST (left side, always visible)
         self._create_tab_sidebar()
         self.tab_sidebar.set_visible(True)  # Always visible by default
         self.sidebar_visible = True
-        
+
         # Right side: vertical box with URL bar on top, webview below
         self.right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.right_box.set_hexpand(True)
         self.right_box.set_vexpand(True)
         self.main_box.append(self.right_box)
-        
+
         # Content area for webviews (must be created BEFORE url bar for auto-hide)
         self.content_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.content_box.set_vexpand(True)
         self.content_box.set_hexpand(True)
-        
+
         # Create persistent URL bar at the top (always visible)
         self._create_url_bar()
         self.url_bar_visible = True
         self.url_bar_box.set_visible(True)
-        
+
         # Create bookmarks bar (hidden by default, below URL bar)
         self._create_bookmarks_bar()
-        
+
         # Create find bar (hidden by default)
         self._create_find_bar()
-        
+
         # Add content box after URL bar
         self.right_box.append(self.content_box)
-        
+
         # Create AI sidebar (hidden by default, right side of content)
         self._create_ai_sidebar()
-        
+
         # Create download notification
         self._create_download_notification()
-        
+
         # Create context menu handler
         self._create_context_menu_handler()
-        
+
         # Restore session or create initial tab
         if self.settings.get("restore_session_on_startup", True):
             self._restore_session()
-        
+
         # Create initial tab if no tabs restored
         if not self.tabs:
             # Check if SearXNG is running before using it as homepage
@@ -456,15 +459,15 @@ class Browser:
             self._new_tab(homepage)
         else:
             self._switch_to_tab(self.active_tab_idx)
-        
+
         # Setup keybinds
         self._setup_keybinds()
-        
+
         # Start tab unload monitor
         self._start_tab_unload_monitor()
-        
+
         log.info(f"RyxSurf ready in {(time.time() - start_time)*1000:.0f}ms ({len(self.tabs)} tabs)")
-        
+
         self.window.present()
     
     def _get_working_homepage(self) -> str:
@@ -560,13 +563,13 @@ class Browser:
            TAB SIDEBAR - Fixed width via widget sizing (CSS max-width not supported)
            ═══════════════════════════════════════════════════════════════ */
         .tab-sidebar {{
-            background: {colors['bg']};
+            background: radial-gradient(circle at 0% 0%, {colors['bg_lighter']}22 0%, {colors['bg']} 40%);
             border-right: 1px solid {colors['border']};
             padding: 4px;
         }}
         
-        /* Workspace bar - now in URL bar, compact style */
-        .workspace-bar {{
+        /* Workspace bar - now subtle dots beside nav */
+        .workspace-strip {{
             padding: 0 4px;
         }}
         
@@ -574,11 +577,11 @@ class Browser:
             background: transparent;
             border: none;
             color: {colors['fg_dim']};
-            padding: 4px 6px;
-            border-radius: 4px;
+            padding: 4px;
+            border-radius: 999px;
             font-size: 12px;
-            min-width: 24px;
-            min-height: 24px;
+            min-width: 26px;
+            min-height: 26px;
         }}
         
         .workspace-btn:hover {{
@@ -587,7 +590,7 @@ class Browser:
         }}
         
         .workspace-btn.active {{
-            background: {colors['bg_lighter']};
+            background: {colors['accent']}22;
             color: {colors['accent']};
         }}
         
@@ -596,6 +599,7 @@ class Browser:
             border: none;
             border-radius: 6px;
             padding: 4px;
+            margin: 1px 0;
         }}
         
         .tab-btn:hover {{
@@ -604,6 +608,7 @@ class Browser:
         
         .tab-btn.active {{
             background: {colors['bg_lighter']};
+            box-shadow: inset 2px 0 {colors['accent']};
         }}
         
         .tab-btn.unloaded {{
@@ -696,24 +701,39 @@ class Browser:
         }}
         
         /* ═══════════════════════════════════════════════════════════════
-           URL BAR - Compact centered layout
+           URL BAR - Zen-like header
            ═══════════════════════════════════════════════════════════════ */
         .url-bar {{
-            background: {colors['bg_darker']};
-            padding: 4px 12px;
-            min-height: 32px;
+            background: linear-gradient(135deg, {colors['bg_darker']} 0%, {colors['bg']} 100%);
+            padding: 6px 12px;
+            min-height: 40px;
             border-bottom: 1px solid {colors['border']};
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+        }}
+
+        .url-shell {{
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid {colors['border']};
+            border-radius: 12px;
+            padding: 5px 10px;
+            min-height: 32px;
+        }}
+        
+        .url-shell:focus-within {{
+            border-color: {colors['accent']};
+            box-shadow: 0 0 0 1px {colors['accent']}33;
+            background: {colors['bg_lighter']};
         }}
         
         .nav-btn {{
             background: transparent;
             border: none;
             color: {colors['fg_dim']};
-            border-radius: 4px;
-            padding: 4px 8px;
+            border-radius: 8px;
+            padding: 5px 9px;
             min-width: 24px;
             min-height: 24px;
-            font-size: 12px;
+            font-size: 11px;
         }}
         
         .nav-btn:hover {{
@@ -724,21 +744,30 @@ class Browser:
         .nav-btn:disabled {{
             color: {colors['border']};
         }}
+
+        .nav-btn.accent-btn {{
+            background: {colors['accent']}22;
+            color: {colors['accent']};
+        }}
+
+        .nav-btn.accent-btn:hover {{
+            background: {colors['accent']}33;
+            color: {colors['fg']};
+        }}
         
         .url-entry {{
-            background: {colors['border']};
+            background: transparent;
             color: {colors['fg']};
             border: none;
-            border-radius: 4px;
-            padding: 4px 10px;
+            padding: 1px 4px;
             font-size: 12px;
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            min-height: 22px;
+            min-height: 20px;
             caret-color: {colors['accent']};
         }}
         
         .url-entry:focus {{
-            background: {colors['bg_lighter']};
+            background: transparent;
             color: {colors['fg']};
             outline: none;
         }}
@@ -891,109 +920,87 @@ class Browser:
         log.info(f"Theme: {os.environ.get('GTK_THEME', 'default')}")
     
     def _create_url_bar(self):
-        """Create compact URL bar with useful controls"""
+        """Create compact Zen-like header with nav + URL entry"""
         self.url_bar_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.url_bar_box.add_css_class("url-bar")
-        self.url_bar_box.set_spacing(8)
+        self.url_bar_box.set_spacing(10)
         self.url_bar_box.set_hexpand(True)
-        
-        # Left side: Back/Forward/Reload buttons (compact)
-        nav_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        
-        self.back_btn = Gtk.Button(label="←")
-        self.back_btn.add_css_class("nav-btn")
-        self.back_btn.set_tooltip_text("Back (Alt+←)")
-        self.back_btn.connect("clicked", lambda _: self._history_back())
-        nav_box.append(self.back_btn)
-        
-        self.forward_btn = Gtk.Button(label="→")
-        self.forward_btn.add_css_class("nav-btn")
-        self.forward_btn.set_tooltip_text("Forward (Alt+→)")
-        self.forward_btn.connect("clicked", lambda _: self._history_forward())
-        nav_box.append(self.forward_btn)
-        
-        self.reload_btn = Gtk.Button(label="↻")
-        self.reload_btn.add_css_class("nav-btn")
-        self.reload_btn.set_tooltip_text("Reload (F5)")
-        self.reload_btn.connect("clicked", lambda _: self._reload())
-        nav_box.append(self.reload_btn)
-        
+        self.url_bar_box.set_valign(Gtk.Align.CENTER)
+
+        def make_btn(label: str, tooltip: str, handler, extra_css: Optional[str] = None) -> Gtk.Button:
+            btn = Gtk.Button(label=label)
+            btn.add_css_class("nav-btn")
+            if extra_css:
+                btn.add_css_class(extra_css)
+            btn.set_tooltip_text(tooltip)
+            btn.connect("clicked", lambda _: handler())
+            return btn
+
+        # Left cluster: nav + sidebar toggle
+        nav_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        nav_box.add_css_class("bar-left")
+        self.back_btn = make_btn("←", "Back (Alt+←)", self._history_back)
+        self.forward_btn = make_btn("→", "Forward (Alt+→)", self._history_forward)
+        self.reload_btn = make_btn("↻", "Reload (F5)", self._reload)
+        sidebar_toggle = make_btn("☰", "Toggle tabs (Ctrl+B)", self._toggle_sidebar)
+        for btn in (self.back_btn, self.forward_btn, self.reload_btn, sidebar_toggle):
+            nav_box.append(btn)
         self.url_bar_box.append(nav_box)
-        
-        # Workspace buttons (after reload, before URL) - like Hyprland workspaces
+
+        # Workspace dots (subtle, keeps Zen layout)        
         workspace_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        workspace_box.add_css_class("workspace-bar")
-        
+        workspace_box.add_css_class("workspace-strip")
         self.workspace_buttons = {}
         for ws_id, ws_info in WORKSPACES.items():
-            btn = Gtk.Button(label=ws_info["icon"])
-            btn.add_css_class("workspace-btn")
-            btn.set_tooltip_text(ws_info["name"])
+            btn = make_btn(ws_info["icon"], ws_info["name"], lambda wid=ws_id: self._switch_workspace(wid), "workspace-btn")
             if ws_id == self.current_workspace:
                 btn.add_css_class("active")
-            btn.connect("clicked", lambda _, wid=ws_id: self._switch_workspace(wid))
             workspace_box.append(btn)
             self.workspace_buttons[ws_id] = btn
-        
         self.url_bar_box.append(workspace_box)
-        
-        # Center: URL entry (60% width)
-        url_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        url_container.set_hexpand(True)
-        url_container.set_halign(Gtk.Align.CENTER)
-        
-        # Security icon
-        self.security_icon = Gtk.Label(label="")
+
+        # Center pill: lock + URL entry + tab count
+        url_shell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        url_shell.add_css_class("url-shell")
+        url_shell.set_hexpand(True)
+        url_shell.set_valign(Gtk.Align.CENTER)
+
+        self.security_icon = Gtk.Label(label="●")
         self.security_icon.add_css_class("security-icon")
-        url_container.append(self.security_icon)
-        
-        # URL entry - NOT full width
+        url_shell.append(self.security_icon)
+
         self.url_entry = Gtk.Entry()
-        self.url_entry.set_size_request(500, -1)  # Fixed 500px width
+        self.url_entry.set_hexpand(True)
         self.url_entry.add_css_class("url-entry")
-        self.url_entry.set_placeholder_text("Search or URL")
+        self.url_entry.set_placeholder_text("Search or enter address...")
         self.url_entry.connect("activate", self._on_url_entry_activate)
         self.url_entry.connect("changed", self._on_url_entry_changed)
-        url_container.append(self.url_entry)
-        
-        self.url_bar_box.append(url_container)
-        
-        # Right side: Useful buttons
-        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        right_box.set_halign(Gtk.Align.END)
-        
-        # Bookmark button
-        self.bookmark_btn = Gtk.Button(label="☆")
-        self.bookmark_btn.add_css_class("nav-btn")
-        self.bookmark_btn.set_tooltip_text("Bookmark (Ctrl+D)")
-        self.bookmark_btn.connect("clicked", lambda _: self._toggle_bookmark())
-        right_box.append(self.bookmark_btn)
-        
-        # Tab count
+        url_shell.append(self.url_entry)
+
         self.tab_count_label = Gtk.Label(label="1")
         self.tab_count_label.add_css_class("tab-count")
         self.tab_count_label.set_tooltip_text("Open tabs")
-        right_box.append(self.tab_count_label)
-        
-        # Downloads button
-        downloads_btn = Gtk.Button(label="↓")
-        downloads_btn.add_css_class("nav-btn")
-        downloads_btn.set_tooltip_text("Downloads (Ctrl+J)")
-        downloads_btn.connect("clicked", lambda _: self._show_downloads())
-        right_box.append(downloads_btn)
-        
-        # Menu button
-        menu_btn = Gtk.Button(label="≡")
-        menu_btn.add_css_class("nav-btn")
-        menu_btn.set_tooltip_text("Menu")
-        menu_btn.connect("clicked", lambda _: self._show_settings())
-        right_box.append(menu_btn)
-        
+        url_shell.append(self.tab_count_label)
+
+        self.url_bar_box.append(url_shell)
+
+        # Right cluster: new tab + bookmark + downloads + menu
+        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        right_box.add_css_class("bar-right")
+
+        new_tab_btn = make_btn("+", "New Tab (Ctrl+T)", self._new_tab, "accent-btn")
+        self.bookmark_btn = make_btn("☆", "Bookmark (Ctrl+D)", self._toggle_bookmark)
+        downloads_btn = make_btn("↓", "Downloads (Ctrl+J)", self._show_downloads)
+        menu_btn = make_btn("⋮", "Menu / Settings", self._show_settings)
+
+        for btn in (new_tab_btn, self.bookmark_btn, downloads_btn, menu_btn):
+            right_box.append(btn)
+
         self.url_bar_box.append(right_box)
-        
+
         # Create suggestions popover
         self._create_suggestions_popover()
-        
+
         # Add URL bar to right_box
         self.right_box.prepend(self.url_bar_box)
         
@@ -1090,8 +1097,7 @@ class Browser:
         """Create compact sidebar - ONLY tabs, no workspaces (those go in URL bar)"""
         self.tab_sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.tab_sidebar.add_css_class("tab-sidebar")
-        # Fixed 140px width (~10-12% of 1200px default window)
-        self.tab_sidebar.set_size_request(140, -1)
+        self._update_sidebar_width()
         self.tab_sidebar.set_hexpand(False)
         self.tab_sidebar.set_vexpand(True)
         
@@ -1115,6 +1121,27 @@ class Browser:
         
         # Prepend to main_box so it's on the left
         self.main_box.prepend(self.tab_sidebar)
+
+    def _update_sidebar_width(self, window_width: Optional[int] = None):
+        """Keep the tab sidebar between 10-20% of the window width"""
+        if not hasattr(self, "tab_sidebar") or self.tab_sidebar is None:
+            return False
+
+        if window_width is None:
+            width = 0
+            if self.window:
+                width = self.window.get_allocated_width()
+                if width <= 0:
+                    default_w, _ = self.window.get_default_size()
+                    width = default_w or 1200
+            else:
+                width = 1200
+        else:
+            width = window_width
+
+        target = max(160, min(320, int(width * 0.16)))
+        self.tab_sidebar.set_size_request(target, -1)
+        return False
     
     def _create_download_notification(self):
         """Create the download notification widget"""
@@ -1179,6 +1206,10 @@ class Browser:
         
         if not text:
             return
+
+        # Ensure we always have a tab to navigate
+        if not self.tabs:
+            self._new_tab()
         
         # Close any suggestions
         if hasattr(self, '_suggestions_popup') and self._suggestions_popup:
@@ -1226,9 +1257,14 @@ class Browser:
         elif text.lower() == "settings" or text.lower() == "about:settings":
             # Open settings page
             self._open_settings()
-        elif "." in text or text.startswith("http"):
-            # URL
-            url = text if text.startswith("http") else f"https://{text}"
+        elif "." in text or text.startswith("http") or ":" in text or "/" in text:
+            # URL or local address (e.g., localhost:3000)
+            if text.startswith(("http://", "https://")):
+                url = text
+            elif text.startswith("localhost") or text.startswith("127.") or text.startswith("0.0.0.0"):
+                url = f"http://{text}"
+            else:
+                url = f"https://{text}"
             self._navigate_current(url)
         else:
             # Default to search
@@ -1274,7 +1310,12 @@ class Browser:
             ("F11", "fullscreen", self._toggle_fullscreen),
             ("F12", "devtools", self._open_devtools),
             ("Escape", "escape", self._handle_escape),
+            ("<Control>Down", "next-tab-down", self._next_tab),
+            ("<Control>Up", "prev-tab-up", self._prev_tab),
         ]
+
+        for i in range(1, 10):
+            shortcuts.append((f"<Control>{i}", f"tab-{i}", lambda _w=None, idx=i-1: self._goto_tab(idx)))
         
         for accel, name, callback in shortcuts:
             trigger = Gtk.ShortcutTrigger.parse_string(accel)
