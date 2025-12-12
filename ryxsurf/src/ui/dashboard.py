@@ -1,5 +1,6 @@
 """
 RyxSurf Dashboard - Overview tab with metrics and quick access
+Minimal, beautiful design with subtle symbols and calm colors
 """
 import gi
 gi.require_version('Gtk', '3.0')
@@ -7,6 +8,17 @@ from gi.repository import Gtk, Gdk, GLib
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
+
+# Theme imports (with fallback)
+try:
+    from .theme import COLORS, SYMBOLS, SPACING, RADIUS, FONT_SIZES
+except ImportError:
+    # Fallback values
+    COLORS = {"text_secondary": "gray", "glass_light": "rgba(255,255,255,0.02)", "glass_medium": "rgba(255,255,255,0.04)", "glass_heavy": "rgba(255,255,255,0.06)", "border_subtle": "rgba(255,255,255,0.06)", "border_normal": "rgba(255,255,255,0.10)"}
+    SYMBOLS = {"shield": "⛨", "file": "📄", "clock": "🕐", "search": "⌕", "volume": "♪", "globe": "🌐", "tag": "🏷"}
+    SPACING = {"xs": 4, "sm": 8, "md": 16, "lg": 24, "xl": 32}
+    RADIUS = {"sm": 4, "md": 8, "lg": 12}
+    FONT_SIZES = {"xs": 11, "sm": 12, "base": 14}
 
 
 class DashboardView(Gtk.ScrolledWindow):
@@ -104,12 +116,12 @@ class DashboardView(Gtk.ScrolledWindow):
         grid.set_halign(Gtk.Align.CENTER)
         
         stats = [
-            ("🛡", "Ads Blocked", self.stats.get("ads_blocked", 0)),
-            ("👁", "Trackers Blocked", self.stats.get("trackers_blocked", 0)),
-            ("🍪", "Cookies Blocked", self.stats.get("cookies_blocked", 0)),
-            ("💾", f"Bandwidth Saved", f"{self.stats.get('bandwidth_saved_mb', 0):.1f} MB"),
-            ("📄", "Pages Loaded", self.stats.get("pages_loaded", 0)),
-            ("⚡", "Time Saved", self._format_time(self.stats.get("time_saved_sec", 0))),
+            (SYMBOLS["shield"], "Ads Blocked", self.stats.get("ads_blocked", 0)),
+            (SYMBOLS["shield"], "Trackers Blocked", self.stats.get("trackers_blocked", 0)),
+            (SYMBOLS["shield"], "Cookies Blocked", self.stats.get("cookies_blocked", 0)),
+            ("⬇", f"Bandwidth Saved", f"{self.stats.get('bandwidth_saved_mb', 0):.1f} MB"),
+            (SYMBOLS["file"], "Pages Loaded", self.stats.get("pages_loaded", 0)),
+            (SYMBOLS["clock"], "Time Saved", self._format_time(self.stats.get("time_saved_sec", 0))),
         ]
         
         col = 0
@@ -137,14 +149,21 @@ class DashboardView(Gtk.ScrolledWindow):
         
         style_context = card.get_style_context()
         css_provider = Gtk.CssProvider()
-        css_provider.load_from_data(b"""
-            box {
-                background-color: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 8px;
-                padding: 20px;
-            }
-        """)
+        css = f"""
+            box {{
+                background: linear-gradient(135deg, {COLORS['glass_light']} 0%, {COLORS['glass_medium']} 100%);
+                border: 1px solid {COLORS['border_subtle']};
+                border-radius: {RADIUS['lg']}px;
+                padding: {SPACING['lg']}px;
+                transition: all 200ms ease;
+            }}
+            box:hover {{
+                background: linear-gradient(135deg, {COLORS['glass_medium']} 0%, {COLORS['glass_heavy']} 100%);
+                border-color: {COLORS['border_normal']};
+                transform: translateY(-2px);
+            }}
+        """
+        css_provider.load_from_data(css.encode())
         style_context.add_provider(css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         
         # Symbol
@@ -185,14 +204,14 @@ class DashboardView(Gtk.ScrolledWindow):
         grid.set_row_spacing(10)
         
         quick_links = [
-            ("🔍", "Search", "https://search.ryxsurf.local"),
-            ("📧", "Email", "https://mail.google.com"),
-            ("📺", "YouTube", "https://youtube.com"),
-            ("🎵", "Music", "https://music.youtube.com"),
-            ("💬", "Chat", "https://chat.openai.com"),
-            ("📱", "Social", "https://twitter.com"),
-            ("📰", "News", "https://news.ycombinator.com"),
-            ("🛒", "Shopping", "https://amazon.com"),
+            (SYMBOLS["search"], "Search", "https://search.ryxsurf.local"),
+            ("@", "Email", "https://mail.google.com"),
+            ("▸", "YouTube", "https://youtube.com"),
+            (SYMBOLS["volume"], "Music", "https://music.youtube.com"),
+            ("…", "Chat", "https://chat.openai.com"),
+            ("#", "Social", "https://twitter.com"),
+            ("☰", "News", "https://news.ycombinator.com"),
+            (SYMBOLS["tag"], "Shopping", "https://amazon.com"),
         ]
         
         for symbol, label, url in quick_links:
@@ -261,7 +280,7 @@ class DashboardView(Gtk.ScrolledWindow):
         
         # Favicon placeholder
         favicon = Gtk.Label()
-        favicon.set_markup('<span size="large">🌐</span>')
+        favicon.set_markup(f'<span size="large" color="{COLORS["text_secondary"]}">{SYMBOLS["globe"]}</span>')
         box.pack_start(favicon, False, False, 5)
         
         # Site info
