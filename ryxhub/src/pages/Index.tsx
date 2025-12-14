@@ -1,26 +1,13 @@
 import { useState, useEffect } from "react";
 import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
-import { HolographicDesk } from "@/components/ryxhub/HolographicDesk";
-import { OverviewDashboard } from "@/components/ryxhub/OverviewDashboard";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
-import { ViewToggle } from "@/components/ryxhub/ViewToggle";
-import { ModelDialog } from "@/components/ryxhub/ModelDialog";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
 import { RyxHubProvider, useRyxHub } from "@/context/RyxHubContext";
-import { log } from "@/lib/logger";
-
-interface Model {
-  id: string;
-  name: string;
-  status: "online" | "offline" | "loading";
-  provider: string;
-}
+import { PanelLeft } from "lucide-react";
 
 function RyxHubApp() {
   const { activeView, sessions, selectedSessionId, selectSession, setActiveView } = useRyxHub();
-  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
-  const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -44,23 +31,13 @@ function RyxHubApp() {
   }, [activeView, selectedSessionId, sessions, selectSession]);
 
   useEffect(() => {
-    // Listen for model click events
-    const handleModelClick = (e: Event) => {
-      const customEvent = e as CustomEvent<Model>;
-      setSelectedModel(customEvent.detail);
-      setModelDialogOpen(true);
-    };
-
     // Listen for new session click events
     const handleNewSessionClick = () => {
       setNewSessionDialogOpen(true);
     };
 
-    window.addEventListener('model-click', handleModelClick as EventListener);
     window.addEventListener('new-session-click', handleNewSessionClick);
-
     return () => {
-      window.removeEventListener('model-click', handleModelClick as EventListener);
       window.removeEventListener('new-session-click', handleNewSessionClick);
     };
   }, []);
@@ -69,6 +46,18 @@ function RyxHubApp() {
     selectSession(sessionId);
     setActiveView("chat");
   };
+
+  // Keyboard shortcut for sidebar toggle
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSidebarOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <>
@@ -80,51 +69,28 @@ function RyxHubApp() {
           </div>
         )}
 
-        {/* Main Content Area - Takes remaining space */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Top Bar with View Toggle */}
-          <header className="h-12 px-4 border-b border-border bg-card/30 backdrop-blur-sm flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-1.5 rounded-md hover:bg-muted/50 transition-colors"
-                title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <ViewToggle />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[hsl(var(--success))]/10 border border-[hsl(var(--success))]/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--success))] animate-pulse" />
-                <span className="text-[10px] font-medium text-[hsl(var(--success))]">Online</span>
-              </div>
-            </div>
-          </header>
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+          {/* Sidebar Toggle - Floating */}
+          {!sidebarOpen && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="absolute top-3 left-3 z-20 p-2 rounded-lg bg-card border border-border hover:bg-muted transition-colors"
+              title="Show sidebar (Ctrl+B)"
+            >
+              <PanelLeft className="w-4 h-4" />
+            </button>
+          )}
 
-          {/* Content - Takes remaining height */}
+          {/* Content - Full Height */}
           <main className="flex-1 overflow-hidden">
-            {activeView === "dashboard" && <OverviewDashboard />}
             {activeView === "chat" && <ChatView />}
-            {activeView === "documents" && <HolographicDesk />}
             {activeView === "settings" && <SettingsView />}
           </main>
         </div>
       </div>
 
-      {/* Dialogs */}
-      <ModelDialog
-        model={selectedModel}
-        open={modelDialogOpen}
-        onOpenChange={setModelDialogOpen}
-        onModelUpdate={() => {
-          // Models are automatically refreshed in context via polling
-          console.log('Model updated, will refresh automatically');
-        }}
-      />
-
+      {/* New Session Dialog */}
       <NewSessionDialog
         open={newSessionDialogOpen}
         onOpenChange={setNewSessionDialogOpen}
