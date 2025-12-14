@@ -51,9 +51,10 @@ log.setLevel(logging.INFO)
 from .history import HistoryManager
 from .downloads import DownloadManager, DownloadNotification, DownloadInfo
 from .bookmarks import BookmarkManager
+from .settings_manager import SettingsManager
 
 
-# Settings file path
+# Settings file path (legacy - now using SettingsManager)
 SETTINGS_FILE = Path.home() / ".config" / "ryxsurf" / "settings.json"
 
 DEFAULT_SETTINGS = {
@@ -149,11 +150,16 @@ class Browser:
         self.current_session: str = "default"
         
         # Workspace support
-        self.current_workspace: str = "chill"
-        self.workspace_tabs: dict[str, List[Tab]] = {ws: [] for ws in WORKSPACES}
+        self.current_workspace: str = "default"
+        self.workspace_tabs: dict[str, List[Tab]] = {}
         
-        # Load settings
-        self.settings = load_settings()
+        # Load comprehensive settings
+        self.settings_manager = SettingsManager()
+        self.settings = self.settings_manager  # Keep backward compat
+        
+        # Initialize workspaces from settings
+        for ws in self.settings_manager.workspace.workspaces:
+            self.workspace_tabs[ws['id']] = []
         
         # Create shared network session for better cookie/cache handling
         # This improves login persistence and reduces captchas
@@ -472,7 +478,11 @@ class Browser:
     
     def _get_working_homepage(self) -> str:
         """Get homepage, falling back to Google if SearXNG isn't available"""
-        homepage = self.settings.get("homepage", "http://localhost:8888")
+        # Get homepage from new settings structure
+        if hasattr(self.settings_manager, 'search'):
+            homepage = self.settings_manager.search.searxng_url
+        else:
+            homepage = "http://localhost:8888"
         
         # If homepage is local SearXNG, check if it's running
         if "localhost" in homepage and "8888" in homepage:
@@ -560,70 +570,48 @@ class Browser:
         }}
         
         /* ═══════════════════════════════════════════════════════════════
-           TAB SIDEBAR - Fixed width via widget sizing (CSS max-width not supported)
+           TAB SIDEBAR - Minimal & sleek
            ═══════════════════════════════════════════════════════════════ */
         .tab-sidebar {{
-            background: radial-gradient(circle at 0% 0%, {colors['bg_lighter']}22 0%, {colors['bg']} 40%);
+            background: {colors['bg_darker']};
             border-right: 1px solid {colors['border']};
-            padding: 4px;
-        }}
-        
-        /* Workspace bar - now subtle dots beside nav */
-        .workspace-strip {{
-            padding: 0 4px;
-        }}
-        
-        .workspace-btn {{
-            background: transparent;
-            border: none;
-            color: {colors['fg_dim']};
-            padding: 4px;
-            border-radius: 999px;
-            font-size: 12px;
-            min-width: 26px;
-            min-height: 26px;
-        }}
-        
-        .workspace-btn:hover {{
-            background: {colors['bg_lighter']};
-            color: {colors['fg']};
-        }}
-        
-        .workspace-btn.active {{
-            background: {colors['accent']}22;
-            color: {colors['accent']};
+            padding: 6px 4px;
         }}
         
         .tab-btn {{
             background: transparent;
             border: none;
-            border-radius: 6px;
-            padding: 4px;
-            margin: 1px 0;
+            border-radius: 8px;
+            padding: 6px;
+            margin: 2px 0;
+            transition: all 0.15s ease;
         }}
         
         .tab-btn:hover {{
             background: {colors['bg_lighter']};
+            transform: translateX(2px);
         }}
         
         .tab-btn.active {{
             background: {colors['bg_lighter']};
-            box-shadow: inset 2px 0 {colors['accent']};
+            border-left: 3px solid {colors['accent']};
+            padding-left: 3px;
         }}
         
         .tab-btn.unloaded {{
-            opacity: 0.5;
+            opacity: 0.4;
         }}
         
         .tab-icon {{
             color: {colors['fg_dim']};
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 500;
             font-family: system-ui, sans-serif;
         }}
         
         .tab-btn.active .tab-icon {{
             color: {colors['accent']};
+            font-weight: 600;
         }}
         
         .tab-btn:hover .tab-icon {{
@@ -632,16 +620,20 @@ class Browser:
         
         .new-tab-btn {{
             background: transparent;
-            border: none;
+            border: 1px dashed {colors['border']};
             color: {colors['fg_dim']};
-            border-radius: 6px;
+            border-radius: 8px;
             padding: 8px;
+            margin: 4px 0;
             font-size: 16px;
+            transition: all 0.2s ease;
         }}
         
         .new-tab-btn:hover {{
-            background: {colors['bg_lighter']};
+            background: {colors['accent']}18;
+            border-color: {colors['accent']};
             color: {colors['accent']};
+            transform: scale(1.02);
         }}
         
         /* Legacy tab-item styles (for expanded mode) */
@@ -701,27 +693,27 @@ class Browser:
         }}
         
         /* ═══════════════════════════════════════════════════════════════
-           URL BAR - Zen-like header
+           URL BAR - Ultra-minimal Zen header
            ═══════════════════════════════════════════════════════════════ */
         .url-bar {{
-            background: linear-gradient(135deg, {colors['bg_darker']} 0%, {colors['bg']} 100%);
-            padding: 6px 12px;
-            min-height: 40px;
+            background: {colors['bg']};
+            padding: 4px 10px;
+            min-height: 36px;
             border-bottom: 1px solid {colors['border']};
-            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
         }}
 
         .url-shell {{
-            background: rgba(255, 255, 255, 0.02);
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid {colors['border']};
-            border-radius: 12px;
-            padding: 5px 10px;
-            min-height: 32px;
+            border-radius: 20px;
+            padding: 2px 12px;
+            min-height: 28px;
+            transition: all 0.2s ease;
         }}
         
         .url-shell:focus-within {{
             border-color: {colors['accent']};
-            box-shadow: 0 0 0 1px {colors['accent']}33;
+            box-shadow: 0 0 0 2px {colors['accent']}22, 0 4px 12px {colors['accent']}11;
             background: {colors['bg_lighter']};
         }}
         
@@ -729,29 +721,37 @@ class Browser:
             background: transparent;
             border: none;
             color: {colors['fg_dim']};
-            border-radius: 8px;
-            padding: 5px 9px;
-            min-width: 24px;
-            min-height: 24px;
-            font-size: 11px;
+            border-radius: 6px;
+            padding: 4px 8px;
+            min-width: 22px;
+            min-height: 22px;
+            font-size: 12px;
+            transition: all 0.15s ease;
         }}
         
         .nav-btn:hover {{
             background: {colors['bg_lighter']};
             color: {colors['fg']};
+            transform: scale(1.05);
+        }}
+        
+        .nav-btn:active {{
+            transform: scale(0.95);
         }}
         
         .nav-btn:disabled {{
             color: {colors['border']};
+            opacity: 0.4;
         }}
 
         .nav-btn.accent-btn {{
-            background: {colors['accent']}22;
+            background: {colors['accent']}18;
             color: {colors['accent']};
+            font-weight: 600;
         }}
 
         .nav-btn.accent-btn:hover {{
-            background: {colors['accent']}33;
+            background: {colors['accent']}30;
             color: {colors['fg']};
         }}
         
@@ -759,10 +759,10 @@ class Browser:
             background: transparent;
             color: {colors['fg']};
             border: none;
-            padding: 1px 4px;
-            font-size: 12px;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            min-height: 20px;
+            padding: 2px 6px;
+            font-size: 13px;
+            font-family: 'SF Pro Text', system-ui, sans-serif;
+            min-height: 22px;
             caret-color: {colors['accent']};
         }}
         
@@ -772,31 +772,51 @@ class Browser:
             outline: none;
         }}
         
+        .url-entry placeholder {{
+            color: {colors['fg_dim']};
+            opacity: 0.6;
+        }}
+        
         .security-icon {{
             color: {colors['fg_dim']};
-            font-size: 11px;
-            padding: 0 4px;
+            font-size: 10px;
+            padding: 0 2px;
+            opacity: 0.7;
         }}
         
         .security-icon.secure {{
             color: #22c55e;
+            opacity: 1;
         }}
         
         /* ═══════════════════════════════════════════════════════════════
-           SCROLLBARS - Invisible until hover
+           SCROLLBARS - Ultra-minimal
            ═══════════════════════════════════════════════════════════════ */
         scrollbar {{
             background: transparent;
+            border: none;
         }}
         
         scrollbar slider {{
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 4px;
-            min-width: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            min-width: 6px;
+            min-height: 30px;
+            margin: 2px;
+            transition: all 0.2s ease;
         }}
         
         scrollbar slider:hover {{
-            background: {colors['accent']}66;
+            background: {colors['accent']}88;
+            min-width: 8px;
+        }}
+        
+        scrollbar.vertical slider {{
+            min-width: 6px;
+        }}
+        
+        scrollbar.horizontal slider {{
+            min-height: 6px;
         }}
         
         /* ═══════════════════════════════════════════════════════════════
@@ -880,12 +900,16 @@ class Browser:
         }}
         
         /* ═══════════════════════════════════════════════════════════════
-           TAB COUNT - Subtle
+           TAB COUNT - Pill badge
            ═══════════════════════════════════════════════════════════════ */
         .tab-count {{
             color: {colors['fg_dim']};
+            background: {colors['bg_lighter']};
             font-size: 10px;
-            padding: 4px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 20px;
         }}
         
         /* ═══════════════════════════════════════════════════════════════
@@ -904,6 +928,156 @@ class Browser:
             background: {colors['bg_lighter']};
             color: {colors['fg']};
         }}
+        
+        /* ═══════════════════════════════════════════════════════════════
+           SETTINGS PANEL - Comprehensive settings UI
+           ═══════════════════════════════════════════════════════════════ */
+        .settings-panel {{
+            background: {colors['bg']};
+        }}
+        
+        .settings-sidebar {{
+            background: {colors['bg_darker']};
+            border-right: 1px solid {colors['border']};
+        }}
+        
+        .settings-header {{
+            padding: 16px;
+            border-bottom: 1px solid {colors['border']};
+        }}
+        
+        .settings-title {{
+            font-size: 18px;
+            font-weight: 600;
+            color: {colors['fg']};
+        }}
+        
+        .close-btn {{
+            background: transparent;
+            border: none;
+            color: {colors['fg_dim']};
+            font-size: 24px;
+            padding: 0;
+            min-width: 32px;
+            min-height: 32px;
+            border-radius: 6px;
+        }}
+        
+        .close-btn:hover {{
+            background: {colors['bg_lighter']};
+            color: {colors['fg']};
+        }}
+        
+        .settings-search {{
+            margin: 12px;
+            background: {colors['bg_lighter']};
+            border: 1px solid {colors['border']};
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: {colors['fg']};
+        }}
+        
+        .category-list {{
+            background: transparent;
+        }}
+        
+        .category-row {{
+            background: transparent;
+            border-radius: 8px;
+            margin: 2px 8px;
+        }}
+        
+        .category-row:selected {{
+            background: {colors['bg_lighter']};
+        }}
+        
+        .category-row:hover {{
+            background: {colors['bg_lighter']};
+        }}
+        
+        .category-icon {{
+            color: {colors['fg_dim']};
+            font-size: 16px;
+            font-weight: 500;
+            min-width: 24px;
+        }}
+        
+        .category-row:selected .category-icon {{
+            color: {colors['accent']};
+        }}
+        
+        .category-label {{
+            color: {colors['fg_dim']};
+            font-size: 13px;
+        }}
+        
+        .category-row:selected .category-label {{
+            color: {colors['fg']};
+            font-weight: 500;
+        }}
+        
+        .settings-footer {{
+            padding: 12px;
+            border-top: 1px solid {colors['border']};
+        }}
+        
+        .footer-btn {{
+            background: transparent;
+            border: 1px solid {colors['border']};
+            color: {colors['fg_dim']};
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 11px;
+        }}
+        
+        .footer-btn:hover {{
+            background: {colors['bg_lighter']};
+            color: {colors['fg']};
+        }}
+        
+        .settings-content {{
+            background: {colors['bg']};
+        }}
+        
+        .settings-stack {{
+            padding: 24px;
+        }}
+        
+        .section-title {{
+            color: {colors['accent']};
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .setting-row {{
+            background: transparent;
+            border-radius: 8px;
+            padding: 12px;
+        }}
+        
+        .setting-row:hover {{
+            background: {colors['bg_lighter']};
+        }}
+        
+        .setting-label {{
+            color: {colors['fg']};
+            font-size: 13px;
+            font-weight: 500;
+        }}
+        
+        .setting-description {{
+            color: {colors['fg_dim']};
+            font-size: 11px;
+        }}
+        
+        .setting-value {{
+            color: {colors['accent']};
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 50px;
+        }}
         """
         
         css_provider = Gtk.CssProvider()
@@ -920,10 +1094,10 @@ class Browser:
         log.info(f"Theme: {os.environ.get('GTK_THEME', 'default')}")
     
     def _create_url_bar(self):
-        """Create compact Zen-like header with nav + URL entry"""
+        """Create ultra-minimal Zen-like header - focus on URL entry"""
         self.url_bar_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.url_bar_box.add_css_class("url-bar")
-        self.url_bar_box.set_spacing(10)
+        self.url_bar_box.set_spacing(8)
         self.url_bar_box.set_hexpand(True)
         self.url_bar_box.set_valign(Gtk.Align.CENTER)
 
@@ -936,64 +1110,50 @@ class Browser:
             btn.connect("clicked", lambda _: handler())
             return btn
 
-        # Left cluster: nav + sidebar toggle
-        nav_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        # Left: minimal nav cluster (back/forward + reload)
+        nav_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         nav_box.add_css_class("bar-left")
-        self.back_btn = make_btn("←", "Back (Alt+←)", self._history_back)
-        self.forward_btn = make_btn("→", "Forward (Alt+→)", self._history_forward)
-        self.reload_btn = make_btn("↻", "Reload (F5)", self._reload)
-        sidebar_toggle = make_btn("☰", "Toggle tabs (Ctrl+B)", self._toggle_sidebar)
-        for btn in (self.back_btn, self.forward_btn, self.reload_btn, sidebar_toggle):
+        self.back_btn = make_btn("←", "Back", self._history_back)
+        self.forward_btn = make_btn("→", "Forward", self._history_forward)
+        self.reload_btn = make_btn("↻", "Reload", self._reload)
+        for btn in (self.back_btn, self.forward_btn, self.reload_btn):
             nav_box.append(btn)
         self.url_bar_box.append(nav_box)
 
-        # Workspace dots (subtle, keeps Zen layout)        
-        workspace_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
-        workspace_box.add_css_class("workspace-strip")
-        self.workspace_buttons = {}
-        for ws_id, ws_info in WORKSPACES.items():
-            btn = make_btn(ws_info["icon"], ws_info["name"], lambda wid=ws_id: self._switch_workspace(wid), "workspace-btn")
-            if ws_id == self.current_workspace:
-                btn.add_css_class("active")
-            workspace_box.append(btn)
-            self.workspace_buttons[ws_id] = btn
-        self.url_bar_box.append(workspace_box)
-
-        # Center pill: lock + URL entry + tab count
-        url_shell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        # Center: URL entry with security indicator
+        url_shell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         url_shell.add_css_class("url-shell")
         url_shell.set_hexpand(True)
         url_shell.set_valign(Gtk.Align.CENTER)
 
-        self.security_icon = Gtk.Label(label="●")
+        self.security_icon = Gtk.Label(label="○")
         self.security_icon.add_css_class("security-icon")
         url_shell.append(self.security_icon)
 
         self.url_entry = Gtk.Entry()
         self.url_entry.set_hexpand(True)
         self.url_entry.add_css_class("url-entry")
-        self.url_entry.set_placeholder_text("Search or enter address...")
+        self.url_entry.set_placeholder_text("Search or URL...")
         self.url_entry.connect("activate", self._on_url_entry_activate)
         self.url_entry.connect("changed", self._on_url_entry_changed)
         url_shell.append(self.url_entry)
 
         self.tab_count_label = Gtk.Label(label="1")
         self.tab_count_label.add_css_class("tab-count")
-        self.tab_count_label.set_tooltip_text("Open tabs")
+        self.tab_count_label.set_tooltip_text("Tabs")
         url_shell.append(self.tab_count_label)
 
         self.url_bar_box.append(url_shell)
 
-        # Right cluster: new tab + bookmark + downloads + menu
-        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        # Right: essential actions only (+ and menu)
+        right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         right_box.add_css_class("bar-right")
 
         new_tab_btn = make_btn("+", "New Tab (Ctrl+T)", self._new_tab, "accent-btn")
-        self.bookmark_btn = make_btn("☆", "Bookmark (Ctrl+D)", self._toggle_bookmark)
-        downloads_btn = make_btn("↓", "Downloads (Ctrl+J)", self._show_downloads)
-        menu_btn = make_btn("⋮", "Menu / Settings", self._show_settings)
+        self.bookmark_btn = make_btn("☆", "Bookmark", self._toggle_bookmark)
+        menu_btn = make_btn("⋮", "Menu", self._show_settings)
 
-        for btn in (new_tab_btn, self.bookmark_btn, downloads_btn, menu_btn):
+        for btn in (new_tab_btn, self.bookmark_btn, menu_btn):
             right_box.append(btn)
 
         self.url_bar_box.append(right_box)
@@ -1139,7 +1299,8 @@ class Browser:
         else:
             width = window_width
 
-        target = max(160, min(320, int(width * 0.16)))
+        # Sleeker: 12% of window width, min 140px, max 240px
+        target = max(140, min(240, int(width * 0.12)))
         self.tab_sidebar.set_size_request(target, -1)
         return False
     
@@ -3638,7 +3799,7 @@ class Browser:
                 self._update_bookmark_icon(new_uri)
     
     def _show_settings(self):
-        """Show settings dialog"""
+        """Show comprehensive settings panel"""
         if self.settings_dialog and self.settings_dialog.get_visible():
             self.settings_dialog.close()
             return
@@ -3647,8 +3808,24 @@ class Browser:
         self.settings_dialog = Gtk.Window(title="RyxSurf Settings")
         self.settings_dialog.set_transient_for(self.window)
         self.settings_dialog.set_modal(True)
-        self.settings_dialog.set_default_size(450, 400)
+        self.settings_dialog.set_default_size(900, 700)
         self.settings_dialog.add_css_class("settings-dialog")
+        
+        # Import settings panel
+        from ..ui.settings_panel import SettingsPanel
+        
+        # Create settings panel
+        panel = SettingsPanel(
+            settings_manager=self.settings_manager,
+            on_close=lambda: self.settings_dialog.close()
+        )
+        
+        self.settings_dialog.set_child(panel)
+        self.settings_dialog.present()
+        return
+        
+        # Legacy code below (keep for reference):
+        self.settings_dialog.add_css_class("settings-dialog-legacy")
         
         # Main content box
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
