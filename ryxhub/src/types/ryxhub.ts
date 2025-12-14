@@ -120,6 +120,14 @@ export interface EmailDraft {
   scheduledFor?: string;
 }
 
+export interface MessageVariant {
+  id: string;
+  content: string;
+  timestamp: string;
+  model?: string;
+  modifier?: 'shorter' | 'longer' | 'explain';
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -135,6 +143,9 @@ export interface Message {
   language?: string;
   memoriesUsed?: MemoryUsed[];
   toolDecisions?: string[];
+  // Variant support
+  variants?: MessageVariant[];
+  activeVariant?: number; // Index of active variant (0 = original)
 }
 
 export interface MemoryUsed {

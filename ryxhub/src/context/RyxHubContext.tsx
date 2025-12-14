@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
-import type { Session, Model, RAGStatus, ViewMode, Message, Board, UserMemory, GmailAccount } from "@/types/ryxhub";
+import type { Session, Model, RAGStatus, ViewMode, Message, MessageVariant, Board, UserMemory, GmailAccount } from "@/types/ryxhub";
 import {
   mockModels,
 } from "@/data/mockData";
@@ -24,6 +24,8 @@ interface RyxHubContextType {
   deleteSession: (sessionId: string) => Promise<void>;
   renameSession: (sessionId: string, newName: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
+  addVariantToMessage: (sessionId: string, messageId: string, variant: Omit<MessageVariant, "id">) => void;
+  setActiveVariant: (sessionId: string, messageId: string, variantIndex: number) => void;
 
   // Models
   models: Model[];
@@ -357,6 +359,57 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const addVariantToMessage = useCallback((sessionId: string, messageId: string, variant: Omit<MessageVariant, "id">) => {
+    setSessions((prev) => {
+      const updated = prev.map((s) => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            messages: s.messages.map((m) => {
+              if (m.id === messageId) {
+                const newVariant: MessageVariant = {
+                  ...variant,
+                  id: `var-${Date.now()}`,
+                };
+                const variants = m.variants ? [...m.variants, newVariant] : [newVariant];
+                return {
+                  ...m,
+                  variants,
+                  activeVariant: variants.length, // Switch to the new variant
+                };
+              }
+              return m;
+            }),
+          };
+        }
+        return s;
+      });
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const setActiveVariant = useCallback((sessionId: string, messageId: string, variantIndex: number) => {
+    setSessions((prev) => {
+      const updated = prev.map((s) => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            messages: s.messages.map((m) => {
+              if (m.id === messageId) {
+                return { ...m, activeVariant: variantIndex };
+              }
+              return m;
+            }),
+          };
+        }
+        return s;
+      });
+      localStorage.setItem('ryxhub_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const updateSessionTools = useCallback(async (sessionId: string, toolId: string, enabled: boolean) => {
     // Update local state first for immediate UI feedback
     setSessions((prev) =>
@@ -478,6 +531,8 @@ export function RyxHubProvider({ children }: { children: ReactNode }) {
         deleteSession,
         renameSession,
         refreshSessions,
+        addVariantToMessage,
+        setActiveVariant,
         models,
         ragStatus,
         refreshRAGStatus,

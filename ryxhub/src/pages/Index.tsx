@@ -3,6 +3,7 @@ import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
+import { DocumentsView } from "@/components/ryxhub/DocumentsView";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
 import { RyxHubProvider, useRyxHub } from "@/context/RyxHubContext";
 import { PanelLeft, Sun, Moon } from "lucide-react";
@@ -113,6 +114,7 @@ function RyxHubApp() {
           <main className="flex-1 overflow-hidden">
             {activeView === "dashboard" && <DashboardView />}
             {activeView === "chat" && <ChatView />}
+            {activeView === "documents" && <DocumentsView />}
             {activeView === "settings" && <SettingsView />}
           </main>
         </div>

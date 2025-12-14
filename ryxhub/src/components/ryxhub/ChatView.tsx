@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { type ToolConfig } from "@/components/ryxhub/ToolsPanel";
 import { getModelDisplayName } from "@/types/ryxhub";
 import { MessageActionsMenu } from "./MessageActionsMenu";
+import { VariantSelector } from "./VariantSelector";
 
 // Icon map for tools
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -57,7 +58,7 @@ const defaultTools: ToolConfig[] = [
 ];
 
 export function ChatView() {
-  const { sessions, selectedSessionId, addMessageToSession, clearSessionMessages, updateSessionTools, editMessageInSession, models: contextModels } = useRyxHub();
+  const { sessions, selectedSessionId, addMessageToSession, clearSessionMessages, updateSessionTools, editMessageInSession, models: contextModels, addVariantToMessage, setActiveVariant } = useRyxHub();
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
@@ -370,7 +371,7 @@ export function ChatView() {
     });
   };
 
-  // Regenerate a response with optional modifier
+  // Regenerate a response with optional modifier - stores as variant
   const handleRegenerateMessage = async (messageId: string, modifier?: 'shorter' | 'longer' | 'explain') => {
     if (!selectedSessionId) return;
     
@@ -416,14 +417,12 @@ export function ChatView() {
         tools: tools.filter(t => t.enabled).map(t => t.id),
       });
       
-      // Add as new message (variant)
-      addMessageToSession(selectedSessionId, {
-        role: "assistant",
+      // Add as variant to the existing message
+      addVariantToMessage(selectedSessionId, messageId, {
         content: response.content,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         model: response.model || selectedModel,
-        toolsUsed: response.tools_used || [],
-        confidence: response.confidence,
+        modifier: modifier,
       });
       
       toast.success(modifier ? `Regenerated (${modifier})` : 'Regenerated');
@@ -554,7 +553,20 @@ export function ChatView() {
       {/* Messages - Compact */}
       <ScrollArea className="flex-1 px-4">
           <div className="py-3 space-y-3">
-            {messages.map((message) => (
+            {messages.map((message) => {
+              // Get active variant content
+              const activeVariantIndex = message.activeVariant ?? 0;
+              const displayContent = activeVariantIndex === 0 
+                ? message.content 
+                : message.variants?.[activeVariantIndex - 1]?.content ?? message.content;
+              const displayModel = activeVariantIndex === 0
+                ? message.model
+                : message.variants?.[activeVariantIndex - 1]?.model ?? message.model;
+              const displayTimestamp = activeVariantIndex === 0
+                ? message.timestamp
+                : message.variants?.[activeVariantIndex - 1]?.timestamp ?? message.timestamp;
+              
+              return (
               <div 
                 key={message.id} 
                 className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}
@@ -602,12 +614,24 @@ export function ChatView() {
                         </div>
                       )}
                       
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="whitespace-pre-wrap">{displayContent}</div>
+                      
+                      {/* Variant selector - only for assistant messages with variants */}
+                      {message.role === "assistant" && message.variants && message.variants.length > 0 && selectedSessionId && (
+                        <div className="mt-2 pt-2 border-t border-border/30">
+                          <VariantSelector
+                            originalTimestamp={message.timestamp}
+                            variants={message.variants}
+                            activeVariant={message.activeVariant ?? 0}
+                            onSelectVariant={(idx) => setActiveVariant(selectedSessionId, message.id, idx)}
+                          />
+                        </div>
+                      )}
                       
                       {/* Footer with tools, confidence, timestamp */}
                       <div className={cn("flex items-center gap-1.5 mt-2 pt-1 border-t border-border/30 text-[10px] flex-wrap", message.role === "user" ? "text-primary-foreground/70 justify-end" : "text-muted-foreground")}>
-                        {message.model && message.role === "assistant" && (
-                          <span className="opacity-60">{getModelDisplayName(message.model)}</span>
+                        {displayModel && message.role === "assistant" && (
+                          <span className="opacity-60">{getModelDisplayName(displayModel)}</span>
                         )}
                         
                         {/* Tool breakdown - clearer display */}
@@ -647,8 +671,8 @@ export function ChatView() {
                           </span>
                         )}
                         
-                        <span className="opacity-60">{message.timestamp}</span>
-                        <button onClick={() => handleCopy(message.content, message.id)} className="hover:opacity-100 opacity-60">
+                        <span className="opacity-60">{displayTimestamp}</span>
+                        <button onClick={() => handleCopy(displayContent, message.id)} className="hover:opacity-100 opacity-60">
                           {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                         </button>
                         {message.role === "user" && (
@@ -662,7 +686,8 @@ export function ChatView() {
                 </div>
                 {message.role === "user" && <User className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />}
               </div>
-            ))}
+            );
+            })}
 
             {isTyping && (
               <div className="flex gap-2 justify-start">
