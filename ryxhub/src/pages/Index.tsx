@@ -2,14 +2,32 @@ import { useState, useEffect } from "react";
 import { LeftSidebar } from "@/components/ryxhub/LeftSidebar";
 import { ChatView } from "@/components/ryxhub/ChatView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
+import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
 import { RyxHubProvider, useRyxHub } from "@/context/RyxHubContext";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft, Sun, Moon } from "lucide-react";
 
 function RyxHubApp() {
   const { activeView, sessions, selectedSessionId, selectSession, setActiveView } = useRyxHub();
   const [newSessionDialogOpen, setNewSessionDialogOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => 
+    (localStorage.getItem('ryxhub_theme') as 'dark' | 'light') || 'dark'
+  );
+
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
+    localStorage.setItem('ryxhub_theme', theme);
+  }, [theme]);
+
+  // Show dashboard when no session selected
+  useEffect(() => {
+    if (activeView === "chat" && !selectedSessionId && sessions.length === 0) {
+      setActiveView("dashboard");
+    }
+  }, [activeView, selectedSessionId, sessions.length, setActiveView]);
 
   // Auto-select session when switching to chat view
   useEffect(() => {
@@ -82,8 +100,18 @@ function RyxHubApp() {
             </button>
           )}
 
+          {/* Theme Toggle - Floating Top Right */}
+          <button
+            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            className="absolute top-3 right-3 z-20 p-2 rounded-lg bg-card border border-border hover:bg-muted transition-colors"
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+
           {/* Content - Full Height */}
           <main className="flex-1 overflow-hidden">
+            {activeView === "dashboard" && <DashboardView />}
             {activeView === "chat" && <ChatView />}
             {activeView === "settings" && <SettingsView />}
           </main>

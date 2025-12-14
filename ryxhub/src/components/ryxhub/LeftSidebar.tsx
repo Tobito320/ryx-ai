@@ -8,6 +8,7 @@ import {
   Edit,
   Settings,
   Zap,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -106,26 +107,30 @@ export function LeftSidebar() {
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
-      {/* Header: Logo + New Chat */}
+      {/* Header: Logo + Actions */}
       <div className="p-3 border-b border-sidebar-border">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
+          <button 
+            onClick={() => setActiveView("dashboard")}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
             <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
               <Zap className="w-4 h-4 text-primary-foreground" />
             </div>
             <span className="text-sm font-semibold text-sidebar-foreground">RyxHub</span>
-          </div>
+          </button>
+          
+          {/* New Chat Icon Button */}
+          <Button
+            onClick={handleNewSession}
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            title="New chat"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
         </div>
-        
-        {/* New Chat Button - Prominent */}
-        <Button
-          onClick={handleNewSession}
-          className="w-full h-9 justify-start gap-2 bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground"
-          variant="ghost"
-        >
-          <Plus className="w-4 h-4" />
-          New Chat
-        </Button>
       </div>
 
       {/* Search - Minimal */}
@@ -225,8 +230,15 @@ export function LeftSidebar() {
         </div>
       </ScrollArea>
 
-      {/* Footer: Settings */}
-      <div className="p-2 border-t border-sidebar-border">
+      {/* Footer: Home + Settings */}
+      <div className="p-2 border-t border-sidebar-border space-y-1">
+        <button
+          onClick={() => setActiveView("dashboard")}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+        >
+          <Home className="w-4 h-4" />
+          Home
+        </button>
         <button
           onClick={() => setActiveView("settings")}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"

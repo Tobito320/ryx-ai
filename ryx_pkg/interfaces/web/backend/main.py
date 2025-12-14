@@ -137,6 +137,54 @@ def simple_similarity(s1: str, s2: str) -> float:
     union = words1 | words2
     return len(intersection) / len(union)
 
+# =============================================================================
+# Memory Type Classification (Persona vs General)
+# =============================================================================
+
+class MemoryType:
+    """Two-tier memory system: Persona facts vs General knowledge."""
+    PERSONA = "persona"      # About Tobi (name, location, preferences, skills)
+    GENERAL = "general"      # Useful facts learned from conversations
+    TRANSIENT = "transient"  # Ignore (questions, greetings, noise)
+
+def classify_memory_type(message: str, fact: str) -> str:
+    """Classify a memory as PERSONA, GENERAL, or TRANSIENT."""
+    message_lower = message.lower()
+    fact_lower = fact.lower()
+    
+    # PERSONA: Facts specifically about the user
+    persona_indicators = [
+        r'\b(i live|i\'m from|based in|wohn)\b',  # Location
+        r'\b(my name|i\'m called|ich hei[sß]e)\b',  # Name
+        r'\b(i prefer|i like|i use|i work|ich bevorzug|ich benutze)\b',  # Preferences
+        r'\b(i\'m a|i am a|ich bin ein)\b.*?(developer|engineer|student)',  # Role
+        r'\b(my setup|my pc|my gpu|my cpu|my os)\b',  # Tech stack
+        r'\b(tobi|tobias)\b',  # Name reference
+    ]
+    
+    for pattern in persona_indicators:
+        if re.search(pattern, message_lower) or re.search(pattern, fact_lower):
+            return MemoryType.PERSONA
+    
+    # TRANSIENT: Questions, requests, noise
+    transient_patterns = [
+        r'^(what is|how do|tell me about|explain|can you)',  # Questions
+        r'^(ok|thanks|thx|bye|hi|hello|hey|lol|haha|yes|no|sure|cool|nice)$',  # Greetings
+        r'(searched|memory|retrieved|response)',  # Meta-words
+        r'^.{0,15}$',  # Too short
+        r'\?$',  # Ends with question mark
+    ]
+    
+    for pattern in transient_patterns:
+        if re.search(pattern, message_lower) or re.search(pattern, fact_lower):
+            return MemoryType.TRANSIENT
+    
+    # GENERAL: High-value learned facts (solutions, tips)
+    if len(fact) > 30:  # Substantial content
+        return MemoryType.GENERAL
+    
+    return MemoryType.TRANSIENT  # Default to not storing
+
 def is_noise_memory(fact: str) -> bool:
     """Check if a memory is noise (transient, trivial, or duplicate)."""
     noise_patterns = [
@@ -635,6 +683,70 @@ async def unload_model(model_name: str):
         return {"message": f"Model {model_name} unloaded successfully"}
     raise HTTPException(status_code=500, detail=result.get("error", "Failed to unload model"))
 
+@app.get("/api/models/{model_name}/status")
+async def get_model_status(model_name: str):
+    """Get detailed status of a specific model including VRAM usage."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            # Get running models info
+            async with session.get(f"{OLLAMA_BASE_URL}/api/ps") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    for model in data.get("models", []):
+                        if model.get("name") == model_name:
+                            # Extract size info
+                            size_vram = model.get("size_vram", 0)
+                            size_total = model.get("size", 0)
+                            
+                            return {
+                                "name": model_name,
+                                "loaded": True,
+                                "vram_used_gb": round(size_vram / (1024**3), 2) if size_vram else 0,
+                                "size_gb": round(size_total / (1024**3), 2) if size_total else 0,
+                                "digest": model.get("digest", ""),
+                                "expires_at": model.get("expires_at", "")
+                            }
+                    
+                    # Model not loaded
+                    return {
+                        "name": model_name,
+                        "loaded": False,
+                        "vram_used_gb": 0,
+                        "size_gb": 0
+                    }
+        return {"name": model_name, "loaded": False, "vram_used_gb": 0, "size_gb": 0}
+    except Exception as e:
+        return {"name": model_name, "loaded": False, "error": str(e)}
+
+@app.get("/api/models/vram")
+async def get_vram_usage():
+    """Get total VRAM usage across all loaded models."""
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            async with session.get(f"{OLLAMA_BASE_URL}/api/ps") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    total_vram = 0
+                    loaded_models = []
+                    
+                    for model in data.get("models", []):
+                        size_vram = model.get("size_vram", 0)
+                        total_vram += size_vram
+                        loaded_models.append({
+                            "name": model.get("name"),
+                            "vram_gb": round(size_vram / (1024**3), 2) if size_vram else 0
+                        })
+                    
+                    return {
+                        "total_vram_gb": round(total_vram / (1024**3), 2),
+                        "max_vram_gb": 16,  # RX 7800 XT has 16GB
+                        "usage_percent": round((total_vram / (16 * 1024**3)) * 100, 1),
+                        "loaded_models": loaded_models
+                    }
+        return {"total_vram_gb": 0, "max_vram_gb": 16, "usage_percent": 0, "loaded_models": []}
+    except Exception as e:
+        return {"error": str(e), "total_vram_gb": 0, "max_vram_gb": 16, "usage_percent": 0}
+
 @app.post("/api/models/save-last")
 async def save_last_model(data: Dict[str, Any]):
     """Save the last used model for next startup."""
@@ -757,6 +869,47 @@ Message to analyze:"""
         return []
 
 
+def should_use_tools(message: str) -> tuple[bool, str]:
+    """
+    CRITICAL GATE: Decide if we should invoke ANY tools (memory, search).
+    Prevents wasteful API calls for trivial messages like "hi", "ok", "thanks".
+    Returns (should_use: bool, reason: str)
+    """
+    message_lower = message.lower().strip()
+    
+    # Trivial messages: NO TOOLS
+    trivial_exact = {
+        'hi', 'hello', 'hey', 'yo', 'sup',
+        'thanks', 'thank you', 'thx', 'ty',
+        'ok', 'okay', 'k', 'yes', 'no', 'sure', 'yep', 'nope',
+        'bye', 'goodbye', 'cya', 'later',
+        'lol', 'haha', 'nice', 'cool', 'great', 'awesome',
+        'hallo', 'danke', 'ja', 'nein', 'tschüss',  # German
+    }
+    
+    if message_lower in trivial_exact:
+        return (False, "Trivial greeting/response")
+    
+    # Very short queries: NO TOOLS (unless a question)
+    if len(message) < 12 and '?' not in message:
+        return (False, "Too short for tool usage")
+    
+    # Generic greetings with variations
+    greeting_patterns = [
+        r'^(hey|hi|hello|yo)\s*(there|ryx|buddy)?[!.]*$',
+        r'^how are you',
+        r'^what\'?s up',
+        r'^good (morning|afternoon|evening|night)',
+        r'^guten (morgen|tag|abend)',
+    ]
+    
+    for pattern in greeting_patterns:
+        if re.search(pattern, message_lower):
+            return (False, "Greeting detected")
+    
+    # Questions or substantial messages: USE TOOLS
+    return (True, "Substantial query")
+
 def should_search_autonomously(message: str, retrieved_memories: List[Dict] = None) -> tuple[bool, str]:
     """
     AUTONOMOUS tool decision - decides if web search is needed BEFORE generation.
@@ -859,19 +1012,26 @@ async def smart_chat(data: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="Message required")
     
     # =========================================================================
-    # STEP 1: MEMORY RETRIEVAL (ALWAYS FIRST - CRITICAL!)
+    # STEP 0: TOOL GATE - Should we even use tools?
     # =========================================================================
     tools_used = []
     tool_decisions = []
     warnings = []
     retrieved_memories = []
     
-    # Retrieve memories BEFORE any other decision
-    retrieved_memories = memory_retrieve_smart(message, limit=10)
+    use_tools, tool_gate_reason = should_use_tools(message)
+    tool_decisions.append(f"Tool gate: {use_tools} ({tool_gate_reason})")
     
-    if retrieved_memories:
-        tools_used.append("memory_retrieve")
-        tool_decisions.append(f"Retrieved {len(retrieved_memories)} memories")
+    # =========================================================================
+    # STEP 1: MEMORY RETRIEVAL (Only if tool gate passes)
+    # =========================================================================
+    if use_tools:
+        # Retrieve memories BEFORE any other decision
+        retrieved_memories = memory_retrieve_smart(message, limit=10)
+        
+        if retrieved_memories:
+            tools_used.append("memory_retrieve")
+            tool_decisions.append(f"Retrieved {len(retrieved_memories)} memories")
     
     # =========================================================================
     # STEP 2: AUTONOMOUS TOOL DECISION (Based on memories!)
@@ -879,9 +1039,13 @@ async def smart_chat(data: Dict[str, Any]):
     language = detect_language(message)
     language_prompt = get_language_prompt(language)
     
-    # Decide search AFTER checking memories
-    needs_search, search_reason = should_search_autonomously(message, retrieved_memories)
-    needs_search = needs_search or explicit_search
+    # Decide search AFTER checking memories (only if tool gate passed)
+    needs_search = False
+    search_reason = "Tool gate blocked"
+    
+    if use_tools:
+        needs_search, search_reason = should_search_autonomously(message, retrieved_memories)
+        needs_search = needs_search or explicit_search
     
     tool_decisions.append(f"Search decision: {needs_search} ({search_reason})")
     
@@ -1035,12 +1199,13 @@ Be precise and structured. Reference stored facts accurately."""
     confidence = max(0.3, min(0.98, confidence))
     
     # =========================================================================
-    # STEP 7: LEARN FROM CONVERSATION (Deduped memory extraction)
+    # STEP 7: LEARN FROM CONVERSATION (Only PERSONA facts)
     # =========================================================================
     extracted_memories = []
     stored_memories = []
     
-    if message and len(message) > 20:
+    # Only extract memories if tool gate passed and message is substantial
+    if use_tools and message and len(message) > 25:
         extracted_memories = await extract_memories_from_message(message, model)
         for mem in extracted_memories:
             # Parse category from memory string "category: fact"
@@ -1049,9 +1214,19 @@ Be precise and structured. Reference stored facts accurately."""
             else:
                 cat, fact = "general", mem
             
-            # Store with higher confidence (0.75) - deduplication happens in memory_store
-            if memory_store(cat, fact, 0.75):
-                stored_memories.append(fact)
+            # Classify memory type - only store PERSONA or high-value GENERAL
+            mem_type = classify_memory_type(message, fact)
+            
+            if mem_type == MemoryType.PERSONA:
+                # Always store persona facts with high confidence
+                if memory_store("persona", fact, 0.85):
+                    stored_memories.append(f"[persona] {fact}")
+            elif mem_type == MemoryType.GENERAL and len(fact) > 50:
+                # Only store substantial general facts
+                if memory_store("general", fact, 0.65):
+                    stored_memories.append(f"[general] {fact}")
+            else:
+                tool_decisions.append(f"Memory rejected (transient): {fact[:30]}...")
     
     if stored_memories:
         tools_used.append("memory_store")
@@ -1117,13 +1292,68 @@ async def search(q: str):
 # =============================================================================
 
 @app.get("/api/memory")
-async def get_memories(topic: Optional[str] = None, limit: int = 50):
-    """Get all memories or search by topic."""
+async def get_memories(topic: Optional[str] = None, limit: int = 50, category: Optional[str] = None):
+    """Get all memories or search by topic/category."""
     if topic:
         memories = memory_retrieve(topic, limit)
     else:
         memories = memory_get_all(limit)
+    
+    # Filter by category if specified
+    if category:
+        memories = [m for m in memories if m.get('category', '').lower() == category.lower()]
+    
     return {"memories": memories, "count": len(memories)}
+
+@app.get("/api/memory/persona")
+async def get_persona_memories(limit: int = 20):
+    """Get only persona facts (about the user)."""
+    all_memories = memory_get_all(100)
+    persona = [m for m in all_memories if m.get('category', '').lower() == 'persona']
+    return {"memories": persona[:limit], "count": len(persona)}
+
+@app.get("/api/memory/general")
+async def get_general_memories(limit: int = 20):
+    """Get only general learned facts."""
+    all_memories = memory_get_all(100)
+    general = [m for m in all_memories if m.get('category', '').lower() == 'general']
+    return {"memories": general[:limit], "count": len(general)}
+
+@app.get("/api/memory/stats")
+async def get_memory_stats():
+    """Get memory statistics."""
+    try:
+        conn = sqlite3.connect(str(MEMORY_DB))
+        cursor = conn.cursor()
+        
+        # Total memories
+        cursor.execute("SELECT COUNT(*) FROM memories")
+        total = cursor.fetchone()[0]
+        
+        # By category
+        cursor.execute("SELECT category, COUNT(*) FROM memories GROUP BY category")
+        by_category = dict(cursor.fetchall())
+        
+        # Average relevance
+        cursor.execute("SELECT AVG(relevance_score) FROM memories")
+        avg_relevance = cursor.fetchone()[0] or 0
+        
+        # Most accessed
+        cursor.execute("SELECT fact, access_count FROM memories ORDER BY access_count DESC LIMIT 5")
+        most_accessed = [{"fact": r[0][:50], "access_count": r[1]} for r in cursor.fetchall()]
+        
+        conn.close()
+        
+        return {
+            "total_memories": total,
+            "by_category": by_category,
+            "average_relevance": round(avg_relevance, 3),
+            "most_accessed": most_accessed,
+            "persona_count": by_category.get("persona", 0),
+            "general_count": by_category.get("general", 0)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/memory")
 async def store_memory(data: Dict[str, Any]):

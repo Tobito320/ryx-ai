@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { 
   Settings, Server, Activity, RefreshCw, Power, PowerOff, 
-  Brain, Trash2, Plus, ChevronLeft, Check, X
+  Brain, Trash2, Plus, ChevronLeft, Check, X, User, BookOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { IntegrationConfigModal } from "./IntegrationConfigModal";
 
 export function SettingsView() {
   const { setActiveView } = useRyxHub();
   const { data: models, isLoading: modelsLoading, refetch: refetchModels } = useModels();
   const { data: health } = useHealth();
   const loadModelMutation = useLoadModel();
+  
+  // VRAM usage
+  const [vramUsage, setVramUsage] = useState<{ total_vram_gb: number; max_vram_gb: number; usage_percent: number } | null>(null);
+  const [loadingModel, setLoadingModel] = useState<string | null>(null);
+  
+  // Fetch VRAM usage
+  useEffect(() => {
+    const fetchVram = async () => {
+      try {
+        const res = await fetch('http://localhost:8420/api/models/vram');
+        if (res.ok) {
+          setVramUsage(await res.json());
+        }
+      } catch {}
+    };
+    fetchVram();
+    const interval = setInterval(fetchVram, 5000);
+    return () => clearInterval(interval);
+  }, []);
   
   // User preferences
   const [responseStyle, setResponseStyle] = useState(() => 
@@ -39,7 +59,11 @@ export function SettingsView() {
   // Memories
   const [memories, setMemories] = useState<string[]>([]);
   const [dbMemories, setDbMemories] = useState<any[]>([]);
+  const [personaMemories, setPersonaMemories] = useState<any[]>([]);
+  const [generalMemories, setGeneralMemories] = useState<any[]>([]);
+  const [activeMemoryTab, setActiveMemoryTab] = useState<'persona' | 'general'>('persona');
   const [newMemory, setNewMemory] = useState("");
+  const [configModalOpen, setConfigModalOpen] = useState<string | null>(null);
 
   useEffect(() => {
     // Load local memories
@@ -47,7 +71,16 @@ export function SettingsView() {
     if (stored) {
       try { setMemories(JSON.parse(stored)); } catch {}
     }
-    // Load DB memories
+    // Load DB memories by type
+    fetch('http://localhost:8420/api/memory/persona?limit=20')
+      .then(r => r.json())
+      .then(d => setPersonaMemories(d.memories || []))
+      .catch(() => {});
+    fetch('http://localhost:8420/api/memory/general?limit=20')
+      .then(r => r.json())
+      .then(d => setGeneralMemories(d.memories || []))
+      .catch(() => {});
+    // Also load all for backwards compatibility
     fetch('http://localhost:8420/api/memory?limit=20')
       .then(r => r.json())
       .then(d => setDbMemories(d.memories || []))
@@ -73,10 +106,16 @@ export function SettingsView() {
 
   const handleLoadModel = async (modelId: string) => {
     try {
+      setLoadingModel(modelId);
       await loadModelMutation.mutateAsync(modelId);
       refetchModels();
+      // Refresh VRAM
+      const res = await fetch('http://localhost:8420/api/models/vram');
+      if (res.ok) setVramUsage(await res.json());
     } catch (error) {
       // Error handled by mutation
+    } finally {
+      setLoadingModel(null);
     }
   };
 
@@ -87,11 +126,17 @@ export function SettingsView() {
       return;
     }
     try {
+      setLoadingModel(modelId);
       await fetch(`http://localhost:8420/api/models/${modelId}/unload`, { method: 'POST' });
       toast.success(`Unloaded model`);
       refetchModels();
+      // Refresh VRAM
+      const res = await fetch('http://localhost:8420/api/models/vram');
+      if (res.ok) setVramUsage(await res.json());
     } catch {
       toast.error('Failed to unload');
+    } finally {
+      setLoadingModel(null);
     }
   };
 
@@ -100,11 +145,17 @@ export function SettingsView() {
       const updated = [...memories, newMemory.trim()];
       setMemories(updated);
       localStorage.setItem('ryxhub_user_memories', JSON.stringify(updated));
-      // Also save to backend
+      // Save to backend as persona (user-added = always persona)
       fetch('http://localhost:8420/api/memory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fact: newMemory.trim(), category: 'user_added', relevance_score: 0.9 })
+        body: JSON.stringify({ fact: newMemory.trim(), category: 'persona', relevance_score: 0.9 })
+      }).then(() => {
+        // Refresh persona memories
+        fetch('http://localhost:8420/api/memory/persona?limit=20')
+          .then(r => r.json())
+          .then(d => setPersonaMemories(d.memories || []))
+          .catch(() => {});
       }).catch(() => {});
       setNewMemory("");
       toast.success("Memory added");
@@ -122,6 +173,8 @@ export function SettingsView() {
     try {
       await fetch(`http://localhost:8420/api/memory/${id}`, { method: 'DELETE' });
       setDbMemories(prev => prev.filter(m => m.id !== id));
+      setPersonaMemories(prev => prev.filter(m => m.id !== id));
+      setGeneralMemories(prev => prev.filter(m => m.id !== id));
       toast.success("Memory deleted");
     } catch {
       toast.error("Failed to delete");
@@ -133,10 +186,12 @@ export function SettingsView() {
     setMemories([]);
     localStorage.setItem('ryxhub_user_memories', JSON.stringify([]));
     // Clear DB memories
-    for (const mem of dbMemories) {
+    for (const mem of [...dbMemories, ...personaMemories, ...generalMemories]) {
       await fetch(`http://localhost:8420/api/memory/${mem.id}`, { method: 'DELETE' }).catch(() => {});
     }
     setDbMemories([]);
+    setPersonaMemories([]);
+    setGeneralMemories([]);
     toast.success("All memories cleared");
   };
 
@@ -246,7 +301,25 @@ export function SettingsView() {
 
         {/* Models */}
         <section>
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">Ollama Models</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Ollama Models</h2>
+            {vramUsage && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{vramUsage.total_vram_gb}GB / {vramUsage.max_vram_gb}GB VRAM</span>
+                <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      vramUsage.usage_percent > 85 ? "bg-destructive" :
+                      vramUsage.usage_percent > 60 ? "bg-[hsl(var(--warning))]" :
+                      "bg-[hsl(var(--success))]"
+                    )}
+                    style={{ width: `${vramUsage.usage_percent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           
           {/* Loaded */}
           <div className="mb-3">
@@ -256,12 +329,16 @@ export function SettingsView() {
                 <span key={model.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-lg text-sm">
                   <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--success))]" />
                   {model.name}
-                  <button
-                    onClick={() => handleUnloadModel(model.id)}
-                    className="ml-1 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  {loadingModel === model.id ? (
+                    <RefreshCw className="w-3 h-3 animate-spin text-muted-foreground ml-1" />
+                  ) : (
+                    <button
+                      onClick={() => handleUnloadModel(model.id)}
+                      className="ml-1 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
               ))}
             </div>
@@ -275,10 +352,14 @@ export function SettingsView() {
                 <button
                   key={model.id}
                   onClick={() => handleLoadModel(model.id)}
-                  disabled={loadModelMutation.isPending}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-border rounded-lg text-sm hover:bg-muted/50 transition-colors"
+                  disabled={loadModelMutation.isPending || loadingModel === model.id}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-border rounded-lg text-sm hover:bg-muted/50 transition-colors disabled:opacity-50"
                 >
-                  <Power className="w-3 h-3 text-muted-foreground" />
+                  {loadingModel === model.id ? (
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Power className="w-3 h-3 text-muted-foreground" />
+                  )}
                   {model.name}
                 </button>
               ))}
@@ -289,7 +370,7 @@ export function SettingsView() {
           </div>
         </section>
 
-        {/* Memory */}
+        {/* Memory - Two Tabs */}
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium text-muted-foreground">Memory</h2>
@@ -301,36 +382,83 @@ export function SettingsView() {
             </button>
           </div>
           
-          {/* Add memory */}
-          <div className="flex gap-2 mb-3">
-            <input
-              type="text"
-              value={newMemory}
-              onChange={(e) => setNewMemory(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addMemory()}
-              placeholder="Add something Ryx should remember..."
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            <Button onClick={addMemory} size="sm" variant="outline">
-              <Plus className="w-4 h-4" />
-            </Button>
+          {/* Memory Tabs */}
+          <div className="flex gap-1 mb-3 p-1 bg-muted/50 rounded-lg">
+            <button
+              onClick={() => setActiveMemoryTab('persona')}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                activeMemoryTab === 'persona' 
+                  ? "bg-background shadow-sm text-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <User className="w-3 h-3" />
+              Your Persona ({personaMemories.length})
+            </button>
+            <button
+              onClick={() => setActiveMemoryTab('general')}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                activeMemoryTab === 'general' 
+                  ? "bg-background shadow-sm text-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <BookOpen className="w-3 h-3" />
+              General ({generalMemories.length})
+            </button>
           </div>
           
-          {/* Memory tags */}
-          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto scrollbar-thin">
-            {memories.map((memory, index) => (
-              <MemoryTag key={`local-${index}`} text={memory} onDelete={() => removeMemory(index)} />
-            ))}
-            {dbMemories.map((mem) => (
-              <MemoryTag 
-                key={`db-${mem.id}`} 
-                text={mem.fact} 
-                category={mem.category}
-                onDelete={() => deleteDbMemory(mem.id)} 
+          {/* Add memory (only for persona tab) */}
+          {activeMemoryTab === 'persona' && (
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={newMemory}
+                onChange={(e) => setNewMemory(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addMemory()}
+                placeholder="Add something Ryx should remember about you..."
+                className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary"
               />
-            ))}
-            {memories.length === 0 && dbMemories.length === 0 && (
-              <span className="text-sm text-muted-foreground/60">No memories yet</span>
+              <Button onClick={addMemory} size="sm" variant="outline">
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+          
+          {/* Memory tags based on active tab */}
+          <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto scrollbar-thin">
+            {activeMemoryTab === 'persona' ? (
+              <>
+                {memories.map((memory, index) => (
+                  <MemoryTag key={`local-${index}`} text={memory} isPersona onDelete={() => removeMemory(index)} />
+                ))}
+                {personaMemories.map((mem) => (
+                  <MemoryTag 
+                    key={`persona-${mem.id}`} 
+                    text={mem.fact} 
+                    isPersona
+                    onDelete={() => deleteDbMemory(mem.id)} 
+                  />
+                ))}
+                {memories.length === 0 && personaMemories.length === 0 && (
+                  <span className="text-sm text-muted-foreground/60">No persona facts yet. Tell Ryx about yourself!</span>
+                )}
+              </>
+            ) : (
+              <>
+                {generalMemories.map((mem) => (
+                  <MemoryTag 
+                    key={`general-${mem.id}`} 
+                    text={mem.fact} 
+                    onDelete={() => deleteDbMemory(mem.id)} 
+                  />
+                ))}
+                {generalMemories.length === 0 && (
+                  <span className="text-sm text-muted-foreground/60">No general facts learned yet</span>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -339,13 +467,21 @@ export function SettingsView() {
         <section>
           <h2 className="text-sm font-medium text-muted-foreground mb-3">Integrations</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <IntegrationCard name="WebUntis" emoji="📅" status="available" />
-            <IntegrationCard name="Gmail" emoji="📧" status="coming" />
-            <IntegrationCard name="GitHub" emoji="🐙" status="coming" />
-            <IntegrationCard name="Notion" emoji="📝" status="coming" />
+            <IntegrationCard name="WebUntis" emoji="📅" status="available" onClick={() => setConfigModalOpen('webuntis')} />
+            <IntegrationCard name="Gmail" emoji="📧" status="available" onClick={() => setConfigModalOpen('gmail')} />
+            <IntegrationCard name="GitHub" emoji="🐙" status="available" onClick={() => setConfigModalOpen('github')} />
+            <IntegrationCard name="Notion" emoji="📝" status="available" onClick={() => setConfigModalOpen('notion')} />
           </div>
         </section>
       </div>
+
+      {/* Integration Config Modal */}
+      {configModalOpen && (
+        <IntegrationConfigModal
+          integrationId={configModalOpen}
+          onClose={() => setConfigModalOpen(null)}
+        />
+      )}
     </div>
   );
 }
@@ -393,12 +529,12 @@ function ToggleRow({ label, description, checked, onChange }: { label: string; d
   );
 }
 
-function MemoryTag({ text, category, onDelete }: { text: string; category?: string; onDelete: () => void }) {
+function MemoryTag({ text, isPersona, onDelete }: { text: string; isPersona?: boolean; onDelete: () => void }) {
   return (
     <span className={cn(
       "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs",
-      category ? "bg-primary/10 border border-primary/20" : "bg-muted"
-    )} title={category ? `Category: ${category}` : undefined}>
+      isPersona ? "bg-primary/10 border border-primary/20" : "bg-muted"
+    )}>
       {text.length > 40 ? text.slice(0, 40) + '...' : text}
       <button onClick={onDelete} className="text-muted-foreground hover:text-destructive ml-0.5">
         <Trash2 className="w-3 h-3" />
@@ -407,22 +543,25 @@ function MemoryTag({ text, category, onDelete }: { text: string; category?: stri
   );
 }
 
-function IntegrationCard({ name, emoji, status }: { name: string; emoji: string; status: 'connected' | 'available' | 'coming' }) {
+function IntegrationCard({ name, emoji, status, onClick }: { name: string; emoji: string; status: 'connected' | 'available' | 'coming'; onClick?: () => void }) {
+  const isConnected = localStorage.getItem(`ryxhub_integration_${name.toLowerCase()}`) !== null;
+  
   return (
     <button 
       className={cn(
         "flex items-center gap-2 p-3 rounded-lg border border-border transition-colors text-left",
-        status === 'coming' ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/50"
+        status === 'coming' ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/50 cursor-pointer"
       )}
       disabled={status === 'coming'}
+      onClick={onClick}
     >
       <span className="text-lg">{emoji}</span>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate">{name}</div>
         <div className="text-[10px] text-muted-foreground">
-          {status === 'connected' && <span className="text-[hsl(var(--success))]">✓ Connected</span>}
-          {status === 'available' && <span>Available</span>}
-          {status === 'coming' && <span>Coming soon</span>}
+          {isConnected ? <span className="text-[hsl(var(--success))]">✓ Connected</span> : 
+           status === 'available' ? <span>Click to configure</span> :
+           <span>Coming soon</span>}
         </div>
       </div>
     </button>

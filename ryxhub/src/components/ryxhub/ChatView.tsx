@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, AlertTriangle } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, AlertTriangle, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +12,7 @@ import { useSendMessage, useModels } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
 import { type ToolConfig } from "@/components/ryxhub/ToolsPanel";
 import { getModelDisplayName } from "@/types/ryxhub";
+import { MessageActionsMenu } from "./MessageActionsMenu";
 
 // Icon map for tools
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -70,6 +71,7 @@ export function ChatView() {
   const [sessionSettingsOpen, setSessionSettingsOpen] = useState(false);
   const [sessionSystemPrompt, setSessionSystemPrompt] = useState("");
   const [sessionStyle, setSessionStyle] = useState("normal");
+  const [contextMenu, setContextMenu] = useState<{ messageId: string; position: { x: number; y: number } } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -359,6 +361,79 @@ export function ChatView() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Right-click context menu handler
+  const handleContextMenu = (e: React.MouseEvent, messageId: string) => {
+    e.preventDefault();
+    setContextMenu({ 
+      messageId, 
+      position: { x: e.clientX, y: e.clientY } 
+    });
+  };
+
+  // Regenerate a response with optional modifier
+  const handleRegenerateMessage = async (messageId: string, modifier?: 'shorter' | 'longer' | 'explain') => {
+    if (!selectedSessionId) return;
+    
+    // Find the message and the user message before it
+    const msgIndex = messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
+    
+    // Find the last user message before this assistant message
+    let userMsgIndex = msgIndex - 1;
+    while (userMsgIndex >= 0 && messages[userMsgIndex].role !== 'user') {
+      userMsgIndex--;
+    }
+    
+    if (userMsgIndex < 0) {
+      toast.error('Cannot regenerate - no user message found');
+      return;
+    }
+    
+    const userMessage = messages[userMsgIndex].content;
+    let modifiedPrompt = userMessage;
+    
+    // Apply modifier
+    if (modifier === 'shorter') {
+      modifiedPrompt = `${userMessage}\n\n[Instruction: Make your response much shorter and more concise. Maximum 2-3 sentences.]`;
+    } else if (modifier === 'longer') {
+      modifiedPrompt = `${userMessage}\n\n[Instruction: Provide a more detailed and comprehensive response with examples.]`;
+    } else if (modifier === 'explain') {
+      modifiedPrompt = `${userMessage}\n\n[Instruction: Explain this in more detail with step-by-step reasoning and examples.]`;
+    }
+    
+    setIsTyping(true);
+    try {
+      const history = messages.slice(0, userMsgIndex).map(m => ({ 
+        role: m.role as "user" | "assistant", 
+        content: m.content 
+      }));
+      
+      const response = await sendMessageMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        message: modifiedPrompt,
+        model: selectedModel,
+        history,
+        tools: tools.filter(t => t.enabled).map(t => t.id),
+      });
+      
+      // Add as new message (variant)
+      addMessageToSession(selectedSessionId, {
+        role: "assistant",
+        content: response.content,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        model: response.model || selectedModel,
+        toolsUsed: response.tools_used || [],
+        confidence: response.confidence,
+      });
+      
+      toast.success(modifier ? `Regenerated (${modifier})` : 'Regenerated');
+    } catch (error) {
+      toast.error("Failed to regenerate");
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   const handleModelChange = (modelId: string) => {
     const isLoaded = availableModels.some(m => m.id === modelId);
     if (!isLoaded) {
@@ -480,12 +555,23 @@ export function ChatView() {
       <ScrollArea className="flex-1 px-4">
           <div className="py-3 space-y-3">
             {messages.map((message) => (
-              <div key={message.id} className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}>
+              <div 
+                key={message.id} 
+                className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}
+                onContextMenu={(e) => handleContextMenu(e, message.id)}
+              >
                 {message.role === "assistant" && <Sparkles className="w-4 h-4 text-primary mt-1 flex-shrink-0" />}
                 <div className={cn(
-                  "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+                  "max-w-[80%] rounded-lg px-3 py-2 text-sm relative group",
                   message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
                 )}>
+                  {/* Quick action button - visible on hover */}
+                  <button
+                    onClick={(e) => handleContextMenu(e, message.id)}
+                    className="absolute -right-8 top-1 opacity-0 group-hover:opacity-60 hover:!opacity-100 p-1 rounded transition-opacity"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
                   {editingMessageId === message.id ? (
                     <div className="space-y-2">
                       <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="min-h-[60px] text-sm" />
@@ -718,6 +804,25 @@ export function ChatView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Message Actions Context Menu */}
+      {contextMenu && (
+        <MessageActionsMenu
+          messageId={contextMenu.messageId}
+          messageContent={messages.find(m => m.id === contextMenu.messageId)?.content || ''}
+          isUser={messages.find(m => m.id === contextMenu.messageId)?.role === 'user'}
+          position={contextMenu.position}
+          onClose={() => setContextMenu(null)}
+          onRegenerate={() => handleRegenerateMessage(contextMenu.messageId)}
+          onMakeShorter={() => handleRegenerateMessage(contextMenu.messageId, 'shorter')}
+          onMakeLonger={() => handleRegenerateMessage(contextMenu.messageId, 'longer')}
+          onExplainMore={() => handleRegenerateMessage(contextMenu.messageId, 'explain')}
+          onEdit={() => {
+            const msg = messages.find(m => m.id === contextMenu.messageId);
+            if (msg) handleEditMessage(contextMenu.messageId, msg.content);
+          }}
+        />
+      )}
     </div>
   );
 }
