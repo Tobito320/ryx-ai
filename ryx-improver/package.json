@@ -1,0 +1,19 @@
+{
+  "name": "ryx-improver",
+  "version": "1.0.0",
+  "description": "Self-improvement system for Ryx using GitHub Copilot Pro+",
+  "main": "improver.ts",
+  "scripts": {
+    "improve": "ts-node improver.ts",
+    "improve:dry": "ts-node improver.ts --dry-run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
