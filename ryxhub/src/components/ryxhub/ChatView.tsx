@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,7 +15,15 @@ import { getModelDisplayName } from "@/types/ryxhub";
 
 // Icon map for tools
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Search, Database, Globe, FileText, Wrench,
+  Search, Database, Globe, FileText, Wrench, Brain,
+};
+
+// Tool display names
+const toolDisplayNames: Record<string, string> = {
+  "web_search": "searched",
+  "memory_retrieve": "memory",
+  "memory_store": "learned",
+  "rag_search": "docs",
 };
 
 interface UploadedFile {
@@ -32,16 +40,19 @@ interface MessageStats {
   tokens_per_second?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
+  tools_used?: string[];
+  confidence?: number;
+  language?: string;
 }
 
 const DEFAULT_MODEL = "/models/medium/general/qwen2.5-7b-gptq";
 
 // Default tools - websearch and rag enabled
 const defaultTools: ToolConfig[] = [
-  { id: "websearch", name: "Web Search", description: "Search the web", icon: "Search", enabled: true },
+  { id: "websearch", name: "Web Search", description: "Auto-searches when needed", icon: "Search", enabled: true },
   { id: "rag", name: "RAG", description: "Query knowledge base", icon: "Database", enabled: true },
+  { id: "memory", name: "Memory", description: "Remember context", icon: "Brain", enabled: true },
   { id: "scrape", name: "Scraper", description: "Extract from websites", icon: "Globe", enabled: false },
-  { id: "filesystem", name: "Files", description: "Read/write files", icon: "FileText", enabled: false },
 ];
 
 export function ChatView() {
@@ -243,14 +254,31 @@ export function ChatView() {
         tokens_per_second: response.tokens_per_second,
         prompt_tokens: response.prompt_tokens,
         completion_tokens: response.completion_tokens,
+        tools_used: response.tools_used || [],
+        confidence: response.confidence,
+        language: response.language,
       });
+
+      // Format tools used for display in message
+      const toolsUsedText = response.tools_used && response.tools_used.length > 0
+        ? `(${response.tools_used.map(t => toolDisplayNames[t] || t).join(', ')})`
+        : '';
 
       addMessageToSession(selectedSessionId, {
         role: "assistant",
         content: response.content,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         model: response.model || selectedModel,
+        toolsUsed: response.tools_used || [],
+        confidence: response.confidence,
       });
+
+      // Show warnings as toast (auto-dismiss)
+      if (response.warnings && response.warnings.length > 0) {
+        response.warnings.forEach((warning: string) => {
+          toast.warning(warning, { duration: 5000 });
+        });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to get response";
       
@@ -472,8 +500,20 @@ export function ChatView() {
                   ) : (
                     <>
                       <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className={cn("flex items-center gap-1 mt-1 text-[10px]", message.role === "user" ? "text-primary-foreground/70 justify-end" : "text-muted-foreground")}>
+                      <div className={cn("flex items-center gap-1 mt-1 text-[10px] flex-wrap", message.role === "user" ? "text-primary-foreground/70 justify-end" : "text-muted-foreground")}>
                         {message.model && message.role === "assistant" && <span className="opacity-60">{getModelDisplayName(message.model)}</span>}
+                        {/* Show tools used */}
+                        {message.toolsUsed && message.toolsUsed.length > 0 && (
+                          <span className="text-primary/70 font-medium">
+                            ({message.toolsUsed.map((t: string) => toolDisplayNames[t] || t).join(', ')})
+                          </span>
+                        )}
+                        {/* Confidence indicator */}
+                        {message.confidence && message.confidence < 0.8 && (
+                          <span className="text-yellow-500 flex items-center gap-0.5" title={`Confidence: ${(message.confidence * 100).toFixed(0)}%`}>
+                            <AlertTriangle className="w-3 h-3" />
+                          </span>
+                        )}
                         <span>{message.timestamp}</span>
                         <button onClick={() => handleCopy(message.content, message.id)} className="hover:opacity-100 opacity-60">
                           {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}

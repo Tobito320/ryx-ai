@@ -361,16 +361,18 @@ export const ryxApi = {
     style?: string,
     systemPrompt?: string,
     memories?: string[]
-  ): Promise<Message> {
+  ): Promise<Message & { tools_used?: string[]; confidence?: number; language?: string; warnings?: string[] }> {
     const modelToUse = model || 'qwen2.5-coder:7b';
     const needsWebSearch = tools?.includes('websearch');
+    const useMemory = tools?.includes('memory');
 
     const payload: any = {
       message,
       model: modelToUse,
-      use_search: needsWebSearch,
+      use_search: needsWebSearch,  // Backend will also auto-detect when needed
       style: style || 'normal',
       history: history || [],
+      session_id: sessionId,
     };
 
     if (images && images.length > 0) {
@@ -386,7 +388,16 @@ export const ryxApi = {
     }
 
     try {
-      const response = await apiRequest<{ response: string; model: string; latency_ms: number }>(
+      const response = await apiRequest<{
+        response: string;
+        model: string;
+        latency_ms: number;
+        extracted_memories?: string[];
+        tools_used?: string[];
+        confidence?: number;
+        language?: string;
+        warnings?: string[];
+      }>(
         '/api/chat/smart',
         {
           method: 'POST',
@@ -414,6 +425,10 @@ export const ryxApi = {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         model: response.model,
         latency_ms: response.latency_ms,
+        tools_used: response.tools_used,
+        confidence: response.confidence,
+        language: response.language,
+        warnings: response.warnings,
       };
     } catch (error) {
       if (error instanceof RyxApiError) throw error;
@@ -615,7 +630,81 @@ export const ryxApi = {
       body: JSON.stringify({ query }),
     });
   },
+
+  // ============ Memory ============
+
+  async getMemories(topic?: string, limit: number = 50): Promise<{ memories: MemoryItem[]; count: number }> {
+    const params = new URLSearchParams();
+    if (topic) params.append('topic', topic);
+    params.append('limit', limit.toString());
+    return apiRequest<{ memories: MemoryItem[]; count: number }>(`/api/memory?${params}`);
+  },
+
+  async storeMemory(fact: string, category: string = 'general', relevanceScore: number = 0.5): Promise<{ success: boolean }> {
+    return apiRequest<{ success: boolean }>('/api/memory', {
+      method: 'POST',
+      body: JSON.stringify({ fact, category, relevance_score: relevanceScore }),
+    });
+  },
+
+  async deleteMemory(memoryId: number): Promise<{ success: boolean }> {
+    return apiRequest<{ success: boolean }>(`/api/memory/${memoryId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async storeMemoriesBulk(memories: Array<string | { fact: string; category?: string; relevance_score?: number }>): Promise<{ stored_count: number }> {
+    return apiRequest<{ stored_count: number }>('/api/memory/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ memories }),
+    });
+  },
+
+  // ============ Session Logs ============
+
+  async getSessionLogs(limit: number = 100, sessionId?: string): Promise<{ logs: SessionLog[]; count: number }> {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (sessionId) params.append('session_id', sessionId);
+    return apiRequest<{ logs: SessionLog[]; count: number }>(`/api/logs?${params}`);
+  },
+
+  async getLogStats(): Promise<LogStats> {
+    return apiRequest<LogStats>('/api/logs/stats');
+  },
 };
+
+// Memory types
+export interface MemoryItem {
+  id: number;
+  category: string;
+  fact: string;
+  relevance_score: number;
+  last_accessed: string;
+  access_count: number;
+}
+
+export interface SessionLog {
+  timestamp: string;
+  session_id: string | null;
+  user_input: string;
+  model: string;
+  response_time_ms: number;
+  tools_used: string[];
+  confidence: number;
+  memory_stored: string[];
+  response_length: number;
+  warnings: string[];
+  language: string;
+}
+
+export interface LogStats {
+  total_interactions: number;
+  average_latency_ms: number;
+  average_confidence: number;
+  tool_usage: Record<string, number>;
+  language_distribution: Record<string, number>;
+}
 
 /**
  * Helper function to convert HTTP URL to WebSocket URL

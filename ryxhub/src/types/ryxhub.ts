@@ -130,6 +130,9 @@ export interface Message {
   tokens_per_second?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
+  toolsUsed?: string[];
+  confidence?: number;
+  language?: string;
 }
 
 export interface Model {
