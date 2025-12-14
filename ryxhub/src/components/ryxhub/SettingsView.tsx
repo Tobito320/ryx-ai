@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { 
   Settings, Server, Activity, RefreshCw, Power, PowerOff, 
-  Brain, Trash2, Plus, ChevronLeft, Check, X, User, BookOpen
+  Brain, Trash2, Plus, ChevronLeft, Check, X, User, BookOpen, ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { IntegrationConfigModal } from "./IntegrationConfigModal";
+import { ConnectorsView } from "./ConnectorsView";
 
 export function SettingsView() {
   const { setActiveView } = useRyxHub();
@@ -63,7 +63,7 @@ export function SettingsView() {
   const [generalMemories, setGeneralMemories] = useState<any[]>([]);
   const [activeMemoryTab, setActiveMemoryTab] = useState<'persona' | 'general'>('persona');
   const [newMemory, setNewMemory] = useState("");
-  const [configModalOpen, setConfigModalOpen] = useState<string | null>(null);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
 
   useEffect(() => {
     // Load local memories
@@ -463,24 +463,30 @@ export function SettingsView() {
           </div>
         </section>
 
-        {/* Integrations Grid */}
+        {/* Connectors Section - Claude Style */}
         <section>
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">Integrations</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <IntegrationCard name="WebUntis" emoji="📅" status="available" onClick={() => setConfigModalOpen('webuntis')} />
-            <IntegrationCard name="Gmail" emoji="📧" status="available" onClick={() => setConfigModalOpen('gmail')} />
-            <IntegrationCard name="GitHub" emoji="🐙" status="available" onClick={() => setConfigModalOpen('github')} />
-            <IntegrationCard name="Notion" emoji="📝" status="available" onClick={() => setConfigModalOpen('notion')} />
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Connectors</h2>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setConnectorsOpen(true)}
+              className="h-7 text-xs gap-1.5"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Browse connectors
+            </Button>
           </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Allow Ryx to reference other apps and services for more context.
+          </p>
+          <ConnectorStatusList />
         </section>
       </div>
 
-      {/* Integration Config Modal */}
-      {configModalOpen && (
-        <IntegrationConfigModal
-          integrationId={configModalOpen}
-          onClose={() => setConfigModalOpen(null)}
-        />
+      {/* Connectors Modal */}
+      {connectorsOpen && (
+        <ConnectorsView onClose={() => setConnectorsOpen(false)} />
       )}
     </div>
   );
@@ -543,27 +549,74 @@ function MemoryTag({ text, isPersona, onDelete }: { text: string; isPersona?: bo
   );
 }
 
-function IntegrationCard({ name, emoji, status, onClick }: { name: string; emoji: string; status: 'connected' | 'available' | 'coming'; onClick?: () => void }) {
-  const isConnected = localStorage.getItem(`ryxhub_integration_${name.toLowerCase()}`) !== null;
-  
-  return (
-    <button 
-      className={cn(
-        "flex items-center gap-2 p-3 rounded-lg border border-border transition-colors text-left",
-        status === 'coming' ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/50 cursor-pointer"
-      )}
-      disabled={status === 'coming'}
-      onClick={onClick}
-    >
-      <span className="text-lg">{emoji}</span>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate">{name}</div>
-        <div className="text-[10px] text-muted-foreground">
-          {isConnected ? <span className="text-[hsl(var(--success))]">✓ Connected</span> : 
-           status === 'available' ? <span>Click to configure</span> :
-           <span>Coming soon</span>}
-        </div>
+// Connector status list showing connected services
+function ConnectorStatusList() {
+  const [status, setStatus] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    // Load connector status from localStorage
+    const connectors = ['github', 'gmail', 'google_drive', 'google_calendar', 'notion'];
+    const newStatus: Record<string, any> = {};
+    connectors.forEach(id => {
+      const saved = localStorage.getItem(`ryxhub_connector_${id}`);
+      if (saved) {
+        try {
+          newStatus[id] = JSON.parse(saved);
+        } catch {}
+      }
+    });
+    setStatus(newStatus);
+  }, []);
+
+  const connectedCount = Object.keys(status).length;
+
+  if (connectedCount === 0) {
+    return (
+      <div className="p-4 rounded-lg border border-dashed border-border text-center">
+        <p className="text-sm text-muted-foreground">No connectors configured</p>
+        <p className="text-xs text-muted-foreground mt-1">Click "Browse connectors" to get started</p>
       </div>
-    </button>
+    );
+  }
+
+  const connectorNames: Record<string, string> = {
+    github: "GitHub",
+    gmail: "Gmail",
+    google_drive: "Google Drive",
+    google_calendar: "Google Calendar",
+    notion: "Notion",
+  };
+
+  const connectorIcons: Record<string, string> = {
+    github: "🐙",
+    gmail: "📧",
+    google_drive: "📁",
+    google_calendar: "📅",
+    notion: "📝",
+  };
+
+  return (
+    <div className="space-y-2">
+      {Object.entries(status).map(([id, data]) => (
+        <div 
+          key={id}
+          className="flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-lg">{connectorIcons[id]}</span>
+            <div>
+              <div className="text-sm font-medium">{connectorNames[id]}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {data.email || data.accountName || "Connected"}
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] text-[hsl(var(--success))] font-medium flex items-center gap-1">
+            <Check className="w-3 h-3" />
+            Connected
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
