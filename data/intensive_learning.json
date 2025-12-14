@@ -724,7 +724,7 @@
         "repo": "build-your-claude-code-from-scratch",
         "file": "/home/tobi/cloned_repositorys/_ARCHIVE/build-your-claude-code-from-scratch/chapter1_tool_call_api/xml_tool_call.py",
         "keyword": "tree",
-        "snippet": "from openai import OpenAI\nimport requests\nimport xml.etree.ElementTree as ET\nimport re\n\nOPENROUTER_API_KEY = \"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\"  \nMODEL = \"anthropic/claude-sonnet-4\"\n\n"
+        "snippet": "from openai import OpenAI\nimport requests\nimport xml.etree.ElementTree as ET\nimport re\n\nOPENROUTER_API_KEY = \"REDACTED_OPENROUTER_API_KEY\"  \nMODEL = \"anthropic/claude-sonnet-4\"\n\n"
       },
       {
         "repo": "build-your-claude-code-from-scratch",
