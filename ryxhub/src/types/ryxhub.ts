@@ -133,6 +133,14 @@ export interface Message {
   toolsUsed?: string[];
   confidence?: number;
   language?: string;
+  memoriesUsed?: MemoryUsed[];
+  toolDecisions?: string[];
+}
+
+export interface MemoryUsed {
+  category: string;
+  fact: string;
+  score: number;
 }
 
 export interface Model {

@@ -124,59 +124,155 @@ class SessionLogEntry(BaseModel):
     language: str
 
 # =============================================================================
-# Memory Functions
+# Memory Functions - MEMORY-FIRST ARCHITECTURE
 # =============================================================================
 
+def simple_similarity(s1: str, s2: str) -> float:
+    """Simple word-based similarity (0-1). Fast alternative to cosine similarity."""
+    words1 = set(s1.lower().split())
+    words2 = set(s2.lower().split())
+    if not words1 or not words2:
+        return 0.0
+    intersection = words1 & words2
+    union = words1 | words2
+    return len(intersection) / len(union)
+
+def is_noise_memory(fact: str) -> bool:
+    """Check if a memory is noise (transient, trivial, or duplicate)."""
+    noise_patterns = [
+        r'^(ok|thanks|thx|bye|hi|hello|hey|lol|haha|yes|no|sure|cool|nice)$',
+        r'^(what time|tell me a joke|how are you)',
+        r'(searched|learned|memory|retrieved)',  # Meta-words
+        r'^.{0,10}$',  # Too short
+    ]
+    fact_lower = fact.lower().strip()
+    for pattern in noise_patterns:
+        if re.search(pattern, fact_lower):
+            return True
+    return False
+
 def memory_store(category: str, fact: str, relevance_score: float = 0.5) -> bool:
-    """Store a memory fact in the database."""
+    """Store a memory fact with deduplication. Returns True if stored."""
+    # Filter noise
+    if is_noise_memory(fact):
+        print(f"Memory rejected (noise): {fact[:50]}")
+        return False
+    
+    # Require minimum confidence
+    if relevance_score < 0.5:
+        print(f"Memory rejected (low confidence {relevance_score}): {fact[:50]}")
+        return False
+    
     try:
         conn = sqlite3.connect(str(MEMORY_DB))
         cursor = conn.cursor()
+        
+        # Check for duplicates (similarity > 0.7)
+        cursor.execute("SELECT id, fact, relevance_score FROM memories")
+        for row in cursor.fetchall():
+            existing_id, existing_fact, existing_score = row
+            similarity = simple_similarity(fact, existing_fact)
+            if similarity > 0.7:
+                # Update existing if new has higher relevance
+                if relevance_score > existing_score:
+                    cursor.execute(
+                        "UPDATE memories SET fact = ?, relevance_score = ?, last_accessed = ? WHERE id = ?",
+                        (fact, relevance_score, datetime.now().isoformat(), existing_id)
+                    )
+                    conn.commit()
+                    print(f"Memory updated (similarity {similarity:.2f}): {fact[:50]}")
+                else:
+                    print(f"Memory skipped (duplicate, similarity {similarity:.2f}): {fact[:50]}")
+                conn.close()
+                return False
+        
+        # Store new memory
         cursor.execute(
-            "INSERT OR IGNORE INTO memories (category, fact, relevance_score) VALUES (?, ?, ?)",
+            "INSERT INTO memories (category, fact, relevance_score) VALUES (?, ?, ?)",
             (category, fact, relevance_score)
         )
         conn.commit()
+        success = cursor.rowcount > 0
         conn.close()
-        return cursor.rowcount > 0
+        if success:
+            print(f"Memory stored [{category}]: {fact[:50]}")
+        return success
     except Exception as e:
         print(f"Memory store error: {e}")
         return False
 
-def memory_retrieve(topic: str, limit: int = 5) -> List[Dict[str, Any]]:
-    """Retrieve relevant memories by topic/category."""
+def memory_retrieve_smart(message: str, limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    SMART memory retrieval - extracts keywords from message and finds relevant memories.
+    Returns memories sorted by relevance to the query.
+    """
     try:
         conn = sqlite3.connect(str(MEMORY_DB))
         cursor = conn.cursor()
-        # Search by category or fact content
+        
+        # Extract keywords from message
+        stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'do', 'does', 'did', 
+                      'i', 'you', 'he', 'she', 'it', 'we', 'they', 'my', 'your', 'his', 'her',
+                      'what', 'where', 'when', 'who', 'how', 'why', 'which', 'can', 'could',
+                      'ich', 'du', 'er', 'sie', 'wir', 'ihr', 'mein', 'dein', 'was', 'wo', 'wer', 'wie'}
+        keywords = [w.lower() for w in re.findall(r'\b\w+\b', message) if w.lower() not in stop_words and len(w) > 2]
+        
+        # Get all memories
         cursor.execute("""
             SELECT id, category, fact, relevance_score, last_accessed, access_count
             FROM memories
-            WHERE category LIKE ? OR fact LIKE ?
             ORDER BY relevance_score DESC, access_count DESC
-            LIMIT ?
-        """, (f"%{topic}%", f"%{topic}%", limit))
-        results = []
+        """)
+        
+        all_memories = []
         for row in cursor.fetchall():
-            results.append({
+            mem = {
                 "id": row[0],
                 "category": row[1],
                 "fact": row[2],
                 "relevance_score": row[3],
                 "last_accessed": row[4],
-                "access_count": row[5]
-            })
-            # Update access count and timestamp
+                "access_count": row[5],
+                "match_score": 0.0
+            }
+            
+            # Calculate match score based on keyword overlap
+            fact_lower = mem["fact"].lower()
+            category_lower = mem["category"].lower()
+            
+            for keyword in keywords:
+                if keyword in fact_lower:
+                    mem["match_score"] += 0.3
+                if keyword in category_lower:
+                    mem["match_score"] += 0.2
+            
+            # Boost by stored relevance
+            mem["match_score"] += mem["relevance_score"] * 0.3
+            
+            if mem["match_score"] > 0:
+                all_memories.append(mem)
+        
+        # Sort by match score and limit
+        all_memories.sort(key=lambda x: x["match_score"], reverse=True)
+        results = all_memories[:limit]
+        
+        # Update access count for retrieved memories
+        for mem in results:
             cursor.execute(
                 "UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?",
-                (datetime.now().isoformat(), row[0])
+                (datetime.now().isoformat(), mem["id"])
             )
+        
         conn.commit()
         conn.close()
         return results
     except Exception as e:
         print(f"Memory retrieve error: {e}")
         return []
+
+def memory_retrieve(topic: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Retrieve relevant memories by topic/category (legacy function)."""
+    return memory_retrieve_smart(topic, limit)
 
 def memory_get_all(limit: int = 50) -> List[Dict[str, Any]]:
     """Get all memories ordered by relevance."""
@@ -600,31 +696,36 @@ async def chat(data: Dict[str, Any]):
 
 async def extract_memories_from_message(message: str, model: str) -> list:
     """Extract factual memories about the user from their message using a fast LLM call."""
-    extraction_prompt = """Analyze this user message and extract ONLY factual information about the user that should be remembered for future conversations.
+    extraction_prompt = """Analyze this user message and extract ONLY factual information about THE USER that should be remembered.
 
-Extract facts like:
-- Name, age, location
-- Job, profession, skills
-- Preferences (likes, dislikes, how they want responses)
-- Important personal details (family, pets, hobbies)
-- Technical setup (OS, tools they use)
+EXTRACT (high-value personal facts):
+- "I live in X" → location: User lives in X
+- "My name is X" → personal: User's name is X
+- "I prefer X" → preference: User prefers X
+- "I use X" (tool/OS/software) → technical: User uses X
+- "I work as X" → personal: User works as X
+- "My project is X" → project: User's project is X
 
-Return ONLY a JSON array of strings with category prefix. Each string format: "category: fact"
-Categories: personal, technical, preference, project, location
+DO NOT EXTRACT (these are NOT about the user):
+- Questions ("What is X?", "How does X work?")
+- General facts ("Python is a language")
+- Requests ("Help me with X")
+- Search queries ("Tell me about X")
+- Transient info ("What time is it?")
+- Meta-questions about the AI
 
-If no personal facts are found, return an empty array: []
+Return ONLY a JSON array. Format: ["category: fact about the user"]
+If NO personal facts, return: []
 
 Examples:
-User: "My name is Tobi and I'm a software developer in Germany"
-Output: ["personal: User's name is Tobi", "personal: User is a software developer", "location: User lives in Germany"]
+"My name is Tobi, I live in Hagen" → ["personal: User's name is Tobi", "location: User lives in Hagen"]
+"What is the weather?" → []
+"I prefer concise answers" → ["preference: User prefers concise answers"]
+"Explain Kubernetes" → []
+"I use Arch Linux with Hyprland" → ["technical: User uses Arch Linux", "technical: User uses Hyprland"]
+"Who is the president?" → []
 
-User: "Can you help me fix this code?"
-Output: []
-
-User: "I prefer concise answers, I use Arch Linux with Hyprland"
-Output: ["preference: User prefers concise answers", "technical: User uses Arch Linux", "technical: User uses Hyprland window manager"]
-
-Now analyze this message:"""
+Message to analyze:"""
 
     try:
         messages = [
@@ -641,168 +742,255 @@ Now analyze this message:"""
         if match:
             memories = json.loads(match.group())
             if isinstance(memories, list):
-                return [m for m in memories if isinstance(m, str) and len(m) > 5]
+                # Filter: must be about the user, not general facts
+                valid = []
+                for m in memories:
+                    if isinstance(m, str) and len(m) > 10:
+                        # Must contain user-related keywords
+                        m_lower = m.lower()
+                        if any(kw in m_lower for kw in ['user', 'tobi', 'live', 'prefer', 'use', 'work', 'name', 'project']):
+                            valid.append(m)
+                return valid
         return []
     except Exception as e:
         print(f"Memory extraction failed: {e}")
         return []
 
 
-def should_search_autonomously(message: str) -> bool:
-    """Determine if a query needs web search based on content analysis."""
+def should_search_autonomously(message: str, retrieved_memories: List[Dict] = None) -> tuple[bool, str]:
+    """
+    AUTONOMOUS tool decision - decides if web search is needed BEFORE generation.
+    Returns (needs_search: bool, reason: str)
+    
+    Decision tree:
+    1. If memory answers confidently (relevance > 0.8) → NO SEARCH
+    2. If query is time-sensitive (weather, news, prices) → SEARCH
+    3. If query is personal (location, preferences) and memory exists → NO SEARCH
+    4. If query asks "who is", "what is" about public info → SEARCH
+    5. Otherwise → NO SEARCH (use reasoning)
+    """
     message_lower = message.lower()
     
-    # Keywords that strongly suggest need for search
-    search_triggers = [
-        # Current information
-        'today', 'current', 'latest', 'recent', 'now', 'right now',
-        'this week', 'this month', 'this year', '2024', '2025',
-        # Factual queries
-        'who is', 'what is', 'when did', 'where is', 'why did', 'how to',
-        'what are', 'who are', 'when was', 'where was',
-        # News/Events
-        'news', 'update', 'released', 'announced', 'happened',
-        # Prices/Data
-        'price', 'cost', 'stock', 'weather', 'temperature',
-        # Specific lookups
-        'president', 'ceo', 'founder', 'version',
-        # German equivalents
-        'wetter', 'heute', 'aktuell', 'neueste', 'preis',
-        'wer ist', 'was ist', 'wann', 'wo ist',
-        # Arabic triggers (transliterated and Arabic script)
-        'الآن', 'اليوم', 'من هو', 'ما هو', 'أين'
+    # Check if memory already answers the question with high confidence
+    if retrieved_memories:
+        # Personal queries that memory should answer
+        personal_keywords = ['live', 'wohn', 'location', 'name', 'prefer', 'use', 'work', 'job', 'project']
+        is_personal_query = any(kw in message_lower for kw in personal_keywords)
+        
+        if is_personal_query:
+            # Check if we have relevant memory with high confidence
+            for mem in retrieved_memories:
+                if mem.get('match_score', 0) > 0.3 or mem.get('relevance_score', 0) > 0.7:
+                    return (False, f"Memory answers: {mem['fact'][:50]}")
+    
+    # Time-sensitive queries ALWAYS need search
+    time_sensitive = [
+        'weather', 'wetter', 'temperature', 'temperatur',
+        'news', 'nachrichten', 'today', 'heute', 'current', 'aktuell',
+        'price', 'preis', 'cost', 'kosten', 'stock', 'aktie',
+        'rate', 'kurs', 'bitcoin', 'crypto', 'dollar', 'euro',
+        'latest', 'neueste', 'recent', 'new version', 'neue version',
+        'released', 'announced', 'happened', 'update'
     ]
     
-    for trigger in search_triggers:
+    for trigger in time_sensitive:
         if trigger in message_lower:
-            return True
+            return (True, f"Time-sensitive query: {trigger}")
     
-    # Question patterns
-    question_patterns = [
-        r'^(who|what|when|where|why|how|which)\s',
-        r'^(wer|was|wann|wo|warum|wie|welche)\s',
-        r'^(من|ما|متى|أين|لماذا|كيف)\s',
-        r'\?$'
+    # Factual public knowledge queries need search
+    factual_patterns = [
+        (r'^(who is|wer ist)', "Public person lookup"),
+        (r'^(what is|was ist)\s+(the|der|die|das)?\s*\w+\s*(version|price|cost)', "Version/price lookup"),
+        (r'(president|ceo|founder|minister|chancellor|kanzler)', "Public figure lookup"),
+        (r'(2024|2025)', "Current year reference"),
     ]
     
-    for pattern in question_patterns:
+    for pattern, reason in factual_patterns:
         if re.search(pattern, message_lower):
-            return True
+            return (True, reason)
     
-    return False
+    # Questions about self/personal context - use memory, not search
+    personal_patterns = [
+        r'(where do i|wo wohn|my name|mein name|i prefer|ich bevorzug)',
+        r'(my project|mein projekt|i use|ich benutze|i work|ich arbeit)',
+        r'(about me|über mich|tell me about my|erzähl mir über mein)'
+    ]
+    
+    for pattern in personal_patterns:
+        if re.search(pattern, message_lower):
+            return (False, "Personal query - use memory")
+    
+    # Generic questions might need search if no memory context
+    question_words = ['what', 'who', 'when', 'where', 'how', 'why', 'which', 'was', 'wer', 'wann', 'wo', 'wie', 'warum']
+    starts_with_question = any(message_lower.startswith(qw + ' ') for qw in question_words)
+    
+    if starts_with_question and not retrieved_memories:
+        return (True, "Question without memory context")
+    
+    return (False, "No search trigger found")
 
 
 @app.post("/api/chat/smart")
 async def smart_chat(data: Dict[str, Any]):
     """
-    Smart chat with AUTONOMOUS tool use:
-    - Auto web search when needed (no explicit request required)
-    - Memory retrieval and storage
-    - Language detection and response matching
-    - Response styles
-    - Conversation history
-    - Detailed logging
+    MEMORY-FIRST Smart Chat - ChatGPT-level autonomy
+    
+    Architecture:
+    1. RETRIEVE memories FIRST (before any decision)
+    2. DECIDE tool usage based on memories + query
+    3. INJECT context into system prompt
+    4. GENERATE response
+    5. LEARN from conversation (deduped)
+    6. LOG everything for debugging
     """
     start_time = time.time()
     
     message = data.get("message", "")
     model = data.get("model", DEFAULT_MODEL)
-    use_search = data.get("use_search", False)  # Explicit search request
+    explicit_search = data.get("use_search", False)
     images = data.get("images", [])
     style = data.get("style", "normal")
     system_prompt_override = data.get("system_prompt", None)
     history = data.get("history", [])
-    user_memories = data.get("memories", [])  # Client-side memories
+    client_memories = data.get("memories", [])
     session_id = data.get("session_id", None)
     
     if not message:
         raise HTTPException(status_code=400, detail="Message required")
     
-    # Track what tools we use
+    # =========================================================================
+    # STEP 1: MEMORY RETRIEVAL (ALWAYS FIRST - CRITICAL!)
+    # =========================================================================
     tools_used = []
+    tool_decisions = []
     warnings = []
-    confidence = 0.85  # Base confidence
+    retrieved_memories = []
     
-    # Language detection
+    # Retrieve memories BEFORE any other decision
+    retrieved_memories = memory_retrieve_smart(message, limit=10)
+    
+    if retrieved_memories:
+        tools_used.append("memory_retrieve")
+        tool_decisions.append(f"Retrieved {len(retrieved_memories)} memories")
+    
+    # =========================================================================
+    # STEP 2: AUTONOMOUS TOOL DECISION (Based on memories!)
+    # =========================================================================
     language = detect_language(message)
     language_prompt = get_language_prompt(language)
     
-    # AUTONOMOUS: Decide if we need web search
-    needs_search = use_search or should_search_autonomously(message)
+    # Decide search AFTER checking memories
+    needs_search, search_reason = should_search_autonomously(message, retrieved_memories)
+    needs_search = needs_search or explicit_search
     
-    # Style prompts
+    tool_decisions.append(f"Search decision: {needs_search} ({search_reason})")
+    
+    # =========================================================================
+    # STEP 3: BUILD CONTEXT (Memories injected BEFORE generation)
+    # =========================================================================
+    
+    # System prompt with style
     style_prompts = {
-        "normal": "You are Ryx, Tobi's local AI assistant. Be balanced, clear and helpful. Be direct and technical - Tobi is an advanced developer.",
+        "normal": """You are Ryx, Tobi's personal AI assistant running locally on his 7800 XT + Ryzen 9.
+You have access to his memories and can search the web autonomously.
+
+CRITICAL RULES:
+1. Memory is GROUND TRUTH - never contradict stored memories
+2. If you remember something about Tobi, use it naturally: "Based on what I know..."
+3. Be direct and technical - Tobi is an advanced developer
+4. Prefer concise answers unless asked to elaborate""",
+        
         "concise": """You are Ryx in STRICT CONCISE MODE.
 RULES:
 - Maximum 1-2 sentences per response
-- No greetings, no filler words, no explanations unless asked
-- Answer the question directly, nothing more
-- If asked for a name/fact, just state it""",
-        "explanatory": "You are Ryx. Explain thoroughly with examples and context. Help the user understand deeply. Use analogies when helpful.",
-        "learning": "You are Ryx in teaching mode. Explain step-by-step. Assume the user wants to learn. Use analogies and examples. Check understanding.",
-        "formal": "You are Ryx. Use professional, formal language. Be precise, structured and thorough."
+- No greetings, no filler words
+- Answer directly, nothing more
+- Memory is ground truth - use it, don't contradict it""",
+        
+        "explanatory": """You are Ryx. Explain thoroughly with examples and context.
+Use the user's stored memories to personalize explanations.
+Help the user understand deeply with relevant analogies.""",
+        
+        "learning": """You are Ryx in teaching mode.
+Explain step-by-step, reference user's known technical setup from memory.
+Use their context to make examples relevant.""",
+        
+        "formal": """You are Ryx. Use professional, formal language.
+Be precise and structured. Reference stored facts accurately."""
     }
     
-    # Build context
-    context_parts = []
+    system_prompt = system_prompt_override or style_prompts.get(style, style_prompts["normal"])
     
-    # 1. Retrieve relevant memories from database
-    db_memories = memory_retrieve(message, limit=5)
-    if db_memories:
-        memory_context = "What you remember about the user:\n"
-        for mem in db_memories:
-            memory_context += f"- {mem['fact']}\n"
-        context_parts.append(memory_context)
-        tools_used.append("memory_retrieve")
+    # INJECT MEMORIES INTO CONTEXT (Critical - this is what was broken!)
+    memory_context = ""
+    if retrieved_memories:
+        memory_context = "\n\n📌 WHAT YOU KNOW ABOUT TOBI (from memory - treat as ground truth):\n"
+        for mem in retrieved_memories[:7]:  # Top 7 most relevant
+            category = mem.get('category', 'general')
+            fact = mem.get('fact', '')
+            score = mem.get('match_score', mem.get('relevance_score', 0))
+            memory_context += f"• [{category}] {fact} (confidence: {score:.2f})\n"
+        memory_context += "\n⚠️ Use these memories to answer. Do NOT contradict them with web search results.\n"
     
-    # 2. Add client-provided memories
-    if user_memories:
-        if not db_memories:  # Don't duplicate header
-            context_parts.append("What you know about the user:\n" + "\n".join(f"- {m}" for m in user_memories))
-        else:
-            for m in user_memories:
-                if m not in [mem['fact'] for mem in db_memories]:
-                    context_parts[-1] += f"\n- {m}"
+    # Add client-side memories (user-added in settings)
+    if client_memories:
+        if not memory_context:
+            memory_context = "\n\n📌 WHAT YOU KNOW ABOUT TOBI:\n"
+        for m in client_memories:
+            if m not in [mem.get('fact', '') for mem in retrieved_memories]:
+                memory_context += f"• {m}\n"
     
-    # 3. AUTONOMOUS web search
+    system_prompt += memory_context
+    
+    # =========================================================================
+    # STEP 4: WEB SEARCH (Only if decided necessary)
+    # =========================================================================
     search_context = ""
     if needs_search:
-        search_result = await searxng_search(message)
+        # Enrich search query with location if relevant
+        search_query = message
+        location_keywords = ['weather', 'wetter', 'temperature', 'local', 'nearby', 'here']
+        if any(kw in message.lower() for kw in location_keywords):
+            # Find location from memories
+            for mem in retrieved_memories:
+                if mem.get('category') == 'location' and 'live' in mem.get('fact', '').lower():
+                    # Extract city name
+                    fact = mem.get('fact', '')
+                    if 'Hagen' in fact:
+                        search_query = f"{message} Hagen Germany"
+                    elif 'Germany' in fact or 'Deutschland' in fact:
+                        search_query = f"{message} Germany"
+                    break
+        
+        search_result = await searxng_search(search_query)
         if search_result.get("results"):
             today = datetime.now().strftime("%Y-%m-%d")
-            search_context = f"\n\n📡 TODAY IS {today}. Live web search results:\n"
+            search_context = f"\n\n🔍 WEB SEARCH RESULTS (today is {today}):\n"
+            if search_query != message:
+                search_context += f"(Searched: \"{search_query}\" - enriched with your location)\n"
             for r in search_result["results"][:5]:
                 title = r.get('title', '')
-                content = r.get('content', '')[:200]
-                url = r.get('url', '')
+                content = r.get('content', '')[:150]
                 search_context += f"• {title}: {content}\n"
-            search_context += "\n⚠️ USE these search results to answer. This information is current."
-            context_parts.append(search_context)
+            
+            # Add warning about memory vs search
+            if retrieved_memories:
+                search_context += "\n⚠️ If search results conflict with stored memories about Tobi, TRUST THE MEMORIES (they're from him directly).\n"
+            else:
+                search_context += "\n✓ Use this information to answer.\n"
+            
             tools_used.append("web_search")
-            confidence = 0.92  # Higher confidence with search
+            tool_decisions.append(f"Searched: {search_query[:50]}")
         else:
             warnings.append("Web search returned no results")
-            confidence = 0.7
+            tool_decisions.append("Search failed: no results")
     
-    # Build system prompt
-    if system_prompt_override:
-        system_prompt = system_prompt_override
-    else:
-        system_prompt = style_prompts.get(style, style_prompts["normal"])
-    
-    # Add language instruction
+    system_prompt += search_context
     system_prompt += language_prompt
     
-    # Add context
-    if context_parts:
-        system_prompt += "\n\n" + "\n".join(context_parts)
-    
-    # Add tool usage indicator instruction
-    if tools_used:
-        system_prompt += f"\n\n[Tools used: {', '.join(tools_used)}. You may mention this if relevant.]"
-    
-    # Build messages
+    # =========================================================================
+    # STEP 5: GENERATE RESPONSE
+    # =========================================================================
     messages = [{"role": "system", "content": system_prompt}]
     
     # Add conversation history
@@ -815,7 +1003,6 @@ RULES:
         user_msg["images"] = images
     messages.append(user_msg)
     
-    # Call LLM
     response = await ollama_chat(messages, model)
     
     if "error" in response:
@@ -824,9 +1011,35 @@ RULES:
     response_content = response.get("content", "")
     latency_ms = (time.time() - start_time) * 1000
     
-    # AUTONOMOUS: Extract and store memories
+    # =========================================================================
+    # STEP 6: CONFIDENCE CALCULATION (Honest scoring)
+    # =========================================================================
+    confidence = 0.70  # Base confidence
+    
+    # Memory boosts confidence
+    if retrieved_memories:
+        high_match_memories = [m for m in retrieved_memories if m.get('match_score', 0) > 0.3]
+        if high_match_memories:
+            confidence += 0.15  # Memory directly relevant
+        else:
+            confidence += 0.05  # Some memory context
+    
+    # Search boosts confidence for factual queries
+    if "web_search" in tools_used:
+        confidence += 0.10
+    
+    # Warnings reduce confidence
+    confidence -= 0.05 * len(warnings)
+    
+    # Cap confidence
+    confidence = max(0.3, min(0.98, confidence))
+    
+    # =========================================================================
+    # STEP 7: LEARN FROM CONVERSATION (Deduped memory extraction)
+    # =========================================================================
     extracted_memories = []
     stored_memories = []
+    
     if message and len(message) > 20:
         extracted_memories = await extract_memories_from_message(message, model)
         for mem in extracted_memories:
@@ -835,18 +1048,17 @@ RULES:
                 cat, fact = mem.split(": ", 1)
             else:
                 cat, fact = "general", mem
-            if memory_store(cat, fact, 0.6):
+            
+            # Store with higher confidence (0.75) - deduplication happens in memory_store
+            if memory_store(cat, fact, 0.75):
                 stored_memories.append(fact)
-                tools_used.append("memory_store")
     
-    # Calculate confidence based on factors
-    if not tools_used:
-        confidence = 0.75  # Lower without tools
-    if warnings:
-        confidence -= 0.1 * len(warnings)
-    confidence = max(0.3, min(1.0, confidence))
+    if stored_memories:
+        tools_used.append("memory_store")
     
-    # Log the session
+    # =========================================================================
+    # STEP 8: LOGGING
+    # =========================================================================
     log_entry = {
         "session_id": session_id,
         "user_input": message,
@@ -861,9 +1073,14 @@ RULES:
     }
     log_session(log_entry)
     
-    # Add confidence warning if low
-    if confidence < 0.8 and warnings:
-        response_content += "\n\n⚠️ Uncertain—verify independently"
+    # Print debug info
+    print(f"\n{'='*50}")
+    print(f"Query: {message[:80]}")
+    print(f"Memories retrieved: {len(retrieved_memories)}")
+    print(f"Tool decisions: {tool_decisions}")
+    print(f"Tools used: {tools_used}")
+    print(f"Confidence: {confidence:.2f}")
+    print(f"{'='*50}\n")
     
     return {
         "response": response_content,
@@ -873,7 +1090,9 @@ RULES:
         "tools_used": tools_used,
         "confidence": confidence,
         "language": language,
-        "warnings": warnings
+        "warnings": warnings,
+        "memories_used": [{"category": m.get("category"), "fact": m.get("fact"), "score": m.get("match_score", m.get("relevance_score", 0))} for m in retrieved_memories[:5]],
+        "tool_decisions": tool_decisions
     }
 
 # =============================================================================

@@ -259,11 +259,6 @@ export function ChatView() {
         language: response.language,
       });
 
-      // Format tools used for display in message
-      const toolsUsedText = response.tools_used && response.tools_used.length > 0
-        ? `(${response.tools_used.map(t => toolDisplayNames[t] || t).join(', ')})`
-        : '';
-
       addMessageToSession(selectedSessionId, {
         role: "assistant",
         content: response.content,
@@ -271,6 +266,8 @@ export function ChatView() {
         model: response.model || selectedModel,
         toolsUsed: response.tools_used || [],
         confidence: response.confidence,
+        memoriesUsed: response.memories_used || [],
+        toolDecisions: response.tool_decisions || [],
       });
 
       // Show warnings as toast (auto-dismiss)
@@ -499,22 +496,72 @@ export function ChatView() {
                     </div>
                   ) : (
                     <>
+                      {/* Memory context indicator - show what memories were used */}
+                      {message.role === "assistant" && message.memoriesUsed && message.memoriesUsed.length > 0 && (
+                        <div className="mb-2 pb-2 border-b border-border/50 text-[10px] text-muted-foreground">
+                          <span className="flex items-center gap-1 font-medium text-primary/80">
+                            <Brain className="w-3 h-3" /> Using memories:
+                          </span>
+                          <div className="mt-1 space-y-0.5">
+                            {message.memoriesUsed.slice(0, 3).map((mem: any, idx: number) => (
+                              <div key={idx} className="flex items-center gap-1 text-[9px]">
+                                <span className="text-muted-foreground/60">[{mem.category}]</span>
+                                <span>{mem.fact.length > 60 ? mem.fact.slice(0, 60) + '...' : mem.fact}</span>
+                              </div>
+                            ))}
+                            {message.memoriesUsed.length > 3 && (
+                              <span className="text-muted-foreground/50">+{message.memoriesUsed.length - 3} more</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
                       <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className={cn("flex items-center gap-1 mt-1 text-[10px] flex-wrap", message.role === "user" ? "text-primary-foreground/70 justify-end" : "text-muted-foreground")}>
-                        {message.model && message.role === "assistant" && <span className="opacity-60">{getModelDisplayName(message.model)}</span>}
-                        {/* Show tools used */}
-                        {message.toolsUsed && message.toolsUsed.length > 0 && (
-                          <span className="text-primary/70 font-medium">
-                            ({message.toolsUsed.map((t: string) => toolDisplayNames[t] || t).join(', ')})
+                      
+                      {/* Footer with tools, confidence, timestamp */}
+                      <div className={cn("flex items-center gap-1.5 mt-2 pt-1 border-t border-border/30 text-[10px] flex-wrap", message.role === "user" ? "text-primary-foreground/70 justify-end" : "text-muted-foreground")}>
+                        {message.model && message.role === "assistant" && (
+                          <span className="opacity-60">{getModelDisplayName(message.model)}</span>
+                        )}
+                        
+                        {/* Tool breakdown - clearer display */}
+                        {message.role === "assistant" && message.toolsUsed && message.toolsUsed.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            {message.toolsUsed.includes("memory_retrieve") && (
+                              <span className="text-blue-500 flex items-center gap-0.5" title="Used memory">
+                                <Brain className="w-3 h-3" /> memory
+                              </span>
+                            )}
+                            {message.toolsUsed.includes("web_search") && (
+                              <span className="text-green-500 flex items-center gap-0.5" title="Searched web">
+                                <Search className="w-3 h-3" /> searched
+                              </span>
+                            )}
+                            {message.toolsUsed.includes("memory_store") && (
+                              <span className="text-purple-500 flex items-center gap-0.5" title="Learned new fact">
+                                <Database className="w-3 h-3" /> learned
+                              </span>
+                            )}
                           </span>
                         )}
-                        {/* Confidence indicator */}
-                        {message.confidence && message.confidence < 0.8 && (
-                          <span className="text-yellow-500 flex items-center gap-0.5" title={`Confidence: ${(message.confidence * 100).toFixed(0)}%`}>
-                            <AlertTriangle className="w-3 h-3" />
+                        
+                        {/* Confidence bar */}
+                        {message.role === "assistant" && message.confidence !== undefined && (
+                          <span 
+                            className={cn(
+                              "flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-medium",
+                              message.confidence >= 0.85 ? "bg-green-500/20 text-green-600" :
+                              message.confidence >= 0.7 ? "bg-yellow-500/20 text-yellow-600" :
+                              "bg-red-500/20 text-red-600"
+                            )} 
+                            title={`Confidence: ${(message.confidence * 100).toFixed(0)}%`}
+                          >
+                            {message.confidence >= 0.85 ? "✓" : message.confidence >= 0.7 ? "~" : "⚠️"}
+                            {(message.confidence * 100).toFixed(0)}%
                           </span>
                         )}
-                        <span>{message.timestamp}</span>
+                        
+                        <span className="opacity-60">{message.timestamp}</span>
                         <button onClick={() => handleCopy(message.content, message.id)} className="hover:opacity-100 opacity-60">
                           {copiedId === message.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                         </button>

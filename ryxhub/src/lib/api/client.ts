@@ -397,6 +397,8 @@ export const ryxApi = {
         confidence?: number;
         language?: string;
         warnings?: string[];
+        memories_used?: Array<{ category: string; fact: string; score: number }>;
+        tool_decisions?: string[];
       }>(
         '/api/chat/smart',
         {
@@ -429,6 +431,8 @@ export const ryxApi = {
         confidence: response.confidence,
         language: response.language,
         warnings: response.warnings,
+        memories_used: response.memories_used,
+        tool_decisions: response.tool_decisions,
       };
     } catch (error) {
       if (error instanceof RyxApiError) throw error;
