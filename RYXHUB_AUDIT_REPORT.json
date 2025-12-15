@@ -1,0 +1,530 @@
+{
+  "audit_metadata": {
+    "audit_date": "2025-12-15",
+    "model": "Claude Opus 4.5",
+    "scope": "RyxHub Documents & Schule/Prüfungen Tab",
+    "files_analyzed": 12,
+    "total_lines_analyzed": 6500
+  },
+  "overall_status": "MEDIUM",
+  "overall_summary": "The RyxHub exam system has solid V1 and V2 APIs with comprehensive frontend components. V2 API adds AI-powered OCR, classification, exam generation, and grading. Main gaps: Real OCR not implemented (uses mock), grading uses heuristic fallback when Ollama unavailable, and no persistent database (in-memory only).",
+
+  "focus_areas": [
+    {
+      "name": "Upload Pipeline (Documents Tab)",
+      "status": "PARTIALLY_BROKEN",
+      "working": [
+        {
+          "feature": "/api/exam/upload-test endpoint",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api.py:362-464",
+          "notes": "Accepts PDF/PNG/JPG, returns session_id, confidence_scores, verification_prompts"
+        },
+        {
+          "feature": "/api/exam/v2/upload-test endpoint with AI classification",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:281-360",
+          "notes": "Returns session_id, status, ocr_text, classification, confidence_scores, requires_review"
+        },
+        {
+          "feature": "/api/exam/v2/upload-session/{session_id}/review endpoint",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:625-658",
+          "notes": "Accepts user corrections, persists ClassTest with verified metadata"
+        },
+        {
+          "feature": "TestUploadDialog UI with 4 phases",
+          "file_path": "ryxhub/src/components/ryxhub/TestUploadDialog.tsx:50-374",
+          "notes": "Shows upload → processing → verify → complete phases with dropzone"
+        },
+        {
+          "feature": "Keyword-based classification fallback",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:474-570",
+          "notes": "Robust keyword detection for subject/teacher/date/thema"
+        },
+        {
+          "feature": "Duplicate detection via MD5 hash",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:305-313",
+          "notes": "Prevents re-uploading same file"
+        }
+      ],
+      "broken": [
+        {
+          "feature": "Real OCR not implemented",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:362-431",
+          "issue": "perform_ocr() returns mock text based on filename patterns",
+          "todo_marker": "TODO: Integrate PaddleOCR for real OCR",
+          "impact": "HIGH - uploads not actually processed"
+        },
+        {
+          "feature": "Frontend verifyTestUpload missing sessionId parameter",
+          "file_path": "ryxhub/src/context/ExamContext.tsx:521-554",
+          "issue": "verifyTestUpload() has sessionId as optional but UI passes classTestId instead of sessionId to V2 API",
+          "impact": "MEDIUM - V2 review flow may fail"
+        }
+      ],
+      "missing": [
+        {
+          "feature": "Vision-OCR (Claude Vision / PaddleOCR / Tesseract) integration",
+          "expected_location": "ryx_pkg/interfaces/web/backend/exam_api_v2.py",
+          "notes": "Marked as TODO in code"
+        },
+        {
+          "feature": "PDF page extraction",
+          "expected_location": "ryx_pkg/interfaces/web/backend/exam_api_v2.py",
+          "notes": "PDF handling returns mock text, no actual PDF parsing"
+        },
+        {
+          "feature": "Database persistence for ClassTest",
+          "expected_location": "Database schema",
+          "notes": "Uses in-memory dict _class_tests - data lost on restart"
+        }
+      ],
+      "priority_fixes": [
+        {
+          "priority": "P1",
+          "fix": "Implement real OCR using PaddleOCR or Tesseract",
+          "reason": "Core feature - uploads return mock data",
+          "effort": "Medium"
+        },
+        {
+          "priority": "P2",
+          "fix": "Add sessionId propagation in frontend verifyTestUpload",
+          "reason": "V2 review flow currently broken",
+          "effort": "Low"
+        },
+        {
+          "priority": "P3",
+          "fix": "Add PostgreSQL persistence for ClassTest records",
+          "reason": "Data persistence across restarts",
+          "effort": "Medium"
+        }
+      ]
+    },
+
+    {
+      "name": "Exam Generation (Schule & Prüfungen Tab)",
+      "status": "WORKING",
+      "working": [
+        {
+          "feature": "/api/exam/generate-exam (V1)",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api.py:497-532",
+          "notes": "Generates mock exam with sample tasks, accepts subject_id, thema_ids, difficulty, task_count, duration"
+        },
+        {
+          "feature": "/api/exam/v2/generate-exam with AI",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:1089-1150",
+          "notes": "Accepts free_prompt, context_texts, include_diagrams. Uses Ollama/qwen2.5-coder:14b"
+        },
+        {
+          "feature": "MockExamGenerator UI with tabs",
+          "file_path": "ryxhub/src/components/ryxhub/MockExamGenerator.tsx:1-453",
+          "notes": "3 tabs: Basic settings, Free prompt (custom instructions), Context material"
+        },
+        {
+          "feature": "Teacher pattern support",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:86-96",
+          "notes": "ExamGenerationRequest includes teacher_id, use_teacher_pattern"
+        },
+        {
+          "feature": "All TaskTypes supported in output",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:47-56",
+          "notes": "MC_Single, MC_Multi, ShortAnswer, CaseStudy, DiagramAnalysis, Calculation, Explanation, FillInBlank, Matching"
+        },
+        {
+          "feature": "Fallback template generation",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:1211-1344",
+          "notes": "If Ollama unavailable, generates exam from templates"
+        },
+        {
+          "feature": "ExamTakingView supports all task types",
+          "file_path": "ryxhub/src/components/ryxhub/ExamTakingView.tsx:483-690",
+          "notes": "TaskInput component handles MC, ShortAnswer, CaseStudy, FillInBlank, Calculation, DiagramAnalysis, Matching"
+        }
+      ],
+      "broken": [
+        {
+          "feature": "Ollama model availability",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:189-197",
+          "issue": "check_ollama_available() may return false if Ollama not running",
+          "impact": "LOW - has fallback to template generation"
+        },
+        {
+          "feature": "generation_context not stored",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:1186-1209",
+          "issue": "mock_exam stores free_prompt_used but not full generation context/prompt",
+          "impact": "LOW - for debugging/reproducibility"
+        }
+      ],
+      "missing": [
+        {
+          "feature": "Claude Opus integration for exam generation",
+          "expected_location": "ryx_pkg/interfaces/web/backend/exam_api_v2.py",
+          "notes": "Currently uses Ollama (qwen2.5-coder:14b), no Claude API fallback"
+        },
+        {
+          "feature": "File upload for context material",
+          "expected_location": "MockExamGenerator.tsx",
+          "notes": "Context tab accepts pasted text only, no file upload"
+        }
+      ],
+      "priority_fixes": [
+        {
+          "priority": "P3",
+          "fix": "Add Claude API fallback for exam generation when Ollama unavailable",
+          "reason": "Better quality generation with Claude Opus",
+          "effort": "Medium"
+        },
+        {
+          "priority": "P4",
+          "fix": "Store full generation_context in MockExam for reproducibility",
+          "reason": "Debugging and audit trail",
+          "effort": "Low"
+        }
+      ]
+    },
+
+    {
+      "name": "Grading Pipeline (Results Tab)",
+      "status": "PARTIALLY_BROKEN",
+      "working": [
+        {
+          "feature": "/api/exam/attempts/{id}/finish (V1)",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api.py:600-670",
+          "notes": "Auto-grades MC, gives mock 50% score for open-ended"
+        },
+        {
+          "feature": "/api/exam/v2/grade-attempt with AI",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:708-825",
+          "notes": "Iterates each task, calls Ollama for grading with rubric"
+        },
+        {
+          "feature": "Per-task grading with rubric breakdown",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:98-106",
+          "notes": "TaskGrade includes earned_points, rationale, confidence, rubric_breakdown, improvement_suggestion"
+        },
+        {
+          "feature": "Manual review flag for low confidence",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:785-786",
+          "notes": "If confidence < 75%, task added to tasks_needing_review"
+        },
+        {
+          "feature": "GradingResult with comprehensive feedback",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:108-122",
+          "notes": "Includes overall_feedback, grader_model, grader_confidence, manual_review_flagged"
+        },
+        {
+          "feature": "AttemptHistoryView shows results",
+          "file_path": "ryxhub/src/components/ryxhub/AttemptHistoryView.tsx:1-527",
+          "notes": "Shows grade, percentage, section breakdown, task-by-task results"
+        },
+        {
+          "feature": "German grade calculation (1-6 scale)",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:947-970",
+          "notes": "Accurate IHK-style grading percentages"
+        }
+      ],
+      "broken": [
+        {
+          "feature": "AI grading quality depends on Ollama",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:853-909",
+          "issue": "If Ollama unavailable, falls back to heuristic_grade() which gives low quality scores",
+          "impact": "MEDIUM - grading accuracy degraded"
+        },
+        {
+          "feature": "Heuristic grading always returns confidence 50",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:940-944",
+          "issue": "All heuristic grades get flagged for manual review",
+          "impact": "LOW - expected behavior for fallback"
+        },
+        {
+          "feature": "ResultsView component missing",
+          "file_path": "ryxhub/src/components/ryxhub/",
+          "issue": "No dedicated ResultsView.tsx - results shown in AttemptHistoryView",
+          "impact": "LOW - functionality exists in AttemptHistoryView"
+        },
+        {
+          "feature": "Per-task feedback display incomplete",
+          "file_path": "ryxhub/src/components/ryxhub/AttemptHistoryView.tsx:357-430",
+          "issue": "Shows hardcoded task type percentages, not actual per-task AI feedback",
+          "impact": "MEDIUM - user doesn't see detailed AI feedback per task"
+        }
+      ],
+      "missing": [
+        {
+          "feature": "Claude Opus grading fallback",
+          "expected_location": "ryx_pkg/interfaces/web/backend/exam_api_v2.py",
+          "notes": "No Claude API integration for grading"
+        },
+        {
+          "feature": "Comparison to previous attempts",
+          "expected_location": "AttemptHistoryView.tsx",
+          "notes": "Shows trend but no side-by-side comparison"
+        },
+        {
+          "feature": "Manual review queue UI",
+          "expected_location": "ryxhub/src/components/ryxhub/",
+          "notes": "Flagged tasks not surfaced in teacher/admin UI"
+        },
+        {
+          "feature": "GradingResult database persistence",
+          "expected_location": "Database schema",
+          "notes": "Uses in-memory _gradings dict"
+        }
+      ],
+      "priority_fixes": [
+        {
+          "priority": "P2",
+          "fix": "Display actual per-task AI feedback in AttemptHistoryView",
+          "reason": "User needs to see why they lost points",
+          "effort": "Low"
+        },
+        {
+          "priority": "P2",
+          "fix": "Add Claude API fallback for grading",
+          "reason": "Better grading when Ollama unavailable",
+          "effort": "Medium"
+        },
+        {
+          "priority": "P3",
+          "fix": "Add manual review queue component for teachers",
+          "reason": "Low-confidence grades need human review",
+          "effort": "Medium"
+        }
+      ]
+    },
+
+    {
+      "name": "Type Safety & Contracts",
+      "status": "WORKING",
+      "working": [
+        {
+          "feature": "TypeScript types match Pydantic models",
+          "file_path": "ryxhub/src/types/exam.ts:1-562",
+          "notes": "School, Subject, Teacher, Thema, ClassTest, Task, MockExam, Attempt, GradingResult all defined"
+        },
+        {
+          "feature": "TaskType enum consistent",
+          "file_path": "ryxhub/src/types/exam.ts:156-166",
+          "notes": "10 task types: MC_SingleChoice, MC_MultipleChoice, ShortAnswer, FillInBlank, Matching, CaseStudy, DiagramAnalysis, Calculation, Explanation, Justification"
+        },
+        {
+          "feature": "GradingResult type has V2 fields",
+          "file_path": "ryxhub/src/types/exam.ts:412-430",
+          "notes": "Includes graderModel, graderConfidence, manualReviewFlagged"
+        },
+        {
+          "feature": "API client types for V2",
+          "file_path": "ryxhub/src/services/examService.ts:320-477",
+          "notes": "UploadV2Response, GenerateExamV2Request, GradingResultV2 etc."
+        },
+        {
+          "feature": "Snake_case to camelCase conversion",
+          "file_path": "ryxhub/src/context/ExamContext.tsx:430-479",
+          "notes": "Frontend converts backend snake_case responses to camelCase"
+        }
+      ],
+      "broken": [
+        {
+          "feature": "Minor type mismatch in Task.grading_rubric",
+          "file_path": "Backend: exam_api_v2.py vs Frontend: exam.ts",
+          "issue": "Backend uses max_points, frontend uses maxPoints - handled by conversion but fragile",
+          "impact": "LOW"
+        }
+      ],
+      "missing": [],
+      "priority_fixes": []
+    },
+
+    {
+      "name": "Database Schema",
+      "status": "MISSING",
+      "working": [
+        {
+          "feature": "In-memory storage dicts defined",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:132-137",
+          "notes": "_upload_sessions, _class_tests, _mock_exams, _attempts, _teachers, _gradings"
+        },
+        {
+          "feature": "FamilyDocs has PostgreSQL schema",
+          "file_path": "familydocs/database/schema.sql",
+          "notes": "Has boards, documents, embeddings tables - but NOT for exam system"
+        },
+        {
+          "feature": "LocalStorage persistence in frontend",
+          "file_path": "ryxhub/src/context/ExamContext.tsx:319-341",
+          "notes": "Schools, teachers, themas, classTests, mockExams, attempts saved to localStorage"
+        }
+      ],
+      "broken": [],
+      "missing": [
+        {
+          "feature": "PostgreSQL schema for exam system",
+          "expected_location": "ryx_pkg/interfaces/web/backend/database/",
+          "notes": "No SQL schema for ClassTest, MockExam, Attempt, GradingResult tables"
+        },
+        {
+          "feature": "Database migrations",
+          "expected_location": "ryx_pkg/interfaces/web/backend/migrations/",
+          "notes": "No migration files"
+        },
+        {
+          "feature": "Indices on subject_id, teacher_id, themas",
+          "expected_location": "Database schema",
+          "notes": "Not applicable - no database"
+        }
+      ],
+      "priority_fixes": [
+        {
+          "priority": "P1",
+          "fix": "Create PostgreSQL schema for exam system",
+          "reason": "Data persistence critical for production",
+          "effort": "High"
+        },
+        {
+          "priority": "P2",
+          "fix": "Add Alembic migrations",
+          "reason": "Schema versioning",
+          "effort": "Medium"
+        }
+      ]
+    },
+
+    {
+      "name": "Error Handling & Edge Cases",
+      "status": "PARTIALLY_BROKEN",
+      "working": [
+        {
+          "feature": "HTTP error handling in frontend API client",
+          "file_path": "ryxhub/src/services/examService.ts:103-123",
+          "notes": "apiRequest() throws on non-OK responses"
+        },
+        {
+          "feature": "File type validation",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:298-300",
+          "notes": "Checks for PDF, PNG, JPG, WebP"
+        },
+        {
+          "feature": "Fallback generation when Ollama unavailable",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:1148-1150",
+          "notes": "Falls back to template-based exam generation"
+        },
+        {
+          "feature": "Fallback grading when Ollama unavailable",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py:908-909",
+          "notes": "Falls back to heuristic grading"
+        },
+        {
+          "feature": "Graceful handling in ExamContext",
+          "file_path": "ryxhub/src/context/ExamContext.tsx:600-623",
+          "notes": "generateMockExam catches errors and falls back to sample tasks"
+        }
+      ],
+      "broken": [
+        {
+          "feature": "OCR confidence = 0 case",
+          "file_path": "ryx_pkg/interfaces/web/backend/exam_api_v2.py",
+          "issue": "No explicit handling for completely unreadable PDFs - mock always returns text",
+          "impact": "MEDIUM - won't be an issue until real OCR implemented"
+        },
+        {
+          "feature": "Ollama timeout not gracefully handled in UI",
+          "file_path": "ryxhub/src/context/ExamContext.tsx",
+          "issue": "Long timeout (120s) may leave user waiting without feedback",
+          "impact": "LOW"
+        }
+      ],
+      "missing": [
+        {
+          "feature": "Manual review queue for flagged tasks",
+          "expected_location": "Frontend components",
+          "notes": "Grading flags low-confidence tasks but no UI to review them"
+        },
+        {
+          "feature": "Retry logic for API timeouts",
+          "expected_location": "ryxhub/src/services/examService.ts",
+          "notes": "No automatic retry on network failures"
+        }
+      ],
+      "priority_fixes": [
+        {
+          "priority": "P3",
+          "fix": "Add progress indicator for long-running AI calls",
+          "reason": "Better UX during generation/grading",
+          "effort": "Low"
+        },
+        {
+          "priority": "P4",
+          "fix": "Add retry logic to API client",
+          "reason": "Resilience to transient failures",
+          "effort": "Low"
+        }
+      ]
+    }
+  ],
+
+  "type_safety_summary": {
+    "frontend_types_file": "ryxhub/src/types/exam.ts (562 lines)",
+    "backend_models_file": "ryx_pkg/interfaces/web/backend/exam_api_v2.py (models inline)",
+    "matching_types": [
+      "School", "Subject", "Teacher", "Thema", "ClassTest",
+      "Task", "MockExam", "Attempt", "TaskResponse", "GradingResult", "TaskGrade"
+    ],
+    "conversion_layer": "ExamContext.tsx handles snake_case → camelCase",
+    "overall": "GOOD - types are well-aligned"
+  },
+
+  "api_contracts_summary": {
+    "v1_endpoints": {
+      "total": 16,
+      "working": 16,
+      "broken": 0,
+      "base_path": "/api/exam"
+    },
+    "v2_endpoints": {
+      "total": 13,
+      "working": 11,
+      "broken": 2,
+      "base_path": "/api/exam/v2",
+      "notes": "upload-test mock OCR, grade-attempt heuristic fallback"
+    },
+    "frontend_uses_v2": true
+  },
+
+  "priority_fix_summary": [
+    {
+      "priority": "P1",
+      "count": 2,
+      "items": [
+        "Implement real OCR (PaddleOCR/Tesseract)",
+        "Create PostgreSQL database schema"
+      ]
+    },
+    {
+      "priority": "P2",
+      "count": 3,
+      "items": [
+        "Fix sessionId propagation in verifyTestUpload",
+        "Display per-task AI feedback in results",
+        "Add Claude API fallback for grading"
+      ]
+    },
+    {
+      "priority": "P3",
+      "count": 4,
+      "items": [
+        "Add PostgreSQL persistence for ClassTest",
+        "Add Claude API fallback for exam generation",
+        "Add manual review queue UI",
+        "Add progress indicator for AI calls"
+      ]
+    },
+    {
+      "priority": "P4",
+      "count": 2,
+      "items": [
+        "Store full generation_context",
+        "Add API retry logic"
+      ]
+    }
+  ],
+
+  "recommendation": "Focus on P1 fixes first: Implement real OCR to make uploads functional, and add PostgreSQL to persist data. Then address P2 to improve the user experience with proper feedback display and API fallbacks. The core exam flow (generate → take → grade) works well with the V2 API when Ollama is available."
+}
