@@ -279,7 +279,6 @@ class SmartCache:
     
     def store(self, query: str, plan: Plan, success: bool = True):
         """Store resolution result"""
-        # Don't cache service commands - they should always be re-evaluated
         nocache_intents = {'start_svc', 'stop_svc', 'restart', 'get_info'}
         if plan.intent.value in nocache_intents:
             return
@@ -389,11 +388,9 @@ class ModelManager:
     
     def get(self, role: str, precision_mode: bool = False) -> str:
         """Get model for role - returns whatever Ollama is serving"""
-        # Since Ollama serves one model, always return that
         if self.available:
             return self.available[0]
         
-        # Fallback - try to detect again
         self._refresh()
         return self.available[0] if self.available else "unknown"
     

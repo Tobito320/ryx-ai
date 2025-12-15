@@ -74,31 +74,22 @@ class SessionLoop:
         self.backend = get_backend()  # Auto-detects Ollama
         self.brain = get_brain(self.backend)
         
-        # Autonomous mode - uses EnhancedExecutor with all improvements
-        self.autonomous_mode = True  # Enable Jarvis-like autonomy
+        self.autonomous_mode = True
         self.enhanced_executor = None
-        self.direct_executor = None  # Legacy fallback
+        self.direct_executor = None
         
         if self.autonomous_mode:
             try:
-                # Try new EnhancedExecutor first (has reliable editor, self-healing, repo map)
                 from core.enhanced_executor import get_enhanced_executor
                 self.enhanced_executor = get_enhanced_executor()
             except Exception as e:
-                # Fallback to DirectExecutor
                 try:
                     from core.direct_executor import get_direct_executor
                     self.direct_executor = get_direct_executor()
                 except Exception:
-                    pass  # Will fallback to brain
+                    pass
         
-        # Supervisor for intelligent dispatch (disabled for now)
         self.supervisor = None
-        # if HAS_SUPERVISOR:
-        #     try:
-        #         self.supervisor = get_supervisor()
-        #     except Exception as e:
-        #         pass  # Will fallback to brain
         
         self.running = True
         self.session_start = datetime.now()
@@ -285,7 +276,6 @@ class SessionLoop:
             finally:
                 self._save()
         else:
-            # Legacy mode - TUI exits on each prompt
             while self.running:
                 try:
                     user_input = self.cli.prompt()
