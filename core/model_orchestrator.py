@@ -153,11 +153,7 @@ class ModelOrchestrator:
             tiers_data = config.get("tiers", config.get("models", {}))
 
             for tier_name, tier_config in tiers_data.items():
-                # Handle different config formats
-                # New format has full ModelTier fields
-                # Old format (models.json) has different fields
                 if "tier_level" not in tier_config:
-                    # Map old format to new format using class constant
                     tier_config = {
                         "name": tier_config.get("name", "unknown"),
                         "vram_mb": tier_config.get("vram_mb", 4000),
