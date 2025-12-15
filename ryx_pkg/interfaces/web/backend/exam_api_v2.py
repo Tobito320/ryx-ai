@@ -1554,6 +1554,32 @@ async def get_grading(attempt_id: str):
         raise HTTPException(status_code=404, detail="Grading not found")
     return _gradings[grading_id]
 
+@router.get("/attempts/{attempt_id}/results")
+async def get_attempt_results(attempt_id: str):
+    """
+    Get full attempt results with real AI grading feedback.
+    Returns: {attempt, grading_result, mock_exam, task_responses}
+    """
+    if attempt_id not in _attempts:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    
+    attempt = _attempts[attempt_id]
+    mock_exam_id = attempt.get("mock_exam_id")
+    
+    if mock_exam_id not in _mock_exams:
+        raise HTTPException(status_code=404, detail="Mock exam not found")
+    
+    grading_id = f"grading-{attempt_id}"
+    if grading_id not in _gradings:
+        raise HTTPException(status_code=404, detail="Grading not yet complete")
+    
+    return {
+        "attempt": attempt,
+        "grading_result": _gradings[grading_id],
+        "mock_exam": _mock_exams[mock_exam_id],
+        "task_responses": attempt.get("task_responses", [])
+    }
+
 @router.get("/class-tests")
 async def list_class_tests():
     """List uploaded class tests."""
@@ -1563,9 +1589,17 @@ async def list_class_tests():
 async def health_check():
     """Health check with detailed component status."""
     ollama_available = await check_ollama_available()
+    claude_available = ai_fallback.claude_available()
+    
     return {
         "status": "healthy",
         "version": "2.1.0",
+        "ai_backend": {
+            "primary": "ollama" if ollama_available else "claude",
+            "fallback": "claude",
+            "ollama_available": ollama_available,
+            "claude_available": claude_available,
+        },
         "components": {
             "ollama": {
                 "available": ollama_available,
