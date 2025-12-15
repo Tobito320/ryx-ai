@@ -25,8 +25,12 @@ import { API_ENDPOINTS } from "@/config";
 import { 
   uploadTestV2, 
   confirmUploadV2,
-  generateMockExamV2, 
+  generateMockExamV2,
   gradeAttemptV2,
+  startGenerateMockExamJobV2,
+  startGradeAttemptJobV2,
+  getJobResultV2,
+  getJobEventsUrl,
   startAttemptV2,
   getV2Health,
   type UploadV2Response,
@@ -72,7 +76,7 @@ interface ExamContextType {
   currentAttempt: Attempt | null;
   startAttempt: (mockExamId: string) => Promise<Attempt | null>;
   submitAnswer: (taskId: string, answer: string | string[]) => Promise<void>;
-  finishAttempt: () => Promise<GradingResult | null>;
+  finishAttempt: (onProgress?: (progress: { percent: number; message: string; phase?: string }) => void) => Promise<GradingResult | null>;
   resumeAttempt: (attemptId: string) => Promise<Attempt | null>;
   
   // Statistics
@@ -100,7 +104,8 @@ export type ExamViewMode =
   | "exam_taking"
   | "results"
   | "history"
-  | "study";
+  | "study"
+  | "manual_review";
 
 interface MockExamOptions {
   teacherId?: string;
@@ -110,6 +115,50 @@ interface MockExamOptions {
   freePrompt?: string;  // NEW: User's custom instructions
   contextTexts?: string[];  // NEW: Pasted context material
   includeDiagrams?: boolean;
+  onProgress?: (progress: { percent: number; message: string; phase?: string }) => void;
+}
+
+function waitForJobCompletion(
+  jobId: string,
+  onProgress?: (progress: { percent: number; message: string; phase?: string }) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const es = new EventSource(getJobEventsUrl(jobId));
+
+    es.onmessage = (evt) => {
+      try {
+        const payload = JSON.parse(evt.data || "{}") as {
+          type?: string;
+          percent?: number;
+          message?: string;
+          phase?: string;
+        };
+
+        if (payload.type === "progress") {
+          if (typeof payload.percent === "number" && typeof payload.message === "string") {
+            onProgress?.({ percent: payload.percent, message: payload.message, phase: payload.phase });
+          }
+        }
+
+        if (payload.type === "done") {
+          es.close();
+          resolve();
+        }
+
+        if (payload.type === "error") {
+          es.close();
+          reject(new Error(payload.message || "Job failed"));
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      reject(new Error("SSE connection failed"));
+    };
+  });
 }
 
 const ExamContext = createContext<ExamContextType | null>(null);
@@ -562,7 +611,57 @@ export function ExamProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // Call V2 API with AI generation
+      // Job-based V2 generation (enables progress)
+      try {
+        const job = await startGenerateMockExamJobV2({
+          subject_id: subjectId,
+          thema_ids: themaIds.length > 0 ? themaIds : ["marktforschung"],
+          difficulty: options.difficultyLevel || 3,
+          task_count: options.taskCount || 15,
+          duration_minutes: options.durationMinutes || 90,
+          teacher_id: options.teacherId,
+          use_teacher_pattern: !!options.teacherId,
+          free_prompt: options.freePrompt,
+          context_texts: options.contextTexts,
+          include_diagrams: options.includeDiagrams ?? true,
+        });
+
+        await waitForJobCompletion(job.job_id, options.onProgress);
+        const jobResult = await getJobResultV2(job.job_id);
+        if (jobResult.status !== "completed" || !jobResult.result) {
+          throw new Error(jobResult.error || "Exam generation failed");
+        }
+
+        const v2Result = jobResult.result as any;
+        if (v2Result.status !== "success" || !v2Result.mock_exam) {
+          throw new Error("Exam generation failed");
+        }
+
+        // Convert V2 response to frontend MockExam format
+        const mockExam: MockExam = {
+          id: v2Result.mock_exam_id,
+          subjectId: v2Result.mock_exam.subjectId || subjectId,
+          themaIds: v2Result.mock_exam.themaIds || themaIds,
+          generatedAt: v2Result.mock_exam.generated_at || new Date().toISOString(),
+          teacherPatternUsed: options.teacherId,
+          tasks: v2Result.mock_exam.tasks || [],
+          totalPoints: v2Result.mock_exam.totalPoints || v2Result.mock_exam.total_points || 100,
+          estimatedDurationMinutes: v2Result.mock_exam.estimatedDurationMinutes || options.durationMinutes || 90,
+          difficultyLevel: v2Result.mock_exam.difficultyLevel || options.difficultyLevel || 3,
+          title:
+            v2Result.mock_exam.title ||
+            `Übungsklausur: ${themaIds.map((id: string) => themas.find((t) => t.id === id)?.name || id).join(", ")}`,
+          status: "ready",
+        };
+
+        setMockExams((prev) => [...prev, mockExam]);
+        return mockExam;
+      } catch (jobErr) {
+        // If job endpoints fail, fall back to direct V2 call (no progress)
+        console.warn("Job-based generation failed, falling back:", jobErr);
+      }
+
+      // Call V2 API with AI generation (fallback)
       const v2Result = await generateMockExamV2({
         subject_id: subjectId,
         thema_ids: themaIds.length > 0 ? themaIds : ["marktforschung"],
@@ -681,7 +780,9 @@ export function ExamProvider({ children }: { children: ReactNode }) {
     }));
   }, [currentAttemptId]);
 
-  const finishAttempt = useCallback(async (): Promise<GradingResult | null> => {
+  const finishAttempt = useCallback(async (
+    onProgress?: (progress: { percent: number; message: string; phase?: string }) => void
+  ): Promise<GradingResult | null> => {
     if (!currentAttemptId) return null;
 
     const attempt = attempts.find(a => a.id === currentAttemptId);
@@ -696,12 +797,26 @@ export function ExamProvider({ children }: { children: ReactNode }) {
         task_id: r.taskId,
         user_answer: r.userAnswer,
       }));
-      
-      // Call V2 AI grading API
-      const v2Result = await gradeAttemptV2({
-        attempt_id: currentAttemptId,
-        task_responses: taskResponses,
-      });
+
+      let v2Result: GradingResultV2;
+      try {
+        const job = await startGradeAttemptJobV2({
+          attempt_id: currentAttemptId,
+          task_responses: taskResponses,
+        });
+        await waitForJobCompletion(job.job_id, onProgress);
+        const jobResult = await getJobResultV2(job.job_id);
+        if (jobResult.status !== "completed" || !jobResult.result) {
+          throw new Error(jobResult.error || "Grading failed");
+        }
+        v2Result = jobResult.result as any as GradingResultV2;
+      } catch (jobErr) {
+        console.warn("Job-based grading failed, using direct call:", jobErr);
+        v2Result = await gradeAttemptV2({
+          attempt_id: currentAttemptId,
+          task_responses: taskResponses,
+        });
+      }
       
       // Convert V2 result to frontend GradingResult format
       const taskGrades: GradingResult["taskGrades"] = v2Result.task_grades.map(tg => ({

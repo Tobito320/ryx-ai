@@ -35,6 +35,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -74,6 +75,7 @@ export function MockExamGenerator({
   const [useTeacherPattern, setUseTeacherPattern] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{ percent: number; message: string } | null>(null);
   
   // NEW: Free prompt and context
   const [freePrompt, setFreePrompt] = useState("");
@@ -101,6 +103,7 @@ export function MockExamGenerator({
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setGenerationProgress({ percent: 0, message: "Klausur wird gestartet" });
     
     try {
       await generateMockExam(subjectId || "wbl", selectedThemas.length > 0 ? selectedThemas : ["marktforschung"], {
@@ -111,12 +114,14 @@ export function MockExamGenerator({
         freePrompt: freePrompt.trim() || undefined,
         contextTexts: contextTexts.length > 0 ? contextTexts : undefined,
         includeDiagrams,
+        onProgress: (p) => setGenerationProgress({ percent: p.percent, message: p.message }),
       });
       setGenerated(true);
     } catch (error) {
       console.error("Failed to generate exam:", error);
     } finally {
       setGenerating(false);
+      setGenerationProgress(null);
     }
   };
 
@@ -125,6 +130,7 @@ export function MockExamGenerator({
     setFreePrompt("");
     setContextTexts([]);
     setCurrentContext("");
+    setGenerationProgress(null);
     onOpenChange(false);
   };
 
@@ -408,6 +414,13 @@ export function MockExamGenerator({
                 Du kannst jetzt mit dem Üben beginnen.
               </p>
             </div>
+          </div>
+        )}
+
+        {generating && generationProgress && (
+          <div className="space-y-2">
+            <Progress value={generationProgress.percent} />
+            <p className="text-sm text-muted-foreground">{generationProgress.message}</p>
           </div>
         )}
 

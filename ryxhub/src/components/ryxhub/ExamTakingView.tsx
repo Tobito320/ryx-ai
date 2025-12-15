@@ -67,6 +67,8 @@ export function ExamTakingView() {
   const [timeSpent, setTimeSpent] = useState(0);
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState<{ percent: number; message: string } | null>(null);
 
   const tasks = selectedMockExam?.tasks || [];
   const currentTask = tasks[currentTaskIndex];
@@ -127,17 +129,39 @@ export function ExamTakingView() {
   }, []);
 
   const handleSubmit = async () => {
-    // Submit all answers
-    for (const [taskId, answer] of Object.entries(answers)) {
-      await submitAnswer(taskId, answer);
-    }
-    
-    // Finish attempt
-    const result = await finishAttempt();
-    if (result) {
-      // Clear saved progress
-      localStorage.removeItem(`exam-progress-${currentAttempt?.id}`);
-      setExamView("history");
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitProgress({ percent: 0, message: "Antworten werden gespeichert" });
+    try {
+      const entries = Object.entries(answers);
+      const total = Math.max(1, entries.length);
+      let i = 0;
+
+      // Submit all answers
+      for (const [taskId, answer] of entries) {
+        const percent = Math.min(25, Math.round(((i + 1) / total) * 25));
+        setSubmitProgress({ percent, message: `Speichere Antwort ${i + 1}/${total}` });
+        await submitAnswer(taskId, answer);
+        i += 1;
+      }
+
+      // Finish attempt (grading)
+      setSubmitProgress({ percent: 25, message: "KI bewertet deine Klausur" });
+      const result = await finishAttempt((p) => {
+        // Map grading progress to 25..100 range
+        const mapped = 25 + Math.round((Math.max(0, Math.min(100, p.percent)) / 100) * 75);
+        setSubmitProgress({ percent: mapped, message: p.message });
+      });
+
+      if (result) {
+        localStorage.removeItem(`exam-progress-${currentAttempt?.id}`);
+        setShowSubmitDialog(false);
+        setExamView("history");
+      }
+    } finally {
+      setIsSubmitting(false);
+      setSubmitProgress(null);
     }
   };
 
@@ -440,11 +464,19 @@ export function ExamTakingView() {
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {submitProgress && (
+            <div className="space-y-2">
+              <Progress value={submitProgress.percent} />
+              <p className="text-sm text-muted-foreground">{submitProgress.message}</p>
+            </div>
+          )}
+
           <AlertDialogFooter>
-            <AlertDialogCancel>Weiter bearbeiten</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSubmit}>
-              Ja, abgeben
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={isSubmitting}>Weiter bearbeiten</AlertDialogCancel>
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? "Bitte warten..." : "Ja, abgeben"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

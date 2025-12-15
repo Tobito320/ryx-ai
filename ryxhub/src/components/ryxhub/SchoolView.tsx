@@ -39,6 +39,7 @@ import { TestUploadDialog } from "./TestUploadDialog";
 import { MockExamGenerator } from "./MockExamGenerator";
 import { ExamTakingView } from "./ExamTakingView";
 import { AttemptHistoryView } from "./AttemptHistoryView";
+import { ManualReviewQueueView } from "./ManualReviewQueueView";
 import type { Subject, Thema, MockExam, Attempt } from "@/types/exam";
 
 export function SchoolView() {
@@ -102,6 +103,11 @@ export function SchoolView() {
     return <AttemptHistoryView onBack={() => setExamView("themas")} />;
   }
 
+  // Show manual review queue
+  if (examView === "manual_review") {
+    return <ManualReviewQueueView />;
+  }
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
@@ -112,6 +118,10 @@ export function SchoolView() {
             <h1 className="text-xl font-semibold">Schule & Prüfungen</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setExamView("manual_review")}>
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Manuelle Prüfung
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setUploadDialogOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Test hochladen

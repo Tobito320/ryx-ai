@@ -20,6 +20,42 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8420';
 
 // ============================================================================
+// SSE Job Helpers (V2)
+// ============================================================================
+
+export interface JobStartResponse {
+  job_id: string;
+}
+
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type JobType = 'generate_exam' | 'grade_attempt';
+
+export interface JobResultResponse {
+  job_id: string;
+  status: JobStatus;
+  job_type: JobType;
+  result?: Record<string, any>;
+  error?: string;
+  created_at: string;
+  finished_at?: string;
+}
+
+export interface JobEventPayload {
+  type: 'start' | 'progress' | 'error' | 'done';
+  status?: JobStatus;
+  job_type?: JobType;
+  phase?: string;
+  percent?: number;
+  message?: string;
+  task_id?: string;
+  error?: boolean;
+}
+
+export function getJobEventsUrl(jobId: string): string {
+  return `${API_BASE}/api/exam/v2/jobs/${encodeURIComponent(jobId)}/events`;
+}
+
+// ============================================================================
 // Types for API Responses
 // ============================================================================
 
@@ -423,6 +459,15 @@ export async function generateMockExamV2(
   });
 }
 
+export async function startGenerateMockExamJobV2(
+  request: GenerateExamV2Request
+): Promise<JobStartResponse> {
+  return apiRequest<JobStartResponse>('/api/exam/v2/jobs/generate-exam', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
 /**
  * Grade attempt with AI (V2)
  */
@@ -471,6 +516,52 @@ export async function gradeAttemptV2(
   request: GradeAttemptV2Request
 ): Promise<GradingResultV2> {
   return apiRequest<GradingResultV2>('/api/exam/v2/grade-attempt', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function startGradeAttemptJobV2(
+  request: GradeAttemptV2Request
+): Promise<JobStartResponse> {
+  return apiRequest<JobStartResponse>('/api/exam/v2/jobs/grade-attempt', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+export async function getJobResultV2(jobId: string): Promise<JobResultResponse> {
+  return apiRequest<JobResultResponse>(`/api/exam/v2/jobs/${encodeURIComponent(jobId)}/result`);
+}
+
+// ============================================================================
+// Manual Review Queue (V2)
+// ============================================================================
+
+export interface ManualReviewQueueItemV2 {
+  attempt_id: string;
+  mock_exam_id: string;
+  grading_result: Record<string, any>;
+  mock_exam: Record<string, any>;
+  task_responses: Array<{ task_id: string; user_answer: any }>;
+}
+
+export interface ManualReviewOverrideRequestV2 {
+  attempt_id: string;
+  task_id: string;
+  earned_points: number;
+  rationale?: string;
+  confidence?: number;
+}
+
+export async function getManualReviewQueueV2(): Promise<ManualReviewQueueItemV2[]> {
+  return apiRequest<ManualReviewQueueItemV2[]>('/api/exam/v2/manual-review/queue');
+}
+
+export async function overrideManualReviewV2(
+  request: ManualReviewOverrideRequestV2
+): Promise<GradingResultV2> {
+  return apiRequest<GradingResultV2>('/api/exam/v2/manual-review/override', {
     method: 'POST',
     body: JSON.stringify(request),
   });

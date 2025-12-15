@@ -24,6 +24,7 @@ import os
 import re
 import tempfile
 import logging
+from fastapi.responses import StreamingResponse
 
 # Database imports (optional)
 USE_DATABASE = os.environ.get("USE_DATABASE", "false").lower() == "true"
@@ -172,6 +173,115 @@ _mock_exams: Dict[str, Dict] = {}
 _attempts: Dict[str, Dict] = {}
 _teachers: Dict[str, Dict] = {}
 _gradings: Dict[str, Dict] = {}
+
+# ==========================================================================
+# Async Job System (SSE progress)
+# ==========================================================================
+
+class JobType(str, Enum):
+    GENERATE_EXAM = "generate_exam"
+    GRADE_ATTEMPT = "grade_attempt"
+
+
+class JobStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class JobStartResponse(BaseModel):
+    job_id: str
+
+
+class JobResultResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+    job_type: JobType
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    created_at: str
+    finished_at: Optional[str] = None
+
+
+class ManualReviewQueueItem(BaseModel):
+    attempt_id: str
+    mock_exam_id: str
+    grading_result: Dict[str, Any]
+    mock_exam: Dict[str, Any]
+    task_responses: List[Dict[str, Any]]
+
+
+class ManualReviewOverrideRequest(BaseModel):
+    attempt_id: str
+    task_id: str
+    earned_points: float
+    rationale: Optional[str] = None
+    confidence: int = Field(default=100, ge=0, le=100)
+
+
+class _JobState:
+    def __init__(self, job_id: str, job_type: JobType):
+        self.job_id = job_id
+        self.job_type = job_type
+        self.status: JobStatus = JobStatus.PENDING
+        self.result: Optional[Dict[str, Any]] = None
+        self.error: Optional[str] = None
+        self.created_at = datetime.utcnow().isoformat()
+        self.finished_at: Optional[str] = None
+        self._events: List[str] = []
+        self._cond = asyncio.Condition()
+
+    async def add_event(self, payload: Dict[str, Any]) -> None:
+        # Server-Sent Events format
+        data = json.dumps(payload, ensure_ascii=False)
+        msg = f"data: {data}\n\n"
+        async with self._cond:
+            self._events.append(msg)
+            self._cond.notify_all()
+
+    async def finalize(self, *, result: Optional[Dict[str, Any]] = None, error: Optional[str] = None) -> None:
+        if error:
+            self.status = JobStatus.FAILED
+            self.error = error
+        else:
+            self.status = JobStatus.COMPLETED
+            self.result = result
+        self.finished_at = datetime.utcnow().isoformat()
+        await self.add_event({"type": "done", "status": self.status, "error": self.error is not None})
+
+    async def stream(self):
+        idx = 0
+        # Send initial event snapshot
+        await self.add_event({"type": "start", "status": self.status, "job_type": self.job_type})
+        while True:
+            async with self._cond:
+                while idx >= len(self._events) and self.status in (JobStatus.PENDING, JobStatus.RUNNING):
+                    await self._cond.wait()
+
+                while idx < len(self._events):
+                    yield self._events[idx]
+                    idx += 1
+
+                if self.status in (JobStatus.COMPLETED, JobStatus.FAILED) and idx >= len(self._events):
+                    break
+
+
+_jobs: Dict[str, _JobState] = {}
+
+
+def _get_job(job_id: str) -> _JobState:
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+def _create_job(job_type: JobType) -> _JobState:
+    job_id = f"job-{uuid.uuid4().hex[:10]}"
+    job = _JobState(job_id, job_type)
+    _jobs[job_id] = job
+    return job
 
 # Subject definitions with keywords for classification
 _subjects = {
@@ -938,6 +1048,131 @@ async def grade_attempt(request: GradeAttemptRequest):
     
     return grading_result
 
+
+@router.post("/jobs/grade-attempt", response_model=JobStartResponse)
+async def start_grade_attempt_job(request: GradeAttemptRequest):
+    job = _create_job(JobType.GRADE_ATTEMPT)
+
+    async def run():
+        job.status = JobStatus.RUNNING
+        await job.add_event({"type": "progress", "phase": "start", "percent": 0, "message": "Bewertung wird gestartet"})
+        try:
+            attempt_id = request.attempt_id
+            if attempt_id not in _attempts:
+                raise HTTPException(status_code=404, detail="Attempt not found")
+            attempt = _attempts[attempt_id]
+            mock_exam_id = attempt.get("mock_exam_id")
+            if mock_exam_id not in _mock_exams:
+                raise HTTPException(status_code=404, detail="Mock exam not found")
+            mock_exam = _mock_exams[mock_exam_id]
+            tasks = mock_exam.get("tasks", [])
+            total_tasks = max(1, len(tasks))
+
+            task_grades: List[TaskGrade] = []
+            total_earned = 0
+            total_max = 0
+            tasks_needing_review: List[str] = []
+            confidence_sum = 0
+
+            for idx, task in enumerate(tasks):
+                task_id = task["id"]
+                task_type = task.get("type", "ShortAnswer")
+                question_text = task.get("question_text", "")
+                max_points = task.get("points", 5)
+                model_answer = task.get("model_answer", task.get("correct_answer", ""))
+                rubric = task.get("grading_rubric", {})
+
+                user_response = next((r for r in request.task_responses if r.get("task_id") == task_id), None)
+                user_answer = user_response.get("user_answer", "") if user_response else ""
+
+                percent = int((idx / total_tasks) * 100)
+                await job.add_event({
+                    "type": "progress",
+                    "phase": "grading",
+                    "percent": percent,
+                    "message": f"Bewerte Aufgabe {idx + 1}/{total_tasks}",
+                    "task_id": task_id,
+                })
+
+                if task_type.startswith("MC"):
+                    grade_result = grade_mc_task(task, user_answer)
+                else:
+                    grade_result = await grade_open_task(
+                        task_type,
+                        question_text,
+                        max_points,
+                        user_answer,
+                        model_answer,
+                        rubric,
+                    )
+
+                earned = grade_result["earned_points"]
+                confidence = grade_result["confidence"]
+                task_grade = TaskGrade(
+                    task_id=task_id,
+                    task_type=task_type,
+                    earned_points=earned,
+                    max_points=max_points,
+                    rationale=grade_result["rationale"],
+                    confidence=confidence,
+                    rubric_breakdown=grade_result.get("rubric_breakdown"),
+                    improvement_suggestion=grade_result.get("improvement"),
+                )
+
+                task_grades.append(task_grade)
+                total_earned += earned
+                total_max += max_points
+                confidence_sum += confidence
+                if confidence < MIN_CONFIDENCE_GRADING:
+                    tasks_needing_review.append(task_id)
+
+            await job.add_event({"type": "progress", "phase": "finalizing", "percent": 95, "message": "Ergebnis wird berechnet"})
+
+            percentage = (total_earned / total_max * 100) if total_max > 0 else 0
+            grade, grade_text = calculate_german_grade(percentage)
+            avg_confidence = confidence_sum // max(1, len(task_grades))
+            overall_feedback = generate_overall_feedback(task_grades, percentage, grade_text)
+
+            grading_result = GradingResult(
+                attempt_id=attempt_id,
+                mock_exam_id=mock_exam_id,
+                total_score=total_earned,
+                total_points=total_max,
+                percentage=round(percentage, 1),
+                grade=grade,
+                grade_text=grade_text,
+                task_grades=task_grades,
+                overall_feedback=overall_feedback,
+                grader_model=GRADER_MODEL,
+                grader_confidence=avg_confidence,
+                manual_review_flagged=len(tasks_needing_review) > 0,
+                tasks_needing_review=tasks_needing_review,
+                created_at=datetime.utcnow().isoformat(),
+            )
+
+            _attempts[attempt_id]["grading_result"] = grading_result.model_dump()
+            _attempts[attempt_id]["total_score"] = total_earned
+            _attempts[attempt_id]["grade"] = grade
+            _attempts[attempt_id]["grade_text"] = grade_text
+            _attempts[attempt_id]["percentage"] = percentage
+            _attempts[attempt_id]["status"] = "graded"
+            _attempts[attempt_id]["finished_at"] = datetime.utcnow().isoformat()
+            _attempts[attempt_id]["task_responses"] = request.task_responses
+            _gradings[f"grading-{attempt_id}"] = grading_result.model_dump()
+
+            await job.add_event({"type": "progress", "phase": "completed", "percent": 100, "message": "Bewertung abgeschlossen"})
+            await job.finalize(result=grading_result.model_dump())
+        except HTTPException as exc:
+            await job.add_event({"type": "error", "message": str(exc.detail)})
+            await job.finalize(error=str(exc.detail))
+        except Exception as exc:
+            logger.exception("Grade job failed")
+            await job.add_event({"type": "error", "message": str(exc)})
+            await job.finalize(error=str(exc))
+
+    asyncio.create_task(run())
+    return JobStartResponse(job_id=job.job_id)
+
 def grade_mc_task(task: Dict, user_answer: Any) -> Dict:
     """Grade multiple choice task (deterministic)."""
     
@@ -1263,6 +1498,201 @@ Berücksichtige diese Anforderungen bei der Aufgabenerstellung!"""
     
     # Fallback to template-based generation
     return generate_fallback_exam(request, thema_names, subject_name)
+
+
+@router.post("/jobs/generate-exam", response_model=JobStartResponse)
+async def start_generate_exam_job(request: ExamGenerationRequest):
+    job = _create_job(JobType.GENERATE_EXAM)
+
+    async def run():
+        job.status = JobStatus.RUNNING
+        await job.add_event({"type": "progress", "phase": "start", "percent": 0, "message": "Klausur wird vorbereitet"})
+        try:
+            subject = _subjects.get(request.subject_id, {})
+            subject_name = subject.get("full_name", request.subject_id)
+
+            thema_names: List[str] = []
+            for tid in request.thema_ids:
+                thema = _themas.get(tid)
+                if thema:
+                    thema_names.append(thema["name"])
+            if not thema_names:
+                thema_names = ["Allgemein"]
+
+            free_prompt_section = ""
+            if request.free_prompt:
+                free_prompt_section = f"""USER-ANFORDERUNGEN:\n{request.free_prompt}\n\nBerücksichtige diese Anforderungen bei der Aufgabenerstellung!"""
+
+            context_section = ""
+            if request.context_texts:
+                combined_context = "\n---\n".join(request.context_texts[:3])
+                context_section = f"""KONTEXT-MATERIAL (nutze als Inspiration):\n{combined_context[:2000]}"""
+
+            await job.add_event({"type": "progress", "phase": "prompt", "percent": 15, "message": "Prompt wird erstellt"})
+
+            system_prompt = EXAM_GENERATION_SYSTEM_PROMPT
+            user_prompt = EXAM_GENERATION_USER_TEMPLATE.format(
+                subject_name=subject_name,
+                thema_names=", ".join(thema_names),
+                difficulty=request.difficulty,
+                task_count=request.task_count,
+                duration_minutes=request.duration_minutes,
+                free_prompt_section=free_prompt_section,
+                context_section=context_section,
+            )
+
+            await job.add_event({"type": "progress", "phase": "ai", "percent": 35, "message": "KI generiert Aufgaben"})
+
+            result = await call_ai_with_fallback(
+                GENERATOR_MODEL,
+                system_prompt,
+                user_prompt,
+                timeout=180,
+                expect_json=True,
+                claude_max_tokens=4000,
+            )
+
+            if not result.get("error") and not result.get("parse_error"):
+                tasks = result.get("tasks", [])
+                if tasks:
+                    await job.add_event({"type": "progress", "phase": "finalizing", "percent": 85, "message": "Klausur wird gespeichert"})
+                    payload = finalize_mock_exam(request, result, thema_names, subject_name)
+                    await job.add_event({"type": "progress", "phase": "completed", "percent": 100, "message": "Klausur erstellt"})
+                    await job.finalize(result=payload)
+                    return
+
+            await job.add_event({"type": "progress", "phase": "fallback", "percent": 85, "message": "Fallback-Vorlage wird genutzt"})
+            payload = generate_fallback_exam(request, thema_names, subject_name)
+            await job.add_event({"type": "progress", "phase": "completed", "percent": 100, "message": "Klausur erstellt"})
+            await job.finalize(result=payload)
+        except Exception as exc:
+            logger.exception("Generate job failed")
+            await job.add_event({"type": "error", "message": str(exc)})
+            await job.finalize(error=str(exc))
+
+    asyncio.create_task(run())
+    return JobStartResponse(job_id=job.job_id)
+
+
+@router.get("/jobs/{job_id}/events")
+async def stream_job_events(job_id: str):
+    job = _get_job(job_id)
+    return StreamingResponse(job.stream(), media_type="text/event-stream")
+
+
+@router.get("/jobs/{job_id}/result", response_model=JobResultResponse)
+async def get_job_result(job_id: str):
+    job = _get_job(job_id)
+    return JobResultResponse(
+        job_id=job.job_id,
+        status=job.status,
+        job_type=job.job_type,
+        result=job.result,
+        error=job.error,
+        created_at=job.created_at,
+        finished_at=job.finished_at,
+    )
+
+
+# ==========================================================================
+# Manual Review Queue (P2.3)
+# ==========================================================================
+
+
+@router.get("/manual-review/queue", response_model=List[ManualReviewQueueItem])
+async def get_manual_review_queue():
+    items: List[ManualReviewQueueItem] = []
+
+    for attempt_id, attempt in _attempts.items():
+        grading = attempt.get("grading_result")
+        if not grading:
+            continue
+
+        tasks_needing_review = grading.get("tasks_needing_review") or []
+        manual_review_flagged = grading.get("manual_review_flagged")
+        if not manual_review_flagged and not tasks_needing_review:
+            continue
+
+        mock_exam_id = attempt.get("mock_exam_id")
+        mock_exam = _mock_exams.get(mock_exam_id)
+        if not mock_exam:
+            continue
+
+        items.append(
+            ManualReviewQueueItem(
+                attempt_id=attempt_id,
+                mock_exam_id=mock_exam_id,
+                grading_result=grading,
+                mock_exam=mock_exam,
+                task_responses=attempt.get("task_responses") or [],
+            )
+        )
+
+    # Sort newest first when possible
+    items.sort(key=lambda i: (i.grading_result.get("created_at") or ""), reverse=True)
+    return items
+
+
+@router.post("/manual-review/override", response_model=GradingResult)
+async def override_manual_review(req: ManualReviewOverrideRequest):
+    attempt = _attempts.get(req.attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    grading_dict = attempt.get("grading_result")
+    if not grading_dict:
+        raise HTTPException(status_code=404, detail="Grading not found")
+
+    task_grades = grading_dict.get("task_grades") or []
+    updated = False
+    total_earned = 0.0
+    total_max = 0
+    confidence_sum = 0
+    tasks_needing_review: List[str] = []
+
+    for tg in task_grades:
+        if tg.get("task_id") == req.task_id:
+            tg["earned_points"] = float(req.earned_points)
+            tg["confidence"] = int(req.confidence)
+            if req.rationale is not None:
+                tg["rationale"] = req.rationale
+            updated = True
+
+        earned = float(tg.get("earned_points", 0))
+        max_points = int(tg.get("max_points", 0))
+        conf = int(tg.get("confidence", 0))
+        total_earned += earned
+        total_max += max_points
+        confidence_sum += conf
+        if conf < MIN_CONFIDENCE_GRADING:
+            tasks_needing_review.append(tg.get("task_id"))
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Task grade not found")
+
+    percentage = (total_earned / total_max * 100) if total_max > 0 else 0
+    grade, grade_text = calculate_german_grade(percentage)
+    avg_confidence = confidence_sum // max(1, len(task_grades))
+
+    grading_dict["total_score"] = total_earned
+    grading_dict["total_points"] = total_max
+    grading_dict["percentage"] = round(percentage, 1)
+    grading_dict["grade"] = grade
+    grading_dict["grade_text"] = grade_text
+    grading_dict["grader_confidence"] = avg_confidence
+    grading_dict["tasks_needing_review"] = tasks_needing_review
+    grading_dict["manual_review_flagged"] = len(tasks_needing_review) > 0
+
+    # Persist back to attempt + grading store
+    attempt["grading_result"] = grading_dict
+    attempt["total_score"] = total_earned
+    attempt["grade"] = grade
+    attempt["grade_text"] = grade_text
+    attempt["percentage"] = percentage
+    _gradings[f"grading-{req.attempt_id}"] = grading_dict
+
+    # Return normalized via GradingResult model
+    return GradingResult(**grading_dict)
 
 def finalize_mock_exam(request: ExamGenerationRequest, ai_result: Dict, thema_names: List[str], subject_name: str) -> Dict:
     """Finalize and store the AI-generated mock exam."""
