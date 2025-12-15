@@ -3,6 +3,7 @@
 # Core
 requests>=2.31.0
 aiohttp>=3.9.0  # Async HTTP client for vLLM and concurrent operations
+httpx>=0.25.0  # Async HTTP client for Ollama API
 
 # Optional - Performance Monitoring
 psutil>=5.9.0  # For system resource monitoring
@@ -18,3 +19,17 @@ prompt_toolkit>=3.0.0  # TUI framework for fixed-bottom prompt
 fastapi>=0.100.0  # REST API framework
 uvicorn>=0.22.0  # ASGI server
 websockets>=11.0  # WebSocket support
+python-multipart>=0.0.6  # File upload support for FastAPI
+
+# Database (RyxHub Exam System)
+sqlalchemy>=2.0.0  # ORM for PostgreSQL
+psycopg2-binary>=2.9.0  # PostgreSQL driver (binary for easy install)
+alembic>=1.12.0  # Database migrations
+
+# OCR (RyxHub Exam System)
+pytesseract>=0.3.10  # Tesseract OCR Python bindings
+pdf2image>=1.16.0  # PDF to image conversion for OCR
+Pillow>=10.0.0  # Image processing
+
+# Optional - Claude API for OCR fallback
+anthropic>=0.40.0  # Claude API client (optional, for Vision OCR fallback)
