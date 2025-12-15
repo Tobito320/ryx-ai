@@ -231,7 +231,7 @@ export function LeftSidebar() {
         </div>
       </ScrollArea>
 
-      {/* Footer: Home + Documents + Settings */}
+      {/* Footer: Home + School + Documents + Settings */}
       <div className="p-2 border-t border-sidebar-border space-y-1">
         <button
           onClick={() => setActiveView("dashboard")}
@@ -239,6 +239,13 @@ export function LeftSidebar() {
         >
           <Home className="w-4 h-4" />
           Home
+        </button>
+        <button
+          onClick={() => setActiveView("school")}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+        >
+          <Zap className="w-4 h-4" />
+          Schule & Prüfungen
         </button>
         <button
           onClick={() => setActiveView("documents")}

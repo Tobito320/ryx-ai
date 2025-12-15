@@ -4,8 +4,10 @@ import { ChatView } from "@/components/ryxhub/ChatView";
 import { SettingsView } from "@/components/ryxhub/SettingsView";
 import { DashboardView } from "@/components/ryxhub/DashboardView";
 import { DocumentsView } from "@/components/ryxhub/DocumentsView";
+import { SchoolView } from "@/components/ryxhub/SchoolView";
 import { NewSessionDialog } from "@/components/ryxhub/NewSessionDialog";
 import { RyxHubProvider, useRyxHub } from "@/context/RyxHubContext";
+import { ExamProvider } from "@/context/ExamContext";
 import { PanelLeft, Sun, Moon } from "lucide-react";
 
 function RyxHubApp() {
@@ -115,6 +117,7 @@ function RyxHubApp() {
             {activeView === "dashboard" && <DashboardView />}
             {activeView === "chat" && <ChatView />}
             {activeView === "documents" && <DocumentsView />}
+            {activeView === "school" && <SchoolView />}
             {activeView === "settings" && <SettingsView />}
           </main>
         </div>
@@ -133,7 +136,9 @@ function RyxHubApp() {
 const Index = () => {
   return (
     <RyxHubProvider>
-      <RyxHubApp />
+      <ExamProvider>
+        <RyxHubApp />
+      </ExamProvider>
     </RyxHubProvider>
   );
 };

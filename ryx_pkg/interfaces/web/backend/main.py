@@ -606,6 +606,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include exam system router (v2)
+from ryx_pkg.interfaces.web.backend.exam_api_v2 import router as exam_router_v2
+app.include_router(exam_router_v2)
+
 # =============================================================================
 # Health & Status Endpoints
 # =============================================================================
