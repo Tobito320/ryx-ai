@@ -553,33 +553,33 @@ async def classify_upload(ocr_text: str, filename: str, subject_hint: Optional[s
     if keyword_classification["confidence_scores"]["overall"] >= 90:
         return keyword_classification
     
-    # Otherwise, try AI classification
-    if await check_ollama_available():
-        system_prompt = CLASSIFICATION_SYSTEM_PROMPT
-        user_prompt = CLASSIFICATION_USER_TEMPLATE.format(
-            ocr_text=ocr_text[:3000],  # Limit context
-            filename=filename
-        )
+    # Otherwise, try AI classification (Ollama with Claude fallback)
+    system_prompt = CLASSIFICATION_SYSTEM_PROMPT
+    user_prompt = CLASSIFICATION_USER_TEMPLATE.format(
+        ocr_text=ocr_text[:3000],  # Limit context
+        filename=filename
+    )
+    
+    ai_result = await call_ai_with_fallback(
+        CLASSIFIER_MODEL,
+        system_prompt,
+        user_prompt,
+        timeout=60,
+        expect_json=True
+    )
+    
+    if not ai_result.get("error") and not ai_result.get("parse_error"):
+        # Validate and enhance with keyword check
+        ai_subject = ai_result.get("subject", "").lower()
+        keyword_subject = keyword_classification.get("subject", "").lower()
         
-        ai_result = await call_ollama(
-            CLASSIFIER_MODEL,
-            system_prompt,
-            user_prompt,
-            timeout=60
-        )
+        # If AI and keywords disagree, prefer keywords for subject
+        if keyword_subject and ai_subject != keyword_subject:
+            if keyword_classification["confidence_scores"]["subject"] > 80:
+                ai_result["subject"] = keyword_subject
+                ai_result["reasoning"] = f"Korrigiert basierend auf Schlüsselwörtern: {keyword_classification.get('reasoning', '')}"
         
-        if not ai_result.get("error") and not ai_result.get("parse_error"):
-            # Validate and enhance with keyword check
-            ai_subject = ai_result.get("subject", "").lower()
-            keyword_subject = keyword_classification.get("subject", "").lower()
-            
-            # If AI and keywords disagree, prefer keywords for subject
-            if keyword_subject and ai_subject != keyword_subject:
-                if keyword_classification["confidence_scores"]["subject"] > 80:
-                    ai_result["subject"] = keyword_subject
-                    ai_result["reasoning"] = f"Korrigiert basierend auf Schlüsselwörtern: {keyword_classification.get('reasoning', '')}"
-            
-            return ai_result
+        return ai_result
     
     # Fallback to keyword classification
     return keyword_classification
@@ -984,40 +984,40 @@ async def grade_open_task(
             "improvement": "Bitte beantworte die Frage vollständig."
         }
     
-    # Try AI grading
-    if await check_ollama_available():
-        system_prompt = GRADING_SYSTEM_PROMPT
-        user_prompt = GRADING_USER_TEMPLATE.format(
-            task_type=task_type,
-            question_text=question_text,
-            max_points=max_points,
-            user_answer=user_answer,
-            model_answer=model_answer or "Keine Musterlösung verfügbar",
-            rubric_json=json.dumps(rubric, ensure_ascii=False, indent=2)
-        )
+    # Try AI grading (Ollama with Claude fallback)
+    system_prompt = GRADING_SYSTEM_PROMPT
+    user_prompt = GRADING_USER_TEMPLATE.format(
+        task_type=task_type,
+        question_text=question_text,
+        max_points=max_points,
+        user_answer=user_answer,
+        model_answer=model_answer or "Keine Musterlösung verfügbar",
+        rubric_json=json.dumps(rubric, ensure_ascii=False, indent=2)
+    )
+    
+    result = await call_ai_with_fallback(
+        GRADER_MODEL,
+        system_prompt,
+        user_prompt,
+        timeout=60,
+        expect_json=True
+    )
+    
+    if not result.get("error") and not result.get("parse_error"):
+        earned = result.get("earned_points", 0)
+        # Validate earned points
+        if isinstance(earned, (int, float)):
+            earned = max(0, min(max_points, earned))
+        else:
+            earned = max_points // 2
         
-        result = await call_ollama(
-            GRADER_MODEL,
-            system_prompt,
-            user_prompt,
-            timeout=60
-        )
-        
-        if not result.get("error") and not result.get("parse_error"):
-            earned = result.get("earned_points", 0)
-            # Validate earned points
-            if isinstance(earned, (int, float)):
-                earned = max(0, min(max_points, earned))
-            else:
-                earned = max_points // 2
-            
-            return {
-                "earned_points": earned,
-                "rationale": result.get("rationale", "KI-Bewertung abgeschlossen."),
-                "confidence": result.get("confidence", 70),
-                "rubric_breakdown": result.get("rubric_breakdown"),
-                "improvement": result.get("improvement")
-            }
+        return {
+            "earned_points": earned,
+            "rationale": result.get("rationale", "KI-Bewertung abgeschlossen."),
+            "confidence": result.get("confidence", 70),
+            "rubric_breakdown": result.get("rubric_breakdown"),
+            "improvement": result.get("improvement")
+        }
     
     # Fallback: heuristic grading
     return heuristic_grade(user_answer, model_answer, max_points, rubric)
@@ -1235,30 +1235,31 @@ Berücksichtige diese Anforderungen bei der Aufgabenerstellung!"""
         context_section = f"""KONTEXT-MATERIAL (nutze als Inspiration):
 {combined_context[:2000]}"""
     
-    # Try AI generation
-    if await check_ollama_available():
-        system_prompt = EXAM_GENERATION_SYSTEM_PROMPT
-        user_prompt = EXAM_GENERATION_USER_TEMPLATE.format(
-            subject_name=subject_name,
-            thema_names=", ".join(thema_names),
-            difficulty=request.difficulty,
-            task_count=request.task_count,
-            duration_minutes=request.duration_minutes,
-            free_prompt_section=free_prompt_section,
-            context_section=context_section
-        )
-        
-        result = await call_ollama(
-            GENERATOR_MODEL,
-            system_prompt,
-            user_prompt,
-            timeout=180
-        )
-        
-        if not result.get("error") and not result.get("parse_error"):
-            tasks = result.get("tasks", [])
-            if tasks:
-                return finalize_mock_exam(request, result, thema_names, subject_name)
+    # Try AI generation (Ollama with Claude fallback)
+    system_prompt = EXAM_GENERATION_SYSTEM_PROMPT
+    user_prompt = EXAM_GENERATION_USER_TEMPLATE.format(
+        subject_name=subject_name,
+        thema_names=", ".join(thema_names),
+        difficulty=request.difficulty,
+        task_count=request.task_count,
+        duration_minutes=request.duration_minutes,
+        free_prompt_section=free_prompt_section,
+        context_section=context_section
+    )
+    
+    result = await call_ai_with_fallback(
+        GENERATOR_MODEL,
+        system_prompt,
+        user_prompt,
+        timeout=180,
+        expect_json=True,
+        claude_max_tokens=4000
+    )
+    
+    if not result.get("error") and not result.get("parse_error"):
+        tasks = result.get("tasks", [])
+        if tasks:
+            return finalize_mock_exam(request, result, thema_names, subject_name)
     
     # Fallback to template-based generation
     return generate_fallback_exam(request, thema_names, subject_name)
