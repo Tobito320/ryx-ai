@@ -715,6 +715,57 @@ export function ExamProvider({ children }: { children: ReactNode }) {
         suggestedReview: tg.confidence < 75,
         rubricBreakdown: tg.rubric_breakdown,
       }));
+
+      const gradeMap = new Map(v2Result.task_grades.map((tg) => [tg.task_id, tg]));
+
+      const enrichedResponses: TaskResponse[] = mockExam.tasks.map((task) => {
+        const existing = attempt.taskResponses.find((r) => r.taskId === task.id);
+        const grade = gradeMap.get(task.id);
+
+        const baseResponse: TaskResponse = existing ?? {
+          taskId: task.id,
+          userAnswer: "",
+          answeredAt: new Date().toISOString(),
+          timeSpentSeconds: 0,
+          maxPoints: task.points,
+          earnedPoints: 0,
+          autoGraded: task.type.startsWith("MC"),
+          confidence: 0,
+          feedback: undefined,
+          criteriaScores: undefined,
+          isCorrect: false,
+          flaggedForReview: false,
+          improvementSuggestion: undefined,
+          rubricBreakdown: undefined,
+        };
+
+        if (!grade) {
+          return baseResponse;
+        }
+
+        const criteriaScores = grade.rubric_breakdown?.map((criterion) => ({
+          criterionName: criterion.criterion,
+          score: criterion.earned,
+          maxScore: criterion.max,
+          feedback: criterion.comment,
+        }));
+
+        return {
+          ...baseResponse,
+          maxPoints: grade.max_points,
+          earnedPoints: grade.earned_points,
+          autoGraded: grade.task_type.startsWith("MC"),
+          confidence: grade.confidence,
+          feedback: grade.rationale,
+          improvementSuggestion: grade.improvement_suggestion,
+          criteriaScores,
+          rubricBreakdown: grade.rubric_breakdown,
+          flaggedForReview: grade.confidence < 75,
+          isCorrect: grade.task_type.startsWith("MC")
+            ? grade.earned_points === grade.max_points
+            : baseResponse.isCorrect,
+        };
+      });
       
       const result: GradingResult = {
         attemptId: currentAttemptId,
@@ -751,6 +802,7 @@ export function ExamProvider({ children }: { children: ReactNode }) {
             status: "graded" as const,
             overallFeedback: v2Result.overall_feedback,
             flagsForReview: v2Result.tasks_needing_review,
+            taskResponses: enrichedResponses,
           };
         }
         return a;
@@ -764,20 +816,40 @@ export function ExamProvider({ children }: { children: ReactNode }) {
       // Fallback to mock grading if API fails
       let totalScore = 0;
       const taskGrades: GradingResult["taskGrades"] = [];
+      const enrichedResponses: TaskResponse[] = [];
 
       for (const task of mockExam.tasks) {
         const response = attempt.taskResponses.find(r => r.taskId === task.id);
         const earnedPoints = response ? Math.floor(Math.random() * task.points) + 1 : 0;
         totalScore += earnedPoints;
 
+        const confidence = Math.floor(Math.random() * 30) + 70;
+
         taskGrades.push({
           taskId: task.id,
           earnedPoints,
           maxPoints: task.points,
           autoGraded: task.type.startsWith("MC"),
-          confidence: Math.floor(Math.random() * 30) + 70,
+          confidence,
           feedback: "Bewertung ohne KI (Fallback)",
-          suggestedReview: false,
+          suggestedReview: confidence < 75,
+        });
+
+        enrichedResponses.push({
+          taskId: task.id,
+          userAnswer: response?.userAnswer ?? "",
+          answeredAt: response?.answeredAt ?? new Date().toISOString(),
+          timeSpentSeconds: response?.timeSpentSeconds ?? 0,
+          maxPoints: task.points,
+          earnedPoints,
+          autoGraded: task.type.startsWith("MC"),
+          confidence,
+          feedback: "Bewertung ohne KI (Fallback)",
+          criteriaScores: response?.criteriaScores,
+          isCorrect: earnedPoints === task.points,
+          flaggedForReview: confidence < 75,
+          improvementSuggestion: undefined,
+          rubricBreakdown: undefined,
         });
       }
 
@@ -814,6 +886,7 @@ export function ExamProvider({ children }: { children: ReactNode }) {
             percentage,
             status: "graded" as const,
             overallFeedback: result.overallFeedback,
+            taskResponses: enrichedResponses,
           };
         }
         return a;

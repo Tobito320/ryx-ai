@@ -4,23 +4,20 @@
  * Shows past attempts with scores, grades, and detailed feedback
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useExam } from "@/context/ExamContext";
 import {
   History,
   ChevronLeft,
-  ChevronRight,
   Clock,
   Target,
   Award,
   TrendingUp,
-  TrendingDown,
-  CheckCircle2,
-  XCircle,
   AlertCircle,
+  Loader2,
   Calendar,
-  BarChart3,
   FileText,
+  Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,23 +26,50 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { Attempt, MockExam, GradeText, Task, TaskGrade, TaskResponse } from "@/types/exam";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import type { Attempt, MockExam, GradeText } from "@/types/exam";
+  getAttemptResultsV2,
+  type AttemptResultsV2Response,
+  type GradingResultV2,
+  type TaskGradeV2,
+} from "@/services/examService";
 
 interface AttemptHistoryViewProps {
   onBack: () => void;
 }
 
+const LOW_CONFIDENCE_THRESHOLD = 75;
+
+interface NormalizedTaskResponse {
+  taskId: string;
+  userAnswer: string | string[] | Record<string, any>;
+}
+
+interface NormalizedGradingResult {
+  totalScore: number;
+  totalPoints: number;
+  percentage: number;
+  grade: number;
+  gradeText: GradeText | string;
+  overallFeedback: string;
+  manualReviewFlagged: boolean;
+  graderConfidence: number;
+  tasksNeedingReview: string[];
+  taskGrades: TaskGrade[];
+}
+
+interface AttemptResultData {
+  mockExam: MockExam;
+  gradingResult: NormalizedGradingResult;
+  taskResponses: Record<string, NormalizedTaskResponse>;
+}
+
 export function AttemptHistoryView({ onBack }: AttemptHistoryViewProps) {
   const { attempts, mockExams, selectedThema } = useExam();
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [attemptResults, setAttemptResults] = useState<Record<string, AttemptResultData>>({});
+  const [loadingResults, setLoadingResults] = useState<Record<string, boolean>>({});
+  const [resultErrors, setResultErrors] = useState<Record<string, string>>({});
 
   // Filter attempts for selected thema
   const filteredAttempts = selectedThema
@@ -67,6 +91,61 @@ export function AttemptHistoryView({ onBack }: AttemptHistoryViewProps) {
   const selectedMockExam = selectedAttempt
     ? mockExams.find((m) => m.id === selectedAttempt.mockExamId)
     : null;
+  const selectedAttemptResult = selectedAttempt
+    ? attemptResults[selectedAttempt.id]
+    : undefined;
+  const attemptResultError = selectedAttempt
+    ? resultErrors[selectedAttempt.id]
+    : null;
+  const attemptResultLoading = selectedAttempt
+    ? !!loadingResults[selectedAttempt.id]
+    : false;
+
+  useEffect(() => {
+    if (!selectedAttempt || selectedAttempt.status !== "graded") {
+      return;
+    }
+
+    const attemptId = selectedAttempt.id;
+    if (attemptResults[attemptId] || loadingResults[attemptId]) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingResults((prev) => ({ ...prev, [attemptId]: true }));
+
+    getAttemptResultsV2(attemptId)
+      .then((payload) => {
+        if (cancelled) return;
+        const normalized = normalizeAttemptResultResponse(payload);
+        setAttemptResults((prev) => ({ ...prev, [attemptId]: normalized }));
+        setResultErrors((prev) => {
+          const next = { ...prev };
+          delete next[attemptId];
+          return next;
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Ergebnis konnte nicht geladen werden";
+        setResultErrors((prev) => ({ ...prev, [attemptId]: message }));
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingResults((prev) => {
+          const next = { ...prev };
+          delete next[attemptId];
+          return next;
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAttempt, attemptResults, loadingResults]);
 
   // Calculate stats
   const completedAttempts = sortedAttempts.filter((a) => a.status === "graded");
@@ -196,7 +275,13 @@ export function AttemptHistoryView({ onBack }: AttemptHistoryViewProps) {
           {/* Detail View */}
           <div className="flex-1 overflow-auto">
             {selectedAttempt && selectedMockExam ? (
-              <AttemptDetail attempt={selectedAttempt} mockExam={selectedMockExam} />
+              <AttemptDetail
+                attempt={selectedAttempt}
+                mockExam={selectedMockExam}
+                resultData={selectedAttemptResult}
+                loadingResult={attemptResultLoading}
+                resultError={attemptResultError}
+              />
             ) : (
               <div className="h-full flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
@@ -219,24 +304,46 @@ export function AttemptHistoryView({ onBack }: AttemptHistoryViewProps) {
 function AttemptDetail({
   attempt,
   mockExam,
+  resultData,
+  loadingResult = false,
+  resultError,
 }: {
   attempt: Attempt;
   mockExam: MockExam;
+  resultData?: AttemptResultData;
+  loadingResult?: boolean;
+  resultError?: string | null;
 }) {
+  const gradingSummary = resultData?.gradingResult;
+  const activeMockExam = resultData?.mockExam ?? mockExam;
+  const tasks = activeMockExam.tasks ?? [];
+  const apiResponseMap = resultData?.taskResponses ?? {};
+  const attemptResponseMap = mapAttemptResponses(attempt.taskResponses);
+  const gradeMap = buildGradeMap(gradingSummary?.taskGrades, attempt.taskResponses);
+  const totalScore = gradingSummary?.totalScore ?? attempt.totalScore;
+  const totalPoints = gradingSummary?.totalPoints ?? attempt.totalPoints;
+  const percentage = gradingSummary?.percentage ?? attempt.percentage;
+  const gradeValue = gradingSummary?.grade ?? attempt.grade;
+  const gradeText = (gradingSummary?.gradeText as GradeText | undefined) ?? attempt.gradeText;
+  const overallFeedback = gradingSummary?.overallFeedback ?? attempt.overallFeedback;
+  const tasksNeedingReview = gradingSummary?.tasksNeedingReview ?? attempt.flagsForReview;
+  const manualReviewFlagged =
+    gradingSummary?.manualReviewFlagged ?? attempt.flagsForReview.length > 0;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold">{mockExam.title}</h2>
+          <h2 className="text-xl font-semibold">{activeMockExam.title}</h2>
           <p className="text-muted-foreground">
             {formatDate(attempt.startedAt)} • {formatDuration(attempt.durationSeconds)}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-4xl font-bold">{attempt.grade.toFixed(1)}</div>
-          <div className={cn("text-lg font-medium", getGradeColor(attempt.grade))}>
-            {attempt.gradeText}
+          <div className="text-4xl font-bold">{gradeValue.toFixed(1)}</div>
+          <div className={cn("text-lg font-medium", getGradeColor(gradeValue))}>
+            {gradeText}
           </div>
         </div>
       </div>
@@ -247,7 +354,7 @@ function AttemptDetail({
           <CardContent className="p-4 text-center">
             <Target className="h-8 w-8 mx-auto mb-2 text-primary" />
             <div className="text-2xl font-bold">
-              {attempt.totalScore}/{attempt.totalPoints}
+              {totalScore}/{totalPoints}
             </div>
             <div className="text-sm text-muted-foreground">Punkte</div>
           </CardContent>
@@ -255,7 +362,7 @@ function AttemptDetail({
         <Card>
           <CardContent className="p-4 text-center">
             <Award className="h-8 w-8 mx-auto mb-2 text-amber-500" />
-            <div className="text-2xl font-bold">{Math.round(attempt.percentage)}%</div>
+            <div className="text-2xl font-bold">{Math.round(percentage)}%</div>
             <div className="text-sm text-muted-foreground">Prozent</div>
           </CardContent>
         </Card>
@@ -270,6 +377,23 @@ function AttemptDetail({
         </Card>
       </div>
 
+      {(loadingResult || resultError) && (
+        <div className="space-y-2">
+          {loadingResult && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>AI Feedback wird geladen...</span>
+            </div>
+          )}
+          {resultError && (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span>{resultError}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Tabs */}
       <Tabs defaultValue="feedback">
         <TabsList>
@@ -280,13 +404,13 @@ function AttemptDetail({
 
         <TabsContent value="feedback" className="mt-4 space-y-4">
           {/* AI Feedback */}
-          {attempt.overallFeedback && (
+          {overallFeedback && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Gesamtfeedback</CardTitle>
               </CardHeader>
               <CardContent>
-                <p>{attempt.overallFeedback}</p>
+                <p>{overallFeedback}</p>
               </CardContent>
             </Card>
           )}
@@ -336,7 +460,7 @@ function AttemptDetail({
           </div>
 
           {/* Flagged for Review */}
-          {attempt.flagsForReview.length > 0 && (
+          {manualReviewFlagged && tasksNeedingReview.length > 0 && (
             <Card className="border-amber-500/50 bg-amber-500/5">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -346,8 +470,7 @@ function AttemptDetail({
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {attempt.flagsForReview.length} Aufgabe(n) wurden für manuelle Überprüfung
-                  markiert.
+                  {tasksNeedingReview.length} Aufgabe(n) wurden aufgrund niedriger AI-Sicherheit markiert.
                 </p>
               </CardContent>
             </Card>
@@ -380,52 +503,99 @@ function AttemptDetail({
           </Card>
         </TabsContent>
 
-        <TabsContent value="answers" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Antworten im Detail</CardTitle>
-              <CardDescription>
-                Überprüfe deine Antworten und vergleiche mit den Musterlösungen
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">#</TableHead>
-                    <TableHead>Typ</TableHead>
-                    <TableHead className="text-center">Punkte</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mockExam.tasks.map((task, index) => {
-                    const response = attempt.taskResponses.find(
-                      (r) => r.taskId === task.id
-                    );
-                    const isCorrect = response?.isCorrect ?? response?.earnedPoints === task.points;
+        <TabsContent value="answers" className="mt-4 space-y-4">
+          {tasks.map((task, index) => {
+            const grade = gradeMap[task.id];
+            const apiResponse = apiResponseMap[task.id];
+            const fallbackResponse = attemptResponseMap[task.id];
+            const userAnswer = apiResponse?.userAnswer ?? fallbackResponse?.userAnswer;
+            const earned = grade?.earnedPoints ?? fallbackResponse?.earnedPoints ?? 0;
+            const maxPoints = grade?.maxPoints ?? fallbackResponse?.maxPoints ?? task.points;
+            const confidence = grade?.confidence ?? fallbackResponse?.confidence ?? 0;
+            const rationale = grade?.feedback ?? fallbackResponse?.feedback;
+            const improvementSuggestion =
+              grade?.improvementSuggestion ?? fallbackResponse?.improvementSuggestion;
+            const flagged =
+              confidence < LOW_CONFIDENCE_THRESHOLD ||
+              tasksNeedingReview.includes(task.id) ||
+              fallbackResponse?.flaggedForReview;
 
-                    return (
-                      <TableRow key={task.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell>{getTaskTypeLabel(task.type)}</TableCell>
-                        <TableCell className="text-center">
-                          {response?.earnedPoints ?? 0}/{task.points}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {isCorrect ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500 mx-auto" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-500 mx-auto" />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+            return (
+              <Card key={task.id}>
+                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <span className="text-muted-foreground">Aufgabe {index + 1}</span>
+                      <span className="font-semibold">{getTaskTypeLabel(task.type)}</span>
+                    </CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {task.questionText}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={earned === maxPoints ? "default" : "secondary"}>
+                      {earned}/{maxPoints} Punkte
+                    </Badge>
+                    <Badge
+                      variant={confidence >= 90 ? "default" : confidence >= 75 ? "secondary" : "destructive"}
+                    >
+                      {confidence}% AI
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {task.questionImage && (
+                    <div className="rounded-md border bg-muted/40 p-3">
+                      <img src={task.questionImage} alt="Aufgabenbild" className="max-h-64 rounded object-contain" />
+                    </div>
+                  )}
+
+                  <div className="rounded-md bg-muted/30 p-3">
+                    <p className="text-xs text-muted-foreground">Deine Antwort</p>
+                    <p className="font-medium">{formatAnswer(userAnswer)}</p>
+                  </div>
+
+                  {rationale && (
+                    <div className="rounded-md border-l-4 border-primary/60 bg-primary/5 p-3">
+                      <p className="text-xs font-semibold text-primary">AI Feedback</p>
+                      <p className="italic leading-relaxed text-muted-foreground mt-1">{rationale}</p>
+                    </div>
+                  )}
+
+                  {improvementSuggestion && (
+                    <div className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-amber-800">
+                      <Lightbulb className="h-4 w-4 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold">Verbesserung</p>
+                        <p>{improvementSuggestion}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">AI-Sicherheit</p>
+                    <div className="h-2 w-full rounded-full bg-muted">
+                      <div
+                        className={cn(
+                          "h-2 rounded-full transition-all",
+                          getConfidenceColor(confidence)
+                        )}
+                        style={{ width: `${confidence}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">{confidence}%</p>
+                  </div>
+
+                  {flagged && (
+                    <div className="flex items-center gap-2 text-sm text-amber-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>⚠️ Diese Aufgabe wurde zur manuellen Überprüfung markiert</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </TabsContent>
       </Tabs>
     </div>
@@ -522,6 +692,211 @@ function formatDuration(seconds: number): string {
   const hrs = Math.floor(mins / 60);
   const remainingMins = mins % 60;
   return `${hrs}:${remainingMins.toString().padStart(2, "0")} Std.`;
+}
+
+function formatAnswer(answer: unknown): string {
+  if (answer === undefined || answer === null) return "Keine Antwort";
+  if (Array.isArray(answer)) return answer.join(", ");
+  if (typeof answer === "object") return JSON.stringify(answer);
+  return String(answer);
+}
+
+function normalizeAttemptResultResponse(payload: AttemptResultsV2Response): AttemptResultData {
+  return {
+    mockExam: normalizeMockExamFromApi(payload.mock_exam || {}),
+    gradingResult: normalizeGradingResultPayload(payload.grading_result),
+    taskResponses: normalizeTaskResponsesPayload(payload.task_responses),
+  };
+}
+
+function normalizeMockExamFromApi(apiMock: Record<string, any>): MockExam {
+  const mockExamId =
+    apiMock.id ?? apiMock.mock_exam_id ?? `mock-${globalThis.crypto?.randomUUID?.() ?? Date.now()}`;
+  const rawTasks = Array.isArray(apiMock.tasks) ? apiMock.tasks : [];
+  const tasks: Task[] = rawTasks.map((task: Record<string, any>, index: number) =>
+    normalizeTaskFromApi(task, mockExamId, index)
+  );
+  const totalPoints =
+    apiMock.total_points ??
+    apiMock.totalPoints ??
+    tasks.reduce((sum, task) => sum + (task.points || 0), 0);
+
+  return {
+    id: mockExamId,
+    subjectId: apiMock.subject_id ?? apiMock.subjectId ?? "wbl",
+    themaIds: apiMock.thema_ids ?? apiMock.themaIds ?? [],
+    generatedAt: apiMock.generated_at ?? apiMock.generatedAt ?? new Date().toISOString(),
+    studyContentUsed: apiMock.study_content_used ?? apiMock.studyContentUsed,
+    teacherPatternUsed: apiMock.teacher_pattern_used ?? apiMock.teacherPatternUsed,
+    tasks,
+    totalPoints,
+    estimatedDurationMinutes: apiMock.estimated_duration_minutes ?? apiMock.estimatedDurationMinutes ?? 90,
+    difficultyLevel: apiMock.difficulty_level ?? apiMock.difficultyLevel ?? 3,
+    title: apiMock.title ?? "Übungsklausur",
+    description: apiMock.description,
+    status: apiMock.status ?? "ready",
+  };
+}
+
+function normalizeTaskFromApi(task: Record<string, any>, mockExamId: string, index: number): Task {
+  const points = task.points ?? task.pointsValue ?? 5;
+  return {
+    id: task.id ?? `task-${index + 1}`,
+    mockExamId,
+    type: task.type ?? "ShortAnswer",
+    taskNumber: task.task_number ?? task.taskNumber ?? index + 1,
+    questionText: task.question_text ?? task.questionText ?? "",
+    questionImage: task.question_image ?? task.questionImage,
+    questionImageAlt: task.question_image_alt ?? task.questionImageAlt,
+    options: task.options,
+    matchingPairs: task.matching_pairs ?? task.matchingPairs,
+    fillInBlanks: task.fill_in_blanks ?? task.fillInBlanks,
+    diagramData: task.diagram_data ?? task.diagramData,
+    calculationData: task.calculation_data ?? task.calculationData,
+    difficulty: task.difficulty ?? 3,
+    points,
+    timeEstimateMinutes: task.time_estimate_minutes ?? task.timeEstimateMinutes ?? 5,
+    correctAnswer: task.correct_answer ?? task.correctAnswer ?? "",
+    modelAnswer: task.model_answer ?? task.modelAnswer,
+    gradingRubric: normalizeRubricFromApi(task.grading_rubric ?? task.gradingRubric, points),
+    rationale: task.rationale,
+    source: task.source ?? "ai_generated",
+    hints: task.hints ?? [],
+    relatedThemas: task.related_themas ?? task.relatedThemas,
+  };
+}
+
+function normalizeRubricFromApi(
+  rubric: Record<string, any> | undefined,
+  fallbackPoints: number
+): Task["gradingRubric"] {
+  if (!rubric || typeof rubric !== "object") {
+    return {
+      maxPoints: fallbackPoints ?? 0,
+      criteria: [],
+      autoGradable: false,
+      partialCreditAllowed: true,
+    };
+  }
+
+  const criteria = Array.isArray(rubric.criteria)
+    ? rubric.criteria.map((criterion: Record<string, any>, index: number) => ({
+        name: criterion.name ?? criterion.criterion ?? `Kriterium ${index + 1}`,
+        description: criterion.description ?? "",
+        maxPoints: criterion.max_points ?? criterion.maxPoints ?? 0,
+        keywords: criterion.keywords,
+      }))
+    : [];
+
+  return {
+    maxPoints: rubric.max_points ?? rubric.maxPoints ?? fallbackPoints ?? 0,
+    criteria,
+    autoGradable: rubric.auto_gradable ?? rubric.autoGradable ?? false,
+    partialCreditAllowed: rubric.partial_credit_allowed ?? rubric.partialCreditAllowed ?? true,
+  };
+}
+
+function normalizeGradingResultPayload(grading: GradingResultV2): NormalizedGradingResult {
+  const taskGrades = Array.isArray(grading.task_grades)
+    ? grading.task_grades.map(normalizeTaskGradePayload)
+    : [];
+  return {
+    totalScore: grading.total_score,
+    totalPoints: grading.total_points,
+    percentage: grading.percentage,
+    grade: grading.grade,
+    gradeText: grading.grade_text,
+    overallFeedback: grading.overall_feedback,
+    manualReviewFlagged: grading.manual_review_flagged,
+    graderConfidence: grading.grader_confidence,
+    tasksNeedingReview: grading.tasks_needing_review ?? [],
+    taskGrades,
+  };
+}
+
+function normalizeTaskGradePayload(grade: TaskGradeV2): TaskGrade {
+  const isMultipleChoice = grade.task_type?.startsWith("MC");
+  return {
+    taskId: grade.task_id,
+    earnedPoints: grade.earned_points,
+    maxPoints: grade.max_points,
+    autoGraded: !!isMultipleChoice,
+    confidence: grade.confidence,
+    feedback: grade.rationale,
+    isCorrect: isMultipleChoice ? grade.earned_points === grade.max_points : undefined,
+    criteriaBreakdown: undefined,
+    suggestedReview: grade.confidence < LOW_CONFIDENCE_THRESHOLD,
+    reviewReason: undefined,
+    improvementSuggestion: grade.improvement_suggestion,
+    rubricBreakdown: grade.rubric_breakdown,
+  };
+}
+
+function normalizeTaskResponsesPayload(
+  responses: AttemptResultsV2Response["task_responses"]
+): Record<string, NormalizedTaskResponse> {
+  const map: Record<string, NormalizedTaskResponse> = {};
+  if (!Array.isArray(responses)) {
+    return map;
+  }
+
+  responses.forEach((response) => {
+    if (!response?.task_id) return;
+    map[response.task_id] = {
+      taskId: response.task_id,
+      userAnswer: response.user_answer,
+    };
+  });
+
+  return map;
+}
+
+function mapAttemptResponses(responses: TaskResponse[]): Record<string, TaskResponse> {
+  return responses.reduce<Record<string, TaskResponse>>((acc, response) => {
+    acc[response.taskId] = response;
+    return acc;
+  }, {});
+}
+
+function buildGradeMap(taskGrades?: TaskGrade[], responses?: TaskResponse[]): Record<string, TaskGrade> {
+  if (taskGrades && taskGrades.length > 0) {
+    return taskGrades.reduce<Record<string, TaskGrade>>((acc, grade) => {
+      acc[grade.taskId] = grade;
+      return acc;
+    }, {});
+  }
+
+  if (!responses) {
+    return {};
+  }
+
+  return responses.reduce<Record<string, TaskGrade>>((acc, response) => {
+    acc[response.taskId] = {
+      taskId: response.taskId,
+      earnedPoints: response.earnedPoints,
+      maxPoints: response.maxPoints,
+      autoGraded: response.autoGraded,
+      confidence: response.confidence,
+      feedback: response.feedback ?? "",
+      isCorrect: response.isCorrect,
+      criteriaBreakdown: response.criteriaScores?.map((criterion) => ({
+        name: criterion.criterionName,
+        score: criterion.score,
+        max: criterion.maxScore,
+        feedback: criterion.feedback ?? "",
+      })),
+      suggestedReview: response.flaggedForReview,
+      improvementSuggestion: response.improvementSuggestion,
+      rubricBreakdown: response.rubricBreakdown,
+    };
+    return acc;
+  }, {});
+}
+
+function getConfidenceColor(confidence: number): string {
+  if (confidence >= 90) return "bg-green-500";
+  if (confidence >= LOW_CONFIDENCE_THRESHOLD) return "bg-amber-500";
+  return "bg-red-500";
 }
 
 export default AttemptHistoryView;

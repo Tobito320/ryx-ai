@@ -477,6 +477,25 @@ export async function gradeAttemptV2(
 }
 
 /**
+ * Attempt results payload (V2)
+ */
+export interface AttemptResultTaskResponse {
+  task_id: string;
+  user_answer: string | string[] | Record<string, any>;
+}
+
+export interface AttemptResultsV2Response {
+  attempt: Record<string, any>;
+  grading_result: GradingResultV2;
+  mock_exam: Record<string, any>;
+  task_responses: AttemptResultTaskResponse[];
+}
+
+export async function getAttemptResultsV2(attemptId: string): Promise<AttemptResultsV2Response> {
+  return apiRequest<AttemptResultsV2Response>(`/api/exam/v2/attempts/${attemptId}/results`);
+}
+
+/**
  * Start attempt (V2)
  */
 export async function startAttemptV2(examId: string): Promise<Attempt> {

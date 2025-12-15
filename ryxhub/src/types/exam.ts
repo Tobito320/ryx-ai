@@ -290,9 +290,16 @@ export interface TaskResponse {
   autoGraded: boolean;
   confidence: number; // AI confidence 0-100
   feedback?: string;
-  criteriaScores?: { criterionName: string; score: number; maxScore: number }[];
+  criteriaScores?: { criterionName: string; score: number; maxScore: number; feedback?: string }[];
   isCorrect?: boolean; // For MC
   flaggedForReview: boolean;
+  improvementSuggestion?: string;
+  rubricBreakdown?: {
+    criterion: string;
+    earned: number;
+    max: number;
+    comment: string;
+  }[];
 }
 
 export interface SectionBreakdown {

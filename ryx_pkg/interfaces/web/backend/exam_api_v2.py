@@ -29,8 +29,16 @@ import logging
 USE_DATABASE = os.environ.get("USE_DATABASE", "false").lower() == "true"
 if USE_DATABASE:
     try:
-        from .database import get_db, get_db_context, init_db, UploadSession, ClassTest as DBClassTest, MockExam as DBMockExam
+        from .database import (
+            get_db,
+            get_db_context,
+            init_db,
+            UploadSession,
+            ClassTest as DBClassTest,
+            MockExam as DBMockExam,
+        )
         from sqlalchemy.orm import Session
+
         DB_AVAILABLE = True
     except ImportError:
         DB_AVAILABLE = False
@@ -41,13 +49,17 @@ else:
 # OCR imports
 try:
     from .ocr import perform_ocr as real_ocr, OCRResult, compute_content_hash
+
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+from .fallback import build_ai_fallback_manager
 
 router = APIRouter(prefix="/api/exam/v2", tags=["exam-v2"])
+
+logger = logging.getLogger(__name__)
+ai_fallback = build_ai_fallback_manager()
 
 # ============================================================================
 # Configuration
@@ -261,6 +273,41 @@ async def call_ollama(
             return {"error": "Model timeout", "timeout": True}
         except Exception as e:
             return {"error": str(e)}
+
+
+async def call_ai_with_fallback(
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    timeout: int = 120,
+    expect_json: bool = True,
+    claude_max_tokens: int = 1200,
+) -> Dict[str, Any]:
+    """Try Ollama first, then Claude if configured."""
+
+    ollama_available = await check_ollama_available()
+
+    if ollama_available:
+        result = await call_ollama(model, system_prompt, user_prompt, timeout=timeout, json_mode=expect_json)
+        if not result.get("error") and not result.get("parse_error"):
+            return result
+        logger.warning("Ollama call failed, attempting Claude fallback: %s", result.get("error"))
+
+    if ai_fallback.claude_available():
+        try:
+            return await ai_fallback.call_claude(
+                system_prompt,
+                user_prompt,
+                max_tokens=claude_max_tokens,
+                expect_json=expect_json,
+                timeout=timeout,
+            )
+        except Exception as exc:  # Claude client failure should be logged but not crash the request
+            logger.error("Claude fallback failed: %s", exc)
+            return {"error": str(exc)}
+
+    return {"error": "No AI backend available"}
 
 # ============================================================================
 # FIX 1: UPLOAD CLASSIFICATION WITH OCR + NLP
@@ -884,6 +931,7 @@ async def grade_attempt(request: GradeAttemptRequest):
     _attempts[attempt_id]["percentage"] = percentage
     _attempts[attempt_id]["status"] = "graded"
     _attempts[attempt_id]["finished_at"] = datetime.utcnow().isoformat()
+    _attempts[attempt_id]["task_responses"] = request.task_responses
     
     # Store grading
     _gradings[f"grading-{attempt_id}"] = grading_result.model_dump()
@@ -1469,6 +1517,33 @@ async def get_attempt(attempt_id: str):
     if attempt_id not in _attempts:
         raise HTTPException(status_code=404, detail="Attempt not found")
     return _attempts[attempt_id]
+
+@router.get("/attempts/{attempt_id}/results")
+async def get_attempt_results(attempt_id: str):
+    """Return attempt, grading result, mock exam and user responses."""
+    if attempt_id not in _attempts:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    attempt = _attempts[attempt_id]
+    grading = attempt.get("grading_result") or _gradings.get(f"grading-{attempt_id}")
+
+    if not grading:
+        raise HTTPException(status_code=404, detail="Grading not yet complete")
+
+    mock_exam_id = attempt.get("mock_exam_id")
+    mock_exam = _mock_exams.get(mock_exam_id)
+
+    if not mock_exam:
+        raise HTTPException(status_code=404, detail="Mock exam not found")
+
+    task_responses = attempt.get("task_responses", [])
+
+    return {
+        "attempt": attempt,
+        "grading_result": grading,
+        "mock_exam": mock_exam,
+        "task_responses": task_responses,
+    }
 
 @router.get("/attempts/{attempt_id}/grading")
 async def get_grading(attempt_id: str):
