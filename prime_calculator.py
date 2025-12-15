@@ -35,7 +35,3 @@ if __name__ == "__main__":
     # Example usage
     limit = 50
     primes_up_to_limit = generate_primes(limit)
-    print(f"Prime numbers up to {limit}: {primes_up_to_limit}")
-```
-
-This code defines a function `generate_primes` that calculates all prime numbers up to a specified limit. It includes a helper function `is_prime` to check the primality of individual numbers. The main block demonstrates how to use these functions.

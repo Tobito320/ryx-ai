@@ -55,6 +55,46 @@ try:
 except ImportError:
     OCR_AVAILABLE = False
 
+# Rubric generation imports
+try:
+    from .rubric_generator import generate_rubric, IntelligentRubric
+    RUBRIC_GEN_AVAILABLE = True
+except ImportError:
+    RUBRIC_GEN_AVAILABLE = False
+    logger.warning("Rubric generator not available")
+
+# Semantic evaluator imports
+try:
+    from .semantic_evaluator import evaluate_answer_semantically, SemanticEvaluation
+    SEMANTIC_EVAL_AVAILABLE = True
+except ImportError:
+    SEMANTIC_EVAL_AVAILABLE = False
+    logger.warning("Semantic evaluator not available")
+
+# Pedagogical feedback imports
+try:
+    from .pedagogical_feedback import generate_task_feedback, generate_overall_exam_feedback, PedagogicalFeedback
+    PEDAGOGICAL_FEEDBACK_AVAILABLE = True
+except ImportError:
+    PEDAGOGICAL_FEEDBACK_AVAILABLE = False
+    logger.warning("Pedagogical feedback not available")
+
+# Learning analytics imports
+try:
+    from .learning_analytics import generate_learning_analytics, calculate_class_analytics, LearningAnalytics
+    LEARNING_ANALYTICS_AVAILABLE = True
+except ImportError:
+    LEARNING_ANALYTICS_AVAILABLE = False
+    logger.warning("Learning analytics not available")
+
+# Export utilities
+try:
+    from .export_utils import export_grading_result
+    EXPORT_UTILS_AVAILABLE = True
+except ImportError:
+    EXPORT_UTILS_AVAILABLE = False
+    logger.warning("Export utilities not available")
+
 from .fallback import build_ai_fallback_manager
 
 router = APIRouter(prefix="/api/exam/v2", tags=["exam-v2"])
@@ -65,6 +105,9 @@ ai_fallback = build_ai_fallback_manager()
 # ============================================================================
 # Configuration
 # ============================================================================
+
+# Rubric cache (in-memory for now, can be Redis in production)
+_rubric_cache: Dict[str, Any] = {}
 
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -142,6 +185,7 @@ class TaskGrade(BaseModel):
     confidence: int = Field(ge=0, le=100)
     rubric_breakdown: Optional[List[Dict[str, Any]]] = None
     improvement_suggestion: Optional[str] = None
+    pedagogical_feedback: Optional[Dict[str, Any]] = None  # NEW: Structured feedback per task
 
 class GradingResult(BaseModel):
     attempt_id: str
@@ -158,6 +202,7 @@ class GradingResult(BaseModel):
     manual_review_flagged: bool
     tasks_needing_review: List[str] = []
     created_at: str
+    learning_analytics: Optional[Dict[str, Any]] = None  # NEW: Learning analytics data
 
 class GradeAttemptRequest(BaseModel):
     attempt_id: str
@@ -1051,11 +1096,24 @@ async def grade_attempt(request: GradeAttemptRequest):
 
 @router.post("/jobs/grade-attempt", response_model=JobStartResponse)
 async def start_grade_attempt_job(request: GradeAttemptRequest):
+    """
+    Grade exam attempt with SSE progress indicators.
+    
+    NEW: Implements 8-stage pipeline progress tracking from XML spec:
+    - Stage 1: Document ingestion (already done at upload)
+    - Stage 2: Vision/OCR (already done at upload)
+    - Stage 3: Question standardization (implicit)
+    - Stage 4: Rubric generation (per question)
+    - Stage 5: Semantic evaluation (per answer)
+    - Stage 6: Feedback generation (per task)
+    - Stage 7: Grade aggregation + analytics
+    - Stage 8: Report generation
+    """
     job = _create_job(JobType.GRADE_ATTEMPT)
 
     async def run():
         job.status = JobStatus.RUNNING
-        await job.add_event({"type": "progress", "phase": "start", "percent": 0, "message": "Bewertung wird gestartet"})
+        await job.add_event({"type": "progress", "phase": "start", "percent": 0, "message": "🚀 Bewertungspipeline wird gestartet..."})
         try:
             attempt_id = request.attempt_id
             if attempt_id not in _attempts:
@@ -1073,7 +1131,8 @@ async def start_grade_attempt_job(request: GradeAttemptRequest):
             total_max = 0
             tasks_needing_review: List[str] = []
             confidence_sum = 0
-
+            
+            # Stage 4 & 5: Rubric generation + semantic evaluation per task
             for idx, task in enumerate(tasks):
                 task_id = task["id"]
                 task_type = task.get("type", "ShortAnswer")
@@ -1085,12 +1144,47 @@ async def start_grade_attempt_job(request: GradeAttemptRequest):
                 user_response = next((r for r in request.task_responses if r.get("task_id") == task_id), None)
                 user_answer = user_response.get("user_answer", "") if user_response else ""
 
-                percent = int((idx / total_tasks) * 100)
+                # Stage 4 progress: Rubric generation (if not pre-generated)
+                if not rubric and RUBRIC_GEN_AVAILABLE:
+                    percent = int((idx / total_tasks) * 80 * 0.2)  # First 20% of 80%
+                    await job.add_event({
+                        "type": "progress",
+                        "phase": "rubric_generation",
+                        "percent": percent,
+                        "message": f"📋 Generiere Bewertungskriterien für Aufgabe {idx + 1}/{total_tasks}...",
+                        "task_id": task_id,
+                    })
+                    
+                    # Check rubric cache first
+                    import hashlib
+                    cache_key = hashlib.md5(f"{question_text}:{task_type}:{max_points}".encode()).hexdigest()
+                    
+                    if cache_key in _rubric_cache:
+                        logger.info(f"Rubric cache HIT for {task_id}")
+                        rubric = _rubric_cache[cache_key]
+                    else:
+                        logger.info(f"Rubric cache MISS for {task_id}, generating...")
+                        try:
+                            intelligent_rubric = await generate_rubric(
+                                question_id=task_id,
+                                question_text=question_text,
+                                question_type=task_type,
+                                max_points=max_points,
+                                difficulty=task.get("difficulty", 3),
+                                model_answer=model_answer
+                            )
+                            rubric = intelligent_rubric.to_dict()
+                            _rubric_cache[cache_key] = rubric  # Cache for future
+                        except Exception as e:
+                            logger.warning(f"Rubric generation failed for {task_id}: {e}")
+
+                # Stage 5 progress: Semantic evaluation
+                percent = int((idx / total_tasks) * 80)  # Up to 80%
                 await job.add_event({
                     "type": "progress",
-                    "phase": "grading",
+                    "phase": "semantic_evaluation",
                     "percent": percent,
-                    "message": f"Bewerte Aufgabe {idx + 1}/{total_tasks}",
+                    "message": f"🔍 Evaluiere Antwort {idx + 1}/{total_tasks} (semantische Analyse)...",
                     "task_id": task_id,
                 })
 
@@ -1108,6 +1202,25 @@ async def start_grade_attempt_job(request: GradeAttemptRequest):
 
                 earned = grade_result["earned_points"]
                 confidence = grade_result["confidence"]
+                
+                # Stage 6 progress: Pedagogical feedback generation
+                pedagogical_feedback_dict = None
+                if PEDAGOGICAL_FEEDBACK_AVAILABLE:
+                    try:
+                        ped_feedback = await generate_task_feedback(
+                            task_id=task_id,
+                            question_text=question_text,
+                            earned_points=earned,
+                            max_points=max_points,
+                            percentage=(earned / max_points * 100) if max_points > 0 else 0,
+                            user_answer=user_answer,
+                            model_answer=model_answer,
+                            evaluation_rationale=grade_result["rationale"]
+                        )
+                        pedagogical_feedback_dict = ped_feedback.to_dict()
+                    except Exception as e:
+                        logger.warning(f"Pedagogical feedback generation failed for {task_id}: {e}")
+                
                 task_grade = TaskGrade(
                     task_id=task_id,
                     task_type=task_type,
@@ -1117,6 +1230,7 @@ async def start_grade_attempt_job(request: GradeAttemptRequest):
                     confidence=confidence,
                     rubric_breakdown=grade_result.get("rubric_breakdown"),
                     improvement_suggestion=grade_result.get("improvement"),
+                    pedagogical_feedback=pedagogical_feedback_dict,
                 )
 
                 task_grades.append(task_grade)
@@ -1126,12 +1240,50 @@ async def start_grade_attempt_job(request: GradeAttemptRequest):
                 if confidence < MIN_CONFIDENCE_GRADING:
                     tasks_needing_review.append(task_id)
 
-            await job.add_event({"type": "progress", "phase": "finalizing", "percent": 95, "message": "Ergebnis wird berechnet"})
+            # Stage 7: Grade aggregation + learning analytics
+            await job.add_event({"type": "progress", "phase": "learning_analytics", "percent": 90, "message": "📊 Aggregiere Noten und generiere Lernanalyse..."})
 
             percentage = (total_earned / total_max * 100) if total_max > 0 else 0
             grade, grade_text = calculate_german_grade(percentage)
             avg_confidence = confidence_sum // max(1, len(task_grades))
-            overall_feedback = generate_overall_feedback(task_grades, percentage, grade_text)
+            
+            # Generate learning analytics with topic mastery tracking
+            learning_analytics_dict = None
+            if LEARNING_ANALYTICS_AVAILABLE:
+                try:
+                    learning_analytics = await generate_learning_analytics(
+                        attempt_id=attempt_id,
+                        student_id=attempt.get("student_id"),
+                        exam_id=mock_exam_id,
+                        task_grades=[tg.model_dump() for tg in task_grades],
+                        tasks=tasks,
+                        overall_percentage=percentage,
+                        grade=grade,
+                        grade_text=grade_text
+                    )
+                    learning_analytics_dict = learning_analytics.to_dict()
+                except Exception as e:
+                    logger.warning(f"Learning analytics generation failed: {e}")
+            
+            # Stage 8: Report generation
+            await job.add_event({"type": "progress", "phase": "report_generation", "percent": 95, "message": "📄 Erstelle Bewertungsbericht..."})
+            
+            # Generate overall feedback (enhanced with pedagogical approach)
+            if PEDAGOGICAL_FEEDBACK_AVAILABLE:
+                try:
+                    overall_feedback_obj = await generate_overall_exam_feedback(
+                        task_feedbacks=[tg.pedagogical_feedback for tg in task_grades if tg.pedagogical_feedback],
+                        total_percentage=percentage,
+                        grade_text=grade_text,
+                        total_earned=total_earned,
+                        total_max=total_max
+                    )
+                    overall_feedback = overall_feedback_obj.to_full_message()
+                except Exception as e:
+                    logger.warning(f"Overall pedagogical feedback generation failed: {e}")
+                    overall_feedback = generate_overall_feedback(task_grades, percentage, grade_text)
+            else:
+                overall_feedback = generate_overall_feedback(task_grades, percentage, grade_text)
 
             grading_result = GradingResult(
                 attempt_id=attempt_id,
@@ -1148,6 +1300,7 @@ async def start_grade_attempt_job(request: GradeAttemptRequest):
                 manual_review_flagged=len(tasks_needing_review) > 0,
                 tasks_needing_review=tasks_needing_review,
                 created_at=datetime.utcnow().isoformat(),
+                learning_analytics=learning_analytics_dict,
             )
 
             _attempts[attempt_id]["grading_result"] = grading_result.model_dump()
@@ -1207,7 +1360,12 @@ async def grade_open_task(
     model_answer: str,
     rubric: Dict
 ) -> Dict:
-    """Grade open-ended task using AI."""
+    """
+    Grade open-ended task using semantic evaluation.
+    
+    NEW: Uses semantic evaluator for intelligent grading instead of
+    rigid keyword matching. Handles paraphrasing, German language tolerance.
+    """
     
     # Check if answer is too short
     if not user_answer or len(str(user_answer).strip()) < 10:
@@ -1219,7 +1377,29 @@ async def grade_open_task(
             "improvement": "Bitte beantworte die Frage vollständig."
         }
     
-    # Try AI grading (Ollama with Claude fallback)
+    # Try semantic evaluation first (NEW - Stage 5 implementation)
+    if SEMANTIC_EVAL_AVAILABLE:
+        try:
+            evaluation = await evaluate_answer_semantically(
+                student_answer=user_answer,
+                rubric=rubric,
+                question_text=question_text,
+                question_type=task_type,
+                model_answer=model_answer,
+                subject_context="it_service"  # TODO: Make configurable
+            )
+            
+            return {
+                "earned_points": evaluation.earned_points,
+                "rationale": evaluation.rationale,
+                "confidence": evaluation.confidence,
+                "rubric_breakdown": None,  # TODO: Convert components to breakdown
+                "improvement": evaluation.improvement_suggestion
+            }
+        except Exception as e:
+            logger.warning(f"Semantic evaluation failed: {e}, falling back to AI")
+    
+    # Fallback: Try AI grading (Ollama with Claude fallback)
     system_prompt = GRADING_SYSTEM_PROMPT
     user_prompt = GRADING_USER_TEMPLATE.format(
         task_type=task_type,
@@ -1254,7 +1434,7 @@ async def grade_open_task(
             "improvement": result.get("improvement")
         }
     
-    # Fallback: heuristic grading
+    # Last resort: heuristic grading
     return heuristic_grade(user_answer, model_answer, max_points, rubric)
 
 def heuristic_grade(user_answer: str, model_answer: str, max_points: int, rubric: Dict) -> Dict:
@@ -1983,6 +2163,264 @@ async def get_grading(attempt_id: str):
     if grading_id not in _gradings:
         raise HTTPException(status_code=404, detail="Grading not found")
     return _gradings[grading_id]
+
+
+# ============================================================================
+# NEW ENDPOINTS: Export, Teacher Dashboard, Manual Review
+# ============================================================================
+
+@router.get("/export-results/{attempt_id}")
+async def export_results(
+    attempt_id: str,
+    format: str = "json"  # json, pdf, excel
+):
+    """
+    Export grading results in specified format.
+    
+    Args:
+        attempt_id: Attempt identifier
+        format: 'json' (default), 'pdf', or 'excel'
+    
+    Returns:
+        File download with appropriate mime type
+    """
+    if not EXPORT_UTILS_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Export utilities not available")
+    
+    if attempt_id not in _attempts:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    
+    attempt = _attempts[attempt_id]
+    grading_result = attempt.get("grading_result")
+    
+    if not grading_result:
+        raise HTTPException(status_code=404, detail="Grading not complete")
+    
+    mock_exam_id = attempt.get("mock_exam_id")
+    mock_exam = _mock_exams.get(mock_exam_id, {})
+    
+    try:
+        file_bytes = export_grading_result(grading_result, mock_exam, format=format)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Export failed")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+    
+    # Determine mime type and filename
+    mime_types = {
+        "json": "application/json",
+        "pdf": "application/pdf",
+        "excel": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    }
+    
+    extensions = {
+        "json": "json",
+        "pdf": "pdf",
+        "excel": "xlsx"
+    }
+    
+    from fastapi.responses import Response
+    
+    return Response(
+        content=file_bytes,
+        media_type=mime_types.get(format, "application/octet-stream"),
+        headers={
+            "Content-Disposition": f"attachment; filename=bewertung_{attempt_id}.{extensions.get(format, 'bin')}"
+        }
+    )
+
+
+@router.get("/teacher/analytics")
+async def get_teacher_analytics(
+    exam_id: Optional[str] = None,
+    teacher_id: Optional[str] = None
+):
+    """
+    Teacher dashboard: class-wide analytics.
+    
+    Args:
+        exam_id: Filter by specific exam (optional)
+        teacher_id: Filter by teacher (optional)
+    
+    Returns:
+        Aggregate statistics across all attempts
+    """
+    if not LEARNING_ANALYTICS_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Learning analytics not available")
+    
+    # Filter attempts
+    filtered_attempts = []
+    
+    for attempt in _attempts.values():
+        # Filter by exam_id if specified
+        if exam_id and attempt.get("mock_exam_id") != exam_id:
+            continue
+        
+        # Filter by teacher_id if specified (via mock_exam)
+        if teacher_id:
+            mock_exam = _mock_exams.get(attempt.get("mock_exam_id"), {})
+            if mock_exam.get("teacher_id") != teacher_id:
+                continue
+        
+        # Only include graded attempts
+        if attempt.get("status") == "graded":
+            filtered_attempts.append(attempt)
+    
+    if not filtered_attempts:
+        return {
+            "total_attempts": 0,
+            "message": "No graded attempts found"
+        }
+    
+    # Calculate class analytics
+    try:
+        analytics = calculate_class_analytics(filtered_attempts)
+        return analytics
+    except Exception as e:
+        logger.exception("Class analytics calculation failed")
+        raise HTTPException(status_code=500, detail=f"Analytics calculation failed: {str(e)}")
+
+
+@router.get("/manual-review/queue")
+async def get_manual_review_queue(
+    min_confidence: int = 70,
+    teacher_id: Optional[str] = None
+):
+    """
+    Get queue of attempts needing manual review.
+    
+    Args:
+        min_confidence: Only show attempts below this confidence threshold
+        teacher_id: Filter by teacher (optional)
+    
+    Returns:
+        List of attempts flagged for manual review
+    """
+    
+    queue = []
+    
+    for attempt_id, attempt in _attempts.items():
+        # Skip ungraded
+        if attempt.get("status") != "graded":
+            continue
+        
+        grading_result = attempt.get("grading_result")
+        if not grading_result:
+            continue
+        
+        # Check if flagged or low confidence
+        flagged = grading_result.get("manual_review_flagged", False)
+        confidence = grading_result.get("grader_confidence", 100)
+        
+        if not flagged and confidence >= min_confidence:
+            continue
+        
+        # Filter by teacher
+        if teacher_id:
+            mock_exam = _mock_exams.get(attempt.get("mock_exam_id"), {})
+            if mock_exam.get("teacher_id") != teacher_id:
+                continue
+        
+        mock_exam_id = attempt.get("mock_exam_id")
+        mock_exam = _mock_exams.get(mock_exam_id, {})
+        
+        queue.append({
+            "attempt_id": attempt_id,
+            "mock_exam_id": mock_exam_id,
+            "exam_title": mock_exam.get("title", "Unbenannt"),
+            "percentage": grading_result.get("percentage", 0),
+            "grade": grading_result.get("grade", 0),
+            "confidence": confidence,
+            "tasks_needing_review": grading_result.get("tasks_needing_review", []),
+            "created_at": grading_result.get("created_at")
+        })
+    
+    # Sort by confidence (lowest first = highest priority)
+    queue.sort(key=lambda x: x["confidence"])
+    
+    return {
+        "queue_size": len(queue),
+        "items": queue
+    }
+
+
+@router.post("/manual-review/override")
+async def manual_review_override(request: ManualReviewOverrideRequest):
+    """
+    Teacher manually overrides AI grading for a task.
+    
+    Args:
+        request: Override details (attempt_id, task_id, new points, rationale)
+    
+    Returns:
+        Updated grading result
+    """
+    
+    attempt_id = request.attempt_id
+    task_id = request.task_id
+    
+    if attempt_id not in _attempts:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    
+    attempt = _attempts[attempt_id]
+    grading_result = attempt.get("grading_result")
+    
+    if not grading_result:
+        raise HTTPException(status_code=404, detail="Grading not complete")
+    
+    # Find task grade
+    task_grades = grading_result.get("task_grades", [])
+    task_grade = next((tg for tg in task_grades if tg["task_id"] == task_id), None)
+    
+    if not task_grade:
+        raise HTTPException(status_code=404, detail="Task not found in grading")
+    
+    # Store original for audit
+    original_points = task_grade["earned_points"]
+    original_rationale = task_grade["rationale"]
+    
+    # Update points
+    task_grade["earned_points"] = request.earned_points
+    task_grade["confidence"] = request.confidence
+    
+    # Update rationale
+    override_note = f"\n\n[MANUAL OVERRIDE by Teacher]\nOriginal: {original_points} pts - {original_rationale}\nNew: {request.earned_points} pts"
+    if request.rationale:
+        override_note += f"\nReason: {request.rationale}"
+    
+    task_grade["rationale"] = original_rationale + override_note
+    
+    # Recalculate totals
+    total_earned = sum(tg["earned_points"] for tg in task_grades)
+    total_max = sum(tg["max_points"] for tg in task_grades)
+    percentage = (total_earned / total_max * 100) if total_max > 0 else 0
+    grade, grade_text = calculate_german_grade(percentage)
+    
+    grading_result["total_score"] = total_earned
+    grading_result["percentage"] = round(percentage, 1)
+    grading_result["grade"] = grade
+    grading_result["grade_text"] = grade_text
+    
+    # Mark as manually reviewed
+    grading_result["manual_review_flagged"] = False
+    grading_result["manually_reviewed"] = True
+    grading_result["reviewed_at"] = datetime.utcnow().isoformat()
+    
+    # Update storage
+    _attempts[attempt_id]["grading_result"] = grading_result
+    _attempts[attempt_id]["total_score"] = total_earned
+    _attempts[attempt_id]["percentage"] = percentage
+    _attempts[attempt_id]["grade"] = grade
+    _attempts[attempt_id]["grade_text"] = grade_text
+    
+    _gradings[f"grading-{attempt_id}"] = grading_result
+    
+    return {
+        "success": True,
+        "updated_grading": grading_result
+    }
+
 
 @router.get("/attempts/{attempt_id}/results")
 async def get_attempt_results(attempt_id: str):

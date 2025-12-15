@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  ryx-sandbox:
+    build: .
+    container_name: ryx_agent_sandbox
+    
+    # SECURITY: Drop all capabilities, add only needed ones
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+    
+    # SECURITY: Read-only filesystem
+    read_only: true
+    tmpfs:
+      - /tmp:size=1G,mode=1777
+      - /var/run:size=100M
+    
+    # SECURITY: Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    
+    # SECURITY: Network isolation
+    networks:
+      - sandbox_network
+    
+    # SECURITY: No privilege escalation
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./seccomp-profile.json
+    
+    # SECURITY: Run as non-root user
+    user: "1000:1000"
+    
+    environment:
+      - SANDBOX_MODE=true
+      - ALLOWED_DOMAINS=*.wikipedia.org,*.stackoverflow.com,*.github.com,*.itil.org
+      - MAX_EXECUTION_TIME=60s
+    
+    volumes:
+      - ./workspace:/workspace:ro
+      - sandbox_output:/output
+
+networks:
+  sandbox_network:
+    driver: bridge
+    internal: true
+
+volumes:
+  sandbox_output:

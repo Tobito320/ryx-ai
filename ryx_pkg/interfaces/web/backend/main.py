@@ -610,6 +610,13 @@ app.add_middleware(
 from ryx_pkg.interfaces.web.backend.exam_api_v2 import router as exam_router_v2
 app.include_router(exam_router_v2)
 
+# Include WebSocket streaming router
+try:
+    from ryx_pkg.interfaces.web.backend.streaming import router as streaming_router
+    app.include_router(streaming_router)
+except ImportError as e:
+    print(f"Warning: Streaming router not available: {e}")
+
 # =============================================================================
 # Health & Status Endpoints
 # =============================================================================
