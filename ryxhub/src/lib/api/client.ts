@@ -360,19 +360,18 @@ export const ryxApi = {
     images?: string[],
     style?: string,
     systemPrompt?: string,
-    memories?: string[]
-  ): Promise<Message & { tools_used?: string[]; confidence?: number; language?: string; warnings?: string[] }> {
+    memories?: string[],
+    toolRestrictions?: Record<string, boolean>
+  ): Promise<Message & { tools_used?: string[]; confidence?: number; language?: string; warnings?: string[]; email_draft?: any }> {
     const modelToUse = model || 'qwen2.5-coder:7b';
-    const needsWebSearch = tools?.includes('websearch');
-    const useMemory = tools?.includes('memory');
 
     const payload: any = {
       message,
       model: modelToUse,
-      use_search: needsWebSearch,  // Backend will also auto-detect when needed
       style: style || 'normal',
       history: history || [],
       session_id: sessionId,
+      tool_restrictions: toolRestrictions || {}, // Pass restrictions, backend decides tools automatically
     };
 
     if (images && images.length > 0) {
@@ -399,6 +398,7 @@ export const ryxApi = {
         warnings?: string[];
         memories_used?: Array<{ category: string; fact: string; score: number }>;
         tool_decisions?: string[];
+        email_draft?: any;
       }>(
         '/api/chat/smart',
         {
@@ -433,6 +433,7 @@ export const ryxApi = {
         warnings: response.warnings,
         memories_used: response.memories_used,
         tool_decisions: response.tool_decisions,
+        email_draft: response.email_draft,
       };
     } catch (error) {
       if (error instanceof RyxApiError) throw error;
@@ -717,5 +718,49 @@ function getWebSocketUrl(path: string): string {
   const wsUrl = API_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
   return `${wsUrl}${path}`;
 }
+
+// ============ Gmail OAuth API ============
+
+export const gmailApi = {
+  async getAuthStatus(userId: string = 'default'): Promise<{
+    authenticated: boolean;
+    email: string | null;
+    expired?: boolean;
+  }> {
+    return apiRequest(`/api/gmail/auth/status?user_id=${userId}`);
+  },
+
+  async startAuth(clientConfig: Record<string, any>): Promise<{ auth_url: string }> {
+    return apiRequest('/api/gmail/auth/start', {
+      method: 'POST',
+      body: JSON.stringify({ client_config: clientConfig }),
+    });
+  },
+
+  async revokeAuth(userId: string = 'default'): Promise<{ success: boolean }> {
+    return apiRequest('/api/gmail/auth/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    });
+  },
+
+  async sendEmail(draft: {
+    to: string;
+    subject: string;
+    body: string;
+    from?: string;
+  }, userId: string = 'default'): Promise<{
+    success: boolean;
+    message_id?: string;
+    thread_id?: string;
+    sent_at?: string;
+  }> {
+    return apiRequest('/api/email/send', {
+      method: 'POST',
+      body: JSON.stringify({ draft, user_id: userId }),
+      timeout: 30000, // 30s timeout for email send
+    });
+  },
+};
 
 export default ryxApi;

@@ -36,9 +36,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "http://localhost:8888")
 API_PORT = int(os.environ.get("RYX_API_PORT", "8420"))
+API_BASE_URL = f"http://localhost:{API_PORT}"  # For internal API calls
 
-# Default model for RyxHub (fast, small model)
-DEFAULT_MODEL = "qwen2.5:1.5b"
+# Default model for RyxHub - can be overridden via environment variable
+# Options: local Ollama models or Together AI models
+DEFAULT_MODEL = os.environ.get("RYX_DEFAULT_MODEL", "qwen2.5:1.5b")
 
 # Paths
 DATA_DIR = Path("/home/tobi/ryx-ai/data")
@@ -776,7 +778,7 @@ async def get_last_model():
     last_model_file = Path("/home/tobi/ryx-ai/data/last_model")
     if last_model_file.exists():
         return {"model": last_model_file.read_text().strip()}
-    return {"model": "qwen2.5:1.5b"}
+        return {"model": DEFAULT_MODEL}
 
 # =============================================================================
 # Chat Endpoints
@@ -857,7 +859,7 @@ Message to analyze:"""
         ]
         
         # Use a fast model for extraction
-        response = await ollama_chat(messages, "qwen2.5:1.5b")
+        response = await ollama_chat(messages, DEFAULT_MODEL)
         content = response.get("content", "").strip()
         
         # Parse JSON response
@@ -994,6 +996,80 @@ def should_search_autonomously(message: str, retrieved_memories: List[Dict] = No
     return (False, "No search trigger found")
 
 
+def detect_email_intent(message: str) -> bool:
+    """
+    Lightweight email intent detector.
+    Triggers when user asks to write/compose/send an email, including German terms like "kündigung".
+    """
+    email_keywords = [
+        "email", "e-mail", "mail", "compose", "send email", "write email", "compose email",
+        "kündigung", "kuendigung", "termination", "cancellation", "anschreiben", "brief", "anschreiben verfassen"
+    ]
+    msg_lower = message.lower()
+    return any(kw in msg_lower for kw in email_keywords)
+
+
+def build_email_draft(message: str, retrieved_memories: List[Dict], search_result: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Build a simple email draft using available memory and optional search results.
+    This is intentionally minimal; frontend can refine further.
+    """
+    user_name = "Tobi"
+    user_address = ""
+    user_email = ""
+
+    # Extract from memories if available
+    for mem in retrieved_memories or []:
+        fact = mem.get("fact", "")
+        if "@" in fact and "email" in fact.lower():
+            user_email = fact
+        if any(term in fact.lower() for term in ["address", "straße", "strasse", "straße", "wohn"]):
+            user_address = fact
+        if any(term in fact.lower() for term in ["i am", "ich bin", "mein name", "name", "heiße", "heisse"]):
+            user_name = fact.replace("Mein Name ist", "").replace("mein Name ist", "").strip()
+
+    # Try to extract a recipient email from search results
+    recipient_email = ""
+    if search_result and search_result.get("results"):
+        for r in search_result["results"]:
+            content = r.get("content", "")
+            if "@" in content and "vodafone" in content.lower():
+                # Very naive extraction: grab first token containing @
+                tokens = content.split()
+                for t in tokens:
+                    if "@" in t and "." in t:
+                        recipient_email = t.strip().strip(".,;")
+                        break
+            if recipient_email:
+                break
+
+    subject = "E-Mail Entwurf"
+    if "kündigung" in message.lower():
+        subject = "Kündigung meines Vertrags"
+
+    body_lines = [
+        "Sehr geehrte Damen und Herren,",
+        "",
+        "ich möchte hiermit ",
+        "",
+        "Mit freundlichen Grüßen,",
+        user_name if user_name else " "
+    ]
+
+    return {
+        "id": f"email-draft-{int(time.time())}",
+        "to": recipient_email or "kundenservice@example.com",
+        "from": user_email or "your-email@example.com",
+        "subject": subject,
+        "body": "\n".join(body_lines),
+        "metadata": {
+            "user_address": user_address,
+            "user_name": user_name,
+            "source": "backend-auto-draft"
+        }
+    }
+
+
 @app.post("/api/chat/smart")
 async def smart_chat(data: Dict[str, Any]):
     """
@@ -1011,13 +1087,14 @@ async def smart_chat(data: Dict[str, Any]):
     
     message = data.get("message", "")
     model = data.get("model", DEFAULT_MODEL)
-    explicit_search = data.get("use_search", False)
     images = data.get("images", [])
     style = data.get("style", "normal")
     system_prompt_override = data.get("system_prompt", None)
     history = data.get("history", [])
     client_memories = data.get("memories", [])
     session_id = data.get("session_id", None)
+    tool_restrictions = data.get("tool_restrictions", {})  # { "websearch": false, "rag": false, etc. }
+    search_result = None
     
     if not message:
         raise HTTPException(status_code=400, detail="Message required")
@@ -1034,15 +1111,18 @@ async def smart_chat(data: Dict[str, Any]):
     tool_decisions.append(f"Tool gate: {use_tools} ({tool_gate_reason})")
     
     # =========================================================================
-    # STEP 1: MEMORY RETRIEVAL (Only if tool gate passes)
+    # STEP 1: MEMORY RETRIEVAL (Only if tool gate passes and not restricted)
     # =========================================================================
-    if use_tools:
+    memory_allowed = tool_restrictions.get("memory", True) != False  # Default to allowed
+    if use_tools and memory_allowed:
         # Retrieve memories BEFORE any other decision
         retrieved_memories = memory_retrieve_smart(message, limit=10)
         
         if retrieved_memories:
             tools_used.append("memory_retrieve")
             tool_decisions.append(f"Retrieved {len(retrieved_memories)} memories")
+    elif not memory_allowed:
+        tool_decisions.append("Memory tool disabled by session settings")
     
     # =========================================================================
     # STEP 2: AUTONOMOUS TOOL DECISION (Based on memories!)
@@ -1050,13 +1130,15 @@ async def smart_chat(data: Dict[str, Any]):
     language = detect_language(message)
     language_prompt = get_language_prompt(language)
     
-    # Decide search AFTER checking memories (only if tool gate passed)
+    # Decide search AFTER checking memories (only if tool gate passed and not restricted)
     needs_search = False
     search_reason = "Tool gate blocked"
+    websearch_allowed = tool_restrictions.get("websearch", True) != False
     
-    if use_tools:
+    if use_tools and websearch_allowed:
         needs_search, search_reason = should_search_autonomously(message, retrieved_memories)
-        needs_search = needs_search or explicit_search
+    elif not websearch_allowed:
+        search_reason = "Web search disabled by session settings"
     
     tool_decisions.append(f"Search decision: {needs_search} ({search_reason})")
     
@@ -1161,6 +1243,57 @@ Be precise and structured. Reference stored facts accurately."""
             tool_decisions.append("Search failed: no results")
     
     system_prompt += search_context
+    
+    # =========================================================================
+    # RAG RETRIEVAL (If allowed and needed)
+    # =========================================================================
+    rag_context = ""
+    rag_allowed = tool_restrictions.get("rag", True) != False
+    if use_tools and rag_allowed:
+        # Check if RAG would be useful for this query
+        rag_query = message.lower()
+        rag_keywords = ['document', 'file', 'knowledge', 'remember', 'doc', 'pdf', 'note']
+        if any(kw in rag_query for kw in rag_keywords) or len(message) > 50:
+            # Try RAG search - use semantic search if available
+            try:
+                # Import RAG search function if available
+                try:
+                    from ryx_pkg.rag.semantic_search import SemanticSearch
+                    search_engine = SemanticSearch()
+                    rag_results = search_engine.search(message, top_k=5)
+                    if rag_results and len(rag_results) > 0:
+                        rag_context = "\n\n📚 RELEVANT DOCUMENTS:\n"
+                        for r in rag_results[:3]:
+                            content = r.content if hasattr(r, 'content') else str(r)
+                            rag_context += f"• {content[:200]}...\n"
+                        tools_used.append("rag_search")
+                        tool_decisions.append("RAG search performed")
+                except ImportError:
+                    # Fallback: try HTTP endpoint if RAG module not available
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post(
+                                f"{API_BASE_URL}/api/rag/search",
+                                json={"query": message, "top_k": 5},
+                                timeout=aiohttp.ClientTimeout(total=5)
+                            ) as resp:
+                                if resp.status == 200:
+                                    rag_results = await resp.json()
+                                    if rag_results and rag_results.get("results"):
+                                        rag_context = "\n\n📚 RELEVANT DOCUMENTS:\n"
+                                        for r in rag_results["results"][:3]:
+                                            content = r.get('content', r.get('text', ''))
+                                            rag_context += f"• {content[:200]}...\n"
+                                        tools_used.append("rag_search")
+                                        tool_decisions.append("RAG search performed")
+                    except Exception:
+                        tool_decisions.append("RAG search unavailable")
+            except Exception as e:
+                tool_decisions.append(f"RAG search failed: {str(e)}")
+    elif not rag_allowed:
+        tool_decisions.append("RAG tool disabled by session settings")
+    
+    system_prompt += rag_context
     system_prompt += language_prompt
     
     # =========================================================================
@@ -1208,6 +1341,14 @@ Be precise and structured. Reference stored facts accurately."""
     
     # Cap confidence
     confidence = max(0.3, min(0.98, confidence))
+
+    # =========================================================================
+    # STEP 7b: EMAIL INTENT DETECTION
+    # =========================================================================
+    email_draft = None
+    if detect_email_intent(message):
+        email_draft = build_email_draft(message, retrieved_memories, search_result)
+        tool_decisions.append("Email intent detected - prepared draft")
     
     # =========================================================================
     # STEP 7: LEARN FROM CONVERSATION (Only PERSONA facts)
@@ -1278,7 +1419,8 @@ Be precise and structured. Reference stored facts accurately."""
         "language": language,
         "warnings": warnings,
         "memories_used": [{"category": m.get("category"), "fact": m.get("fact"), "score": m.get("match_score", m.get("relevance_score", 0))} for m in retrieved_memories[:5]],
-        "tool_decisions": tool_decisions
+        "tool_decisions": tool_decisions,
+        "email_draft": email_draft
     }
 
 # =============================================================================
@@ -1297,6 +1439,162 @@ async def search(q: str):
         raise HTTPException(status_code=500, detail=result["error"])
     
     return result
+
+
+# =============================================================================
+# Email Endpoints (Draft + Send)
+# =============================================================================
+
+@app.post("/api/email/compose")
+async def compose_email(data: Dict[str, Any]):
+    """
+    AI-assisted email composition.
+    Returns a draft with best-effort recipient detection and user info from memories.
+    """
+    prompt = data.get("prompt", "")
+    recipient = data.get("recipient", "")
+    memories = data.get("memories", [])
+
+    # Optionally try to find recipient contact via search
+    search_result = None
+    if recipient:
+        try:
+            search_result = await searxng_search(f"{recipient} kontakt email")
+        except Exception:
+            search_result = None
+
+    draft = build_email_draft(prompt or recipient, memories, search_result)
+    return {
+        "draft": draft,
+        "sources": {
+            "recipient_search": bool(search_result),
+            "memories_used": len(memories)
+        }
+    }
+
+
+@app.post("/api/email/send")
+async def send_email_endpoint(data: Dict[str, Any]):
+    """
+    Send email via Gmail API using stored OAuth tokens.
+    Requires user to be authenticated via OAuth flow.
+    """
+    from ryx_pkg.interfaces.web.backend.gmail_oauth import load_tokens, send_email as gmail_send
+    
+    draft = data.get("draft", {})
+    user_id = data.get("user_id", "default")  # Session-based user ID
+    
+    if not draft or not draft.get("to"):
+        raise HTTPException(status_code=400, detail="Missing recipient")
+    
+    # Load OAuth credentials
+    credentials = load_tokens(user_id)
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail="Gmail not connected. Please authorize in settings."
+        )
+    
+    # Send email
+    result = gmail_send(
+        credentials=credentials,
+        to=draft.get("to"),
+        subject=draft.get("subject", ""),
+        body=draft.get("body", ""),
+        from_email=draft.get("from")
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Send failed"))
+    
+    return {
+        "success": True,
+        "message_id": result.get("message_id"),
+        "thread_id": result.get("thread_id"),
+        "sent_at": datetime.utcnow().isoformat()
+    }
+
+# =============================================================================
+# Gmail OAuth Endpoints
+# =============================================================================
+
+@app.get("/api/gmail/auth/status")
+async def gmail_auth_status(user_id: str = "default"):
+    """Check if user has valid Gmail authorization."""
+    from ryx_pkg.interfaces.web.backend.gmail_oauth import check_auth_status
+    return check_auth_status(user_id)
+
+
+@app.post("/api/gmail/auth/start")
+async def gmail_auth_start(data: Dict[str, Any]):
+    """
+    Start Gmail OAuth flow.
+    Returns authorization URL for user to visit.
+    Requires client_config with OAuth credentials from Google Cloud Console.
+    """
+    from ryx_pkg.interfaces.web.backend.gmail_oauth import get_authorization_url
+    
+    client_config = data.get("client_config")
+    if not client_config:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing OAuth client config. Set up credentials in Google Cloud Console."
+        )
+    
+    try:
+        auth_url = get_authorization_url(client_config)
+        return {"auth_url": auth_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gmail/oauth/callback")
+async def gmail_oauth_callback(code: str, state: Optional[str] = None, user_id: str = "default"):
+    """
+    OAuth callback endpoint.
+    Google redirects here after user authorizes.
+    """
+    from ryx_pkg.interfaces.web.backend.gmail_oauth import exchange_code_for_tokens, save_tokens, get_user_email
+    
+    if not code:
+        raise HTTPException(status_code=400, detail="No authorization code provided")
+    
+    # Load client config from data directory
+    client_config_file = DATA_DIR / "gmail_client_config.json"
+    if not client_config_file.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="Gmail OAuth not configured. Add gmail_client_config.json to data/"
+        )
+    
+    try:
+        client_config = json.loads(client_config_file.read_text())
+        credentials = exchange_code_for_tokens(code, client_config)
+        save_tokens(user_id, credentials)
+        
+        email = get_user_email(credentials)
+        
+        # Redirect to success page
+        return {
+            "success": True,
+            "message": "Gmail connected successfully",
+            "email": email
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OAuth failed: {str(e)}")
+
+
+@app.post("/api/gmail/auth/revoke")
+async def gmail_auth_revoke(data: Dict[str, Any]):
+    """Revoke Gmail authorization and delete stored tokens."""
+    from ryx_pkg.interfaces.web.backend.gmail_oauth import revoke_tokens
+    
+    user_id = data.get("user_id", "default")
+    revoke_tokens(user_id)
+    
+    return {"success": True, "message": "Gmail disconnected"}
+
 
 # =============================================================================
 # Memory Endpoints

@@ -33,3 +33,10 @@ Pillow>=10.0.0  # Image processing
 
 # Optional - Claude API for OCR fallback
 anthropic>=0.40.0  # Claude API client (optional, for Vision OCR fallback)
+
+# Gmail OAuth & API (Email functionality)
+google-auth>=2.25.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.110.0
+cryptography>=41.0.0  # Token encryption

@@ -146,6 +146,7 @@ export interface Message {
   // Variant support
   variants?: MessageVariant[];
   activeVariant?: number; // Index of active variant (0 = original)
+  emailDraft?: EmailDraft;
 }
 
 export interface MemoryUsed {

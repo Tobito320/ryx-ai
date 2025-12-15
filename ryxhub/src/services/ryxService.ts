@@ -45,7 +45,7 @@ export interface RyxService {
   updateSessionTools: typeof ryxApi.updateSessionTools;
   
   // Chat
-  sendMessage: typeof ryxApi.sendMessage;
+  sendMessage: (sessionId: string, message: string, model?: string, history?: Array<{ role: "user" | "assistant"; content: string }>, tools?: string[], images?: string[], style?: string, systemPrompt?: string, memories?: string[], toolRestrictions?: Record<string, boolean>) => ReturnType<typeof ryxApi.sendMessage>;
   getStreamUrl: typeof ryxApi.getStreamUrl;
   
   // RAG
@@ -93,8 +93,8 @@ function createRyxService(): RyxService {
         // Mock implementation
         return { success: true, sessionId, tools: { [toolId]: enabled } };
       },
-      sendMessage: (sessionId: string, message: string, model?: string, history?: Array<{ role: "user" | "assistant"; content: string }>, tools?: string[]) => 
-        mockApi.sendMessage(sessionId, message, model, history, tools),
+      sendMessage: (sessionId: string, message: string, model?: string, history?: Array<{ role: "user" | "assistant"; content: string }>, tools?: string[], images?: string[], style?: string, systemPrompt?: string, memories?: string[], toolRestrictions?: Record<string, boolean>) => 
+        mockApi.sendMessage(sessionId, message, model, history, tools, images, style, systemPrompt, memories, toolRestrictions),
       getStreamUrl: (sessionId: string) => `mock://stream/${sessionId}`,
       getRagStatus: () => mockApi.getRagStatus(),
       triggerRagSync: () => mockApi.triggerRagSync(),

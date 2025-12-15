@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, AlertTriangle, MoreHorizontal } from "lucide-react";
+import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, AlertTriangle, MoreHorizontal, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,10 +10,11 @@ import { cn } from "@/lib/utils";
 import { useRyxHub } from "@/context/RyxHubContext";
 import { useSendMessage, useModels } from "@/hooks/useRyxApi";
 import { toast } from "sonner";
-import { type ToolConfig } from "@/components/ryxhub/ToolsPanel";
 import { getModelDisplayName } from "@/types/ryxhub";
 import { MessageActionsMenu } from "./MessageActionsMenu";
 import { VariantSelector } from "./VariantSelector";
+import { gmailApi } from "@/lib/api/client";
+import { GmailSettingsPanel } from "./GmailSettingsPanel";
 
 // Icon map for tools
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -47,14 +48,15 @@ interface MessageStats {
   language?: string;
 }
 
-const DEFAULT_MODEL = "/models/medium/general/qwen2.5-7b-gptq";
+// Default model - can be overridden via environment variable or settings
+const DEFAULT_MODEL = import.meta.env.VITE_DEFAULT_MODEL || "/models/medium/general/qwen2.5-7b-gptq";
 
-// Default tools - websearch and rag enabled
-const defaultTools: ToolConfig[] = [
-  { id: "websearch", name: "Web Search", description: "Auto-searches when needed", icon: "Search", enabled: true },
-  { id: "rag", name: "RAG", description: "Query knowledge base", icon: "Database", enabled: true },
-  { id: "memory", name: "Memory", description: "Remember context", icon: "Brain", enabled: true },
-  { id: "scrape", name: "Scraper", description: "Extract from websites", icon: "Globe", enabled: false },
+// Available tools for restriction settings
+const defaultTools = [
+  { id: "websearch", name: "Web Search", description: "Auto-searches when needed", icon: "Search" },
+  { id: "rag", name: "RAG", description: "Query knowledge base", icon: "Database" },
+  { id: "memory", name: "Memory", description: "Remember context", icon: "Brain" },
+  { id: "scrape", name: "Scraper", description: "Extract from websites", icon: "Globe" },
 ];
 
 export function ChatView() {
@@ -64,7 +66,6 @@ export function ChatView() {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
   const [lastStats, setLastStats] = useState<MessageStats | null>(null);
-  const [tools, setTools] = useState<ToolConfig[]>(defaultTools);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -72,7 +73,9 @@ export function ChatView() {
   const [sessionSettingsOpen, setSessionSettingsOpen] = useState(false);
   const [sessionSystemPrompt, setSessionSystemPrompt] = useState("");
   const [sessionStyle, setSessionStyle] = useState("normal");
+  const [sessionToolRestrictions, setSessionToolRestrictions] = useState<Record<string, boolean>>({});
   const [contextMenu, setContextMenu] = useState<{ messageId: string; position: { x: number; y: number } } | null>(null);
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -85,29 +88,9 @@ export function ChatView() {
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
   const messages = currentSession?.messages ?? [];
   
-  // Load session tools and style when session changes
+  // Load session settings when session changes
   useEffect(() => {
     if (!currentSession?.id) return;
-    
-    // Load tools from session or localStorage
-    const savedTools = localStorage.getItem(`session-tools-${currentSession.id}`);
-    if (savedTools) {
-      try {
-        const toolState = JSON.parse(savedTools);
-        setTools(prev => prev.map(t => ({
-          ...t,
-          enabled: toolState[t.id] ?? t.enabled
-        })));
-      } catch {}
-    } else if (currentSession?.tools) {
-      setTools(prev => prev.map(t => ({
-        ...t,
-        enabled: currentSession.tools?.[t.id] ?? t.enabled
-      })));
-    } else {
-      // Reset to defaults for new session
-      setTools(defaultTools);
-    }
     
     // Load style and system prompt
     const savedStyle = localStorage.getItem(`session-style-${currentSession.id}`);
@@ -115,6 +98,16 @@ export function ChatView() {
     
     const savedPrompt = localStorage.getItem(`session-systemprompt-${currentSession.id}`);
     setSessionSystemPrompt(savedPrompt || '');
+    
+    // Load tool restrictions (disabled tools)
+    const savedRestrictions = localStorage.getItem(`session-tool-restrictions-${currentSession.id}`);
+    if (savedRestrictions) {
+      try {
+        setSessionToolRestrictions(JSON.parse(savedRestrictions));
+      } catch {}
+    } else {
+      setSessionToolRestrictions({});
+    }
   }, [currentSession?.id]);
 
   // Set initial model - auto-switch if selected model not loaded
@@ -237,7 +230,6 @@ export function ChatView() {
       const storedMemories = localStorage.getItem('ryxhub_user_memories');
       const userMemories = storedMemories ? JSON.parse(storedMemories) : [];
       
-      const enabledTools = tools.filter(t => t.enabled).map(t => t.id);
       const history = buildConversationHistory();
       
       const response = await sendMessageMutation.mutateAsync({
@@ -245,7 +237,7 @@ export function ChatView() {
         message: userMessage,
         model: selectedModel,
         history,
-        tools: enabledTools,
+        toolRestrictions: sessionToolRestrictions, // Pass restrictions, AI decides what to use
         images: images.length > 0 ? images : undefined,
         style: sessionStyle,
         systemPrompt: sessionSystemPrompt,
@@ -271,6 +263,7 @@ export function ChatView() {
         confidence: response.confidence,
         memoriesUsed: response.memories_used || [],
         toolDecisions: response.tool_decisions || [],
+        emailDraft: (response as any).email_draft,
       });
 
       // Show warnings as toast (auto-dismiss)
@@ -414,7 +407,7 @@ export function ChatView() {
         message: modifiedPrompt,
         model: selectedModel,
         history,
-        tools: tools.filter(t => t.enabled).map(t => t.id),
+        toolRestrictions: sessionToolRestrictions,
       });
       
       // Add as variant to the existing message
@@ -449,21 +442,6 @@ export function ChatView() {
     toast.success(`Model: ${getModelDisplayName(modelId)}`);
   };
 
-  const handleToolToggle = (toolId: string, enabled: boolean) => {
-    setTools(prev => {
-      const updated = prev.map(t => t.id === toolId ? { ...t, enabled } : t);
-      // Save to localStorage
-      if (selectedSessionId) {
-        const toolState: Record<string, boolean> = {};
-        updated.forEach(t => toolState[t.id] = t.enabled);
-        localStorage.setItem(`session-tools-${selectedSessionId}`, JSON.stringify(toolState));
-      }
-      return updated;
-    });
-    if (selectedSessionId) {
-      updateSessionTools(selectedSessionId, toolId, enabled);
-    }
-  };
 
   const handleClearChat = () => {
     if (selectedSessionId) {
@@ -481,6 +459,7 @@ export function ChatView() {
       } else {
         localStorage.removeItem(`session-systemprompt-${selectedSessionId}`);
       }
+      localStorage.setItem(`session-tool-restrictions-${selectedSessionId}`, JSON.stringify(sessionToolRestrictions));
       toast.success("Session settings saved");
       setSessionSettingsOpen(false);
     }
@@ -493,6 +472,41 @@ export function ChatView() {
     { id: "learning", name: "Learning", description: "Step-by-step teaching" },
     { id: "formal", name: "Formal", description: "Professional language" },
   ];
+
+  const handleSendEmail = async (messageId: string, draft: any) => {
+    if (!draft) return;
+    
+    setSendingEmail(messageId);
+    
+    try {
+      const result = await gmailApi.sendEmail({
+        to: draft.to,
+        subject: draft.subject,
+        body: draft.body,
+        from: draft.from
+      });
+      
+      if (result.success) {
+        toast.success(`Email sent to ${draft.to}`, {
+          description: `Message ID: ${result.message_id?.slice(0, 8)}...`
+        });
+      } else {
+        toast.error("Failed to send email");
+      }
+    } catch (error: any) {
+      if (error.message?.includes("not connected")) {
+        toast.error("Gmail not connected", {
+          description: "Go to Settings → Connect Gmail to authorize"
+        });
+      } else {
+        toast.error("Failed to send email", {
+          description: error.message || "Unknown error"
+        });
+      }
+    } finally {
+      setSendingEmail(null);
+    }
+  };
 
   if (!currentSession) {
     return (
@@ -615,6 +629,53 @@ export function ChatView() {
                       )}
                       
                       <div className="whitespace-pre-wrap">{displayContent}</div>
+
+                      {/* Email draft preview if generated */}
+                      {message.role === "assistant" && message.emailDraft && (
+                        <div className="mt-2 p-3 rounded-lg bg-card border border-border/50 text-xs space-y-2">
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <Mail className="w-4 h-4" />
+                            Email draft prepared
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><span className="text-muted-foreground">To:</span> {message.emailDraft.to}</div>
+                            <div><span className="text-muted-foreground">From:</span> {message.emailDraft.from}</div>
+                            <div className="col-span-2"><span className="text-muted-foreground">Subject:</span> {message.emailDraft.subject}</div>
+                          </div>
+                          <div className="p-2 rounded bg-muted/60 text-[11px] whitespace-pre-wrap max-h-40 overflow-y-auto">
+                            {message.emailDraft.body}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-7 px-2 text-xs"
+                              disabled
+                            >
+                              Open editor (coming soon)
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              className="h-7 px-2 text-xs" 
+                              variant="default"
+                              onClick={() => handleSendEmail(message.id, message.emailDraft)}
+                              disabled={sendingEmail === message.id}
+                            >
+                              {sendingEmail === message.id ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                  Sending...
+                                </>
+                              ) : (
+                                <>
+                                  <Mail className="w-3 h-3 mr-1" />
+                                  Send Email
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Variant selector - only for assistant messages with variants */}
                       {message.role === "assistant" && message.variants && message.variants.length > 0 && selectedSessionId && (
@@ -701,31 +762,9 @@ export function ChatView() {
           </div>
       </ScrollArea>
 
-      {/* ChatGPT-style Input Area with Tool Toggles */}
+      {/* ChatGPT-style Input Area */}
       <div className="border-t border-border bg-background shrink-0">
         <div className="max-w-3xl mx-auto p-4">
-          {/* Tool Toggles - ChatGPT Style */}
-          <div className="flex items-center gap-2 mb-2">
-            {tools.map((tool) => {
-              const Icon = typeof tool.icon === 'string' ? iconMap[tool.icon] || Wrench : tool.icon;
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => handleToolToggle(tool.id, !tool.enabled)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all",
-                    tool.enabled
-                      ? "bg-primary/10 text-primary border border-primary/30"
-                      : "bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted"
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tool.name}</span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* File Uploads */}
           <div ref={dropZoneRef} className={cn("relative", isDragging && "bg-primary/10 rounded-lg")}
             onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}>
@@ -822,7 +861,59 @@ export function ChatView() {
                 This overrides the style prompt. Leave empty to use style-based prompt.
               </p>
             </div>
+            <div className="space-y-2">
+              <Label>Tool Restrictions</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Disable specific tools for this session. The AI will automatically decide which tools to use, but will not use disabled ones.
+              </p>
+              <div className="space-y-2">
+                {defaultTools.map((tool) => {
+                  const Icon = typeof tool.icon === 'string' ? iconMap[tool.icon] || Wrench : tool.icon;
+                  const isDisabled = sessionToolRestrictions[tool.id] === false;
+                  return (
+                    <div key={tool.id} className="flex items-center justify-between p-2 rounded-lg border border-border">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-4 h-4" />
+                        <div>
+                          <div className="text-sm font-medium">{tool.name}</div>
+                          <div className="text-xs text-muted-foreground">{tool.description}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newRestrictions = { ...sessionToolRestrictions };
+                          if (isDisabled) {
+                            delete newRestrictions[tool.id];
+                          } else {
+                            newRestrictions[tool.id] = false;
+                          }
+                          setSessionToolRestrictions(newRestrictions);
+                        }}
+                        className={cn(
+                          "px-3 py-1 rounded text-xs font-medium transition-colors",
+                          isDisabled
+                            ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                            : "bg-muted hover:bg-muted/80"
+                        )}
+                      >
+                        {isDisabled ? "Disabled" : "Enabled"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
+          
+          {/* Gmail Integration */}
+          <div className="space-y-2 pt-4 border-t">
+            <Label className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              Gmail Integration
+            </Label>
+            <GmailSettingsPanel />
+          </div>
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => setSessionSettingsOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveSessionSettings}>Save</Button>
