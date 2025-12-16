@@ -34,25 +34,77 @@ export function GmailSettingsPanel() {
     setConnecting(true);
     
     try {
-      // Try to get client config from backend
-      // In production, this would be loaded from backend environment
-      // For now, show instruction to user
-      toast.info("Gmail OAuth Setup Required", {
-        description: "Follow setup guide in docs/GMAIL_OAUTH_SETUP.md",
-        duration: 10000
-      });
+      // Try to load client config from backend (optional - backend can load from file)
+      let clientConfig: Record<string, any> | undefined;
+      try {
+        const configData = await gmailApi.loadConfig();
+        clientConfig = configData.config;
+      } catch (error) {
+        // Backend will load from file system if not provided
+        clientConfig = undefined;
+      }
       
-      // Placeholder: In production, this would:
-      // 1. Call /api/gmail/auth/start with client_config
-      // 2. Open auth_url in popup
-      // 3. Wait for OAuth callback
-      // 4. Refresh auth status
+      // Start OAuth flow (backend will load config from file if not provided)
+      const authResponse = await gmailApi.startAuth(clientConfig);
+      const authUrl = authResponse.auth_url;
+      
+      // Open OAuth URL in new window
+      const width = 600;
+      const height = 700;
+      const left = (window.screen.width - width) / 2;
+      const top = (window.screen.height - height) / 2;
+      
+      const popup = window.open(
+        authUrl,
+        'Gmail OAuth',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+      );
+      
+      if (!popup) {
+        toast.error("Popup blocked", {
+          description: "Please allow popups for this site to complete OAuth"
+        });
+        setConnecting(false);
+        return;
+      }
+      
+      // Poll for popup closure (OAuth callback will close it)
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          setConnecting(false);
+          // Wait a moment for backend to process callback, then check status
+          setTimeout(() => {
+            checkAuthStatus();
+          }, 1000);
+        }
+      }, 500);
+      
+      // Also listen for message from popup (if callback page sends one)
+      const messageHandler = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        if (event.data.type === 'gmail_oauth_success') {
+          clearInterval(checkClosed);
+          popup.close();
+          setConnecting(false);
+          checkAuthStatus();
+          window.removeEventListener('message', messageHandler);
+        }
+      };
+      window.addEventListener('message', messageHandler);
       
     } catch (error: any) {
-      toast.error("Failed to start OAuth", {
-        description: error.message || "Unknown error"
-      });
-    } finally {
+      console.error("OAuth error:", error);
+      if (error.message?.includes("not configured") || error.message?.includes("gmail_client_config.json")) {
+        toast.error("Gmail OAuth not configured", {
+          description: "Save gmail_client_config.json to data/ directory. See docs/GMAIL_OAUTH_SETUP.md",
+          duration: 10000
+        });
+      } else {
+        toast.error("Failed to start OAuth", {
+          description: error.message || "Unknown error"
+        });
+      }
       setConnecting(false);
     }
   };

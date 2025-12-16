@@ -730,10 +730,14 @@ export const gmailApi = {
     return apiRequest(`/api/gmail/auth/status?user_id=${userId}`);
   },
 
-  async startAuth(clientConfig: Record<string, any>): Promise<{ auth_url: string }> {
+  async loadConfig(): Promise<{ config: Record<string, any> }> {
+    return apiRequest('/api/gmail/auth/load-config');
+  },
+
+  async startAuth(clientConfig?: Record<string, any>): Promise<{ auth_url: string }> {
     return apiRequest('/api/gmail/auth/start', {
       method: 'POST',
-      body: JSON.stringify({ client_config: clientConfig }),
+      body: JSON.stringify({ client_config: clientConfig || {} }),
     });
   },
 

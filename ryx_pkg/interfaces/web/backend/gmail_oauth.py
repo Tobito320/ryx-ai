@@ -132,8 +132,9 @@ def load_tokens(user_id: str) -> Optional[Credentials]:
         token_data = json.loads(decrypted)
         
         # Parse expiry back to datetime
+        expiry = None
         if token_data.get('expiry'):
-            token_data['expiry'] = datetime.fromisoformat(token_data['expiry'])
+            expiry = datetime.fromisoformat(token_data['expiry'])
         
         creds = Credentials(
             token=token_data['token'],
@@ -141,7 +142,8 @@ def load_tokens(user_id: str) -> Optional[Credentials]:
             token_uri=token_data['token_uri'],
             client_id=token_data['client_id'],
             client_secret=token_data['client_secret'],
-            scopes=token_data['scopes']
+            scopes=token_data['scopes'],
+            expiry=expiry
         )
         
         # Refresh if expired

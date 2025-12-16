@@ -778,7 +778,7 @@ async def get_last_model():
     last_model_file = Path("/home/tobi/ryx-ai/data/last_model")
     if last_model_file.exists():
         return {"model": last_model_file.read_text().strip()}
-        return {"model": DEFAULT_MODEL}
+    return {"model": DEFAULT_MODEL}
 
 # =============================================================================
 # Chat Endpoints
@@ -1031,30 +1031,80 @@ def build_email_draft(message: str, retrieved_memories: List[Dict], search_resul
     # Try to extract a recipient email from search results
     recipient_email = ""
     if search_result and search_result.get("results"):
+        # Look for company-specific email patterns
+        msg_lower = message.lower()
+        company_keywords = []
+        if "vodafone" in msg_lower:
+            company_keywords = ["vodafone", "kundenservice"]
+        elif "telekom" in msg_lower or "deutsche telekom" in msg_lower:
+            company_keywords = ["telekom", "kundenservice"]
+        elif "o2" in msg_lower:
+            company_keywords = ["o2", "kundenservice"]
+        
         for r in search_result["results"]:
-            content = r.get("content", "")
-            if "@" in content and "vodafone" in content.lower():
-                # Very naive extraction: grab first token containing @
-                tokens = content.split()
-                for t in tokens:
-                    if "@" in t and "." in t:
-                        recipient_email = t.strip().strip(".,;")
-                        break
+            content = r.get("content", "").lower()
+            title = r.get("title", "").lower()
+            combined = f"{title} {content}"
+            
+            # Look for email addresses in the content
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            emails = re.findall(email_pattern, r.get("content", "") + " " + r.get("title", ""))
+            
+            for email in emails:
+                email_lower = email.lower()
+                # Check if email matches company or is a generic contact email
+                if any(kw in email_lower for kw in company_keywords) or \
+                   any(kw in email_lower for kw in ["kundenservice", "service", "kontakt", "info", "support"]):
+                    recipient_email = email
+                    break
+            
             if recipient_email:
                 break
+        
+        # Fallback: use first valid email found
+        if not recipient_email and search_result.get("results"):
+            for r in search_result["results"]:
+                content = r.get("content", "") + " " + r.get("title", "")
+                emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', content)
+                if emails:
+                    recipient_email = emails[0]
+                    break
 
     subject = "E-Mail Entwurf"
-    if "kündigung" in message.lower():
+    body_action = "mich an Sie wenden"
+    
+    # Determine email type and complete the sentence
+    msg_lower = message.lower()
+    if "kündigung" in msg_lower or "kuendigung" in msg_lower or "termination" in msg_lower or "cancellation" in msg_lower:
         subject = "Kündigung meines Vertrags"
+        body_action = "hiermit meinen Vertrag kündigen"
+    elif "beschwerde" in msg_lower or "complaint" in msg_lower:
+        subject = "Beschwerde"
+        body_action = "eine Beschwerde einreichen"
+    elif "anfrage" in msg_lower or "inquiry" in msg_lower or "frage" in msg_lower:
+        subject = "Anfrage"
+        body_action = "eine Anfrage stellen"
+    elif "bestellung" in msg_lower or "order" in msg_lower:
+        subject = "Bestellung"
+        body_action = "eine Bestellung aufgeben"
+    else:
+        # Generic email - try to extract intent from message
+        if "vodafone" in msg_lower:
+            body_action = "mich bezüglich meines Vertrags an Sie wenden"
 
     body_lines = [
         "Sehr geehrte Damen und Herren,",
         "",
-        "ich möchte hiermit ",
+        f"ich möchte {body_action}.",
         "",
         "Mit freundlichen Grüßen,",
         user_name if user_name else " "
     ]
+    
+    # Add address if available
+    if user_address:
+        body_lines.insert(-2, user_address)
+        body_lines.insert(-2, "")
 
     return {
         "id": f"email-draft-{int(time.time())}",
@@ -1200,10 +1250,13 @@ Be precise and structured. Reference stored facts accurately."""
     system_prompt += memory_context
     
     # =========================================================================
-    # STEP 4: WEB SEARCH (Only if decided necessary)
+    # STEP 4: WEB SEARCH (Only if decided necessary OR email intent detected)
     # =========================================================================
     search_context = ""
-    if needs_search:
+    email_intent_detected = detect_email_intent(message)
+    
+    # If email intent detected, we might need search for recipient info
+    if needs_search or email_intent_detected:
         # Enrich search query with location if relevant
         search_query = message
         location_keywords = ['weather', 'wetter', 'temperature', 'local', 'nearby', 'here']
@@ -1218,6 +1271,20 @@ Be precise and structured. Reference stored facts accurately."""
                     elif 'Germany' in fact or 'Deutschland' in fact:
                         search_query = f"{message} Germany"
                     break
+        
+        # For email intent, enrich search to find contact info
+        if email_intent_detected and not needs_search:
+            # Extract company/service name and search for contact email
+            msg_lower = message.lower()
+            if "vodafone" in msg_lower:
+                search_query = "Vodafone Deutschland Kundenservice Email Kontakt"
+            elif "telekom" in msg_lower:
+                search_query = "Deutsche Telekom Kundenservice Email Kontakt"
+            elif "o2" in msg_lower:
+                search_query = "O2 Deutschland Kundenservice Email Kontakt"
+            else:
+                # Generic search for contact info
+                search_query = f"{message} kontakt email kundenservice"
         
         search_result = await searxng_search(search_query)
         if search_result.get("results"):
@@ -1346,9 +1413,10 @@ Be precise and structured. Reference stored facts accurately."""
     # STEP 7b: EMAIL INTENT DETECTION
     # =========================================================================
     email_draft = None
-    if detect_email_intent(message):
+    if email_intent_detected:
         email_draft = build_email_draft(message, retrieved_memories, search_result)
         tool_decisions.append("Email intent detected - prepared draft")
+        tools_used.append("email_composition")
     
     # =========================================================================
     # STEP 7: LEARN FROM CONVERSATION (Only PERSONA facts)
@@ -1479,7 +1547,7 @@ async def send_email_endpoint(data: Dict[str, Any]):
     Send email via Gmail API using stored OAuth tokens.
     Requires user to be authenticated via OAuth flow.
     """
-    from ryx_pkg.interfaces.web.backend.gmail_oauth import load_tokens, send_email as gmail_send
+    from .gmail_oauth import load_tokens, send_email as gmail_send
     
     draft = data.get("draft", {})
     user_id = data.get("user_id", "default")  # Session-based user ID
@@ -1521,8 +1589,29 @@ async def send_email_endpoint(data: Dict[str, Any]):
 @app.get("/api/gmail/auth/status")
 async def gmail_auth_status(user_id: str = "default"):
     """Check if user has valid Gmail authorization."""
-    from ryx_pkg.interfaces.web.backend.gmail_oauth import check_auth_status
+    from .gmail_oauth import check_auth_status
     return check_auth_status(user_id)
+
+
+@app.get("/api/gmail/auth/load-config")
+async def gmail_load_config():
+    """Load Gmail OAuth client config from file system."""
+    client_config_file = DATA_DIR / "gmail_client_config.json"
+    
+    if not client_config_file.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Gmail OAuth not configured. Add gmail_client_config.json to data/ directory"
+        )
+    
+    try:
+        client_config = json.loads(client_config_file.read_text())
+        return {"config": client_config}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load client config: {str(e)}"
+        )
 
 
 @app.post("/api/gmail/auth/start")
@@ -1530,16 +1619,28 @@ async def gmail_auth_start(data: Dict[str, Any]):
     """
     Start Gmail OAuth flow.
     Returns authorization URL for user to visit.
-    Requires client_config with OAuth credentials from Google Cloud Console.
+    Loads client_config from file system if not provided.
     """
-    from ryx_pkg.interfaces.web.backend.gmail_oauth import get_authorization_url
+    from .gmail_oauth import get_authorization_url
     
     client_config = data.get("client_config")
+    
+    # If no config provided, try to load from file system
     if not client_config:
-        raise HTTPException(
-            status_code=400,
-            detail="Missing OAuth client config. Set up credentials in Google Cloud Console."
-        )
+        client_config_file = DATA_DIR / "gmail_client_config.json"
+        if client_config_file.exists():
+            try:
+                client_config = json.loads(client_config_file.read_text())
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to load client config: {str(e)}"
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing OAuth client config. Add gmail_client_config.json to data/ directory or provide client_config in request."
+            )
     
     try:
         auth_url = get_authorization_url(client_config)
@@ -1554,7 +1655,7 @@ async def gmail_oauth_callback(code: str, state: Optional[str] = None, user_id: 
     OAuth callback endpoint.
     Google redirects here after user authorizes.
     """
-    from ryx_pkg.interfaces.web.backend.gmail_oauth import exchange_code_for_tokens, save_tokens, get_user_email
+    from .gmail_oauth import exchange_code_for_tokens, save_tokens, get_user_email
     
     if not code:
         raise HTTPException(status_code=400, detail="No authorization code provided")
@@ -1574,12 +1675,62 @@ async def gmail_oauth_callback(code: str, state: Optional[str] = None, user_id: 
         
         email = get_user_email(credentials)
         
-        # Redirect to success page
-        return {
-            "success": True,
-            "message": "Gmail connected successfully",
-            "email": email
-        }
+        # Return HTML page that closes popup and notifies parent
+        from fastapi.responses import HTMLResponse
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Gmail Connected</title>
+            <style>
+                body {{
+                    font-family: system-ui, -apple-system, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    background: #f5f5f5;
+                }}
+                .success {{
+                    background: white;
+                    padding: 2rem;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    text-align: center;
+                }}
+                .check {{
+                    color: #10b981;
+                    font-size: 3rem;
+                    margin-bottom: 1rem;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="success">
+                <div class="check">✓</div>
+                <h2>Gmail Connected Successfully!</h2>
+                <p>Email: {email}</p>
+                <p style="color: #666; font-size: 0.9rem;">This window will close automatically...</p>
+            </div>
+            <script>
+                // Notify parent window
+                if (window.opener) {{
+                    window.opener.postMessage({{
+                        type: 'gmail_oauth_success',
+                        email: '{email}'
+                    }}, window.location.origin);
+                }}
+                // Close popup after 2 seconds
+                setTimeout(() => {{
+                    window.close();
+                }}, 2000);
+            </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OAuth failed: {str(e)}")
@@ -1588,7 +1739,7 @@ async def gmail_oauth_callback(code: str, state: Optional[str] = None, user_id: 
 @app.post("/api/gmail/auth/revoke")
 async def gmail_auth_revoke(data: Dict[str, Any]):
     """Revoke Gmail authorization and delete stored tokens."""
-    from ryx_pkg.interfaces.web.backend.gmail_oauth import revoke_tokens
+    from .gmail_oauth import revoke_tokens
     
     user_id = data.get("user_id", "default")
     revoke_tokens(user_id)
