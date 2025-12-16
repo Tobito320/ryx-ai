@@ -114,15 +114,17 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
 
       toast.success(`Session "${session.name}" created!`);
       
+      // Close dialog first
+      onOpenChange(false);
+      
+      // Navigate to the new session
       if (onSessionCreated) {
         onSessionCreated(session.id);
       }
-
-      // Force page reload to pick up new session from localStorage
-      window.location.reload();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to create session";
       toast.error("Failed to create session", { description: errorMessage });
+    } finally {
       setLoading(false);
     }
   };

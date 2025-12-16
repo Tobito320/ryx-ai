@@ -619,6 +619,15 @@ try:
 except ImportError as e:
     print(f"Warning: Streaming router not available: {e}")
 
+# Include Study Space API router
+try:
+    from ryx_pkg.interfaces.web.backend.study_space_api import router as study_space_router
+    app.include_router(study_space_router)
+    from ryx_pkg.interfaces.web.backend.study_space_websocket import router as study_space_ws_router
+    app.include_router(study_space_ws_router)
+except ImportError as e:
+    print(f"Warning: Study Space API router not available: {e}")
+
 # =============================================================================
 # Health & Status Endpoints
 # =============================================================================

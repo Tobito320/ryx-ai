@@ -3,8 +3,8 @@
  * Centralizes API URLs and other configuration values
  */
 
-// Ollama API base URL - typically runs on port 8001
-export const OLLAMA_API_URL = import.meta.env.VITE_OLLAMA_API_URL || 'http://localhost:8001';
+// Ollama API base URL - typically runs on port 11434
+export const OLLAMA_API_URL = import.meta.env.VITE_OLLAMA_API_URL || 'http://localhost:11434';
 
 // Ryx backend API base URL - for sessions, RAG, workflows
 export const API_BASE_URL = import.meta.env.VITE_RYX_API_URL || 'http://localhost:8420';

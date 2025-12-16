@@ -583,7 +583,10 @@ export function ChatView() {
               return (
               <div 
                 key={message.id} 
-                className={cn("flex gap-2", message.role === "user" ? "justify-end" : "justify-start")}
+                className={cn(
+                  "flex gap-2 message-bubble",
+                  message.role === "user" ? "justify-end user" : "justify-start"
+                )}
                 onContextMenu={(e) => handleContextMenu(e, message.id)}
               >
                 {message.role === "assistant" && <Sparkles className="w-4 h-4 text-primary mt-1 flex-shrink-0" />}

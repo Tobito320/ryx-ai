@@ -533,3 +533,194 @@ class TeacherPattern(Base):
             "typical_exam_duration": self.typical_exam_duration,
             "typical_task_count": self.typical_task_count,
         }
+
+
+# ============================================================================
+# STUDY SPACE MODULE (Phase 1 MVP)
+# ============================================================================
+
+import enum
+
+
+class MessageRole(str, enum.Enum):
+    """Message role enum"""
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class SnippetType(str, enum.Enum):
+    """Snippet type enum"""
+    DEFINITION = "definition"
+    CODE = "code"
+    EXAMPLE = "example"
+    IMAGE = "image"
+    PHRASE = "phrase"
+    FORMULA = "formula"
+
+
+class StudySpace(Base):
+    """Container for a subject/topic (e.g., 'LF8 - IPv6 Grundlagen')"""
+    __tablename__ = "study_spaces"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=False)
+    color = Column(String(7))
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+
+    chats = relationship("StudySpaceChat", back_populates="space", cascade="all, delete-orphan")
+    snippets = relationship("StudySpaceSnippet", back_populates="space", cascade="all, delete-orphan")
+    summary = relationship("Summary", back_populates="space", uselist=False, cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_study_spaces_user_id", "user_id"),
+        Index("idx_study_spaces_created_at", "created_at"),
+        Index("idx_study_spaces_archived", "archived_at"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "userId": str(self.user_id),
+            "title": self.title,
+            "subject": self.subject,
+            "color": self.color,
+            "description": self.description,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
+            "archivedAt": self.archived_at.isoformat() if self.archived_at else None,
+        }
+
+
+class StudySpaceChat(Base):
+    """Individual conversation thread within a StudySpace"""
+    __tablename__ = "study_space_chats"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    space_id = Column(UUID(as_uuid=True), ForeignKey("study_spaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+
+    space = relationship("StudySpace", back_populates="study_space_chats")
+    messages = relationship("StudySpaceMessage", back_populates="chat", cascade="all, delete-orphan", order_by="StudySpaceMessage.created_at")
+
+    __table_args__ = (
+        Index("idx_chats_space_id", "space_id"),
+        Index("idx_chats_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "spaceId": str(self.space_id),
+            "title": self.title,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "updatedAt": self.updated_at.isoformat() if self.updated_at else None,
+            "archivedAt": self.archived_at.isoformat() if self.archived_at else None,
+        }
+
+
+class StudySpaceMessage(Base):
+    """Single message in a chat (user or AI)"""
+    __tablename__ = "study_space_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("study_space_chats.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    metadata = Column(JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    chat = relationship("StudySpaceChat", back_populates="study_space_messages")
+    snippets = relationship("StudySpaceSnippet", back_populates="source_message", foreign_keys="StudySpaceSnippet.source_message_id")
+
+    __table_args__ = (
+        Index("idx_messages_chat_id", "chat_id"),
+        Index("idx_messages_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "chatId": str(self.chat_id),
+            "role": self.role,
+            "content": self.content,
+            "metadata": self.metadata or {},
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class StudySpaceSnippet(Base):
+    """Extracted important content from a message or manual entry"""
+    __tablename__ = "study_space_snippets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    space_id = Column(UUID(as_uuid=True), ForeignKey("study_spaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_message_id = Column(UUID(as_uuid=True), ForeignKey("study_space_messages.id", ondelete="SET NULL"), nullable=True)
+    type = Column(String(20), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    tags = Column(ARRAY(String), default=list, index=True)
+    source = Column(JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    is_favorite = Column(Boolean, default=False, index=True)
+
+    space = relationship("StudySpace", back_populates="study_space_snippets")
+    source_message = relationship("StudySpaceMessage", back_populates="study_space_snippets", foreign_keys=[source_message_id])
+
+    __table_args__ = (
+        Index("idx_snippets_space_id", "space_id"),
+        Index("idx_snippets_type", "type"),
+        Index("idx_snippets_tags", "tags", postgresql_using="gin"),
+        Index("idx_snippets_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "spaceId": str(self.space_id),
+            "sourceMessageId": str(self.source_message_id) if self.source_message_id else None,
+            "type": self.type,
+            "title": self.title,
+            "content": self.content,
+            "tags": self.tags or [],
+            "source": self.source or {},
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "isFavorite": self.is_favorite,
+        }
+
+
+class Summary(Base):
+    """Auto-generated or manual summary of a StudySpace"""
+    __tablename__ = "summaries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    space_id = Column(UUID(as_uuid=True), ForeignKey("study_spaces.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    session_id = Column(UUID(as_uuid=True), nullable=True)
+    content = Column(Text, nullable=False)
+    bullets = Column(ARRAY(Text), default=list)
+    key_terms = Column(ARRAY(Text), default=list)
+    generated_from = Column(JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    regenerated_at = Column(DateTime(timezone=True), nullable=True)
+
+    space = relationship("StudySpace", back_populates="summary")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "spaceId": str(self.space_id),
+            "sessionId": str(self.session_id) if self.session_id else None,
+            "content": self.content,
+            "bullets": self.bullets or [],
+            "keyTerms": self.key_terms or [],
+            "generatedFrom": self.generated_from or {},
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
+            "regeneratedAt": self.regenerated_at.isoformat() if self.regenerated_at else None,
+        }

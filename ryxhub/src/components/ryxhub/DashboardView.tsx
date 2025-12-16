@@ -108,21 +108,35 @@ export function DashboardView() {
   };
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        {/* Welcome Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 mb-4">
-            <Zap className="w-8 h-8 text-primary" />
+    <div className="h-full overflow-y-auto px-8 py-10">
+      <div className="max-w-5xl mx-auto space-y-10">
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--secondary))] px-8 py-10 text-center shadow-[0_20px_60px_-40px_rgba(0,0,0,0.6)]">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--primary))/0.12] border border-[hsl(var(--primary))/0.3]">
+            <span className="text-4xl">⚡</span>
           </div>
-          <h1 className="text-2xl font-semibold mb-2">Welcome back, Tobi!</h1>
-          <p className="text-muted-foreground">
-            Your local AI assistant is ready.
+          <h1 className="text-3xl font-semibold mb-2">Willkommen bei RyxHub</h1>
+          <p className="text-[hsl(var(--muted-foreground))] mb-6 text-base">
+            Dein intelligenter Lernassistent. Starte sofort einen neuen Space oder öffne dein Dashboard.
           </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              onClick={() => setActiveView("studyspace")}
+              className="px-6 h-11 border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:bg-[hsl(var(--primary))/0.12] hover:border-[hsl(var(--primary))]"
+              variant="outline"
+            >
+              Neuen Study Space erstellen
+            </Button>
+            <Button
+              onClick={() => setActiveView("dashboard")}
+              className="px-6 h-11 border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:bg-[hsl(var(--primary))/0.12] hover:border-[hsl(var(--primary))]"
+              variant="outline"
+            >
+              Zum Dashboard
+            </Button>
+          </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard
             icon={<Brain className="w-4 h-4" />}
             label="Facts Learned"
@@ -142,31 +156,30 @@ export function DashboardView() {
           />
         </div>
 
-        {/* Your Persona */}
         {personaFacts.length > 0 && (
-          <section className="mb-10">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+          <section className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
                 <User className="w-4 h-4" />
-                Your Persona
-              </h2>
+                Persona
+              </div>
               <button
                 onClick={() => setActiveView("settings")}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               >
                 Edit
               </button>
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {personaFacts.map((fact) => {
                 const formatted = formatPersonaFact(fact.fact);
                 const Icon = formatted.icon;
                 return (
                   <div
                     key={fact.id}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-card border border-border"
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[hsl(var(--secondary))] border border-[hsl(var(--border))]"
                   >
-                    <Icon className="w-4 h-4 text-primary flex-shrink-0" />
+                    <Icon className="w-4 h-4 text-[hsl(var(--primary))] flex-shrink-0" />
                     <span className="text-sm">
                       {fact.fact.replace(/^(User'?s?|user'?s?)\s*/i, '').replace(/^(User\s+)/i, '')}
                     </span>
@@ -177,53 +190,43 @@ export function DashboardView() {
           </section>
         )}
 
-        {/* Recent Chats */}
-        <section className="mb-10">
-          <h2 className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-3">
-            <Clock className="w-4 h-4" />
-            Recent Chats
-          </h2>
-          
+        <section className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-[hsl(var(--muted-foreground))] flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Recent Chats
+            </h2>
+            <Button onClick={handleNewChat} size="sm" variant="outline" className="h-9 px-3">
+              <Plus className="w-4 h-4 mr-2" />
+              Neuer Chat
+            </Button>
+          </div>
           {recentSessions.length > 0 ? (
             <div className="space-y-1">
               {recentSessions.map((session) => (
                 <button
                   key={session.id}
                   onClick={() => handleOpenChat(session.id)}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors text-left group"
+                  className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-[hsl(var(--secondary))] transition-colors text-left"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <MessageSquare className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <MessageSquare className="w-4 h-4 text-[hsl(var(--muted-foreground))] flex-shrink-0" />
                     <span className="text-sm truncate">{session.name}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {formatTimeAgo(session.id)}
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                    <span>{formatTimeAgo(session.id)}</span>
+                    <ChevronRight className="w-4 h-4" />
                   </div>
                 </button>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No chats yet</p>
+            <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
+              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-60" />
+              <p className="text-sm">Keine Chats</p>
             </div>
           )}
         </section>
-
-        {/* New Chat CTA */}
-        <div className="text-center">
-          <Button
-            onClick={handleNewChat}
-            size="lg"
-            className="gap-2 px-8"
-          >
-            <Plus className="w-4 h-4" />
-            New Chat
-          </Button>
-        </div>
       </div>
     </div>
   );

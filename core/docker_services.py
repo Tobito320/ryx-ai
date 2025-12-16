@@ -2,12 +2,12 @@
 Ryx AI - Docker Service Manager
 
 Manages all Ryx Docker services:
-- vLLM (GPU inference server)
+- SearXNG (privacy search)
 - RyxHub (Web UI)
 - RyxSurf (future - browsing agent)
-- SearXNG (privacy search)
 
-All services are Docker containers, started on demand.
+Note: Ollama runs as a systemd service, not Docker.
+All other services are Docker containers, started on demand.
 """
 
 import os
@@ -50,7 +50,7 @@ class ServiceStartupDisplay:
     
     # Expected startup times (in seconds) for user info
     EXPECTED_TIMES = {
-        'vllm': (120, 300),      # 2-5 minutes
+        'ollama': (5, 10),       # 5-10 seconds (systemd service)
         'ryxhub': (10, 30),      # 10-30 seconds
         'searxng': (5, 15),      # 5-15 seconds
         'ryxsurf': (10, 30),     # 10-30 seconds
@@ -58,11 +58,10 @@ class ServiceStartupDisplay:
     
     # Startup phases per service
     PHASES = {
-        'vllm': [
-            ('Pulling container image', 30),
-            ('Loading model into GPU', 180),
-            ('Initializing API server', 30),
-            ('Health check', 10),
+        'ollama': [
+            ('Starting Ollama service', 3),
+            ('Loading models', 5),
+            ('Health check', 2),
         ],
         'ryxhub': [
             ('Starting frontend', 10),
@@ -301,7 +300,7 @@ class ServiceStatus(Enum):
 
 @dataclass
 class ServiceConfig:
-    """Configuration for a Docker service"""
+    """Configuration for a service (Docker or systemd)"""
     name: str
     container_name: str
     compose_file: Optional[str] = None
@@ -311,9 +310,11 @@ class ServiceConfig:
     health_timeout: int = 30
     description: str = ""
     gpu_required: bool = False
+    is_systemd: bool = False  # True for systemd services (Ollama)
     
     def __post_init__(self):
-        if not self.compose_file and not self.image:
+        # Systemd services don't need compose_file or image
+        if not self.is_systemd and not self.compose_file and not self.image:
             raise ValueError(f"Service {self.name} needs either compose_file or image")
 
 
@@ -322,15 +323,17 @@ class ServiceConfig:
 # ═══════════════════════════════════════════════════════════════
 
 SERVICES: Dict[str, ServiceConfig] = {
-    "vllm": ServiceConfig(
-        name="vllm",
-        container_name="ryx-vllm",
-        compose_file="docker/vllm/docker-compose.yml",
-        ports=["8001:8001"],
-        health_url="http://localhost:8001/health",
-        health_timeout=120,  # vLLM takes time to load models
-        description="GPU inference server (vLLM + ROCm)",
-        gpu_required=True
+    "ollama": ServiceConfig(
+        name="ollama",
+        container_name="ollama-systemd",  # Not a container
+        compose_file=None,
+        image=None,
+        ports=["11434:11434"],
+        health_url="http://localhost:11434/api/tags",
+        health_timeout=15,
+        description="Ollama LLM Backend (systemd service)",
+        gpu_required=True,
+        is_systemd=True
     ),
     
     "ryxhub": ServiceConfig(
@@ -458,12 +461,81 @@ class DockerServiceManager:
         
         return False
     
+    def _start_ollama(self, quiet: bool = False) -> Dict[str, Any]:
+        """Start Ollama systemd service"""
+        import requests
+        
+        # Check if already running
+        try:
+            resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+            if resp.status_code == 200:
+                if not quiet:
+                    print("✅ OLLAMA - Already running")
+                return {
+                    "success": True,
+                    "status": "already_running",
+                    "message": "Ollama is already running",
+                    "urls": ["http://localhost:11434"],
+                    "elapsed_time": 0
+                }
+        except:
+            pass
+        
+        # Start using systemctl
+        if not quiet:
+            print("🚀 Starting Ollama...", end=" ", flush=True)
+        
+        try:
+            result = subprocess.run(
+                ["systemctl", "--user", "start", "ollama"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            # Wait for it to be responsive
+            start_time = time.time()
+            while time.time() - start_time < 15:
+                try:
+                    resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+                    if resp.status_code == 200:
+                        elapsed = time.time() - start_time
+                        if not quiet:
+                            print(f"✅ Started ({elapsed:.1f}s)")
+                        return {
+                            "success": True,
+                            "status": "running",
+                            "message": "Ollama started successfully",
+                            "urls": ["http://localhost:11434"],
+                            "elapsed_time": elapsed
+                        }
+                except:
+                    pass
+                time.sleep(0.5)
+            
+            # Timeout
+            if not quiet:
+                print("⚠️  Started but not responding")
+            return {
+                "success": False,
+                "error": "Ollama started but health check timed out",
+                "elapsed_time": time.time() - start_time
+            }
+            
+        except Exception as e:
+            if not quiet:
+                print(f"❌ Failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
     def start(self, service_name: str, wait: bool = True, quiet: bool = False) -> Dict[str, Any]:
         """
-        Start a Docker service with visual feedback.
+        Start a service with visual feedback.
         
         Args:
-            service_name: Name of the service (vllm, ryxhub, searxng, etc.)
+            service_name: Name of the service (ollama, ryxhub, searxng, etc.)
             wait: Wait for service to become healthy
             quiet: Suppress visual output
             
@@ -471,6 +543,10 @@ class DockerServiceManager:
             Dict with success, status, urls, error, elapsed_time
         """
         start_time = time.time()
+        
+        # Special handling for Ollama (systemd service, not Docker)
+        if service_name.lower() == "ollama":
+            return self._start_ollama(quiet=quiet)
         
         if not self._docker_available:
             return {
@@ -624,8 +700,51 @@ class DockerServiceManager:
                 "elapsed_time": elapsed
             }
     
+    def _stop_ollama(self) -> Dict[str, Any]:
+        """Stop Ollama systemd service and unload models"""
+        import requests
+        
+        try:
+            # First unload all models to free VRAM immediately
+            try:
+                resp = requests.get("http://localhost:11434/api/ps", timeout=2)
+                if resp.status_code == 200:
+                    models = resp.json().get('models', [])
+                    for model in models:
+                        model_name = model.get('name', '')
+                        if model_name:
+                            requests.post(
+                                "http://localhost:11434/api/generate",
+                                json={"model": model_name, "keep_alive": 0},
+                                timeout=2
+                            )
+            except:
+                pass
+            
+            # Stop the service
+            result = subprocess.run(
+                ["systemctl", "--user", "stop", "ollama"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            return {
+                "success": True,
+                "message": "Ollama stopped (VRAM freed)"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error stopping Ollama: {e}"
+            }
+    
     def stop(self, service_name: str) -> Dict[str, Any]:
-        """Stop a Docker service"""
+        """Stop a service"""
+        # Special handling for Ollama (systemd service)
+        if service_name.lower() == "ollama":
+            return self._stop_ollama()
+        
         if not self._docker_available:
             return {"success": False, "error": "Docker is not available"}
         
@@ -694,16 +813,44 @@ class DockerServiceManager:
         for name, service in services.items():
             if service is None:
                 continue
-                
-            status = self._get_container_status(service.container_name)
-            result[name] = {
-                "status": status.value,
-                "description": service.description,
-                "urls": self._get_service_urls(service) if status == ServiceStatus.RUNNING else [],
-                "gpu_required": service.gpu_required
-            }
+            
+            # Special handling for Ollama
+            if name == "ollama":
+                result[name] = self._get_ollama_status(service)
+            else:
+                status = self._get_container_status(service.container_name)
+                result[name] = {
+                    "status": status.value,
+                    "description": service.description,
+                    "urls": self._get_service_urls(service) if status == ServiceStatus.RUNNING else [],
+                    "gpu_required": service.gpu_required
+                }
         
         return {"success": True, "services": result}
+    
+    def _get_ollama_status(self, service: ServiceConfig) -> Dict[str, Any]:
+        """Get Ollama service status"""
+        import requests
+        try:
+            resp = requests.get("http://localhost:11434/api/tags", timeout=2)
+            if resp.status_code == 200:
+                models = resp.json().get('models', [])
+                return {
+                    "status": "running",
+                    "description": service.description,
+                    "urls": ["http://localhost:11434"],
+                    "gpu_required": service.gpu_required,
+                    "models": [m['name'] for m in models]
+                }
+        except:
+            pass
+        
+        return {
+            "status": "stopped",
+            "description": service.description,
+            "urls": [],
+            "gpu_required": service.gpu_required
+        }
     
     def _get_service_urls(self, service: ServiceConfig) -> List[str]:
         """Get URLs for a running service"""

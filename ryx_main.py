@@ -172,7 +172,7 @@ def _start_service(service: str):
     """Start a service with visual feedback"""
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
     
-    # "ryx start" with no args = start all (vllm + searxng)
+    # "ryx start" with no args = start all (ollama + searxng)
     if service in ["all", ""]:
         print("\n╭────────────────────────────────────────────────╮")
         print("│ 🚀 Starting All Services                       │")
@@ -182,7 +182,7 @@ def _start_service(service: str):
         results = []
         
         # Start services sequentially with visual feedback
-        for svc in ["vllm", "searxng"]:
+        for svc in ["ollama", "searxng"]:
             _start_service(svc)
             results.append(svc)
             print()  # Spacing between services
@@ -201,11 +201,17 @@ def _start_service(service: str):
         if not result['success'] and not result.get('already_running'):
             print(f"❌ Failed: {result.get('error', 'Unknown error')}")
     
-    elif service in ["vllm", "llm", "model", "inference"]:
-        from core.docker_services import start_service
-        result = start_service("vllm")
-        if not result.get("success"):
-            print(f"❌ Failed to start vLLM: {result.get('error', 'Unknown')}")
+    elif service in ["ollama", "llm", "model", "inference"]:
+        import subprocess
+        print("🚀 Starting Ollama...", end=" ", flush=True)
+        try:
+            result = subprocess.run(["systemctl", "--user", "start", "ollama"], capture_output=True)
+            if result.returncode == 0:
+                print("✅ Started")
+            else:
+                print("⚠️  May already be running")
+        except Exception as e:
+            print(f"❌ Failed: {e}")
     
     elif service in ["searxng", "search", "websearch"]:
         from core.docker_services import start_service
@@ -221,7 +227,6 @@ def _start_service(service: str):
     elif service in ["ryxsurf", "surf", "browser"]:
         import subprocess
         import os
-        import time
         import shutil
         
         print("\n╭────────────────────────────────────────────────╮")
@@ -330,7 +335,7 @@ def _start_service(service: str):
     
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available: all, vllm, searxng, ryxhub, ryxsurf, session")
+        print("Available: all, ollama, searxng, ryxhub, ryxsurf, session")
 
 
 def _stop_ollama():
@@ -376,7 +381,7 @@ def _stop_service(service: str):
         print("│ 🛑 Stopping All Services                       │")
         print("╰────────────────────────────────────────────────╯\n")
         
-        for svc in ["ollama", "vllm", "searxng", "ryxhub"]:
+        for svc in ["ollama", "searxng", "ryxhub"]:
             _stop_service(svc)
         print()
         return
@@ -393,16 +398,9 @@ def _stop_service(service: str):
         else:
             print(f"⚠️  RyxHub: {result.get('error', 'Not running')}")
     
-    elif service in ["vllm", "llm", "inference"]:
-        from core.docker_services import stop_service
-        
-        print("🛑 Stopping vLLM...", end=" ", flush=True)
-        result = stop_service("vllm")
-        
-        if result.get("success"):
-            print("✅ Done")
-        else:
-            print(f"⚠️  {result.get('error', 'Not running')}")
+    elif service in ["llm", "inference"]:
+        # Ollama is handled by the "ollama" case above
+        _stop_ollama()
     
     elif service in ["searxng", "search", "websearch"]:
         from core.docker_services import stop_service
@@ -417,73 +415,88 @@ def _stop_service(service: str):
     
     else:
         print(f"❌ Unknown service: {service}")
-        print("Available: all, ollama, vllm, searxng, ryxhub")
+        print("Available: all, ollama, searxng, ryxhub")
 
 
 def _restart_service(service: str, target_app: str = None):
     """Restart a service with visual feedback
     
     Args:
-        service: Service to restart (all, vllm, etc)
+        service: Service to restart (all, ollama, etc)
         target_app: Optional app to configure for (ryxsurf, ryxhub, cli)
     """
     import time
+    import json
+    from pathlib import Path
     
     service = service.lower().replace(" ", "").replace("-", "").replace("_", "")
     
-    # Model configurations for different apps
-    MODEL_CONFIGS = {
-        "ryxsurf": {
-            "vllm_model": "/home/tobi/vllm-models/general/qwen2.5-7b-awq",  # Lighter model for browser
-            "description": "RyxSurf (browser AI assistant)"
-        },
-        "ryxhub": {
-            "vllm_model": "/home/tobi/vllm-models/powerful/coding/qwen2.5-coder-14b-awq",
-            "description": "RyxHub (web interface)"
-        },
-        "cli": {
-            "vllm_model": "/home/tobi/vllm-models/powerful/coding/qwen2.5-coder-14b-awq", 
-            "description": "CLI coding assistant"
-        }
-    }
-    
     if service in ["all", ""]:
-        app_name = target_app or "cli"
-        config = MODEL_CONFIGS.get(app_name, MODEL_CONFIGS["cli"])
-        
         print("\n╭────────────────────────────────────────────────╮")
-        print(f"│ 🔄 Restarting All Services for {config['description'][:20]:<20} │")
+        print("│ 🔄 Restarting All Services                     │")
         print("╰────────────────────────────────────────────────╯\n")
         
         start_time = time.time()
         
+        # First, detect what services are currently running
+        print("Detecting running services...")
+        from core.docker_services import service_status
+        status = service_status()
+        
+        running_services = []
+        if status.get("success"):
+            for svc_name, info in status.get("services", {}).items():
+                if info.get("status") == "running":
+                    running_services.append(svc_name)
+                    print(f"  ✓ {svc_name} is running")
+        
+        # Also check if RyxHub is running (it might not be in docker services)
+        import subprocess
+        import requests
+        try:
+            # Check RyxHub API
+            if requests.get("http://localhost:8420/api/health", timeout=2).status_code == 200:
+                if "ryxhub" not in running_services:
+                    running_services.append("ryxhub")
+                    print(f"  ✓ ryxhub is running")
+        except:
+            pass
+        
         # Stop all first
-        print("Stopping services...")
-        for svc in ["vllm", "searxng", "ryxhub"]:
+        print("\nStopping services...")
+        for svc in ["ollama", "searxng", "ryxhub"]:
             _stop_service(svc)
         
         print("\nWaiting for cleanup...")
         time.sleep(2)
         
-        # Start with appropriate model
-        print(f"\nStarting services (model: {os.path.basename(config['vllm_model'])})...")
+        # Start base services
+        print(f"\nStarting services...")
         
-        # Set model for vLLM
-        os.environ['RYX_VLLM_MODEL'] = config['vllm_model']
-        
-        for svc in ["vllm", "searxng"]:
+        for svc in ["ollama", "searxng"]:
             _start_service(svc)
             print()
         
-        # Start the target app if specified
+        # Restart services that were running before
+        if "ryxhub" in running_services:
+            print("Restarting RyxHub (was running before)...")
+            _start_service("ryxhub")
+            print()
+        
+        # Start the target app if specified (overrides detection)
         if target_app == "ryxsurf":
             _start_service("ryxsurf")
-        elif target_app == "ryxhub":
+        elif target_app == "ryxhub" and "ryxhub" not in running_services:
             _start_service("ryxhub")
         
         elapsed = time.time() - start_time
         print(f"─" * 50)
         print(f"✨ All services restarted in {elapsed:.1f}s")
+        
+        # Show what's running now
+        if running_services:
+            print(f"\n📋 Restored services: {', '.join(running_services)}")
+        
         return
     
     # Single service restart
@@ -685,7 +698,7 @@ def _handle_rsi(args):
     
     elif cmd == "iterate":
         print("\n🔄 Starting RSI iteration...")
-        print("   (This requires vLLM to be running)")
+        print("   (This requires Ollama to be running)")
         
         from core.rsi import RSILoop, RSIConfig
         

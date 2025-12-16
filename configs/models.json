@@ -3,7 +3,7 @@
   "ollama_base_url": "http://localhost:11434",
   "searxng_url": "http://localhost:8888",
   
-  "_comment": "Models installed: qwen2.5-coder:14b, qwen2.5-coder:7b, qwen2.5-coder:14b, dolphin-mistral:7b, qwen2.5:1.5b",
+  "_comment": "Models installed: qwen2.5-coder:14b, qwen2.5-coder:7b, dolphin-mistral:7b, dolphin-phi, qwen2.5:1.5b, qwen2.5:3b, qwen2.5:14b, phi4",
   
   "models": {
     "fast": {
@@ -25,9 +25,18 @@
       "timeout_seconds": 60
     },
     "uncensored": {
-      "name": "dolphin-mistral:7b",
+      "name": "dolphin-phi",
       "role": "uncensored",
-      "description": "7B Uncensored - Fast, no restrictions",
+      "description": "2.7B Uncensored - Small, fast, no restrictions",
+      "vram_mb": 2000,
+      "max_tokens": 4096,
+      "num_ctx": 16384,
+      "timeout_seconds": 30
+    },
+    "uncensored_large": {
+      "name": "dolphin-mistral:7b",
+      "role": "uncensored_large",
+      "description": "7B Uncensored - More capable, no restrictions",
       "vram_mb": 5000,
       "max_tokens": 4096,
       "num_ctx": 16384,
