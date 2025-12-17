@@ -78,7 +78,7 @@ export function ModelDialog({ model, open, onOpenChange, onModelUpdate }: ModelD
       const models = await ryxService.listModels();
       const modelInfo = models.find(m => m.id === model.id);
       if (modelInfo) {
-        const msg = modelInfo.status === 'loaded' ? 'Model is loaded and ready' : 'Model available but not loaded';
+        const msg = modelInfo.status === 'online' ? 'Model is online and ready' : 'Model available but not online';
         setStatusMessage(msg);
         toast.info(msg);
       } else {

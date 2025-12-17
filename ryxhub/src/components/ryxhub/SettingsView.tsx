@@ -120,7 +120,7 @@ export function SettingsView() {
   };
 
   const handleUnloadModel = async (modelId: string) => {
-    const loadedModels = models?.filter(m => m.status === "loaded") || [];
+    const loadedModels = models?.filter(m => m.status === "online") || [];
     if (loadedModels.length <= 1) {
       toast.error("Keep at least one model loaded");
       return;
@@ -195,8 +195,8 @@ export function SettingsView() {
     toast.success("All memories cleared");
   };
 
-  const loadedModels = models?.filter(m => m.status === "loaded") || [];
-  const availableModels = models?.filter(m => m.status !== "loaded") || [];
+  const loadedModels = models?.filter(m => m.status === "online") || [];
+  const availableModels = models?.filter(m => m.status !== "online") || [];
 
   return (
     <div className="h-full overflow-auto bg-background">

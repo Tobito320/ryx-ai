@@ -56,16 +56,16 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
     setLoadingModels(true);
     try {
       const modelList = await ryxService.listModels();
-      // Sort: loaded first, then by name
+      // Sort: online first, then by name
       const sorted = [...modelList].sort((a, b) => {
-        if (a.status === "loaded" && b.status !== "loaded") return -1;
-        if (a.status !== "loaded" && b.status === "loaded") return 1;
+        if (a.status === "online" && b.status !== "online") return -1;
+        if (a.status !== "online" && b.status === "online") return 1;
         return a.name.localeCompare(b.name);
       });
       setModels(sorted);
       
-      // Select first loaded model
-      const loadedModel = sorted.find(m => m.status === "loaded");
+      // Select first online model
+      const loadedModel = sorted.find(m => m.status === "online");
       if (loadedModel) {
         setSelectedModel(loadedModel.id);
       } else if (sorted.length > 0) {
@@ -92,9 +92,9 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
 
     setLoading(true);
     try {
-      // Check if model is loaded, if not load it
+      // Check if model is online, if not load it
       const model = models.find(m => m.id === selectedModel);
-      if (model && model.status !== "loaded") {
+      if (model && model.status !== "online") {
         toast.info(`Loading model ${model.name}...`);
         try {
           await ryxService.loadModel(selectedModel);
@@ -171,13 +171,13 @@ export function NewSessionDialog({ open, onOpenChange, onSessionCreated }: NewSe
                       <div className="flex items-center gap-2">
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            model.status === "loaded"
+                            model.status === "online"
                               ? "bg-green-500"
                               : "bg-gray-400"
                           }`}
                         />
                         <span>{model.name}</span>
-                        {model.status !== "loaded" && (
+                        {model.status !== "online" && (
                           <span className="text-xs text-muted-foreground">
                             (will load)
                           </span>

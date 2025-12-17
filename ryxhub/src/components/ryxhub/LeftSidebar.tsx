@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-type SidebarTab = "study" | "exams" | "documents";
+export type SidebarTab = "study" | "exams" | "documents";
 
 type Props = {
 	collapsed: boolean;
@@ -58,6 +58,7 @@ export function LeftSidebar({
 	const [searchQuery, setSearchQuery] = useState("");
 	const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
 	const [renameValue, setRenameValue] = useState("");
+	const [chatsVisible, setChatsVisible] = useState(true);
 
 	const filteredSessions = useMemo(() => {
 		if (!searchQuery.trim()) return sessions;
@@ -119,26 +120,14 @@ export function LeftSidebar({
 			)}
 		>
 			<div className="flex items-center justify-between gap-2 px-3 py-3 border-b border-[hsl(var(--sidebar-border))]">
-				<button
-					onClick={onToggleCollapsed}
-					className="h-9 w-9 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))] hover:text-[hsl(var(--primary))] transition-colors"
-					aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-				>
-					{collapsed ? <PanelRightClose className="w-4 h-4 mx-auto" /> : <Menu className="w-4 h-4 mx-auto" />}
-				</button>
-
 				{!collapsed && (
 					<button
-						onClick={() => setActiveView("dashboard")}
-						className="flex items-center gap-2 text-left"
+						onClick={onToggleCollapsed}
+						className="h-9 w-9 rounded-lg flex items-center justify-center hover:bg-[hsl(var(--sidebar-accent))] transition-colors"
+						aria-label="Close sidebar"
+						title="Close sidebar"
 					>
-						<div className="w-9 h-9 rounded-lg bg-[hsl(var(--primary))] flex items-center justify-center text-[hsl(var(--primary-foreground))]">
-							<Zap className="w-4 h-4" />
-						</div>
-						<div className="leading-tight">
-							<div className="text-sm font-semibold text-[hsl(var(--foreground))]">RyxHub</div>
-							<div className="text-xs text-[hsl(var(--muted-foreground))]">Local AI</div>
-						</div>
+						<Menu className="w-4 h-4" />
 					</button>
 				)}
 			</div>
@@ -204,125 +193,138 @@ export function LeftSidebar({
 				</div>
 			</div>
 
+			{!collapsed && (
+				<div className="px-3 py-2 border-b border-[hsl(var(--sidebar-border))]">
+					<button
+						onClick={() => setChatsVisible(!chatsVisible)}
+						className="w-full text-left text-[11px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide hover:text-[hsl(var(--foreground))] transition-colors"
+					>
+						Your chats {chatsVisible ? "▼" : "▶"}
+					</button>
+				</div>
+			)}
 			<ScrollArea className="flex-1 px-2 py-3">
-				<div className="space-y-3">
-					{groupedSessions.map((group) => (
-						<div key={group.label}>
-							{!collapsed && (
+				{!collapsed && chatsVisible && (
+					<div className="space-y-3">
+						{groupedSessions.map((group) => (
+							<div key={group.label}>
 								<div className="px-2 py-1 text-[11px] font-medium text-[hsl(var(--muted-foreground))] uppercase tracking-wide">
 									{group.label}
 								</div>
-							)}
-							<div className="space-y-1">
-								{group.sessions.map((session, idx) => (
-									<div
-										key={session.id}
-										className={cn(
-											"group relative flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 transition-all duration-200",
-											session.id === selectedSessionId
-												? "bg-[hsl(var(--sidebar-accent))] border-[hsl(var(--sidebar-border))]"
-												: "hover:bg-[hsl(var(--sidebar-accent))]"
-										)}
-										onClick={() => handleSessionClick(session.id)}
-										style={{ animationDelay: `${idx * 30}ms` }}
-									>
-										<div className="h-8 w-8 rounded-md bg-[hsl(var(--sidebar-border))] flex items-center justify-center text-[hsl(var(--foreground))]">
-											<MessageSquare className="w-4 h-4" />
-										</div>
-
-										{!collapsed && (
-											<div className="flex-1 min-w-0">
-												{renamingSessionId === session.id ? (
-													<Input
-														value={renameValue}
-														onChange={(e) => setRenameValue(e.target.value)}
-														onBlur={() => handleRenameSubmit(session.id)}
-														onKeyDown={(e) => {
-															if (e.key === "Enter") handleRenameSubmit(session.id);
-															if (e.key === "Escape") setRenamingSessionId(null);
-														}}
-														className="h-8 text-sm bg-transparent border-[hsl(var(--primary))]"
-														autoFocus
-														onClick={(e) => e.stopPropagation()}
-													/>
-												) : (
-													<div className="flex items-center gap-2">
-														<span className="text-sm text-[hsl(var(--foreground))] truncate">
-															{session.name.length > 28 ? `${session.name.slice(0, 28)}...` : session.name}
-														</span>
-													</div>
-												)}
+								<div className="space-y-1">
+									{group.sessions.map((session, idx) => (
+										<div
+											key={session.id}
+											className={cn(
+												"group relative flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 transition-all duration-200",
+												session.id === selectedSessionId
+													? "bg-[hsl(var(--sidebar-accent))] border-[hsl(var(--sidebar-border))]"
+													: "hover:bg-[hsl(var(--sidebar-accent))]"
+											)}
+											onClick={() => handleSessionClick(session.id)}
+											style={{ animationDelay: `${idx * 30}ms` }}
+										>
+											<div className="h-8 w-8 rounded-md bg-[hsl(var(--sidebar-border))] flex items-center justify-center text-[hsl(var(--foreground))]">
+												<MessageSquare className="w-4 h-4" />
 											</div>
-										)}
 
-										{!collapsed && (
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<button
-														className="h-7 w-7 flex items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--sidebar-border))]"
-														onClick={(e) => e.stopPropagation()}
-													>
-														<MoreHorizontal className="h-4 w-4" />
-													</button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end" className="w-40">
-													<DropdownMenuItem onClick={(e) => handleRenameStart(session.id, session.name, e as any)}>
-														<Edit className="mr-2 h-3.5 w-3.5" />
-														Rename
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														onClick={(e) => handleDeleteSession(session.id, e as any)}
-														className="text-destructive focus:text-destructive"
-													>
-														<Trash2 className="mr-2 h-3.5 w-3.5" />
-														Delete
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										)}
-									</div>
-								))}
+											{!collapsed && (
+												<div className="flex-1 min-w-0">
+													{renamingSessionId === session.id ? (
+														<Input
+															value={renameValue}
+															onChange={(e) => setRenameValue(e.target.value)}
+															onBlur={() => handleRenameSubmit(session.id)}
+															onKeyDown={(e) => {
+																if (e.key === "Enter") handleRenameSubmit(session.id);
+																if (e.key === "Escape") setRenamingSessionId(null);
+															}}
+															className="h-8 text-sm bg-transparent border-[hsl(var(--primary))]"
+															autoFocus
+															onClick={(e) => e.stopPropagation()}
+														/>
+													) : (
+														<div className="flex items-center gap-2">
+															<span className="text-sm text-[hsl(var(--foreground))] truncate">
+																{session.name.length > 28 ? `${session.name.slice(0, 28)}...` : session.name}
+															</span>
+														</div>
+													)}
+												</div>
+											)}
+
+											{!collapsed && (
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<button
+															className="h-7 w-7 flex items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--sidebar-border))]"
+															onClick={(e) => e.stopPropagation()}
+														>
+															<MoreHorizontal className="h-4 w-4" />
+														</button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end" className="w-40">
+														<DropdownMenuItem onClick={(e) => handleRenameStart(session.id, session.name, e as any)}>
+															<Edit className="mr-2 h-3.5 w-3.5" />
+															Rename
+														</DropdownMenuItem>
+														<DropdownMenuItem
+															onClick={(e) => handleDeleteSession(session.id, e as any)}
+															className="text-destructive focus:text-destructive"
+														>
+															<Trash2 className="mr-2 h-3.5 w-3.5" />
+															Delete
+														</DropdownMenuItem>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											)}
+										</div>
+									))}
+								</div>
 							</div>
-						</div>
-					))}
+						))}
 
-					{filteredSessions.length === 0 && (
-						<div className="px-2 py-6 text-center text-[hsl(var(--muted-foreground))]">
-							<MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-60" />
-							{!collapsed && (
-								<>
-									<p className="text-sm">No chats</p>
-									<p className="text-xs text-[hsl(var(--muted-foreground))]">Start a new conversation</p>
-								</>
-							)}
-						</div>
-					)}
-				</div>
+						{filteredSessions.length === 0 && (
+							<div className="px-2 py-6 text-center text-[hsl(var(--muted-foreground))]">
+								<MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-60" />
+								<p className="text-sm">No chats</p>
+								<p className="text-xs text-[hsl(var(--muted-foreground))]">Start a new conversation</p>
+							</div>
+						)}
+					</div>
+				)}
 			</ScrollArea>
 
 			<div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
-				<button
-					onClick={onOpenSettings}
-					className={cn(
-						"w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-[hsl(var(--sidebar-accent))] transition-colors",
-						collapsed && "justify-center"
-					)}
-				>
-					<Avatar className="h-9 w-9 border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--primary))/0.15] text-[hsl(var(--primary-foreground))]">
-						<AvatarFallback>T</AvatarFallback>
-					</Avatar>
-					{!collapsed && (
-						<div className="flex-1 text-left">
-							<div className="text-sm font-semibold text-[hsl(var(--foreground))]">Tobi</div>
-							<div className="text-xs text-[hsl(var(--muted-foreground))]">Premium</div>
-						</div>
-					)}
-					{!collapsed && (
-						<div className="h-8 w-8 flex items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
-							<Settings className="w-4 h-4" />
-						</div>
-					)}
-				</button>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							className={cn(
+								"w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-[hsl(var(--sidebar-accent))] transition-colors",
+								collapsed && "justify-center"
+							)}
+						>
+							<Avatar className="h-9 w-9 border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--primary))/0.15] text-[hsl(var(--primary-foreground))]">
+								<AvatarFallback>T</AvatarFallback>
+							</Avatar>
+							{!collapsed && (
+								<div className="flex-1 text-left">
+									<div className="text-sm font-semibold text-[hsl(var(--foreground))]">Tobi</div>
+								</div>
+							)}
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end" className="w-56">
+						<DropdownMenuItem onClick={() => { onOpenSettings(); window.dispatchEvent(new CustomEvent('settings-tab', { detail: 'personalizations' })); }}>
+							<User className="mr-2 h-4 w-4" />
+							Personalization
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={onOpenSettings}>
+							<Settings className="mr-2 h-4 w-4" />
+							Settings
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 		</aside>
 	);

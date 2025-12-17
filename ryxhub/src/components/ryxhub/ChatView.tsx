@@ -84,7 +84,7 @@ export function ChatView() {
   const { data: apiModels } = useModels();
   
   const allModels = apiModels || contextModels;
-  const availableModels = allModels.filter(m => m.status === 'loaded');
+  const availableModels = allModels.filter(m => m.status === 'online');
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
   const messages = currentSession?.messages ?? [];
   
