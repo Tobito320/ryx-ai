@@ -26,19 +26,14 @@ export function EmptyChatState({ onSendMessage, isTyping }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-full items-center justify-center bg-[hsl(var(--background))] px-4">
-      <div className="max-w-[720px] w-full space-y-8">
-        {/* Headline */}
-        <div className="text-center space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">
-            Was möchtest du lernen?
-          </h1>
-          <p className="text-[hsl(var(--muted-foreground))] text-sm">
-            Starte eine Konversation
-          </p>
+    <div className="flex flex-col h-full items-center justify-center bg-background px-4">
+      <div className="max-w-xl w-full space-y-8">
+        {/* Simple headline */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold">What can I help with?</h1>
         </div>
 
-        {/* Input box */}
+        {/* Input */}
         <div className="relative flex items-end gap-2">
           <div className="flex-1 relative">
             <Textarea
@@ -48,7 +43,7 @@ export function EmptyChatState({ onSendMessage, isTyping }: Props) {
               onKeyDown={handleKeyDown}
               placeholder="Message Ryx..."
               disabled={isTyping}
-              className="min-h-[52px] max-h-[200px] pr-12 text-sm resize-none rounded-2xl border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:border-[hsl(var(--primary))]"
+              className="min-h-[52px] max-h-[200px] pr-12 text-sm resize-none rounded-2xl border-border focus:border-primary"
             />
             <div className="absolute right-2 bottom-2">
               <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
@@ -60,7 +55,7 @@ export function EmptyChatState({ onSendMessage, isTyping }: Props) {
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
             size="icon"
-            className="h-[52px] w-[52px] rounded-full bg-[hsl(var(--primary))] hover:opacity-90 transition-opacity"
+            className="h-[52px] w-[52px] rounded-xl"
           >
             <Send className="w-5 h-5" />
           </Button>

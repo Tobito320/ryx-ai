@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, Bot, User, Sparkles, Copy, Check, Loader2, Settings2, Zap, Clock, MessageSquare, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, AlertTriangle, MoreHorizontal, Mail } from "lucide-react";
+import { Send, Paperclip, Sparkles, Copy, Check, Loader2, Zap, Upload, X, FileText, Image as ImageIcon, Trash2, Edit2, Search, Database, Globe, Wrench, Settings, Brain, MoreHorizontal, Mail, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,17 +17,8 @@ import { gmailApi } from "@/lib/api/client";
 import { GmailSettingsPanel } from "./GmailSettingsPanel";
 import { EmptyChatState } from "./EmptyChatState";
 
-// Icon map for tools
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Search, Database, Globe, FileText, Wrench, Brain,
-};
-
-// Tool display names
-const toolDisplayNames: Record<string, string> = {
-  "web_search": "searched",
-  "memory_retrieve": "memory",
-  "memory_store": "learned",
-  "rag_search": "docs",
 };
 
 interface UploadedFile {
@@ -49,10 +40,8 @@ interface MessageStats {
   language?: string;
 }
 
-// Default model - can be overridden via environment variable or settings
 const DEFAULT_MODEL = import.meta.env.VITE_DEFAULT_MODEL || "/models/medium/general/qwen2.5-7b-gptq";
 
-// Available tools for restriction settings
 const defaultTools = [
   { id: "websearch", name: "Web Search", description: "Auto-searches when needed", icon: "Search" },
   { id: "rag", name: "RAG", description: "Query knowledge base", icon: "Database" },
@@ -61,7 +50,7 @@ const defaultTools = [
 ];
 
 export function ChatView() {
-  const { sessions, selectedSessionId, addMessageToSession, clearSessionMessages, updateSessionTools, editMessageInSession, models: contextModels, addVariantToMessage, setActiveVariant } = useRyxHub();
+  const { sessions, selectedSessionId, addMessageToSession, clearSessionMessages, editMessageInSession, models: contextModels, addVariantToMessage, setActiveVariant } = useRyxHub();
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
@@ -89,14 +78,10 @@ export function ChatView() {
   const currentSession = sessions.find((s) => s.id === selectedSessionId);
   const messages = currentSession?.messages ?? [];
   
-  // Load session settings when session changes
   useEffect(() => {
     if (!currentSession?.id) return;
-    
-    // Load style and system prompt
     const savedStyle = localStorage.getItem(`session-style-${currentSession.id}`);
     setSessionStyle(savedStyle || 'normal');
-    
     const savedPrompt = localStorage.getItem(`session-systemprompt-${currentSession.id}`);
     setSessionSystemPrompt(savedPrompt || '');
     
@@ -262,8 +247,6 @@ export function ChatView() {
         model: response.model || selectedModel,
         toolsUsed: response.tools_used || [],
         confidence: response.confidence,
-        memoriesUsed: response.memories_used || [],
-        toolDecisions: response.tool_decisions || [],
         emailDraft: (response as any).email_draft,
       });
 
@@ -314,7 +297,8 @@ export function ChatView() {
 
     try {
       const history = buildConversationHistory();
-      const userMemories = await fetchUserMemories();
+      const storedMemories = localStorage.getItem('ryxhub_user_memories');
+      const userMemories = storedMemories ? JSON.parse(storedMemories) : [];
 
       const response = await sendMessageMutation.mutateAsync({
         sessionId: selectedSessionId,
@@ -344,8 +328,6 @@ export function ChatView() {
         model: response.model || selectedModel,
         toolsUsed: response.tools_used || [],
         confidence: response.confidence,
-        memoriesUsed: response.memories_used || [],
-        toolDecisions: response.tool_decisions || [],
         emailDraft: (response as any).email_draft,
       });
 
@@ -403,7 +385,7 @@ export function ChatView() {
         message: editContent,
         model: selectedModel,
         history,
-        tools: tools.filter(t => t.enabled).map(t => t.id),
+        toolRestrictions: sessionToolRestrictions,
       });
       
       addMessageToSession(selectedSessionId, {
@@ -592,50 +574,46 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background w-full">
-      {/* Compact Header */}
+    <div className="flex flex-col h-full bg-background">
+      {/* Minimal Header */}
       <div className="px-4 py-2 border-b border-border flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-primary" />
-            <span className="text-sm font-medium">{currentSession.name}</span>
-            <span className="text-xs text-muted-foreground">({messages.length})</span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Select value={selectedModel} onValueChange={handleModelChange}>
-              <SelectTrigger className="w-[140px] h-7 text-xs">
-                <SelectValue>{getModelDisplayName(selectedModel)}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {availableModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id} className="text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className={cn("w-1.5 h-1.5 rounded-full", model.status === "online" ? "bg-green-500" : "bg-gray-400")} />
-                      {getModelDisplayName(model.name)}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            {lastStats && (
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                {lastStats.tokens_per_second && <span className="flex items-center gap-0.5"><Zap className="w-3 h-3" />{lastStats.tokens_per_second.toFixed(0)}t/s</span>}
-                {lastStats.latency_ms && <span>{(lastStats.latency_ms / 1000).toFixed(1)}s</span>}
-              </div>
-            )}
-            
-            {messages.length > 0 && (
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive" onClick={handleClearChat}>
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            )}
-            
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setSessionSettingsOpen(true)}>
-              <Settings className="w-3 h-3" />
-            </Button>
-          </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium truncate max-w-[200px]">{currentSession.name}</span>
+          <span className="text-xs text-muted-foreground">({messages.length})</span>
         </div>
+        
+        <div className="flex items-center gap-2">
+          <Select value={selectedModel} onValueChange={handleModelChange}>
+            <SelectTrigger className="w-32 h-7 text-xs border-0 bg-muted hover:bg-muted/80">
+              <SelectValue>{getModelDisplayName(selectedModel)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {availableModels.map((model) => (
+                <SelectItem key={model.id} value={model.id} className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("w-1.5 h-1.5 rounded-full", model.status === "online" ? "bg-green-500" : "bg-gray-400")} />
+                    {getModelDisplayName(model.name)}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {lastStats?.tokens_per_second && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+              <Zap className="w-3 h-3" />{lastStats.tokens_per_second.toFixed(0)}t/s
+            </span>
+          )}
+          
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={handleClearChat}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+          
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => setSessionSettingsOpen(true)}>
+            <Settings className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
 
       {/* Messages - Narrow centered column like ChatGPT */}
       <ScrollArea className="flex-1">
@@ -685,26 +663,6 @@ export function ChatView() {
                     </div>
                   ) : (
                     <>
-                      {/* Memory context indicator - show what memories were used */}
-                      {message.role === "assistant" && message.memoriesUsed && message.memoriesUsed.length > 0 && (
-                        <div className="mb-2 pb-2 border-b border-border/50 text-[10px] text-muted-foreground">
-                          <span className="flex items-center gap-1 font-medium text-primary/80">
-                            <Brain className="w-3 h-3" /> Using memories:
-                          </span>
-                          <div className="mt-1 space-y-0.5">
-                            {message.memoriesUsed.slice(0, 3).map((mem: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-1 text-[9px]">
-                                <span className="text-muted-foreground/60">[{mem.category}]</span>
-                                <span>{mem.fact.length > 60 ? mem.fact.slice(0, 60) + '...' : mem.fact}</span>
-                              </div>
-                            ))}
-                            {message.memoriesUsed.length > 3 && (
-                              <span className="text-muted-foreground/50">+{message.memoriesUsed.length - 3} more</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
                       <div className="whitespace-pre-wrap">{displayContent}</div>
 
                       {/* Email draft preview if generated */}
@@ -712,12 +670,11 @@ export function ChatView() {
                         <div className="mt-2 p-3 rounded-lg bg-card border border-border/50 text-xs space-y-2">
                           <div className="flex items-center gap-2 text-sm font-medium">
                             <Mail className="w-4 h-4" />
-                            Email draft prepared
+                            Email draft
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
                             <div><span className="text-muted-foreground">To:</span> {message.emailDraft.to}</div>
-                            <div><span className="text-muted-foreground">From:</span> {message.emailDraft.from}</div>
-                            <div className="col-span-2"><span className="text-muted-foreground">Subject:</span> {message.emailDraft.subject}</div>
+                            <div><span className="text-muted-foreground">Subject:</span> {message.emailDraft.subject}</div>
                           </div>
                           <div className="p-2 rounded bg-muted/60 text-[11px] whitespace-pre-wrap max-h-40 overflow-y-auto">
                             {message.emailDraft.body}
