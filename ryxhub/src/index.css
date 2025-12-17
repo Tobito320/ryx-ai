@@ -2,128 +2,100 @@
 @tailwind components;
 @tailwind utilities;
 
-/* RyxHub - ChatGPT-Minimal Dark Design System */
-/* Color Reference:
-   --bg-primary: #1f2121 (charcoal)
-   --bg-secondary: #262828 (darker charcoal)
-   --text-primary: #f5f5f5 (light gray)
-   --text-secondary: #a7a9a9 (medium gray)
-   --accent-primary: #208289 (teal)
-   --success: #32b8c6 (bright teal)
-   --warning: #e6814d (warm orange)
-   --error: #ff5459 (red)
-*/
+/* ═══════════════════════════════════════════════════════════════════════════
+   ChatGPT UI Replication - Exact Color Values
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root {
-    /* Light mode defaults (kept minimal, accent aligned to dark) */
-    --background: 0 0% 98%;
-    --foreground: 0 0% 12%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 12%;
-    --primary: 173 81% 40%;
-    --primary-foreground: 0 0% 6%;
-    --secondary: 0 0% 94%;
-    --secondary-foreground: 0 0% 12%;
-    --muted: 0 0% 90%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 173 81% 40%;
-    --accent-foreground: 0 0% 6%;
+    /* ChatGPT exact colors (dark mode only) */
+    --background: 220 13% 6%;                    /* #0F0F10 - app background */
+    --sidebar-background: 220 9% 7%;             /* #111213 - sidebar */
+    --foreground: 0 0% 93%;                      /* #ECECEC - primary text */
+    --muted-foreground: 0 0% 60%;                /* #9A9A9A - secondary text */
+    --ui-text: 0 0% 43%;                         /* #6E6E73 - muted UI text */
+
+    /* Interaction states */
+    --hover-bg: 0 0% 100% / 0.04;                /* rgba(255,255,255,0.04) */
+    --active-bg: 0 0% 100% / 0.06;               /* rgba(255,255,255,0.06) */
+    --border: 0 0% 100% / 0.06;                  /* rgba(255,255,255,0.06) */
+
+    /* Accent - muted green/teal */
+    --primary: 165 60% 45%;                      /* Muted teal for primary action */
+    --primary-foreground: 0 0% 100%;
+
+    /* Derived values for compatibility */
+    --card: 220 13% 6%;
+    --card-foreground: 0 0% 93%;
+    --popover: 220 9% 7%;
+    --popover-foreground: 0 0% 93%;
+    --secondary: 220 9% 7%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 220 9% 10%;
+    --accent: 165 60% 45%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
-    --ring: 173 81% 40%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 96%;
-    --sidebar-foreground: 0 0% 12%;
-    --sidebar-primary: 173 81% 40%;
-    --sidebar-primary-foreground: 0 0% 6%;
-    --sidebar-accent: 0 0% 92%;
-    --sidebar-accent-foreground: 0 0% 12%;
-    --sidebar-border: 0 0% 88%;
-    --sidebar-ring: 173 81% 40%;
-    --sidebar: 0 0% 96%;
-    --success: 152 69% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 12%;
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --input: 0 0% 100% / 0.06;
+    --ring: 165 60% 45%;
+    --radius: 0.5rem;                            /* 8px - ChatGPT rounded corners */
+
+    /* System font stack - identical to ChatGPT */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
-  /* Light mode explicit class */
-  .light {
-    --background: 0 0% 96%;
-    --foreground: 0 0% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
-    --primary: 173 81% 40%;
-    --primary-foreground: 0 0% 6%;
-    --secondary: 0 0% 92%;
-    --secondary-foreground: 0 0% 10%;
-    --muted: 0 0% 88%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 173 81% 40%;
-    --accent-foreground: 0 0% 6%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 85%;
-    --input: 0 0% 85%;
-    --ring: 173 81% 40%;
-    --sidebar-background: 0 0% 94%;
-    --sidebar-foreground: 0 0% 10%;
-    --sidebar-primary: 173 81% 40%;
-    --sidebar-primary-foreground: 0 0% 6%;
-    --sidebar-accent: 0 0% 90%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 0 0% 82%;
-    --sidebar-ring: 173 81% 40%;
-    --sidebar: 0 0% 94%;
-    --success: 152 69% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 10%;
-  }
-
-  /* Dark mode - ChatGPT aesthetic */
   .dark {
-    --background: 0 0% 6%;
-    --foreground: 0 0% 92%;
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 92%;
-    --popover: 0 0% 16%;
-    --popover-foreground: 0 0% 92%;
-    --primary: 173 81% 40%;
-    --primary-foreground: 0 0% 6%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 92%;
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 70%;
-    --accent: 173 81% 40%;
-    --accent-foreground: 0 0% 6%;
-    --destructive: 358 100% 64%;
+    --background: 220 13% 6%;
+    --sidebar-background: 220 9% 7%;
+    --foreground: 0 0% 93%;
+    --muted-foreground: 0 0% 60%;
+    --ui-text: 0 0% 43%;
+    --hover-bg: 0 0% 100% / 0.04;
+    --active-bg: 0 0% 100% / 0.06;
+    --border: 0 0% 100% / 0.06;
+    --primary: 165 60% 45%;
+    --primary-foreground: 0 0% 100%;
+    --card: 220 13% 6%;
+    --card-foreground: 0 0% 93%;
+    --popover: 220 9% 7%;
+    --popover-foreground: 0 0% 93%;
+    --secondary: 220 9% 7%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 220 9% 10%;
+    --accent: 165 60% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 25%;
-    --input: 0 0% 25%;
-    --ring: 173 81% 40%;
-    --sidebar-background: 0 0% 8%;
-    --sidebar-foreground: 0 0% 92%;
-    --sidebar-primary: 173 81% 40%;
-    --sidebar-primary-foreground: 0 0% 6%;
-    --sidebar-accent: 0 0% 12%;
-    --sidebar-accent-foreground: 0 0% 92%;
-    --sidebar-border: 0 0% 18%;
-    --sidebar-ring: 173 81% 40%;
-    --sidebar: 0 0% 8%;
-    --success: 164 66% 42%;
-    --success-foreground: 0 0% 100%;
-    --warning: 26 85% 56%;
-    --warning-foreground: 0 0% 8%;
+    --input: 0 0% 100% / 0.06;
+    --ring: 165 60% 45%;
+  }
+
+  .light {
+    /* Light mode not used - ChatGPT is dark only */
+    --background: 220 13% 6%;
+    --sidebar-background: 220 9% 7%;
+    --foreground: 0 0% 93%;
+    --muted-foreground: 0 0% 60%;
+    --ui-text: 0 0% 43%;
+    --hover-bg: 0 0% 100% / 0.04;
+    --active-bg: 0 0% 100% / 0.06;
+    --border: 0 0% 100% / 0.06;
+    --primary: 165 60% 45%;
+    --primary-foreground: 0 0% 100%;
+    --card: 220 13% 6%;
+    --card-foreground: 0 0% 93%;
+    --popover: 220 9% 7%;
+    --popover-foreground: 0 0% 93%;
+    --secondary: 220 9% 7%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 220 9% 10%;
+    --accent: 165 60% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --input: 0 0% 100% / 0.06;
+    --ring: 165 60% 45%;
   }
 }
 
@@ -133,7 +105,9 @@
   }
 
   html {
-    /* Default to dark, but respect class */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   html.dark {
@@ -145,11 +119,22 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
+    @apply bg-background text-foreground font-sans;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    font-weight: 400;
   }
+
+  /* Typography - subtle, not bold */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3, h4, h5, h6 { font-size: 1rem; }
 }
 
 /* Custom scrollbar - thin & subtle */
@@ -188,212 +173,45 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   SMOOTH ANIMATIONS - Sleek & Professional
-   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ChatGPT Motion - Dead Calm
 
-/* Global smooth transitions */
-* {
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
+   150-200ms ease-out only
+   Allowed: opacity fade, 4-8px translate
+   Forbidden: scale, bounce, elastic, stagger
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Fade in animation */
+/* Fade in - 6px slide */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Slide in from left */
-@keyframes slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Slide in from right */
+/* Slide from right */
 @keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
-/* Scale in */
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Bounce subtle */
-@keyframes bounceSubtle {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-}
-
-/* Pulse glow */
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 8px hsl(var(--primary) / 0);
-  }
-}
-
-/* Shimmer effect */
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
-}
-
-/* Apply animations to components */
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-.animate-slide-in-left {
-  animation: slideInLeft 0.4s ease-out;
+  animation: fadeIn 150ms ease-out;
 }
 
 .animate-slide-in-right {
-  animation: slideInRight 0.4s ease-out;
+  animation: slideInRight 200ms ease-out;
 }
 
-.animate-scale-in {
-  animation: scaleIn 0.25s ease-out;
+/* Interactive elements */
+button, a {
+  transition: background-color 150ms ease-out, opacity 150ms ease-out;
 }
 
-.animate-bounce-subtle {
-  animation: bounceSubtle 0.6s ease-in-out;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2s ease-in-out infinite;
-}
-
-/* Smooth hover transitions for all interactive elements */
-button, a, [role="button"], [role="link"] {
-  transition: all 0.2s ease-out;
-}
-
-button:hover, a:hover, [role="button"]:hover {
-  transform: translateY(-1px);
-}
-
-button:active, [role="button"]:active {
-  transform: translateY(0);
-  transition-duration: 0.1s;
-}
-
-/* Card hover effects */
-.card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px hsl(var(--foreground) / 0.1),
-              0 8px 10px -6px hsl(var(--foreground) / 0.05);
-}
-
-/* Smooth dialog animations */
+/* Dialogs */
 [data-state="open"] {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 150ms ease-out;
 }
 
-[data-state="closed"] {
-  animation: fadeOut 0.2s ease-in;
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-}
-
-/* Smooth sidebar transitions */
-.sidebar-transition {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.3s ease-out;
-}
-
-/* Message bubble animations */
-.message-bubble {
-  animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.message-bubble.user {
-  animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Loading skeleton shimmer */
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted-foreground) / 0.1) 50%,
-    hsl(var(--muted)) 100%
-  );
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite linear;
-}
-
-/* Smooth input focus */
-input:focus, textarea:focus, select:focus {
-  transition: all 0.2s ease-out;
-}
-
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
-}
-
-/* Stagger animation delays for lists */
-.stagger-item:nth-child(1) { animation-delay: 0ms; }
-.stagger-item:nth-child(2) { animation-delay: 50ms; }
-.stagger-item:nth-child(3) { animation-delay: 100ms; }
-.stagger-item:nth-child(4) { animation-delay: 150ms; }
-.stagger-item:nth-child(5) { animation-delay: 200ms; }
-.stagger-item:nth-child(n+6) { animation-delay: 250ms; }
-
-/* Smooth page transitions */
-.view-transition {
-  animation: fadeIn 0.4s ease-out;
-}
+/* No hover transforms, no active states, no stagger */
 
 /* Chat bubble styles */
 .chat-bubble-user {

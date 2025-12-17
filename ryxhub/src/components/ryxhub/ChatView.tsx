@@ -15,6 +15,7 @@ import { MessageActionsMenu } from "./MessageActionsMenu";
 import { VariantSelector } from "./VariantSelector";
 import { gmailApi } from "@/lib/api/client";
 import { GmailSettingsPanel } from "./GmailSettingsPanel";
+import { EmptyChatState } from "./EmptyChatState";
 
 // Icon map for tools
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -298,6 +299,83 @@ export function ChatView() {
     }
   };
 
+  // Wrapper for empty state - simplified message sending
+  const handleSendMessage = async (message: string) => {
+    if (!message.trim() || !selectedSessionId || isTyping) return;
+
+    addMessageToSession(selectedSessionId, {
+      role: "user",
+      content: message,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+
+    setIsTyping(true);
+    setLastStats(null);
+
+    try {
+      const history = buildConversationHistory();
+      const userMemories = await fetchUserMemories();
+
+      const response = await sendMessageMutation.mutateAsync({
+        sessionId: selectedSessionId,
+        message,
+        model: selectedModel,
+        history,
+        toolRestrictions: sessionToolRestrictions,
+        style: sessionStyle,
+        systemPrompt: sessionSystemPrompt,
+        memories: userMemories,
+      });
+
+      setLastStats({
+        latency_ms: response.latency_ms,
+        tokens_per_second: response.tokens_per_second,
+        prompt_tokens: response.prompt_tokens,
+        completion_tokens: response.completion_tokens,
+        tools_used: response.tools_used || [],
+        confidence: response.confidence,
+        language: response.language,
+      });
+
+      addMessageToSession(selectedSessionId, {
+        role: "assistant",
+        content: response.content,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        model: response.model || selectedModel,
+        toolsUsed: response.tools_used || [],
+        confidence: response.confidence,
+        memoriesUsed: response.memories_used || [],
+        toolDecisions: response.tool_decisions || [],
+        emailDraft: (response as any).email_draft,
+      });
+
+      if (response.warnings && response.warnings.length > 0) {
+        response.warnings.forEach((warning: string) => {
+          toast.warning(warning, { duration: 5000 });
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to get response";
+      let displayError = "Connection failed";
+      if (errorMessage.includes("does not exist") || errorMessage.includes("NotFoundError")) {
+        displayError = "Model not loaded. Please load the model first.";
+      } else if (errorMessage.includes("Cannot connect")) {
+        displayError = "Ollama not running. Start Ollama first.";
+      } else {
+        displayError = errorMessage;
+      }
+      toast.error(displayError);
+      addMessageToSession(selectedSessionId, {
+        role: "assistant",
+        content: `⚠️ ${displayError}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        model: "System",
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
   const handleEditMessage = (messageId: string, content: string) => {
     setEditingMessageId(messageId);
     setEditContent(content);
@@ -508,20 +586,15 @@ export function ChatView() {
     }
   };
 
-  if (!currentSession) {
-    return (
-      <div className="flex flex-col h-full bg-background items-center justify-center">
-        <Bot className="w-12 h-12 text-muted-foreground mb-3" />
-        <h2 className="text-sm font-medium text-foreground">No Session</h2>
-        <p className="text-xs text-muted-foreground mt-1">Select or create a session</p>
-      </div>
-    );
+  // Show empty state when no session or no messages
+  if (!currentSession || messages.length === 0) {
+    return <EmptyChatState onSendMessage={handleSendMessage} isTyping={isTyping} />;
   }
 
   return (
     <div className="flex flex-col h-full bg-background w-full">
       {/* Compact Header */}
-      <div className="px-4 py-2 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
+      <div className="px-4 py-2 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-primary" />
             <span className="text-sm font-medium">{currentSession.name}</span>
@@ -564,8 +637,9 @@ export function ChatView() {
           </div>
         </div>
 
-      {/* Messages - Compact */}
-      <ScrollArea className="flex-1 px-4">
+      {/* Messages - Narrow centered column like ChatGPT */}
+      <ScrollArea className="flex-1">
+        <div className="max-w-[720px] mx-auto px-4">
           <div className="py-3 space-y-3">
             {messages.map((message) => {
               // Get active variant content
@@ -763,11 +837,12 @@ export function ChatView() {
             )}
             <div ref={scrollRef} />
           </div>
+        </div>
       </ScrollArea>
 
       {/* ChatGPT-style Input Area */}
       <div className="border-t border-border bg-background shrink-0">
-        <div className="max-w-3xl mx-auto p-4">
+        <div className="max-w-[720px] mx-auto p-4">
           {/* File Uploads */}
           <div ref={dropZoneRef} className={cn("relative", isDragging && "bg-primary/10 rounded-lg")}
             onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}>
